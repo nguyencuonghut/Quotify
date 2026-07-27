@@ -73,6 +73,8 @@
 - Đã chuẩn hóa cơ chế ghi IP audit vào ngày 27/07/2026: thêm helper `resolve_client_ip(...)` dùng chung cho audit log và rate limit; chỉ tin `X-Forwarded-For`/`X-Real-IP` khi socket client thuộc `TRUSTED_PROXY_CIDRS`; production Docker cố định subnet compose mặc định `172.30.0.0/24` và Nginx reset `X-Forwarded-For` bằng `$remote_addr`; tài liệu vận hành đã ghi rõ cấu hình cho cloud Docker, LAN/VPN direct và LAN/VPN qua proxy.
 - Đã ghi memory chuẩn hóa cách chạy Playwright vào ngày 27/07/2026: browser E2E chính thức của repo chạy bằng `make docker-test-e2e`, thông qua service `e2e-test` và Dockerfile target `e2e` có sẵn Chromium/system deps/E2E credentials/base URL Docker. Không dùng container frontend dev hoặc lệnh Playwright rời để kết luận các luồng auth/proxy/audit/network đã ổn.
 - Đã chuyển Dashboard admin khỏi nội dung smoke/scaffold vào ngày 27/07/2026: màn hình chính dùng tên `Bảng điều khiển`, sidebar cũng dùng nhãn này, nội dung tập trung vào tổng quan vận hành cho tài khoản, vai trò, tệp tin, sao lưu và nhật ký audit; form mô phỏng quick filter được thay bằng panel truy cập nhanh theo quyền.
+- Đã cập nhật yêu cầu nghiệp vụ Quotify ngày 27/07/2026 theo phạm vi đơn giản hóa đã thống nhất: bổ sung phiếu/dòng/phiên bản báo giá, quy tắc tỷ giá USD bán ra Vietcombank, nhập lại báo giá, lịch sử ghi chú, giả định điều kiện so sánh tương đương, checkbox chốt mua và dashboard cơ bản; đồng thời tạo `CONTEXT.md` làm bảng thuật ngữ nghiệp vụ.
+- Đã chốt fallback tỷ giá Quotify ngày 27/07/2026: khi ngày nhận là hiện tại nhưng không lấy được tỷ giá Vietcombank, người dùng được nhập tay với lý do bắt buộc; nguồn, người nhập, thời điểm và lý do phải được lưu để audit.
 
 ## Open
 

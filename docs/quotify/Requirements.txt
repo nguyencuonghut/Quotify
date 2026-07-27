@@ -1,0 +1,125 @@
+************************ YÊU CẦU NGHIỆP VỤ PHẦN MỀM PHÂN TÍCH GIÁ NGUYÊN LIỆU ************************
+
+1. Bối cảnh
+
+- Phòng Thu Mua của một công ty sản xuất thức ăn chăn nuôi hàng ngày nhận được nhiều báo giá từ các nhà cung cấp (NCC) trong nước và quốc tế.
+- Các báo giá được gửi tới những nhân viên khác nhau theo mã vật tư mà họ phụ trách.
+- Báo giá thường sử dụng một trong hai cặp tiền tệ/đơn vị: VNĐ/KG hoặc USD/MT.
+- Tiền tệ và đơn vị tính thuộc về từng dòng báo giá, không phụ thuộc vào NCC nội hay NCC ngoại.
+- Giá USD/MT được quy đổi sang VNĐ/KG theo công thức:
+
+    Giá quy đổi VNĐ/KG = (Giá USD/MT / 1000) x Tỷ giá USD bán ra + Chi phí quy đổi
+
+- Tỷ giá USD bán ra lấy từ Vietcombank.
+- Chi phí quy đổi mặc định là 200 VNĐ/KG. Giá trị này được cấu hình trong hệ thống để có thể thay đổi về sau.
+- Hiện nay việc nhập báo giá được thực hiện thủ công:
+    * Từng nhân viên nhập báo giá của mình vào một file Excel tổng.
+    * Khó xác định ai đã nhập bao nhiêu báo giá.
+    * Khó theo dõi lịch sử, lập báo cáo và phân tích.
+
+2. Phạm vi đơn giản hóa
+
+- Hệ thống giả định các báo giá của cùng một vật tư và cùng kỳ giao hàng có điều kiện giao hàng, thanh toán, chất lượng và các chi phí liên quan tương đương nhau.
+- Hệ thống không quản lý tồn kho, nhu cầu sản xuất, lead time hoặc mô hình đánh giá nhà cung cấp.
+- Việc đánh giá quyết định mua trong quá khứ chỉ dựa trên dữ liệu báo giá, kỳ giao hàng, giá mua đã ghi nhận và xu hướng giá có trong hệ thống.
+- Dashboard giai đoạn đầu chỉ sử dụng các chỉ số và biểu đồ được nêu trong tài liệu này.
+
+3. Yêu cầu chức năng
+
+3.1. Quản lý danh mục "Loại vật tư"
+
+- Thông tin bao gồm: Mã | Tên | Trạng thái (active/inactive) | Ghi chú.
+- Cho phép thêm/sửa/xóa/import.
+- Hiển thị dưới dạng DataTable.
+
+3.2. Quản lý danh mục "Vật tư"
+
+- Thông tin bao gồm: Mã vật tư | Tên vật tư | Loại vật tư | Trạng thái (active/inactive) | Ghi chú.
+- Cho phép thêm/sửa/xóa/import.
+- Hiển thị dưới dạng DataTable.
+
+3.3. Quản lý danh mục "Nhà cung cấp"
+
+- Thông tin bao gồm: Mã NCC | Tên NCC | Loại NCC (Nội/Ngoại) | Danh sách vật tư cung cấp | Liên hệ | Trạng thái (active/inactive) | Ghi chú.
+- Loại NCC chỉ dùng để phân loại, không quyết định tiền tệ hoặc đơn vị của báo giá.
+- Một NCC có thể cung cấp một hoặc nhiều vật tư.
+- Liên hệ là thông tin không bắt buộc, gồm: Tên | Email | Số điện thoại | Trạng thái.
+- Một NCC có thể có nhiều liên hệ là các nhân viên kinh doanh khác nhau. Trạng thái liên hệ dùng để quản lý trường hợp thay đổi nhân viên hoặc nhân viên đã nghỉ.
+- Cho phép thêm/sửa/xóa/import.
+- Hiển thị dưới dạng DataTable.
+
+3.4. Quản lý người dùng phòng Thu Mua
+
+- Sử dụng danh sách người dùng của hệ thống để xác định người nhập báo giá và người thêm/sửa ghi chú.
+- Không quản lý chỉ tiêu bắt buộc nhập báo giá, danh sách người chưa nhập hoặc gửi email nhắc nhở.
+- Dashboard chỉ hiển thị KPI số lượng báo giá đã nhập theo từng người dùng.
+
+3.5. Quản lý phiếu báo giá và phiên bản
+
+- Một phiếu báo giá đại diện cho báo giá nhận được từ một NCC.
+- Thông tin chung của phiếu gồm: NCC | Ngày báo giá | Ngày nhận báo giá | Người nhập | Tệp báo giá gốc (nếu có).
+- Một phiếu báo giá có một hoặc nhiều dòng báo giá.
+- Khi NCC gửi báo giá điều chỉnh, hệ thống tạo phiên bản mới và giữ nguyên các phiên bản trước; không ghi đè dữ liệu lịch sử.
+- Mỗi phiên bản cần thể hiện số phiên bản, thời điểm tạo và người tạo.
+
+3.6. Nhập dòng báo giá
+
+- Chọn "Vật tư".
+- Chọn "NCC"; chỉ hiển thị các NCC cung cấp vật tư đã chọn.
+- Kỳ giao hàng theo định dạng MM/YYYY.
+- Giá gốc.
+- Tiền tệ: VNĐ hoặc USD.
+- Đơn vị tính: KG hoặc MT.
+- Tỷ giá quy đổi, áp dụng với dòng báo giá USD/MT.
+- Chi phí quy đổi VNĐ/KG, áp dụng với dòng báo giá USD/MT.
+- Giá quy đổi VNĐ/KG.
+- Tick chọn "Đã chốt mua".
+
+Quy tắc tỷ giá:
+
+- Nếu "Ngày nhận báo giá" là ngày hiện tại theo múi giờ `Asia/Ho_Chi_Minh`, hệ thống tự động lấy tỷ giá USD bán ra của Vietcombank.
+- Nếu "Ngày nhận báo giá" là ngày trong quá khứ, người dùng nhập tay tỷ giá.
+- Nếu "Ngày nhận báo giá" là ngày hiện tại nhưng hệ thống không lấy được tỷ giá từ Vietcombank, người dùng được phép nhập tay tỷ giá để không làm gián đoạn công việc.
+- Trường hợp nhập tay do không lấy được tỷ giá tự động phải bắt buộc ghi lý do và được đánh dấu nguồn là "Nhập tay do không lấy được tỷ giá tự động".
+- Hệ thống lưu người nhập tỷ giá tay, thời điểm nhập và lý do trong lịch sử audit.
+- Không cho phép "Ngày nhận báo giá" ở tương lai.
+- Mỗi dòng báo giá phải lưu giá trị tỷ giá, nguồn tự động hoặc nhập tay, chi phí quy đổi đã áp dụng và giá quy đổi tại thời điểm nhập để dữ liệu lịch sử không thay đổi khi cấu hình mới được áp dụng.
+
+Quy tắc nhập lại báo giá:
+
+- Cho phép nhập báo giá có kỳ giao hàng đã qua.
+- Báo giá này được đánh dấu là "Nhập lại báo giá".
+- Người dùng bắt buộc nhập lý do.
+- Hệ thống lưu người nhập và thời điểm nhập thực tế trong lịch sử audit.
+
+Quy tắc chốt mua:
+
+- Nếu công ty đã mua theo một dòng báo giá, người dùng tick chọn "Đã chốt mua".
+- Phiên bản đơn giản không quản lý thêm khối lượng mua, phê duyệt, hợp đồng, đơn mua hàng hoặc các phương án thay thế.
+
+3.7. Ghi chú thị trường
+
+- Ghi chú là nội dung rich text dùng để lưu nhận định thị trường của nhân viên.
+- Ghi chú được quản lý thành các bản ghi lịch sử riêng, không dùng một ô nội dung chung để nhiều người ghi đè.
+- Mỗi ghi chú phải lưu người tạo, thời điểm tạo, người sửa gần nhất và thời điểm sửa gần nhất.
+- Khi sửa ghi chú, hệ thống phải giữ được nội dung cũ và nội dung mới.
+- Người nhập phiếu báo giá và người tạo hoặc sửa ghi chú có thể là những người khác nhau.
+
+3.8. Bảng báo giá đã nhập
+
+- Hiển thị dưới dạng DataTable các trường của phiếu, phiên bản và dòng báo giá.
+- Cho phép lọc theo cột và tìm kiếm toàn cục.
+- Cho phép xem lịch sử phiên bản của phiếu báo giá.
+- Cho phép xem lịch sử ghi chú.
+
+3.9. Dashboard
+
+- KPI card thể hiện số lượng báo giá đã nhập theo từng người dùng.
+- Dashboard phân tích giá cho phép lọc theo: Vật tư | Kỳ giao hàng | Khoảng thời gian nhận báo giá.
+- Dashboard thể hiện xu hướng giá quy đổi VNĐ/KG.
+- Dashboard hiển thị giá MIN | MAX | TRUNG BÌNH theo bộ lọc.
+- Biểu đồ phải thể hiện các điểm đã tick "Đã chốt mua".
+- Việc xem lại quyết định mua trong quá khứ gồm hai góc nhìn:
+    * Tại thời điểm mua: so sánh giá đã chốt với các báo giá có trong hệ thống tại thời điểm đó.
+    * Sau thời điểm mua: so sánh giá đã chốt với xu hướng giá phát sinh sau đó.
+- Hai góc nhìn trên chỉ cung cấp thông tin tham khảo; hệ thống không tự kết luận quyết định mua là đúng hay sai.
