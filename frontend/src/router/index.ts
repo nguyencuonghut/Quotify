@@ -9,6 +9,7 @@ import MaterialTypesPage from '@/pages/MaterialTypesPage.vue'
 import MaterialsPage from '@/pages/MaterialsPage.vue'
 import ProfilePage from '@/pages/ProfilePage.vue'
 import RolesPage from '@/pages/RolesPage.vue'
+import SuppliersPage from '@/pages/SuppliersPage.vue'
 import UsersPage from '@/pages/UsersPage.vue'
 import BackupsPage from '@/pages/BackupsPage.vue'
 
@@ -67,6 +68,17 @@ export const router = createRouter({
         requiredPermission: 'materials.read',
         title: 'Vật tư',
         description: 'Quản lý danh mục vật tư và loại vật tư tương ứng.',
+      },
+    },
+    {
+      path: '/catalog/suppliers',
+      name: 'suppliers',
+      component: SuppliersPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'suppliers.read',
+        title: 'Nhà cung cấp',
+        description: 'Quản lý danh mục nhà cung cấp, liên hệ và vật tư cung cấp.',
       },
     },
     {

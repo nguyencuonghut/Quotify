@@ -11,6 +11,9 @@ from app.models.material_type import MaterialType
 from app.models.permission import Permission, role_permissions
 from app.models.refresh_token import RefreshToken
 from app.models.role import Role
+from app.models.supplier import Supplier
+from app.models.supplier_contact import SupplierContact
+from app.models.supplier_material import SupplierMaterial
 from app.models.user import User, UserStatus, user_roles
 
 __all__ = [
@@ -25,6 +28,9 @@ __all__ = [
     "Permission",
     "RefreshToken",
     "Role",
+    "Supplier",
+    "SupplierContact",
+    "SupplierMaterial",
     "User",
     "UserStatus",
     "role_permissions",

@@ -208,6 +208,12 @@ const navGroups: NavGroup[] = [
         to: '/catalog/materials',
         permission: 'materials.read',
       },
+      {
+        label: 'Nhà cung cấp',
+        icon: 'pi pi-truck',
+        to: '/catalog/suppliers',
+        permission: 'suppliers.read',
+      },
     ],
   },
   {

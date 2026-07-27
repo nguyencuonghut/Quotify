@@ -219,6 +219,22 @@ def test_sanitize_audit_metadata_preserves_user_change_summary_keys() -> None:
     assert sanitize_audit_metadata(metadata) == metadata
 
 
+def test_sanitize_audit_metadata_preserves_supplier_catalog_keys() -> None:
+    metadata = {
+        "code": "SUP-001",
+        "name": "Nhà cung cấp A",
+        "supplier_type": "domestic",
+        "tax_code": "0100100100",
+        "address": "Hải Phòng",
+        "contact_count": 2,
+        "material_count": 3,
+        "material_codes": ["CORN", "SOYBEAN_MEAL"],
+        "material_names": ["Ngô hạt", "Khô dầu đậu nành"],
+    }
+
+    assert sanitize_audit_metadata(metadata) == metadata
+
+
 def test_sanitize_audit_metadata_preserves_worker_lifecycle_keys() -> None:
     metadata = {
         "import_job_id": "import-1",

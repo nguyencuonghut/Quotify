@@ -496,3 +496,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Thêm seed dữ liệu vật tư Quotify
 - Tóm tắt: Đã thêm Quotify seed idempotent cho 2 loại vật tư Nguyên liệu, Vi lượng và 27 vật tư phổ biến ngành sản xuất thức ăn chăn nuôi. Thêm script seed_quotify.py, service QuotifySeedService, test service, nối Docker dev/E2E và Makefile seed để chạy sau auth seed. Đã kiểm chứng bằng Docker targeted tests, chạy seed thật hai lần trên Postgres test, ruff, mypy, py_compile và git diff --check.
+
+## 2026-07-27 09:10:28Z - codex
+
+- Tiêu đề: Hoàn thành Phase 2 Quotify
+- Tóm tắt: Đã triển khai danh mục Nhà cung cấp cho Quotify: migration/model/schema/service/API suppliers, contacts và supplier_materials; audit changes old/new; frontend route /catalog/suppliers với DataTable lazy, paging chuẩn, filter, dialog liên hệ/vật tư. Đã kiểm chứng bằng Docker backend targeted test 27 passed 1 skipped, Docker alembic upgrade head, frontend typecheck/lint, py_compile và git diff --check.

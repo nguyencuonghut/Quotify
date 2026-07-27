@@ -98,6 +98,23 @@ export function listMaterials(
   }).then(mapMaterialListDtoToDomain)
 }
 
+export function listMaterialsLookup(
+  accessToken?: string | null,
+  search = '',
+): Promise<MaterialDomain[]> {
+  const params: CatalogListQueryParams = {
+    limit: 100,
+    offset: 0,
+    search,
+    status: 'active',
+    sort_by: 'code',
+    sort_order: 'asc',
+  }
+  return apiRequest<MaterialListDto>(`/materials?${buildCatalogQuery(params)}`, {
+    accessToken,
+  }).then((dto) => dto.items.map(mapMaterialDtoToDomain))
+}
+
 export function createMaterial(
   payload: MaterialPayload,
   accessToken?: string | null,

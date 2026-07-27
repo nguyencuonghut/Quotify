@@ -15,5 +15,8 @@ from app.models import (  # noqa: F401,E402
     permission,
     refresh_token,
     role,
+    supplier,
+    supplier_contact,
+    supplier_material,
     user,
 )

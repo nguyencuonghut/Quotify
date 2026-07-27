@@ -28,6 +28,16 @@ from app.schemas.role import (
     RoleResponse,
     RoleUpdateRequest,
 )
+from app.schemas.supplier import (
+    SupplierContactRequest,
+    SupplierContactResponse,
+    SupplierCreateRequest,
+    SupplierListResponse,
+    SupplierLookupResponse,
+    SupplierMaterialResponse,
+    SupplierResponse,
+    SupplierUpdateRequest,
+)
 from app.schemas.user import (
     UserAvatarUploadResponse,
     UserCreateRequest,
@@ -62,6 +72,14 @@ __all__ = [
     "RoleListResponse",
     "RoleResponse",
     "RoleUpdateRequest",
+    "SupplierContactRequest",
+    "SupplierContactResponse",
+    "SupplierCreateRequest",
+    "SupplierListResponse",
+    "SupplierLookupResponse",
+    "SupplierMaterialResponse",
+    "SupplierResponse",
+    "SupplierUpdateRequest",
     "UserAvatarUploadResponse",
     "UserCreateRequest",
     "UserListResponse",

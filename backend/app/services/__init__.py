@@ -34,6 +34,14 @@ from app.services.role_admin import (
     RoleAlreadyExistsError,
     SystemRoleModificationError,
 )
+from app.services.supplier_admin import (
+    SupplierAdminService,
+    SupplierAlreadyExistsError,
+    SupplierDuplicateMaterialError,
+    SupplierInUseError,
+    SupplierMaterialUnavailableError,
+    SupplierNotFoundError,
+)
 from app.services.user_admin import (
     EmailAlreadyExistsError,
     RoleNotFoundError,
@@ -71,6 +79,12 @@ __all__ = [
     "RoleAdminService",
     "RoleAlreadyExistsError",
     "RoleNotFoundError",
+    "SupplierAdminService",
+    "SupplierAlreadyExistsError",
+    "SupplierDuplicateMaterialError",
+    "SupplierInUseError",
+    "SupplierMaterialUnavailableError",
+    "SupplierNotFoundError",
     "SystemRoleModificationError",
     "UserAdminService",
     "UserNotFoundError",
