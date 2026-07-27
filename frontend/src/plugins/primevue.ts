@@ -5,7 +5,7 @@ import Aura from '@primeuix/themes/aura'
 import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
 
-const FastApiVuePreset = definePreset(Aura, {
+const QuotifyPreset = definePreset(Aura, {
   semantic: {
     primary: {
       50: '#eef2ff',
@@ -27,7 +27,7 @@ export function configurePrimeVue(app: App<Element>) {
   app.use(PrimeVue, {
     ripple: true,
     theme: {
-      preset: FastApiVuePreset,
+      preset: QuotifyPreset,
       options: {
         darkModeSelector: '.app-dark',
       },

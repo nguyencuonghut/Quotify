@@ -485,7 +485,7 @@ wheels = [
 ]
 
 [[package]]
-name = "fastapivue-backend"
+name = "quotify-backend"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

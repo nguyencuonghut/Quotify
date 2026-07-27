@@ -15,7 +15,7 @@ class Settings(BaseSettings):
         populate_by_name=True,
     )
 
-    app_name: str = Field(default="FastApiVueBoilerplate", alias="APP_NAME")
+    app_name: str = Field(default="Quotify", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
     app_debug: bool = Field(default=True, alias="APP_DEBUG")
     app_version: str = "0.1.0"
@@ -44,11 +44,11 @@ class Settings(BaseSettings):
     )
     auth_token_transport: str = Field(default="hybrid", alias="AUTH_TOKEN_TRANSPORT")
     auth_refresh_cookie_name: str = Field(
-        default="fastapivue_refresh_token",
+        default="quotify_refresh_token",
         alias="AUTH_REFRESH_COOKIE_NAME",
     )
     auth_logged_in_cookie_name: str = Field(
-        default="fastapivue_logged_in",
+        default="quotify_logged_in",
         alias="VITE_AUTH_LOGGED_IN_COOKIE_NAME",
     )
     auth_refresh_cookie_secure: bool = Field(
@@ -64,7 +64,7 @@ class Settings(BaseSettings):
         alias="AUTH_REFRESH_COOKIE_PATH",
     )
     auth_seed_admin_email: str = Field(
-        default="admin@fastapivue.local",
+        default="admin@quotify.local",
         alias="AUTH_SEED_ADMIN_EMAIL",
     )
     auth_seed_admin_password: str = Field(
@@ -95,9 +95,9 @@ class Settings(BaseSettings):
     smtp_user: str | None = Field(default=None, alias="SMTP_USER")
     smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
     smtp_secure: bool = Field(default=False, alias="SMTP_SECURE")
-    smtp_from_email: str = Field(default="noreply@fastapivue.local", alias="SMTP_FROM_EMAIL")
+    smtp_from_email: str = Field(default="noreply@quotify.local", alias="SMTP_FROM_EMAIL")
     admin_email_for_backups: str = Field(
-        default="admin@fastapivue.local", alias="ADMIN_EMAIL_FOR_BACKUPS"
+        default="admin@quotify.local", alias="ADMIN_EMAIL_FOR_BACKUPS"
     )
 
     redis_host: str = Field(default="redis", alias="REDIS_HOST")
@@ -149,7 +149,7 @@ class Settings(BaseSettings):
     readiness_path: str = Field(default="/ready", alias="READINESS_PATH")
     otel_enabled: bool = Field(default=True, alias="OTEL_ENABLED")
     otel_service_name: str = Field(
-        default="fastapivue-backend",
+        default="quotify-backend",
         alias="OTEL_SERVICE_NAME",
     )
     otel_exporter_otlp_endpoint: str | None = Field(

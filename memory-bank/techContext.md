@@ -180,6 +180,14 @@
   - `Makefile`
   - `make check`
   - `make docker-test-e2e`
+- Verified Quotify Phase 0 foundation on 2026-07-27:
+  - runtime fallback app name is `Quotify`
+  - default auth cookies are `quotify_refresh_token` and `quotify_logged_in`
+  - Prometheus metric names use the `quotify_*` prefix
+  - `.env.production.example` exists again
+  - `backend/app/auth/seed_data.py` includes existing usage permissions `users.import`, `users.export`, `files.read_all`, `files.delete`
+  - `backend/app/auth/seed_data.py` includes planned Quotify permissions for material types, materials, suppliers, quotes, quote notes, exchange rates, and settings
+  - `backend/tests/test_permission_inventory.py` compares backend `require_permission(...)`/`has_permission(...)` plus frontend `permissionStore.can(...)`, `requiredPermission`, and nav/action `permission` strings against seed data
 - Verified Phase 5 hardening files exist on 2026-06-11:
   - `backend/app/core/security_headers.py`
   - `backend/app/core/rate_limit.py`
@@ -255,13 +263,10 @@
 - `make perf-users-list` and `make perf-users-export` are wired correctly to the backend Python environment, but host-side runtime verification remained blocked in this session because localhost socket access returned `Operation not permitted`.
 - `docker compose -f docker-compose.observability.yml up` has not been exercised yet in this session; only config validation and asset existence were verified.
 - Backup/restore scripts and runbooks have been added, but a real restore drill against isolated runtime data has not been executed yet in this session.
-- `.env.production.example` được Memory Bank cũ ghi nhận nhưng không tồn tại
-  trong worktree Quotify khi kiểm tra ngày 27/07/2026. Phase 0 phải khôi phục file
-  hoặc cập nhật tài liệu production-readiness để thống nhất với code.
-- `backend/app/auth/seed_data.py` hiện chưa seed `users.import`,
-  `users.export`, `files.read_all` và `files.delete` dù các permission này đang
-  được kiểm trong backend/frontend. Phase 0 phải đối chiếu toàn bộ permission
-  usage với seed trước khi thêm RBAC Quotify.
+- Phase 0 backend pytest host-side chưa chạy được trong phiên này vì `uv` cần tải
+  `hatchling` từ `pypi.org` nhưng sandbox DNS bị chặn.
+- Phase 0 frontend `typecheck`/`lint` host-side chưa chạy được trong phiên này vì
+  worktree hiện thiếu `frontend/node_modules` (`vue-tsc` và `eslint` không có).
 
 ## Important Note
 

@@ -57,10 +57,13 @@
 3.5. Quản lý phiếu báo giá và phiên bản
 
 - Một phiếu báo giá đại diện cho báo giá nhận được từ một NCC.
-- Thông tin chung của phiếu gồm: NCC | Ngày báo giá | Ngày nhận báo giá | Người nhập | Tệp báo giá gốc (nếu có).
+- Thông tin chung của phiếu gồm: NCC | Người nhập phiếu ban đầu.
+- Ngày báo giá, ngày nhận báo giá và tệp báo giá gốc thuộc về từng phiên bản báo giá, không thuộc trực tiếp cấp phiếu.
 - Một phiếu báo giá có một hoặc nhiều dòng báo giá.
 - Khi NCC gửi báo giá điều chỉnh, hệ thống tạo phiên bản mới và giữ nguyên các phiên bản trước; không ghi đè dữ liệu lịch sử.
-- Mỗi phiên bản cần thể hiện số phiên bản, thời điểm tạo và người tạo.
+- Mỗi phiên bản cần thể hiện số phiên bản, ngày báo giá, ngày nhận báo giá, tệp báo giá gốc nếu có, thời điểm tạo và người tạo.
+- Phiên bản mới là một snapshot đầy đủ của phiên bản trước. Hệ thống sao chép các dòng báo giá cũ để người dùng chỉnh các dòng thay đổi, nhưng không sao chép trạng thái "Đã chốt mua", người thao tác, thời điểm chốt mua hoặc tệp báo giá gốc.
+- Ngày báo giá và ngày nhận báo giá của phiên bản mới phải được người dùng xác nhận hoặc nhập lại. Với dòng USD/MT, tỷ giá, nguồn tỷ giá, chi phí quy đổi và giá quy đổi được tính và đóng băng lại khi xác nhận phiên bản mới.
 
 3.6. Nhập dòng báo giá
 
@@ -87,8 +90,8 @@ Quy tắc tỷ giá:
 
 Quy tắc nhập lại báo giá:
 
-- Cho phép nhập báo giá có kỳ giao hàng đã qua.
-- Báo giá này được đánh dấu là "Nhập lại báo giá".
+- Cho phép nhập báo giá đã nhận trong quá khứ hoặc có kỳ giao hàng đã qua.
+- Báo giá được đánh dấu là "Nhập lại báo giá" khi "Ngày nhận báo giá" nhỏ hơn ngày hiện tại hoặc "Kỳ giao hàng" nhỏ hơn tháng hiện tại, tính theo múi giờ `Asia/Ho_Chi_Minh`.
 - Người dùng bắt buộc nhập lý do.
 - Hệ thống lưu người nhập và thời điểm nhập thực tế trong lịch sử audit.
 
@@ -96,6 +99,8 @@ Quy tắc chốt mua:
 
 - Nếu công ty đã mua theo một dòng báo giá, người dùng tick chọn "Đã chốt mua".
 - Phiên bản đơn giản không quản lý thêm khối lượng mua, phê duyệt, hợp đồng, đơn mua hàng hoặc các phương án thay thế.
+- Hệ thống tự lưu thời điểm người dùng tick trong Quotify và người thao tác. Thời điểm này là "thời điểm đánh dấu chốt mua trong hệ thống", không phải lúc ký hợp đồng hoặc phát sinh giao dịch thực tế nếu người dùng thao tác muộn.
+- Khi xem lại quyết định mua tại thời điểm đánh dấu chốt mua, hệ thống chỉ dùng các phiên bản báo giá đã được xác nhận trong hệ thống trước hoặc đúng thời điểm đó; không coi dữ liệu nhập lùi ngày là dữ liệu đã tồn tại trong quá khứ.
 
 3.7. Ghi chú thị trường
 
@@ -114,12 +119,12 @@ Quy tắc chốt mua:
 
 3.9. Dashboard
 
-- KPI card thể hiện số lượng báo giá đã nhập theo từng người dùng.
+- KPI card thể hiện số lượng phiếu báo giá đã nhập theo từng người dùng, tính theo người tạo phiếu ban đầu. Không đếm theo số dòng báo giá và không chuyển KPI sang người tạo phiên bản mới nhất.
 - Dashboard phân tích giá cho phép lọc theo: Vật tư | Kỳ giao hàng | Khoảng thời gian nhận báo giá.
 - Dashboard thể hiện xu hướng giá quy đổi VNĐ/KG.
 - Dashboard hiển thị giá MIN | MAX | TRUNG BÌNH theo bộ lọc.
 - Biểu đồ phải thể hiện các điểm đã tick "Đã chốt mua".
 - Việc xem lại quyết định mua trong quá khứ gồm hai góc nhìn:
-    * Tại thời điểm mua: so sánh giá đã chốt với các báo giá có trong hệ thống tại thời điểm đó.
-    * Sau thời điểm mua: so sánh giá đã chốt với xu hướng giá phát sinh sau đó.
+    * Tại thời điểm đánh dấu chốt mua trong Quotify: so sánh giá đã chốt với các báo giá đã tồn tại trong hệ thống tại thời điểm đó.
+    * Sau thời điểm đánh dấu chốt mua: so sánh giá đã chốt với xu hướng giá phát sinh sau đó.
 - Hai góc nhìn trên chỉ cung cấp thông tin tham khảo; hệ thống không tự kết luận quyết định mua là đúng hay sai.

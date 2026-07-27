@@ -17,11 +17,11 @@ describe('auth.store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
-    document.cookie = 'fastapivue_logged_in=; max-age=0'
+    document.cookie = 'quotify_logged_in=; max-age=0'
   })
 
   it('bootstraps authenticated state from refresh cookie', async () => {
-    document.cookie = 'fastapivue_logged_in=true'
+    document.cookie = 'quotify_logged_in=true'
     authApiMock.refreshSession.mockResolvedValue({
       accessToken: 'bootstrap-token',
       tokenType: 'bearer',
@@ -29,7 +29,7 @@ describe('auth.store', () => {
     })
     authApiMock.getCurrentUser.mockResolvedValue({
       id: 'user-1',
-      email: 'admin@fastapivue.local',
+      email: 'admin@quotify.local',
       status: 'active',
       roles: ['admin'],
       permissions: ['dashboard.read', 'users.read'],
@@ -41,12 +41,12 @@ describe('auth.store', () => {
     await authStore.initialize()
 
     expect(authStore.isAuthenticated).toBe(true)
-    expect(authStore.currentUser?.email).toBe('admin@fastapivue.local')
+    expect(authStore.currentUser?.email).toBe('admin@quotify.local')
     expect(authStore.permissions).toContain('dashboard.read')
   })
 
   it('falls back to anonymous state when refresh is unauthorized', async () => {
-    document.cookie = 'fastapivue_logged_in=true'
+    document.cookie = 'quotify_logged_in=true'
     authApiMock.refreshSession.mockRejectedValue(
       new ApiError('Refresh token is invalid.', 401),
     )
@@ -68,7 +68,7 @@ describe('auth.store', () => {
     })
     authApiMock.getCurrentUser.mockResolvedValue({
       id: 'user-2',
-      email: 'ops@fastapivue.local',
+      email: 'ops@quotify.local',
       status: 'active',
       roles: ['user'],
       permissions: ['dashboard.read'],
@@ -78,14 +78,14 @@ describe('auth.store', () => {
     const authStore = useAuthStore()
 
     await authStore.login({
-      email: 'ops@fastapivue.local',
+      email: 'ops@quotify.local',
       password: 'Password@123',
     })
 
     expect(authStore.isAuthenticated).toBe(true)
     expect(authStore.currentUser?.roles).toEqual(['user'])
     expect(authApiMock.login).toHaveBeenCalledWith({
-      email: 'ops@fastapivue.local',
+      email: 'ops@quotify.local',
       password: 'Password@123',
     })
   })

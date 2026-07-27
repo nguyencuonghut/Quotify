@@ -5,8 +5,8 @@
 - Ngày lập kế hoạch: 27/07/2026.
 - Nguồn yêu cầu: `docs/quotify/Requirements.txt`.
 - Ngôn ngữ nghiệp vụ: `CONTEXT.md`.
-- Trạng thái: đã qua hai vòng local reviewer; sẵn sàng triển khai sau khi chốt ba
-  prerequisite nghiệp vụ của Phase 0.
+- Trạng thái: đã qua hai vòng local reviewer; Phase 0 đã chốt ba prerequisite
+  nghiệp vụ DG-01, DG-02 và DG-03 ngày 27/07/2026.
 - Chế độ thực thi hiện tại: trực tiếp trên repository; máy chưa có GitHub CLI
   (`gh`), vì vậy kế hoạch không phụ thuộc vào lệnh tạo PR tự động.
 
@@ -53,16 +53,15 @@ Xây dựng Quotify thành hệ thống đơn giản để:
 ### Khoảng Trống Và Chênh Lệch Cần Xử Lý
 
 1. Chưa có model, migration, API hoặc frontend module nào cho nghiệp vụ Quotify.
-2. Branding mặc định vẫn còn `FastApiVue`/`FastApiVueBoilerplate` tại một số
-   fallback config, router metadata và package name.
-3. `BASE_PERMISSION_CODES` hiện chưa chứa `users.import`, `users.export`,
-   `files.read_all` và `files.delete` dù backend/frontend đang kiểm các
-   permission này. Phase 0 phải đối chiếu cả `require_permission(...)`,
-   `has_permission(...)` và `permissionStore.can(...)` trước khi bổ sung
-   permission Quotify.
-4. Memory Bank cũ ghi nhận `.env.production.example`, nhưng file này không tồn
-   tại trong worktree hiện tại. Cần xác minh và khôi phục hoặc sửa tài liệu trước
-   giai đoạn phát hành.
+2. Branding mặc định cũ đã được xử lý ở Phase 0 cho runtime fallback, package
+   metadata, router metadata, HTML title, cookie mặc định và observability metric
+   prefix. Không đổi migration/history cũ nếu việc đổi tên gây rủi ro.
+3. Phase 0 đã bổ sung permission seed còn thiếu (`users.import`, `users.export`,
+   `files.read_all`, `files.delete`) và toàn bộ permission Quotify dự kiến. Test
+   inventory quét `require_permission(...)`, `has_permission(...)` và
+   `permissionStore.can(...)` để tránh seed lệch usage.
+4. `.env.production.example` đã được khôi phục ở Phase 0 với biến production mẫu
+   cho Quotify.
 5. Frontend chưa có thư viện biểu đồ; Phase 9 phải bổ sung dependency phù hợp,
    ưu tiên PrimeVue Chart kết hợp `chart.js`.
 
@@ -206,12 +205,13 @@ an toàn. Nội dung rich text đầy đủ nằm trong bảng revision, không 
 
 ## Prerequisite Nghiệp Vụ Của Phase 0
 
-Ba quyết định sau phải được người dùng xác nhận trước khi Phase 0 được coi là
-hoàn thành. Không tạo migration quote hoặc dashboard trước khi chốt.
+Ba quyết định sau đã được người dùng xác nhận và đồng bộ vào `Requirements.txt`
+cùng `CONTEXT.md` trong Phase 0. Không tạo migration quote hoặc dashboard nếu
+những quyết định này bị thay đổi mà chưa cập nhật lại tài liệu nguồn.
 
 ### DG-01: Nội Dung Phiên Bản Mới
 
-Khuyến nghị hiện tại: khi NCC điều chỉnh báo giá, Quotify sao chép toàn bộ phiên
+Quyết định đã chốt: khi NCC điều chỉnh báo giá, Quotify sao chép toàn bộ phiên
 bản trước thành phiên bản mới, sau đó người dùng chỉnh các dòng thay đổi. Mỗi
 version là một snapshot đầy đủ và độc lập. Quy tắc copy chi tiết:
 
@@ -230,13 +230,13 @@ Dashboard phải có regression test chứng minh tạo version mới không nh�
 
 ### DG-02: KPI Số Báo Giá Theo User
 
-Khuyến nghị hiện tại: đếm số phiếu báo giá do user tạo, không đếm số dòng, để
+Quyết định đã chốt: đếm số phiếu báo giá do user tạo, không đếm số dòng, để
 một phiếu nhiều dòng không làm sai lệch KPI. Nguồn actor là
 `Quote.created_by_id` bất biến, không phải người tạo version mới nhất.
 
 ### DG-03: Mốc Thời Gian Phân Tích Chốt Mua
 
-Khuyến nghị hiện tại để giữ UX checkbox đơn giản: không yêu cầu nhập ngày mua
+Quyết định đã chốt để giữ UX checkbox đơn giản: không yêu cầu nhập ngày mua
 riêng. Hệ thống tự ghi `purchase_marked_at` khi tick và dashboard dùng nhãn
 “tại thời điểm đánh dấu chốt mua”. Tập dữ liệu tại mốc này chỉ gồm version có
 `confirmed_at <= purchase_marked_at`; `received_date` nhập lùi không đủ để một
@@ -309,16 +309,18 @@ băng contract trước khi tạo bảng nghiệp vụ.
    - `/quote-notes`
    - `/dashboard/quotify`
 8. Chốt DG-01, DG-02 và DG-03 trong mục prerequisite trước khi kết thúc Phase
-   0; đồng bộ kết quả vào `Requirements.txt` và `CONTEXT.md`.
+   0; đồng bộ kết quả vào `Requirements.txt` và `CONTEXT.md`. Việc này đã hoàn
+   tất ngày 27/07/2026.
 9. Xác minh tình trạng `.env.production.example`; khôi phục file hoặc cập nhật
-   Memory Bank để không tiếp tục báo sai.
+   Memory Bank để không tiếp tục báo sai. Việc này đã hoàn tất ngày 27/07/2026.
 10. Thêm test tự động so sánh permission code dùng trong route/action với seed.
+    Việc này đã hoàn tất ngày 27/07/2026 bằng `test_permission_inventory.py`.
 
 ### File Dự Kiến
 
 - `backend/app/auth/seed_data.py`
 - `backend/tests/test_rbac_core.py`
-- `backend/tests/test_route_permission_inventory.py`
+- `backend/tests/test_permission_inventory.py`
 - `backend/app/core/config.py`
 - `.env.example`
 - `frontend/package.json`
@@ -326,6 +328,7 @@ băng contract trước khi tạo bảng nghiệp vụ.
 - `frontend/src/layouts/AdminLayout.vue`
 - `frontend/src/composables/useDashboardPage.ts`
 - `memory-bank/techContext.md`
+- `.env.production.example`
 
 ### Kiểm Thử
 
@@ -337,7 +340,7 @@ npm --prefix frontend run build
 
 ### Điều Kiện Hoàn Thành
 
-- Không còn fallback branding FastApiVue trên UI runtime.
+- Không còn fallback branding cũ trên UI runtime.
 - Permission route/seed không lệch.
 - Permission Quotify được admin nhận sau reseed.
 - Contract URL, action code và rule version được ghi rõ.
@@ -744,8 +747,8 @@ core; frontend hoàn chỉnh được làm ở Phase 6.
 18. Predicate nhập lại duy nhất là `received_date < today` **hoặc**
     `delivery_month < first_day_of_current_month`, tính theo
     `Asia/Ho_Chi_Minh`. Khi đúng, backend và UI đều bắt buộc
-    `is_backfilled=true` cùng lý do. Phase 0 phải sửa `Requirements.txt` và
-    `CONTEXT.md` để dùng đúng định nghĩa này.
+    `is_backfilled=true` cùng lý do. Định nghĩa này đã được Phase 0 đồng bộ vào
+    `Requirements.txt` và `CONTEXT.md`.
 19. Checkbox purchase tự lưu `purchase_marked_at`,
     `purchase_marked_by_id`; không nhận timestamp do frontend gửi.
 20. Untick được phép nếu user có `quotes.mark_purchased`; lưu actor/time bỏ đánh

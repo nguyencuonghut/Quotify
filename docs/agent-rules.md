@@ -68,8 +68,8 @@ Các lớp bảo mật và hạ tầng này thường bị mock trong unit test 
    - Sử dụng `browser_subagent` để mở trình duyệt, thao tác thực tế và kiểm tra console/network logs.
 
 14. Khởi tạo phiên làm việc (Session Initialization / Silent Refresh) không được dựa vào Local Storage.
-Trạng thái đăng nhập ở client-side phải được xác thực trực tiếp thông qua sự tồn tại của Cookie từ backend (ví dụ: `fastapivue_logged_in`). Tuyệt đối không dùng cờ trạng thái trong Local Storage để tự động trigger `/auth/refresh` cho người dùng chưa đăng nhập. Việc sử dụng Local Storage có thể dẫn đến lệch trạng thái với cookie thực tế (do Local Storage không có cơ chế tự hết hạn), từ đó tạo ra các yêu cầu refresh dư thừa và phát sinh lỗi `401 Unauthorized` không đáng có trong browser console.
-Đặc biệt, khi phiên làm việc bị từ chối bởi backend (lỗi 401/403) hoặc khi clear trạng thái xác thực, frontend bắt buộc phải xóa cookie `fastapivue_logged_in` bằng cách đặt `max-age=0` để tránh tạo ra vòng lặp gửi yêu cầu refresh vô hạn trong các lần reload trang tiếp theo.
+Trạng thái đăng nhập ở client-side phải được xác thực trực tiếp thông qua sự tồn tại của Cookie từ backend (ví dụ: `quotify_logged_in`). Tuyệt đối không dùng cờ trạng thái trong Local Storage để tự động trigger `/auth/refresh` cho người dùng chưa đăng nhập. Việc sử dụng Local Storage có thể dẫn đến lệch trạng thái với cookie thực tế (do Local Storage không có cơ chế tự hết hạn), từ đó tạo ra các yêu cầu refresh dư thừa và phát sinh lỗi `401 Unauthorized` không đáng có trong browser console.
+Đặc biệt, khi phiên làm việc bị từ chối bởi backend (lỗi 401/403) hoặc khi clear trạng thái xác thực, frontend bắt buộc phải xóa cookie đăng nhập như `quotify_logged_in` bằng cách đặt `max-age=0` để tránh tạo ra vòng lặp gửi yêu cầu refresh vô hạn trong các lần reload trang tiếp theo.
 
 
 15. Tự động chạy migrations và seeding trong Docker dev/test:

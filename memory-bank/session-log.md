@@ -481,3 +481,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Tách nhóm sidebar admin
 - Tóm tắt: Sidebar admin đã chuyển từ danh sách phẳng sang các nhóm Tổng quan, Người dùng và Hệ thống. Nhóm trống tự ẩn theo quyền, trạng thái collapsed/mobile vẫn giữ cách hiển thị an toàn. Tài liệu dài hạn đã ghi nhớ quy ước không trộn item người dùng với item hệ thống.
+
+## 2026-07-27 07:36:51Z - codex
+
+- Tiêu đề: Hoàn thành Phase 0 Quotify
+- Tóm tắt: Đã hoàn thành Phase 0 Quotify: chốt DG-01/DG-02/DG-03 và đồng bộ Requirements/CONTEXT/kế hoạch; đổi runtime branding/cookie/metric/package metadata sang Quotify; khôi phục .env.production.example; bổ sung permission seed hiện có và permission Quotify dự kiến; thêm permission inventory test; cập nhật Memory Bank. Kiểm chứng nhẹ pass, pytest/frontend gates bị chặn bởi dependency/DNS/node_modules trong môi trường hiện tại.

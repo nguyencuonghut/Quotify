@@ -29,7 +29,7 @@ async def test_metrics_endpoint_exposes_prometheus_payload(client: AsyncClient) 
 
     assert response.status_code == 200
     assert "text/plain" in response.headers["content-type"]
-    assert "fastapivue_http_requests_total" in response.text
+    assert "quotify_http_requests_total" in response.text
 
 
 @pytest.mark.asyncio

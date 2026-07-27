@@ -5,7 +5,7 @@ Quotify lưu trữ lịch sử báo giá nguyên liệu và cung cấp dữ li�
 ## Ngôn ngữ nghiệp vụ
 
 **Phiếu báo giá**:
-Báo giá nhận được từ một nhà cung cấp, chứa thông tin chung và một hoặc nhiều dòng báo giá.
+Báo giá nhận được từ một nhà cung cấp, giữ danh tính ổn định của báo giá qua nhiều lần điều chỉnh. Ngày báo giá, ngày nhận báo giá và tệp báo giá gốc thuộc về từng phiên bản báo giá.
 _Tránh_: Bản ghi giá
 
 **Dòng báo giá**:
@@ -13,7 +13,7 @@ Mức giá của một vật tư cho một kỳ giao hàng trong một phiên b�
 _Tránh_: Phiếu báo giá
 
 **Phiên bản báo giá**:
-Một lần phát hành của phiếu báo giá; phiên bản mới thay thế cho việc ghi đè phiên bản cũ khi nhà cung cấp điều chỉnh giá.
+Một snapshot đầy đủ của phiếu báo giá tại một lần nhà cung cấp phát hành hoặc điều chỉnh giá. Phiên bản mới thay thế cho việc ghi đè phiên bản cũ.
 _Tránh_: Báo giá đã sửa
 
 **Ngày báo giá**:
@@ -40,7 +40,7 @@ Giá VNĐ/KG được tính từ giá gốc USD/MT, tỷ giá quy đổi và chi
 _Tránh_: Giá gốc
 
 **Nhập lại báo giá**:
-Việc nhập vào hệ thống một báo giá đã nhận trong quá khứ hoặc có kỳ giao hàng đã qua.
+Việc nhập vào hệ thống một báo giá đã nhận trong quá khứ hoặc có kỳ giao hàng đã qua, tính theo múi giờ nghiệp vụ `Asia/Ho_Chi_Minh`.
 _Tránh_: Sửa ngày báo giá
 
 **Ghi chú thị trường**:
@@ -48,5 +48,13 @@ Nhận định có lịch sử riêng do người dùng bổ sung cho báo giá.
 _Tránh_: Audit log
 
 **Đã chốt mua**:
-Dấu xác nhận công ty đã mua theo dòng báo giá tương ứng.
+Dấu xác nhận công ty đã mua theo dòng báo giá tương ứng; Quotify ghi nhận thời điểm người dùng đánh dấu trong hệ thống.
 _Tránh_: Quyết định mua
+
+**Thời điểm đánh dấu chốt mua**:
+Thời điểm người dùng tick "Đã chốt mua" trong Quotify. Đây là mốc phân tích hệ thống biết được, không nhất thiết là thời điểm ký hợp đồng hoặc phát sinh giao dịch thực tế.
+_Tránh_: Ngày mua
+
+**Người nhập phiếu**:
+Người tạo phiếu báo giá ban đầu trong Quotify và là nguồn tính KPI số phiếu theo user.
+_Tránh_: Người sửa phiên bản mới nhất

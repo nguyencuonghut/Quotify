@@ -30,7 +30,7 @@ export const router = createRouter({
       meta: {
         guestOnly: true,
         title: 'Đăng nhập',
-        description: 'Đăng nhập hệ thống quản trị FastAPI Vue Boilerplate.',
+        description: 'Đăng nhập hệ thống phân tích báo giá nguyên liệu Quotify.',
       },
     },
     {
@@ -130,11 +130,11 @@ export const router = createRouter({
 })
 
 router.afterEach((to) => {
-  const defaultTitle = import.meta.env.VITE_APP_NAME || 'FastApiVue'
+  const defaultTitle = import.meta.env.VITE_APP_NAME || 'Quotify'
   const title = typeof to.meta.title === 'string' ? to.meta.title : defaultTitle
   document.title = title
 
-  const defaultDescription = `${defaultTitle} - A modern, secure, and production-ready enterprise boilerplate.`
+  const defaultDescription = `${defaultTitle} - Hệ thống phân tích báo giá nguyên liệu.`
   const description =
     typeof to.meta.description === 'string'
       ? to.meta.description

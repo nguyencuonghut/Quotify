@@ -1,4 +1,4 @@
-# FastApiVueBoilerplate
+# Quotify
 
 Repository này đang được chuẩn bị để trở thành boilerplate fullstack enterprise-grade với:
 

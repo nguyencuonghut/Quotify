@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "fastapivue-backend"
+name = "quotify-backend"
 version = "0.1.0"
-description = "FastAPI backend scaffold for the FastApiVueBoilerplate project."
+description = "FastAPI backend for the Quotify procurement quotation analytics project."
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [

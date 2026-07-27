@@ -78,7 +78,7 @@ class MockFileAdminService:
             id=uuid4(),
             filename=kwargs["filename"],
             storage_path=f"avatars/{uuid4()}-{kwargs['filename']}",
-            bucket="fastapivue",
+            bucket="quotify",
             content_type=kwargs["content_type"],
             size_bytes=kwargs["size_bytes"],
             is_public=kwargs["is_public"],

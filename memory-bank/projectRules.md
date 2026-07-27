@@ -128,11 +128,11 @@ The walkthrough must explicitly cite the E2E or browser verification steps perfo
 
 ## Rule 15: Cookie-Based Session Initialization
 
-Client-side login state verification must rely exclusively on backend-provided cookie markers (e.g., `fastapivue_logged_in`). 
+Client-side login state verification must rely exclusively on backend-provided cookie markers (e.g., `quotify_logged_in`).
 
 Do not write or check localStorage state flags to decide whether to trigger silent token refreshes. Because localStorage lacks expiration, it easily goes out-of-sync with actual cookie lifetime, resulting in redundant and failed `/auth/refresh` API calls that pollute the browser console with 401 errors.
 
-Additionally, on any failed silent refresh (401/403 errors) or when logging out/clearing authentication state, the frontend application must actively clear the `fastapivue_logged_in` cookie by setting its expiration to `max-age=0`. This breaks the infinite loop of failed token refresh requests on subsequent page reloads.
+Additionally, on any failed silent refresh (401/403 errors) or when logging out/clearing authentication state, the frontend application must actively clear the login marker cookie such as `quotify_logged_in` by setting its expiration to `max-age=0`. This breaks the infinite loop of failed token refresh requests on subsequent page reloads.
 
 
 ## Rule 16: Automatic Database Migrations in Dev/Test Containers
@@ -165,4 +165,3 @@ Do not rely solely on placeholder text, runtime validation messages, or disabled
 Mọi tài liệu dự án viết bằng tiếng Việt phải dùng đầy đủ dấu tiếng Việt.
 
 Không viết tài liệu tiếng Việt theo dạng ASCII-only / không dấu. Quy tắc này áp dụng cho `docs/`, `memory-bank/`, runbook, implementation plan và mọi ghi chú bền vững của dự án. Code identifiers, commands, paths, environment variables và protocol examples phải được giữ nguyên chính xác theo code hoặc tooling.
-

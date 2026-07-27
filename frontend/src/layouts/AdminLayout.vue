@@ -168,7 +168,7 @@ const permissionStore = usePermissionStore()
 const router = useRouter()
 const profileMenuRef = ref<InstanceType<typeof Menu> | null>(null)
 const appTimezone = import.meta.env.VITE_APP_TIMEZONE ?? 'Asia/Ho_Chi_Minh'
-const appName = import.meta.env.VITE_APP_NAME || 'FastApiVue'
+const appName = import.meta.env.VITE_APP_NAME || 'Quotify'
 const isOnline = ref(true)
 let healthTimer: number | null = null
 type NavItem = {
@@ -192,6 +192,14 @@ const navGroups: NavGroup[] = [
         permission: 'dashboard.read',
       },
     ],
+  },
+  {
+    label: 'Danh mục',
+    items: [],
+  },
+  {
+    label: 'Báo giá',
+    items: [],
   },
   {
     label: 'Người dùng',

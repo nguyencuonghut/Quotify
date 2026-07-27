@@ -12,17 +12,17 @@ from starlette.responses import PlainTextResponse
 from app.core.config import Settings
 
 REQUEST_COUNTER = Counter(
-    "fastapivue_http_requests_total",
-    "Total HTTP requests processed by the FastApiVue backend.",
+    "quotify_http_requests_total",
+    "Total HTTP requests processed by the Quotify backend.",
     ["method", "path", "status_code"],
 )
 REQUEST_LATENCY = Histogram(
-    "fastapivue_http_request_duration_seconds",
+    "quotify_http_request_duration_seconds",
     "HTTP request latency in seconds.",
     ["method", "path"],
 )
 READINESS_GAUGE = Gauge(
-    "fastapivue_readiness_dependency_status",
+    "quotify_readiness_dependency_status",
     "Dependency readiness status where 1 means healthy and 0 means unhealthy.",
     ["dependency"],
 )

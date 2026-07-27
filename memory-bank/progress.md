@@ -76,10 +76,11 @@
 - Đã cập nhật yêu cầu nghiệp vụ Quotify ngày 27/07/2026 theo phạm vi đơn giản hóa đã thống nhất: bổ sung phiếu/dòng/phiên bản báo giá, quy tắc tỷ giá USD bán ra Vietcombank, nhập lại báo giá, lịch sử ghi chú, giả định điều kiện so sánh tương đương, checkbox chốt mua và dashboard cơ bản; đồng thời tạo `CONTEXT.md` làm bảng thuật ngữ nghiệp vụ.
 - Đã chốt fallback tỷ giá Quotify ngày 27/07/2026: khi ngày nhận là hiện tại nhưng không lấy được tỷ giá Vietcombank, người dùng được nhập tay với lý do bắt buộc; nguồn, người nhập, thời điểm và lý do phải được lưu để audit.
 - Đã tạo và review hai vòng kế hoạch triển khai Quotify theo 11 giai đoạn tại `docs/quotify/quotify-implementation-plan.md` ngày 27/07/2026. Kế hoạch bao phủ danh mục, NCC, import CSV, tỷ giá/cấu hình, vòng đời phiếu-version-line, giao diện nhập liệu, lịch sử ghi chú, DataTable, dashboard, E2E/hardening; đồng thời chốt guardrail về provenance giá, concurrency version, file authorization và phân tích theo thời điểm dữ liệu thực sự tồn tại trong hệ thống.
+- Đã hoàn thành Phase 0 Quotify ngày 27/07/2026: đổi runtime branding/cookie/metric/package metadata sang Quotify, khôi phục `.env.production.example`, bổ sung permission seed hiện có và permission Quotify dự kiến, thêm `backend/tests/test_permission_inventory.py`, chốt DG-01/DG-02/DG-03 trong `Requirements.txt`, `CONTEXT.md` và kế hoạch triển khai. Kiểm chứng đã chạy: permission inventory trực tiếp bằng Python, `py_compile`, `git diff --check`, grep branding cũ; backend pytest host-side bị chặn do sandbox DNS không tải được `hatchling`, frontend typecheck/lint host-side bị chặn do thiếu `node_modules`.
 
 ## Open
 
-- Phase 7 Audit Log module đã hoàn tất theo kế hoạch hiện tại.
+- Phase 0 Quotify đã hoàn tất theo kế hoạch hiện tại.
 - Finish unrestricted verification for Phase 5 dependency audits and host-side performance smoke outside the current sandbox DNS/socket limits
 - Verify Phase 6 observability stack `up` flow and execute a real restore drill in an isolated runtime environment
 - Optionally install Bun and run the upstream `agent-memory` CLI locally

@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI backend scaffold cho `FastApiVueBoilerplate`.
+FastAPI backend cho `Quotify`.
 
 ## Lệnh chính
 

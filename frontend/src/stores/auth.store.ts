@@ -12,7 +12,7 @@ import type { CurrentUser, LoginFormValues } from '@/types/auth'
 let initializePromise: Promise<void> | null = null
 
 const LOGGED_IN_COOKIE_NAME =
-  import.meta.env.VITE_AUTH_LOGGED_IN_COOKIE_NAME || 'fastapivue_logged_in'
+  import.meta.env.VITE_AUTH_LOGGED_IN_COOKIE_NAME || 'quotify_logged_in'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({

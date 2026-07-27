@@ -2,7 +2,7 @@ import { defineStore, type Pinia } from 'pinia'
 
 export type ThemeMode = 'light' | 'dark'
 
-const STORAGE_KEY = 'fastapivue-theme-mode'
+const STORAGE_KEY = 'quotify-theme-mode'
 
 function resolveInitialMode(): ThemeMode {
   if (typeof window === 'undefined') {
