@@ -16,9 +16,16 @@ from app.worker import export_users_task, import_users_task, run_backup_task
 class FakeMinioResponse:
     def __init__(self, data: bytes) -> None:
         self.data = data
+        self._offset = 0
+        self.read_sizes: list[int] = []
 
-    def read(self) -> bytes:
-        return self.data
+    def read(self, size: int = -1) -> bytes:
+        self.read_sizes.append(size)
+        if size is None or size < 0:
+            size = len(self.data) - self._offset
+        chunk = self.data[self._offset : self._offset + size]
+        self._offset += len(chunk)
+        return chunk
 
     def close(self) -> None:
         pass
@@ -145,7 +152,8 @@ async def test_import_users_task_success() -> None:
         b"success@example.com,pass12345,active,user,Success User\n"
         b"fail@example.com,short,active,user,Fail User"
     )
-    minio_client.get_object.return_value = FakeMinioResponse(csv_data)
+    minio_response = FakeMinioResponse(csv_data)
+    minio_client.get_object.return_value = minio_response
 
     ctx = {
         "session_factory": session_factory,
@@ -177,6 +185,8 @@ async def test_import_users_task_success() -> None:
         "processed_rows": 1,
         "failed_rows": 1,
     }
+    assert minio_response.read_sizes
+    assert all(size != -1 for size in minio_response.read_sizes)
 
 
 @pytest.mark.asyncio

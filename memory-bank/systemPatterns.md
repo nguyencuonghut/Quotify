@@ -390,6 +390,26 @@ Audit Log viewer frontend phải giữ boundary nhỏ và read-only:
 - Metadata dialog chỉ render `metadata` đã được backend sanitize, không tự gọi thêm
   endpoint thô hoặc dựng lại dữ liệu nhạy cảm ở frontend.
 
+## Import Job Substrate Pattern
+
+Các luồng import bất đồng bộ phải dùng `ImportJob` như substrate dùng chung, không
+hardcode toàn bộ logic quanh user import:
+
+- `ImportJob.entity_type` xác định nghiệp vụ import, ví dụ `users`,
+  `materials`, `suppliers`.
+- `ImportJob.task_name` là tên Redis/RQ task được enqueue, ví dụ
+  `import_users_task`.
+- Service tạo import job chỉ tạo record và `flush`; route chịu trách nhiệm ghi
+  audit start event và `commit` file/job/audit cùng transaction trước khi gọi
+  `enqueue_import_job(...)`.
+- Các endpoint thuộc user import phải luôn filter `entity_type="users"` để job
+  catalog sau này không bị lộ vào màn hình import user.
+- Worker phải kiểm tra `entity_type` trước khi xử lý task cụ thể, và phải đọc
+  CSV theo streaming/chunk. Không dùng `rows = list(reader)` hoặc đọc toàn bộ
+  CSV vào RAM trong worker.
+- Terminal status và terminal audit event phải được ghi cùng transaction. Metadata
+  audit của import chỉ chứa summary an toàn và các trường đã allowlist.
+
 ## Production Readiness Pattern
 
 Production-readiness in this repo is split into four layers:

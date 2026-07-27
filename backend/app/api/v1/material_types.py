@@ -232,7 +232,7 @@ async def delete_material_type(
         material_type = await material_type_admin_service.get_material_type_by_id(
             material_type_id,
         )
-        metadata = {
+        metadata: dict[str, object] = {
             "code": material_type.code,
             "name": material_type.name,
         }

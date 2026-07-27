@@ -121,7 +121,8 @@ async def get_material(
     material_admin_service: Annotated[MaterialAdminService, Depends(get_material_admin_service)],
 ) -> MaterialResponse:
     try:
-        return _build_material_response(await material_admin_service.get_material_by_id(material_id))
+        material = await material_admin_service.get_material_by_id(material_id)
+        return _build_material_response(material)
     except MaterialNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -222,7 +223,7 @@ async def delete_material(
 ) -> None:
     try:
         material = await material_admin_service.get_material_by_id(material_id)
-        metadata = {
+        metadata: dict[str, object] = {
             "code": material.code,
             "name": material.name,
             "material_type_code": material.material_type.code,

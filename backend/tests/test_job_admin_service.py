@@ -58,7 +58,10 @@ class FakeAsyncSession:
 
         if "count" in compiled:
             if "import_jobs" in compiled:
-                return FakeScalarResult(len(self.import_jobs))
+                jobs = list(self.import_jobs.values())
+                if "entity_type_1" in params:
+                    jobs = [job for job in jobs if job.entity_type == params["entity_type_1"]]
+                return FakeScalarResult(len(jobs))
             return FakeScalarResult(len(self.export_jobs))
 
         if "id_1" in params:
@@ -66,12 +69,22 @@ class FakeAsyncSession:
             if "FROM files" in compiled:
                 return FakeScalarResult(self.files.get(obj_id))
             elif "FROM import_jobs" in compiled:
-                return FakeScalarResult(self.import_jobs.get(obj_id))
+                job = self.import_jobs.get(obj_id)
+                if (
+                    job is not None
+                    and "entity_type_1" in params
+                    and job.entity_type != params["entity_type_1"]
+                ):
+                    job = None
+                return FakeScalarResult(job)
             elif "FROM export_jobs" in compiled:
                 return FakeScalarResult(self.export_jobs.get(obj_id))
 
         if "FROM import_jobs" in compiled:
-            return FakeScalarResult(list(self.import_jobs.values()))
+            jobs = list(self.import_jobs.values())
+            if "entity_type_1" in params:
+                jobs = [job for job in jobs if job.entity_type == params["entity_type_1"]]
+            return FakeScalarResult(jobs)
 
         if "FROM export_jobs" in compiled:
             return FakeScalarResult(list(self.export_jobs.values()))
@@ -104,11 +117,30 @@ async def test_create_import_job_success() -> None:
     job = await service.create_import_job(file_id=file_id, user_id=user_id)
 
     assert job.file_id == file_id
+    assert job.entity_type == "users"
+    assert job.task_name == "import_users_task"
     assert job.status == "pending"
     assert job.created_by_id == user_id
     assert len(session.added) == 1
-    assert len(redis_pool.enqueued) == 1
-    assert redis_pool.enqueued[0] == ("import_users_task", (job.id,))
+    assert redis_pool.enqueued == []
+
+
+@pytest.mark.asyncio
+async def test_enqueue_import_job_uses_job_task_name() -> None:
+    job = ImportJob(
+        id=uuid4(),
+        file_id=uuid4(),
+        entity_type="material_types",
+        task_name="import_material_types_task",
+        status="pending",
+    )
+    session = FakeAsyncSession()
+    redis_pool = FakeRedisPool()
+
+    service = JobAdminService(session, redis_pool=redis_pool)  # type: ignore[arg-type]
+    await service.enqueue_import_job(job)
+
+    assert redis_pool.enqueued == [("import_material_types_task", (job.id,))]
 
 
 @pytest.mark.asyncio
@@ -143,13 +175,29 @@ async def test_create_export_job_success() -> None:
 @pytest.mark.asyncio
 async def test_get_import_job_by_id_success() -> None:
     job_id = uuid4()
-    job = ImportJob(id=job_id, file_id=uuid4(), status="completed")
+    job = ImportJob(id=job_id, file_id=uuid4(), entity_type="users", status="completed")
     session = FakeAsyncSession(import_jobs={job_id: job})
 
     service = JobAdminService(session)  # type: ignore[arg-type]
-    fetched = await service.get_import_job_by_id(job_id)
+    fetched = await service.get_import_job_by_id(job_id, entity_type="users")
     assert fetched.id == job_id
     assert fetched.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_get_import_job_by_id_rejects_unexpected_entity_type() -> None:
+    job_id = uuid4()
+    job = ImportJob(
+        id=job_id,
+        file_id=uuid4(),
+        entity_type="material_types",
+        status="completed",
+    )
+    session = FakeAsyncSession(import_jobs={job_id: job})
+
+    service = JobAdminService(session)  # type: ignore[arg-type]
+    with pytest.raises(JobNotFoundError):
+        await service.get_import_job_by_id(job_id, entity_type="users")
 
 
 @pytest.mark.asyncio
@@ -163,14 +211,31 @@ async def test_get_import_job_by_id_not_found() -> None:
 
 @pytest.mark.asyncio
 async def test_list_import_jobs() -> None:
-    j1 = ImportJob(id=uuid4(), file_id=uuid4(), status="completed")
-    j2 = ImportJob(id=uuid4(), file_id=uuid4(), status="processing")
+    j1 = ImportJob(id=uuid4(), file_id=uuid4(), entity_type="users", status="completed")
+    j2 = ImportJob(id=uuid4(), file_id=uuid4(), entity_type="users", status="processing")
     session = FakeAsyncSession(import_jobs={j1.id: j1, j2.id: j2})
 
     service = JobAdminService(session)  # type: ignore[arg-type]
     jobs, total = await service.list_import_jobs()
     assert total == 2
     assert len(jobs) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_import_jobs_filters_by_entity_type() -> None:
+    j1 = ImportJob(id=uuid4(), file_id=uuid4(), entity_type="users", status="completed")
+    j2 = ImportJob(
+        id=uuid4(),
+        file_id=uuid4(),
+        entity_type="material_types",
+        status="processing",
+    )
+    session = FakeAsyncSession(import_jobs={j1.id: j1, j2.id: j2})
+
+    service = JobAdminService(session)  # type: ignore[arg-type]
+    jobs, total = await service.list_import_jobs(entity_type="users")
+    assert total == 1
+    assert [job.entity_type for job in jobs] == ["users"]
 
 
 @pytest.mark.asyncio

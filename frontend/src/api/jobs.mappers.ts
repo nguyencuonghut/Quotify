@@ -10,6 +10,7 @@ export function mapImportJobDtoToDomain(dto: ImportJobDto): ImportJobDomain {
   return {
     id: dto.id,
     fileId: dto.file_id,
+    entityType: dto.entity_type,
     status: dto.status,
     totalRows: dto.total_rows,
     processedRows: dto.processed_rows,

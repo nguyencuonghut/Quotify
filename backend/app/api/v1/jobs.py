@@ -86,6 +86,7 @@ def _build_import_job_response(job: ImportJob) -> ImportJobResponse:
     return ImportJobResponse(
         id=job.id,
         file_id=job.file_id,
+        entity_type=job.entity_type,
         status=job.status,
         total_rows=job.total_rows,
         processed_rows=job.processed_rows,
@@ -163,6 +164,8 @@ async def import_users(
     db_job = await job_service.create_import_job(
         file_id=db_file.id,
         user_id=current_user.id,
+        entity_type="users",
+        task_name="import_users_task",
     )
 
     # Emit Audit Log
@@ -176,11 +179,13 @@ async def import_users(
             metadata_json={
                 "filename": db_file.filename,
                 "file_id": str(db_file.id),
+                "import_entity_type": db_job.entity_type,
             },
         ),
     )
 
     await job_service.session.commit()
+    await job_service.enqueue_import_job(db_job)
     return _build_import_job_response(db_job)
 
 
@@ -202,6 +207,7 @@ async def list_import_jobs(
         offset=offset,
         user_id=current_user.id,
         is_admin=is_admin,
+        entity_type="users",
     )
 
     items = [_build_import_job_response(j) for j in jobs]
@@ -220,7 +226,7 @@ async def get_import_job(
     current_user: Annotated[User, Depends(get_current_user)] = None,  # type: ignore[assignment]
 ) -> ImportJobResponse:
     try:
-        job = await job_service.get_import_job_by_id(job_id)
+        job = await job_service.get_import_job_by_id(job_id, entity_type="users")
     except JobNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

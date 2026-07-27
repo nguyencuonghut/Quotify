@@ -24,6 +24,17 @@ class ImportJob(Base):
         ForeignKey("files.id", ondelete="CASCADE"),
         nullable=False,
     )
+    entity_type: Mapped[str] = mapped_column(
+        String(50),
+        default="users",
+        nullable=False,
+        index=True,
+    )
+    task_name: Mapped[str] = mapped_column(
+        String(120),
+        default="import_users_task",
+        nullable=False,
+    )
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
     total_rows: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     processed_rows: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

@@ -501,3 +501,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Hoàn thành Phase 2 Quotify
 - Tóm tắt: Đã triển khai danh mục Nhà cung cấp cho Quotify: migration/model/schema/service/API suppliers, contacts và supplier_materials; audit changes old/new; frontend route /catalog/suppliers với DataTable lazy, paging chuẩn, filter, dialog liên hệ/vật tư. Đã kiểm chứng bằng Docker backend targeted test 27 passed 1 skipped, Docker alembic upgrade head, frontend typecheck/lint, py_compile và git diff --check.
+
+## 2026-07-27 09:41:17Z - codex
+
+- Tiêu đề: Hoàn thành Phase 3A Quotify
+- Tóm tắt: Mở rộng ImportJob thành substrate dùng chung cho import catalog bằng entity_type/task_name; tách create/commit khỏi enqueue; scope user import theo entity_type users; worker import user đọc CSV streaming; cập nhật tests và Memory Bank.

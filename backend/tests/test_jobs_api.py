@@ -17,6 +17,8 @@ from app.services.job_admin import JobNotFoundError
 
 
 class MockSession:
+    committed = False
+
     def add(self, instance: object) -> None:
         pass
 
@@ -24,7 +26,7 @@ class MockSession:
         pass
 
     async def commit(self) -> None:
-        pass
+        self.committed = True
 
 
 class MockFileAdminService:
@@ -52,8 +54,15 @@ class MockJobAdminService:
         self.import_jobs = {j.id: j for j in (import_jobs or [])}
         self.export_jobs = {j.id: j for j in (export_jobs or [])}
         self.session = MockSession()
+        self.enqueue_observed_committed_states: list[bool] = []
 
-    async def create_import_job(self, file_id: UUID, user_id: UUID) -> ImportJob:
+    async def create_import_job(
+        self,
+        file_id: UUID,
+        user_id: UUID,
+        entity_type: str = "users",
+        task_name: str = "import_users_task",
+    ) -> ImportJob:
         job_id = uuid4()
         f = File(
             id=file_id,
@@ -69,6 +78,8 @@ class MockJobAdminService:
         job = ImportJob(
             id=job_id,
             file_id=file_id,
+            entity_type=entity_type,
+            task_name=task_name,
             status="pending",
             total_rows=0,
             processed_rows=0,
@@ -80,6 +91,9 @@ class MockJobAdminService:
         job.file = f
         self.import_jobs[job_id] = job
         return job
+
+    async def enqueue_import_job(self, job: ImportJob) -> None:
+        self.enqueue_observed_committed_states.append(self.session.committed)
 
     async def create_export_job(self, filters: dict[str, Any] | None, user_id: UUID) -> ExportJob:
         job_id = uuid4()
@@ -94,9 +108,13 @@ class MockJobAdminService:
         self.export_jobs[job_id] = job
         return job
 
-    async def get_import_job_by_id(self, job_id: UUID) -> ImportJob:
+    async def get_import_job_by_id(
+        self,
+        job_id: UUID,
+        entity_type: str | None = None,
+    ) -> ImportJob:
         j = self.import_jobs.get(job_id)
-        if j is None:
+        if j is None or (entity_type is not None and j.entity_type != entity_type):
             raise JobNotFoundError()
         return j
 
@@ -156,8 +174,10 @@ async def test_import_users_api_success(
     assert response.status_code == 201
     res_data = response.json()
     assert res_data["status"] == "pending"
+    assert res_data["entity_type"] == "users"
     assert "file" in res_data
     assert res_data["file"]["filename"] == "users.csv"
+    assert override_dependencies.enqueue_observed_committed_states == [True]
 
 
 @pytest.mark.asyncio

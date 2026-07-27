@@ -58,7 +58,14 @@ class JobAdminService:
             port=self.settings.redis_port,
         )
 
-    async def create_import_job(self, *, file_id: UUID, user_id: UUID) -> ImportJob:
+    async def create_import_job(
+        self,
+        *,
+        file_id: UUID,
+        user_id: UUID,
+        entity_type: str = "users",
+        task_name: str = "import_users_task",
+    ) -> ImportJob:
         # Verify file exists
         stmt = select(File).where(File.id == file_id)
         result = await self.session.execute(stmt)
@@ -68,23 +75,25 @@ class JobAdminService:
 
         job = ImportJob(
             file_id=file_id,
+            entity_type=entity_type,
+            task_name=task_name,
             status="pending",
             created_by_id=user_id,
         )
         self.session.add(job)
         await self.session.flush()
 
-        # Enqueue arq background task
+        return job
+
+    async def enqueue_import_job(self, job: ImportJob) -> None:
         try:
             redis = await self._get_redis()
-            await redis.enqueue_job("import_users_task", job.id)
+            await redis.enqueue_job(job.task_name, job.id)
         except Exception as e:
             # We can log this, but set to pending so it can be retried or debugged
             import logging
 
             logging.getLogger("app").error(f"Failed to enqueue import job {job.id} to redis: {e}")
-
-        return job
 
     async def create_export_job(
         self, *, filters: dict[str, Any] | None, user_id: UUID
@@ -108,8 +117,15 @@ class JobAdminService:
 
         return job
 
-    async def get_import_job_by_id(self, job_id: UUID) -> ImportJob:
+    async def get_import_job_by_id(
+        self,
+        job_id: UUID,
+        *,
+        entity_type: str | None = None,
+    ) -> ImportJob:
         stmt = select(ImportJob).options(selectinload(ImportJob.file)).where(ImportJob.id == job_id)
+        if entity_type is not None:
+            stmt = stmt.where(ImportJob.entity_type == entity_type)
         result = await self.session.execute(stmt)
         job = result.scalar_one_or_none()
         if job is None:
@@ -131,11 +147,14 @@ class JobAdminService:
         offset: int = 0,
         user_id: UUID | None = None,
         is_admin: bool = False,
+        entity_type: str | None = None,
     ) -> tuple[Sequence[ImportJob], int]:
         stmt = select(ImportJob).options(selectinload(ImportJob.file))
 
         if not is_admin and user_id is not None:
             stmt = stmt.where(ImportJob.created_by_id == user_id)
+        if entity_type is not None:
+            stmt = stmt.where(ImportJob.entity_type == entity_type)
 
         # Get count
         count_stmt = select(func.count()).select_from(stmt.subquery())

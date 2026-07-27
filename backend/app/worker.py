@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import codecs
 import csv
 import io
 import logging
-from typing import Any
+from collections.abc import Iterator
+from typing import Any, BinaryIO
 from uuid import UUID, uuid4
 
 try:
@@ -36,6 +38,33 @@ from app.storage.minio import build_minio_client
 
 logger = logging.getLogger("arq.worker")
 TERMINAL_STATUSES = {"completed", "failed"}
+CSV_STREAM_CHUNK_SIZE = 64 * 1024
+
+
+def _iter_decoded_csv_lines(
+    binary_stream: BinaryIO,
+    *,
+    chunk_size: int = CSV_STREAM_CHUNK_SIZE,
+) -> Iterator[str]:
+    decoder = codecs.getincrementaldecoder("utf-8-sig")()
+    pending = ""
+
+    while True:
+        chunk = binary_stream.read(chunk_size)
+        if not chunk:
+            break
+
+        pending += decoder.decode(chunk)
+        lines = pending.splitlines(keepends=True)
+        if lines and not lines[-1].endswith(("\n", "\r")):
+            pending = lines.pop()
+        else:
+            pending = ""
+        yield from lines
+
+    pending += decoder.decode(b"", final=True)
+    if pending:
+        yield pending
 
 
 async def _log_worker_audit_event(
@@ -84,6 +113,15 @@ async def import_users_task(ctx: dict[str, Any], job_id: UUID) -> None:
             logger.error(f"Import job {job_id} not found.")
             return
 
+        job_entity_type = job.entity_type or "users"
+        if job_entity_type != "users":
+            logger.error(
+                "Import job %s has entity_type=%s but import_users_task only handles users.",
+                job_id,
+                job_entity_type,
+            )
+            return
+
         if job.status in TERMINAL_STATUSES:
             logger.warning(f"Import job {job_id} is already in state {job.status}.")
             return
@@ -99,19 +137,96 @@ async def import_users_task(ctx: dict[str, Any], job_id: UUID) -> None:
                 object_name=job.file.storage_path,
             )
             try:
-                content = minio_response.read()
+                reader = csv.DictReader(_iter_decoded_csv_lines(minio_response))
+                if reader.fieldnames is None:
+                    raise ValueError("CSV header is missing.")
+
+                user_service = UserAdminService(session)
+                processed_rows = 0
+                failed_rows = 0
+                errors_list = []
+
+                # 3. Process each row
+                for idx, row in enumerate(reader, start=1):
+                    job.total_rows = idx
+                    email = (row.get("email") or "").strip()
+                    password = row.get("password") or ""
+                    status_str = (row.get("status") or "").strip().lower()
+                    roles_str = row.get("roles") or ""
+                    full_name = (row.get("full_name") or row.get("fullName") or "").strip()
+
+                    # Standard defaults
+                    status = UserStatus.ACTIVE
+                    if status_str:
+                        try:
+                            status = UserStatus(status_str)
+                        except ValueError:
+                            errors_list.append(
+                                {
+                                    "row": idx,
+                                    "email": email,
+                                    "errors": [f"Invalid status '{status_str}'."],
+                                }
+                            )
+                            failed_rows += 1
+                            continue
+
+                    # Default roles list
+                    role_names = [r.strip() for r in roles_str.split(",") if r.strip()]
+                    if not role_names:
+                        role_names = ["user"]
+
+                    # Validation checks before database call
+                    row_errors = []
+                    if not email:
+                        row_errors.append("Email is required.")
+                    if not password or len(password) < 8:
+                        row_errors.append("Password must be at least 8 characters long.")
+                    if not full_name:
+                        row_errors.append("Full name is required.")
+
+                    if row_errors:
+                        errors_list.append({"row": idx, "email": email, "errors": row_errors})
+                        failed_rows += 1
+                        continue
+
+                    # Database creation inside nested sub-transaction
+                    try:
+                        async with session.begin_nested():
+                            await user_service.create_user(
+                                email=email,
+                                password=password,
+                                status=status,
+                                role_names=role_names,
+                                full_name=full_name,
+                            )
+                        processed_rows += 1
+                    except RoleNotFoundError as e:
+                        errors_list.append({"row": idx, "email": email, "errors": [str(e)]})
+                        failed_rows += 1
+                    except Exception as e:
+                        # Catch duplicates or other database constraints
+                        # If email already exists or similar database constraint raised
+                        # Check for standard unique email constraint error message
+                        msg = str(e)
+                        if "already exists" in msg or "unique constraint" in msg.lower():
+                            msg = f"User with email {email} already exists."
+                        errors_list.append({"row": idx, "email": email, "errors": [msg]})
+                        failed_rows += 1
+
+                    # Update job progress periodically
+                    if idx % 10 == 0:
+                        job.processed_rows = processed_rows
+                        job.failed_rows = failed_rows
+                        job.errors_json = errors_list
+                        await session.commit()
             finally:
                 minio_response.close()
                 minio_response.release_conn()
-
-            csv_text = content.decode("utf-8-sig")
-            csv_file = io.StringIO(csv_text)
-            reader = csv.DictReader(csv_file)
-            rows = list(reader)
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to read/parse CSV file for import job {job_id}")
             job.status = "failed"
-            job.error_summary = f"Failed to read/parse CSV: {e}"
+            job.error_summary = "Failed to read or parse import CSV."
             await _log_worker_audit_event(
                 session,
                 action="users.import_failed",
@@ -130,91 +245,13 @@ async def import_users_task(ctx: dict[str, Any], job_id: UUID) -> None:
             await session.commit()
             return
 
-        job.total_rows = len(rows)
-        await session.commit()
-
-        user_service = UserAdminService(session)
-        processed_rows = 0
-        failed_rows = 0
-        errors_list = []
-
-        # 3. Process each row
-        for idx, row in enumerate(rows, start=1):
-            email = (row.get("email") or "").strip()
-            password = row.get("password") or ""
-            status_str = (row.get("status") or "").strip().lower()
-            roles_str = row.get("roles") or ""
-            full_name = (row.get("full_name") or row.get("fullName") or "").strip()
-
-            # Standard defaults
-            status = UserStatus.ACTIVE
-            if status_str:
-                try:
-                    status = UserStatus(status_str)
-                except ValueError:
-                    errors_list.append(
-                        {
-                            "row": idx,
-                            "email": email,
-                            "errors": [f"Invalid status '{status_str}'."],
-                        }
-                    )
-                    failed_rows += 1
-                    continue
-
-            # Default roles list
-            role_names = [r.strip() for r in roles_str.split(",") if r.strip()]
-            if not role_names:
-                role_names = ["user"]
-
-            # Validation checks before database call
-            row_errors = []
-            if not email:
-                row_errors.append("Email is required.")
-            if not password or len(password) < 8:
-                row_errors.append("Password must be at least 8 characters long.")
-            if not full_name:
-                row_errors.append("Full name is required.")
-
-            if row_errors:
-                errors_list.append({"row": idx, "email": email, "errors": row_errors})
-                failed_rows += 1
-                continue
-
-            # Database creation inside nested sub-transaction
-            try:
-                async with session.begin_nested():
-                    await user_service.create_user(
-                        email=email,
-                        password=password,
-                        status=status,
-                        role_names=role_names,
-                        full_name=full_name,
-                    )
-                processed_rows += 1
-            except RoleNotFoundError as e:
-                errors_list.append({"row": idx, "email": email, "errors": [str(e)]})
-                failed_rows += 1
-            except Exception as e:
-                # Catch duplicates or other database constraints
-                # If email already exists or similar database constraint raised
-                # Check for standard unique email constraint error message
-                msg = str(e)
-                if "already exists" in msg or "unique constraint" in msg.lower():
-                    msg = f"User with email {email} already exists."
-                errors_list.append({"row": idx, "email": email, "errors": [msg]})
-                failed_rows += 1
-
-            # Update job progress periodically
-            if idx % 10 == 0 or idx == len(rows):
-                job.processed_rows = processed_rows
-                job.failed_rows = failed_rows
-                job.errors_json = errors_list
-                await session.commit()
-
         # 4. Finish import job
-        job.status = "completed" if failed_rows < len(rows) else "failed"
-        if failed_rows == len(rows):
+        job.status = (
+            "completed" if job.total_rows > 0 and failed_rows < job.total_rows else "failed"
+        )
+        if job.total_rows == 0:
+            job.error_summary = "No import rows found."
+        elif failed_rows == job.total_rows:
             job.error_summary = "All rows failed to import."
         job.processed_rows = processed_rows
         job.failed_rows = failed_rows

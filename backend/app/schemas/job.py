@@ -12,6 +12,7 @@ from app.schemas.file import FileResponse
 class ImportJobResponse(BaseModel):
     id: UUID
     file_id: UUID
+    entity_type: str
     status: str
     total_rows: int
     processed_rows: int

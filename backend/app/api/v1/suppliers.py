@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_permission
 from app.db.session import get_db_session
-from app.models import Supplier, SupplierMaterial, User
+from app.models import Supplier, User
 from app.schemas import (
+    SupplierContactResponse,
     SupplierCreateRequest,
     SupplierListResponse,
     SupplierLookupResponse,
@@ -53,7 +54,10 @@ def _build_supplier_response(supplier: Supplier) -> SupplierResponse:
         tax_code=supplier.tax_code,
         address=supplier.address,
         note=supplier.note,
-        contacts=supplier.contacts,
+        contacts=[
+            SupplierContactResponse.model_validate(contact)
+            for contact in supplier.contacts
+        ],
         materials=[
             SupplierMaterialResponse(
                 material_id=supplier_material.material_id,

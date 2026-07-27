@@ -9,6 +9,7 @@ export interface RowError {
 export interface ImportJobDto {
   id: string
   file_id: string
+  entity_type: string
   status: string
   total_rows: number
   processed_rows: number
@@ -24,6 +25,7 @@ export interface ImportJobDto {
 export interface ImportJobDomain {
   id: string
   fileId: string
+  entityType: string
   status: string
   totalRows: number
   processedRows: number

@@ -118,7 +118,11 @@ def _load_seeded_permission_codes() -> set[str]:
     for node in tree.body:
         if not isinstance(node, ast.Assign):
             continue
-        if not any(isinstance(target, ast.Name) and target.id == "BASE_PERMISSION_CODES" for target in node.targets):
+        has_permission_assignment = any(
+            isinstance(target, ast.Name) and target.id == "BASE_PERMISSION_CODES"
+            for target in node.targets
+        )
+        if not has_permission_assignment:
             continue
         if not isinstance(node.value, ast.List):
             continue

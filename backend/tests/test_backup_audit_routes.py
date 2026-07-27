@@ -24,6 +24,14 @@ from app.services.audit_log import AuditLogContext
 from app.services.backup_admin import BackupScheduleNotFoundError
 
 
+@pytest.fixture(autouse=True)
+def trusted_test_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.services.audit_log.get_settings",
+        lambda: type("Settings", (), {"trusted_proxy_cidrs": "127.0.0.1/32"})(),
+    )
+
+
 class FakeSession:
     def __init__(self) -> None:
         self.commit_count = 0
