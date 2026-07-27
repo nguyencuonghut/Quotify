@@ -14,6 +14,20 @@ from app.services.file_admin import (
     FilePermissionDeniedError,
 )
 from app.services.job_admin import JobAdminService, JobNotFoundError
+from app.services.material_admin import (
+    MaterialAdminService,
+    MaterialAlreadyExistsError,
+    MaterialInUseError,
+    MaterialNotFoundError,
+    MaterialTypeNotFoundForMaterialError,
+)
+from app.services.material_type_admin import (
+    MaterialTypeAdminService,
+    MaterialTypeAlreadyExistsError,
+    MaterialTypeInUseError,
+    MaterialTypeNotFoundError,
+)
+from app.services.quotify_seed import QuotifySeedService, QuotifySeedSummary
 from app.services.role_admin import (
     PermissionNotFoundError,
     RoleAdminService,
@@ -42,7 +56,18 @@ __all__ = [
     "FilePermissionDeniedError",
     "JobAdminService",
     "JobNotFoundError",
+    "MaterialAdminService",
+    "MaterialAlreadyExistsError",
+    "MaterialInUseError",
+    "MaterialNotFoundError",
+    "MaterialTypeAdminService",
+    "MaterialTypeAlreadyExistsError",
+    "MaterialTypeInUseError",
+    "MaterialTypeNotFoundError",
+    "MaterialTypeNotFoundForMaterialError",
     "PermissionNotFoundError",
+    "QuotifySeedService",
+    "QuotifySeedSummary",
     "RoleAdminService",
     "RoleAlreadyExistsError",
     "RoleNotFoundError",

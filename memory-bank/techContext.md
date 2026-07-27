@@ -188,6 +188,12 @@
   - `backend/app/auth/seed_data.py` includes existing usage permissions `users.import`, `users.export`, `files.read_all`, `files.delete`
   - `backend/app/auth/seed_data.py` includes planned Quotify permissions for material types, materials, suppliers, quotes, quote notes, exchange rates, and settings
   - `backend/tests/test_permission_inventory.py` compares backend `require_permission(...)`/`has_permission(...)` plus frontend `permissionStore.can(...)`, `requiredPermission`, and nav/action `permission` strings against seed data
+- Verified Quotify catalog seed workflow on 2026-07-27:
+  - `backend/app/quotify/seed_data.py` stores baseline material type and material seed constants
+  - `backend/app/services/quotify_seed.py` seeds material catalogs idempotently by `code`
+  - `backend/scripts/seed_quotify.py` is the runnable seed entrypoint
+  - Docker dev backend and Docker E2E backend run `seed_quotify.py` after `seed_auth_rbac.py`
+  - `Makefile` exposes `backend-seed-quotify`, and `seed` runs both auth/RBAC and Quotify seed scripts
 - Verified Phase 5 hardening files exist on 2026-06-11:
   - `backend/app/core/security_headers.py`
   - `backend/app/core/rate_limit.py`
@@ -245,7 +251,7 @@
 - Time handling constraint: business-facing date/time behavior defaults to `Asia/Ho_Chi_Minh` (`GMT+7`) and must not depend on host/browser runtime timezone implicitly
 - Auth strategy constraint: Phase 2 uses a hybrid browser-first model with short-lived Bearer access token plus `httpOnly` refresh cookie
 - Enterprise features: async User import/export jobs, large DataTable performance, heavy file import/export handling, RBAC, audit logging, rate limiting, dependency/container scanning
-- Current phase status: Phases 2, 3, and 4 are complete; Phase 5 Hardening is implemented and locally verified, with unrestricted dependency-audit/perf verification still pending; Phase 6 Production Readiness baseline is implemented and locally verified
+- Current phase status: Boilerplate Phases 2, 3, and 4 are complete; Phase 5 Hardening is implemented and locally verified, with unrestricted dependency-audit/perf verification still pending; Phase 6 Production Readiness baseline is implemented and locally verified. Quotify Phase 0 and Phase 1 are complete.
 - Production readiness: OpenTelemetry, structured logs, metrics/tracing, backup/restore, secret management, SLO, compliance gates
 
 ## Unverified
@@ -267,6 +273,9 @@
   `hatchling` từ `pypi.org` nhưng sandbox DNS bị chặn.
 - Phase 0 frontend `typecheck`/`lint` host-side chưa chạy được trong phiên này vì
   worktree hiện thiếu `frontend/node_modules` (`vue-tsc` và `eslint` không có).
+- Phase 1 host-side frontend `typecheck`/`lint` vẫn không chạy trực tiếp được vì
+  worktree thiếu `frontend/node_modules`; Docker frontend `npm run typecheck && npm run lint` đã pass.
+- Phase 1 Docker backend targeted test đã pass với `8 passed, 1 skipped`; test frontend permission inventory bị skip hợp lý trong backend-only container vì image đó không copy `frontend/src`. Host-side permission inventory trực tiếp vẫn pass khi chạy ở repo root.
 
 ## Important Note
 

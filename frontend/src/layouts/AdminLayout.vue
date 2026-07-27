@@ -195,7 +195,20 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Danh mục',
-    items: [],
+    items: [
+      {
+        label: 'Loại vật tư',
+        icon: 'pi pi-tags',
+        to: '/catalog/material-types',
+        permission: 'material_types.read',
+      },
+      {
+        label: 'Vật tư',
+        icon: 'pi pi-box',
+        to: '/catalog/materials',
+        permission: 'materials.read',
+      },
+    ],
   },
   {
     label: 'Báo giá',

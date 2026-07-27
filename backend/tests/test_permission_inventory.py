@@ -4,9 +4,34 @@ import ast
 import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-BACKEND_ROOT = REPO_ROOT / "backend" / "app"
-FRONTEND_ROOT = REPO_ROOT / "frontend" / "src"
+import pytest
+
+
+def _find_backend_root() -> Path:
+    current_path = Path(__file__).resolve()
+    for parent in current_path.parents:
+        backend_app_root = parent / "backend" / "app"
+        if (backend_app_root / "auth" / "seed_data.py").exists():
+            return backend_app_root
+        container_app_root = parent / "app"
+        if (container_app_root / "auth" / "seed_data.py").exists():
+            return container_app_root
+
+    raise AssertionError("Không tìm thấy backend app root để kiểm tra permission inventory.")
+
+
+def _find_frontend_root() -> Path | None:
+    current_path = Path(__file__).resolve()
+    for parent in current_path.parents:
+        frontend_root = parent / "frontend" / "src"
+        if frontend_root.exists():
+            return frontend_root
+
+    return None
+
+
+BACKEND_ROOT = _find_backend_root()
+FRONTEND_ROOT = _find_frontend_root()
 SEED_DATA_PATH = BACKEND_ROOT / "auth" / "seed_data.py"
 
 BACKEND_PERMISSION_CALLS = {"require_permission", "has_permission"}
@@ -40,6 +65,9 @@ def test_backend_permission_usage_is_seeded() -> None:
 
 
 def test_frontend_permission_visibility_usage_is_seeded() -> None:
+    if FRONTEND_ROOT is None:
+        pytest.skip("Frontend source không có trong backend-only test container.")
+
     used_permissions: set[str] = set()
     seeded_permissions = _load_seeded_permission_codes()
 

@@ -5,6 +5,8 @@ import DashboardPage from '@/pages/DashboardPage.vue'
 import FilesPage from '@/pages/FilesPage.vue'
 import ForbiddenPage from '@/pages/ForbiddenPage.vue'
 import LoginPage from '@/pages/LoginPage.vue'
+import MaterialTypesPage from '@/pages/MaterialTypesPage.vue'
+import MaterialsPage from '@/pages/MaterialsPage.vue'
 import ProfilePage from '@/pages/ProfilePage.vue'
 import RolesPage from '@/pages/RolesPage.vue'
 import UsersPage from '@/pages/UsersPage.vue'
@@ -43,6 +45,28 @@ export const router = createRouter({
         title: 'Bảng điều khiển',
         description:
           'Bảng điều khiển tổng quan hệ thống, giám sát sức khỏe dịch vụ và chỉ số hoạt động.',
+      },
+    },
+    {
+      path: '/catalog/material-types',
+      name: 'material-types',
+      component: MaterialTypesPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'material_types.read',
+        title: 'Loại vật tư',
+        description: 'Quản lý danh mục loại vật tư cho hệ thống Quotify.',
+      },
+    },
+    {
+      path: '/catalog/materials',
+      name: 'materials',
+      component: MaterialsPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'materials.read',
+        title: 'Vật tư',
+        description: 'Quản lý danh mục vật tư và loại vật tư tương ứng.',
       },
     },
     {

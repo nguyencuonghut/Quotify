@@ -11,6 +11,8 @@
 @use './pages/files-page';
 @use './pages/backups-page';
 @use './pages/audit-logs-page';
+@use './pages/material-types-page';
+@use './pages/materials-page';
 @use './components/dashboard/dashboard-actions';
 @use './components/dashboard/health-snapshot-table';
 @use './components/dashboard/summary-cards';

@@ -11,6 +11,7 @@ DOCKER_TEST_COMPOSE := docker compose -f docker-compose.test.yml
 	backend-security \
 	backend-dependency-audit \
 	backend-seed-auth \
+	backend-seed-quotify \
 	backend-check \
 	frontend-lint \
 	frontend-format-check \
@@ -55,6 +56,9 @@ backend-dependency-audit:
 
 backend-seed-auth:
 	cd backend && if [ -x .venv/bin/python ]; then .venv/bin/python scripts/seed_auth_rbac.py; else UV_CACHE_DIR=$(UV_CACHE_DIR) uv run python scripts/seed_auth_rbac.py; fi
+
+backend-seed-quotify:
+	cd backend && if [ -x .venv/bin/python ]; then .venv/bin/python scripts/seed_quotify.py; else UV_CACHE_DIR=$(UV_CACHE_DIR) uv run python scripts/seed_quotify.py; fi
 
 backend-check: backend-lint backend-format-check backend-typecheck backend-test backend-security
 
@@ -119,3 +123,4 @@ migrate-refresh:
 
 seed:
 	docker compose exec backend uv run python scripts/seed_auth_rbac.py
+	docker compose exec backend uv run python scripts/seed_quotify.py

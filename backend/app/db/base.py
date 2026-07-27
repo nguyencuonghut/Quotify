@@ -10,6 +10,8 @@ from app.models import (  # noqa: F401,E402
     export_job,
     file,
     import_job,
+    material,
+    material_type,
     permission,
     refresh_token,
     role,

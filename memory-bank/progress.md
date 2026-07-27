@@ -77,10 +77,13 @@
 - Đã chốt fallback tỷ giá Quotify ngày 27/07/2026: khi ngày nhận là hiện tại nhưng không lấy được tỷ giá Vietcombank, người dùng được nhập tay với lý do bắt buộc; nguồn, người nhập, thời điểm và lý do phải được lưu để audit.
 - Đã tạo và review hai vòng kế hoạch triển khai Quotify theo 11 giai đoạn tại `docs/quotify/quotify-implementation-plan.md` ngày 27/07/2026. Kế hoạch bao phủ danh mục, NCC, import CSV, tỷ giá/cấu hình, vòng đời phiếu-version-line, giao diện nhập liệu, lịch sử ghi chú, DataTable, dashboard, E2E/hardening; đồng thời chốt guardrail về provenance giá, concurrency version, file authorization và phân tích theo thời điểm dữ liệu thực sự tồn tại trong hệ thống.
 - Đã hoàn thành Phase 0 Quotify ngày 27/07/2026: đổi runtime branding/cookie/metric/package metadata sang Quotify, khôi phục `.env.production.example`, bổ sung permission seed hiện có và permission Quotify dự kiến, thêm `backend/tests/test_permission_inventory.py`, chốt DG-01/DG-02/DG-03 trong `Requirements.txt`, `CONTEXT.md` và kế hoạch triển khai. Kiểm chứng đã chạy: permission inventory trực tiếp bằng Python, `py_compile`, `git diff --check`, grep branding cũ; backend pytest host-side bị chặn do sandbox DNS không tải được `hatchling`, frontend typecheck/lint host-side bị chặn do thiếu `node_modules`.
+- Đã hoàn thành Phase 1 Quotify ngày 27/07/2026: thêm danh mục `Loại vật tư` và `Vật tư` từ database tới giao diện, gồm migration, ORM model, schema, service, API CRUD/list/filter/sort/paginate, RBAC, audit event có metadata `changes`, route/menu frontend, API mapper, composable, DataTable lazy, form validation và SCSS responsive. Kiểm chứng đã chạy: `python3 -m py_compile` cho backend file mới, `git diff --check`, Docker backend targeted test `8 passed, 1 skipped`, Docker `uv run alembic upgrade head`, Docker frontend `npm run typecheck && npm run lint`.
+- Đã thêm seed dữ liệu Quotify ngày 27/07/2026: `seed_quotify.py` tạo idempotent 2 loại vật tư (`Nguyên liệu`, `Vi lượng`) và 27 vật tư phổ biến ngành sản xuất thức ăn chăn nuôi; Docker dev/E2E chạy script này sau auth seed, Makefile `seed` cũng chạy cả auth seed và Quotify seed. Kiểm chứng đã chạy: Docker targeted test `10 passed, 1 skipped`, `uv run alembic upgrade head && uv run python scripts/seed_quotify.py` hai lần cho kết quả lần đầu tạo `2/27`, lần sau tạo `0/0`, `uv run ruff check`, `uv run mypy` phần mới, `py_compile`, `git diff --check`.
 
 ## Open
 
-- Phase 0 Quotify đã hoàn tất theo kế hoạch hiện tại.
+- Phase 1 Quotify đã hoàn tất theo kế hoạch hiện tại.
+- Bước tiếp theo là Phase 2 Quotify: danh mục nhà cung cấp và dữ liệu liên quan.
 - Finish unrestricted verification for Phase 5 dependency audits and host-side performance smoke outside the current sandbox DNS/socket limits
 - Verify Phase 6 observability stack `up` flow and execute a real restore drill in an isolated runtime environment
 - Optionally install Bun and run the upstream `agent-memory` CLI locally

@@ -439,6 +439,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Khi cần xác minh browser/auth/proxy/audit/network, chạy `make docker-test-e2e` đầu tiên. Không tự cài Playwright browser/deps vào container đang sống để chữa triệu chứng. Chỉ dùng `npm --prefix frontend run test:e2e` cho local host khi đã tự chuẩn bị backend/frontend local, browser host và env cần thiết.
 - Related files: `Makefile`, `docker-compose.test.yml`, `docker/frontend/Dockerfile`, `frontend/playwright.docker.config.ts`, `frontend/playwright.config.ts`
 
+### 2026-07-27: Permission inventory suy repo root sai trong backend-only container
+
+- Area: Backend permission inventory / Docker test workflow
+- Trigger: Chạy `docker compose -f docker-compose.test.yml run --build --rm backend-test pytest tests/test_material_catalog_services.py tests/test_permission_inventory.py -q --tb=short --no-header` trong Phase 1 làm `test_permission_inventory.py` tìm `seed_data.py` tại `/backend/app/auth/seed_data.py` và fail `FileNotFoundError`.
+- Root cause: Test dùng `Path(__file__).resolve().parents[2]` để suy repo root. Cách này đúng khi chạy host từ `backend/tests`, nhưng trong backend Docker image source nằm ở `/app/tests` và app code nằm ở `/app/app`; container cũng không copy `frontend/src`.
+- Fix: Test tự tìm backend app root bằng cách duyệt parent candidates có `auth/seed_data.py`; frontend root trở thành optional và frontend permission scan được skip có thông báo rõ khi chạy trong backend-only container.
+- Regression guard: Permission inventory phải chạy được ở cả repo host và backend-only Docker image. Khi thêm scan xuyên backend/frontend, không hardcode số tầng parent path nếu Docker image chỉ chứa một phần repo.
+- Related files: `backend/tests/test_permission_inventory.py`, `docker-compose.test.yml`, `docker/backend/Dockerfile`
+
 
 ## Usage Rule
 

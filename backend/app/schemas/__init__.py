@@ -9,6 +9,18 @@ from app.schemas.job import (
     ImportJobListResponse,
     ImportJobResponse,
 )
+from app.schemas.material import (
+    MaterialCreateRequest,
+    MaterialListResponse,
+    MaterialResponse,
+    MaterialUpdateRequest,
+)
+from app.schemas.material_type import (
+    MaterialTypeCreateRequest,
+    MaterialTypeListResponse,
+    MaterialTypeResponse,
+    MaterialTypeUpdateRequest,
+)
 from app.schemas.permission import PermissionResponse
 from app.schemas.role import (
     RoleCreateRequest,
@@ -31,6 +43,14 @@ __all__ = [
     "AuditLogResponse",
     "CurrentUserResponse",
     "LoginRequest",
+    "MaterialCreateRequest",
+    "MaterialListResponse",
+    "MaterialResponse",
+    "MaterialTypeCreateRequest",
+    "MaterialTypeListResponse",
+    "MaterialTypeResponse",
+    "MaterialTypeUpdateRequest",
+    "MaterialUpdateRequest",
     "FileListResponse",
     "FileResponse",
     "ImportJobResponse",

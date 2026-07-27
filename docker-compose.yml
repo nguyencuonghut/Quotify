@@ -8,6 +8,7 @@ services:
       sh -lc "uv sync &&
       uv run alembic upgrade head &&
       uv run python scripts/seed_auth_rbac.py &&
+      uv run python scripts/seed_quotify.py &&
       uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     depends_on:
       postgres:

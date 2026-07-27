@@ -486,3 +486,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Hoàn thành Phase 0 Quotify
 - Tóm tắt: Đã hoàn thành Phase 0 Quotify: chốt DG-01/DG-02/DG-03 và đồng bộ Requirements/CONTEXT/kế hoạch; đổi runtime branding/cookie/metric/package metadata sang Quotify; khôi phục .env.production.example; bổ sung permission seed hiện có và permission Quotify dự kiến; thêm permission inventory test; cập nhật Memory Bank. Kiểm chứng nhẹ pass, pytest/frontend gates bị chặn bởi dependency/DNS/node_modules trong môi trường hiện tại.
+
+## 2026-07-27 07:53:21Z - codex
+
+- Tiêu đề: Hoàn thành Phase 1 Quotify
+- Tóm tắt: Đã triển khai danh mục Loại vật tư và Vật tư gồm migration, model, schema, service, API, RBAC, audit metadata changes old/new, frontend route/menu/page/composable/API mapper, DataTable lazy và responsive styles. Đã kiểm chứng bằng py_compile, permission inventory, Docker backend targeted tests, Alembic upgrade head, Docker frontend typecheck/lint và git diff --check.
+
+## 2026-07-27 08:03:54Z - codex
+
+- Tiêu đề: Thêm seed dữ liệu vật tư Quotify
+- Tóm tắt: Đã thêm Quotify seed idempotent cho 2 loại vật tư Nguyên liệu, Vi lượng và 27 vật tư phổ biến ngành sản xuất thức ăn chăn nuôi. Thêm script seed_quotify.py, service QuotifySeedService, test service, nối Docker dev/E2E và Makefile seed để chạy sau auth seed. Đã kiểm chứng bằng Docker targeted tests, chạy seed thật hai lần trên Postgres test, ruff, mypy, py_compile và git diff --check.
