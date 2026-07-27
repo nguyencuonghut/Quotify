@@ -206,7 +206,6 @@
   - `scripts/ops/restore-postgres.sh`
   - `scripts/ops/restore-minio.sh`
   - `scripts/ops/restore-drill.sh`
-  - `.env.production.example`
   - `docs/phase-6-production-readiness.md`
   - `docs/runbooks/backup-restore.md`
   - `docs/runbooks/deploy-rollback-restore.md`
@@ -256,6 +255,13 @@
 - `make perf-users-list` and `make perf-users-export` are wired correctly to the backend Python environment, but host-side runtime verification remained blocked in this session because localhost socket access returned `Operation not permitted`.
 - `docker compose -f docker-compose.observability.yml up` has not been exercised yet in this session; only config validation and asset existence were verified.
 - Backup/restore scripts and runbooks have been added, but a real restore drill against isolated runtime data has not been executed yet in this session.
+- `.env.production.example` được Memory Bank cũ ghi nhận nhưng không tồn tại
+  trong worktree Quotify khi kiểm tra ngày 27/07/2026. Phase 0 phải khôi phục file
+  hoặc cập nhật tài liệu production-readiness để thống nhất với code.
+- `backend/app/auth/seed_data.py` hiện chưa seed `users.import`,
+  `users.export`, `files.read_all` và `files.delete` dù các permission này đang
+  được kiểm trong backend/frontend. Phase 0 phải đối chiếu toàn bộ permission
+  usage với seed trước khi thêm RBAC Quotify.
 
 ## Important Note
 
