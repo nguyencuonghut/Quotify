@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  width: 100%;
+  max-width: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Be Vietnam Pro', 'Segoe UI', sans-serif;
+  background: var(--app-surface-ground);
+  color: var(--app-text-primary);
+  overflow-x: hidden;
+}
+
+#app {
+  overflow-x: hidden;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+/* Required field indicator utility */
+.required::after,
+label.required::after,
+.required label::after,
+.required .login-page__label::after,
+.required .users-page__form-label::after,
+.required .files-page__form-label::after,
+.required .roles-page__form-label::after {
+  content: ' *';
+  color: var(--app-danger);
+  margin-left: 0.125rem;
+  font-weight: bold;
+}

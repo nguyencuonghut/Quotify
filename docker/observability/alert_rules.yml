@@ -1,0 +1,29 @@
+groups:
+  - name: fastapivue-production-readiness
+    rules:
+      - alert: FastApiVueBackendDown
+        expr: up{job="fastapivue-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: FastApiVue backend is down
+          description: Backend metrics endpoint has not been reachable for 2 minutes.
+
+      - alert: FastApiVueHighP95Latency
+        expr: histogram_quantile(0.95, sum by (le) (rate(fastapivue_http_request_duration_seconds_bucket[5m]))) > 0.4
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: FastApiVue API p95 latency exceeds 400ms
+          description: Investigate API latency, database saturation, or job backpressure.
+
+      - alert: FastApiVueReadinessDependencyFailure
+        expr: min by (dependency) (fastapivue_readiness_dependency_status) < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: FastApiVue dependency readiness check is failing
+          description: One or more readiness dependencies are unhealthy for more than 5 minutes.

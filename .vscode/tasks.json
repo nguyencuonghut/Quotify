@@ -1,0 +1,66 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Agent: Startup Checklist",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "scripts/agent-startup.sh",
+        "--agent",
+        "${input:agentName}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Agent: Task Close",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "scripts/agent-task-close.sh",
+        "--agent",
+        "${input:agentName}",
+        "--title",
+        "${input:taskTitle}",
+        "--summary",
+        "${input:taskSummary}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "agentName",
+      "type": "pickString",
+      "description": "Chọn agent đang dùng",
+      "options": [
+        "codex",
+        "claude",
+        "gemini"
+      ],
+      "default": "codex"
+    },
+    {
+      "id": "taskTitle",
+      "type": "promptString",
+      "description": "Tên task"
+    },
+    {
+      "id": "taskSummary",
+      "type": "promptString",
+      "description": "Tóm tắt kiến thức bền vững cần lưu"
+    }
+  ]
+}

@@ -1,0 +1,115 @@
+.profile-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.profile-page__card {
+  display: grid;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 1.25rem;
+  background: var(--app-surface-panel);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.profile-page__identity {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.profile-page__avatar-shell {
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  border: 1px solid var(--app-border-soft);
+  background: var(--app-surface-panel-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-page__avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-page__avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--app-text-primary);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--app-accent) 55%, transparent),
+    color-mix(in srgb, var(--app-accent-strong) 72%, transparent)
+  );
+}
+
+.profile-page__identity-copy {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.profile-page__eyebrow,
+.profile-page__email,
+.profile-page__meta-item dt,
+.profile-page__meta-item dd {
+  margin: 0;
+}
+
+.profile-page__eyebrow,
+.profile-page__meta-item dt {
+  color: var(--app-text-muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.profile-page__name {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.profile-page__email {
+  color: var(--app-text-secondary);
+}
+
+.profile-page__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+.profile-page__meta-item {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 1rem;
+  background: var(--app-surface-muted);
+}
+
+.profile-page__meta-item dd {
+  color: var(--app-text-primary);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .profile-page__meta-grid {
+    grid-template-columns: 1fr;
+  }
+}

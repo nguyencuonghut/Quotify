@@ -1,0 +1,29 @@
+.theme-switch.p-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.45rem;
+  height: 2.45rem;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  border: 0;
+  color: var(--app-text-secondary);
+  box-shadow: none;
+  overflow: hidden;
+
+  &:hover {
+    background: var(--app-surface-highlight);
+    color: var(--app-text-primary);
+    border-radius: 999px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--app-accent) 42%, transparent);
+    outline-offset: 2px;
+  }
+}
+
+.theme-switch.p-button .p-button-icon {
+  font-size: 0.95rem;
+}

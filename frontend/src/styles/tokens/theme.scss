@@ -1,0 +1,81 @@
+:root {
+  color-scheme: light;
+  --app-accent: #4f46e5;
+  --app-accent-contrast: #ffffff;
+  --app-border-accent: rgba(79, 70, 229, 0.15);
+  --app-border-soft: #eaeaea;
+  --app-border-strong: #dcdcdc;
+  --app-danger: #ef4444;
+  --app-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --app-surface-ground: #ffffff;
+  --app-surface-highlight: #f3f4f6;
+  --app-surface-muted: rgba(243, 244, 246, 0.7);
+  --app-surface-overlay: rgba(255, 255, 255, 0.95);
+  --app-surface-panel: #ffffff;
+  --app-surface-panel-alt: #f9fafb;
+  --app-sidebar-bg: #f9fafb;
+  --app-text-muted: #666666;
+  --app-text-primary: #111111;
+  --app-text-secondary: #444444;
+  --app-text-danger: #ef4444;
+  --app-text-success: #10b981;
+  --app-bg-gradient-top-left: rgba(99, 102, 241, 0.02);
+  --app-bg-gradient-bottom-right: transparent;
+  --app-login-card-bg: #ffffff;
+  --app-login-field-bg: var(--app-login-card-bg);
+  --app-login-field-border: #cbd5e1;
+  --app-login-logo-bg: #ef1742;
+  --app-login-logo-shadow: rgba(239, 23, 66, 0.2);
+  --app-login-primary: #0f766e;
+  --app-login-submit-bg: var(--app-accent);
+  --app-login-submit-bg-hover: color-mix(
+    in srgb,
+    var(--app-accent) 88%,
+    #000000
+  );
+  --app-login-submit-text: var(--app-accent-contrast);
+  --app-login-text: #334155;
+  --app-login-text-muted: #64748b;
+  --app-login-toggle: #94a3b8;
+}
+
+:root.app-dark {
+  color-scheme: dark;
+  --app-accent: #818cf8;
+  --app-accent-contrast: #090d16;
+  --app-border-accent: rgba(129, 140, 248, 0.3);
+  --app-border-soft: #1e293b;
+  --app-border-strong: #334155;
+  --app-danger: #f87171;
+  --app-shadow-sm: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  --app-surface-ground: #090d16;
+  --app-surface-highlight: #1e293b;
+  --app-surface-muted: rgba(30, 41, 59, 0.6);
+  --app-surface-overlay: rgba(15, 23, 42, 0.85);
+  --app-surface-panel: #111827;
+  --app-surface-panel-alt: #1f2937;
+  --app-sidebar-bg: #111827;
+  --app-text-muted: #94a3b8;
+  --app-text-primary: #f8fafc;
+  --app-text-secondary: #cbd5e1;
+  --app-text-danger: #f87171;
+  --app-text-success: #4ade80;
+  --app-bg-gradient-top-left: rgba(129, 140, 248, 0.12);
+  --app-bg-gradient-bottom-right: rgba(15, 23, 42, 0.4);
+  --app-login-card-bg: #ffffff;
+  --app-login-field-bg: var(--app-login-card-bg);
+  --app-login-field-border: #cbd5e1;
+  --app-login-logo-bg: #ef1742;
+  --app-login-logo-shadow: rgba(239, 23, 66, 0.2);
+  --app-login-primary: #0f766e;
+  --app-login-submit-bg: var(--app-accent);
+  --app-login-submit-bg-hover: color-mix(
+    in srgb,
+    var(--app-accent) 88%,
+    #ffffff
+  );
+  --app-login-submit-text: var(--app-accent-contrast);
+  --app-login-text: #334155;
+  --app-login-text-muted: #64748b;
+  --app-login-toggle: #94a3b8;
+}

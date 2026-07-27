@@ -1,0 +1,264 @@
+# Tech Context
+
+## Verified
+
+- Shell environment: `bash`
+- Project memory system: `vendor/agent-memory` concepts plus `memory-bank/`
+- Local agent instructions entrypoint: `AGENTS.md`
+- Local skills directory: `.agents/skills/`
+- Backend scaffold exists in `backend/`
+- Backend package manager and runner: `uv`
+- Verified backend dependency set from `backend/pyproject.toml` and `backend/uv.lock`
+- Verified backend app entrypoint: `backend/app/main.py`
+- Verified backend auth/RBAC schema scaffold files exist:
+  - `backend/app/models/user.py`
+  - `backend/app/models/role.py`
+  - `backend/app/models/permission.py`
+  - `backend/app/models/refresh_token.py`
+  - `backend/app/models/audit_log.py`
+  - `backend/alembic/versions/20260610_0205_create_auth_rbac_foundation.py`
+- Verified backend auth core scaffold files exist:
+  - `backend/app/auth/hashing.py`
+  - `backend/app/auth/jwt.py`
+  - `backend/app/auth/service.py`
+  - `backend/app/auth/dependencies.py`
+  - `backend/tests/test_auth_core.py`
+- Verified backend RBAC scaffold files exist:
+  - `backend/app/auth/permissions.py`
+  - `backend/tests/test_rbac_core.py`
+- Verified backend auth API scaffold files exist:
+  - `backend/app/api/v1/auth.py`
+  - `backend/app/schemas/auth.py`
+  - `backend/tests/test_auth_api_contract.py`
+- Verified backend auth seed scaffold files exist:
+  - `backend/app/auth/seed_data.py`
+  - `backend/app/services/auth_seed.py`
+  - `backend/scripts/seed_auth_rbac.py`
+- Verified backend audit foundation scaffold files exist:
+  - `backend/app/services/audit_log.py`
+  - `backend/tests/test_audit_log_service.py`
+- Verified backend admin user-management, roles and files storage files exist:
+  - `backend/app/models/file.py`
+  - `backend/app/api/v1/users.py`
+  - `backend/app/api/v1/roles.py`
+  - `backend/app/api/v1/files.py`
+  - `backend/app/schemas/user.py`
+  - `backend/app/schemas/role.py`
+  - `backend/app/schemas/file.py`
+  - `backend/app/services/user_admin.py`
+  - `backend/app/services/role_admin.py`
+  - `backend/app/services/file_admin.py`
+  - `backend/tests/test_user_admin_service.py`
+  - `backend/tests/test_role_admin_service.py`
+  - `backend/tests/test_file_admin_service.py`
+  - `backend/tests/test_roles_api.py`
+  - `backend/tests/test_users_api.py`
+  - `backend/tests/test_files_api.py`
+  - `backend/alembic/versions/20260610_0400_create_files_table.py`
+- Verified backend framework/tooling: FastAPI `0.136.3`, SQLAlchemy `2.0.50`, Alembic `1.18.4`, Pydantic Settings `2.14.1`, MinIO `7.2.20`, pytest `9.0.3`, pytest-asyncio `1.4.0`, Ruff `0.15.16`, mypy `1.20.2`
+- Verified backend auth dependency declarations now include `argon2-cffi` and `PyJWT` in `backend/pyproject.toml`
+- Verified current auth service pattern: user fetches for auth/authz eager-load `roles -> permissions` via `selectinload`
+- Verified Users avatar-upload pattern at code level on 2026-06-11:
+  - backend route `POST /api/v1/users/avatar-upload` exists in `backend/app/api/v1/users.py`
+  - the route reuses `FileAdminService` and MinIO-backed file storage rather than introducing a second upload stack
+  - frontend create/edit user dialogs no longer rely on manual avatar URL input; `frontend/src/composables/useUsersPage.ts` uploads avatar images first and then sends the returned `avatar_url` through normal user create/update JSON payloads
+  - file and avatar responses now return same-origin relative paths like `/api/v1/files/{id}/download` instead of absolute URLs built from `request.base_url`
+- Verified auth API shape at code level: login/refresh/logout/me live under `/api/v1/auth`, refresh token is read from cookie in the route layer, and `me` returns resolved role/permission data
+- Verified auth seed pattern at code level: bootstrap data is seeded through an idempotent service that creates baseline permissions, `admin`/`user` roles, and an initial admin account while refusing to run with the placeholder password from `.env.example`
+- Verified auth audit pattern at code level: auth routes log `auth.login_failed`, `auth.login_succeeded`, `auth.session_refreshed`, and `auth.logout` through a shared `AuditLogService`; request id comes from the request-id context middleware and client IP is extracted from `X-Forwarded-For` or `request.client`
+- Verified minimal admin mutation audit pattern at code level: `POST /api/v1/users` and `PUT /api/v1/users/{id}/roles` are protected by `users.create` / `users.update` permissions and log `users.user_created` / `users.roles_updated`
+- Verified backend checks run successfully on 2026-06-09: `uv run pytest`, `uv run ruff check .`, `uv run mypy .`
+- Verified backend checks run successfully on 2026-06-10 after Step 8 audit work: `uv run pytest`, `uv run ruff check .`, `uv run mypy .`
+- Re-verified backend checks on 2026-06-10 during the phase-status audit: `uv run pytest`, `uv run ruff check .`, `uv run mypy .`
+- Frontend scaffold exists in `frontend/`
+- Frontend package manager and runner: `npm`
+- Verified frontend dependency set from `frontend/package.json` and `frontend/package-lock.json`
+- Verified frontend dependency override on 2026-06-09: `frontend/package.json` forces transitive `glob` to `13.0.6` to remove the deprecated `glob@10.5.0` warning emitted by Docker/frontend installs
+- Verified frontend app entrypoint: `frontend/src/main.ts`
+- Verified frontend auth foundation scaffold and users/roles CRUD files exist:
+  - `frontend/src/api/auth.api.ts`
+  - `frontend/src/api/auth.mappers.ts`
+  - `frontend/src/api/http.ts`
+  - `frontend/src/stores/auth.store.ts`
+  - `frontend/src/stores/permission.store.ts`
+  - `frontend/src/router/guards.ts`
+  - `frontend/src/pages/LoginPage.vue`
+  - `frontend/src/pages/ForbiddenPage.vue`
+  - `frontend/tests/unit/auth.store.spec.ts`
+  - `frontend/src/types/users.ts`
+  - `frontend/src/api/roles.mappers.ts`
+  - `frontend/src/api/users.mappers.ts`
+  - `frontend/src/api/files.mappers.ts`
+  - `frontend/src/api/users.api.ts`
+  - `frontend/src/api/roles.api.ts`
+  - `frontend/src/api/files.api.ts`
+  - `frontend/src/composables/useUsersPage.ts`
+  - `frontend/src/composables/useRolesPage.ts`
+  - `frontend/src/composables/useFilesPage.ts`
+  - `frontend/src/pages/UsersPage.vue`
+  - `frontend/src/pages/RolesPage.vue`
+  - `frontend/src/pages/FilesPage.vue`
+  - `frontend/src/styles/pages/_users-page.scss`
+  - `frontend/src/styles/pages/_roles-page.scss`
+  - `frontend/src/styles/pages/_files-page.scss`
+  - `frontend/src/types/users.ts`
+  - `frontend/src/types/roles.ts`
+  - `frontend/src/types/files.ts`
+- Verified frontend framework/tooling: Vue `3.5.34`, Vite `8.0.16`, Vue Router `5.1.0`, Pinia `3.0.4`, PrimeVue `4.5.5`, PrimeIcons `7.0.0`, VeeValidate `4.15.1`, Zod `3.25.76`, Sass `1.100.0`, ESLint `10.4.1`, Prettier `3.8.3`, Vitest `4.1.8`, Vue Test Utils `2.4.11`, Playwright `1.60.0`
+- Verified frontend checks run successfully on 2026-06-09: `npm run typecheck`, `npm run lint`, `npm run test:unit`, `npm run test:e2e`, `npm run build`
+- Verified frontend auth foundation checks run successfully on 2026-06-10: `npm run typecheck`, `npm run lint`, `npm run test:unit`, `npm run build`, `docker compose -f docker-compose.test.yml run --rm e2e-test`
+- Re-verified frontend checks on 2026-06-10 during the phase-status audit: `npm run typecheck`, `npm run lint`, `npm run test:unit`, `npm run build`
+- Verified frontend guardrail: `npm run lint` calls `frontend/scripts/check-no-scoped-style.mjs` to reject any Vue SFC using a `<style>` block
+- Verified frontend style architecture: `frontend/src/styles/**/*.scss` is now the centralized style tree for tokens, base styles, vendors, layouts, components, and pages
+- Verified frontend body font baseline from `frontend/src/styles/base/primitives.scss`: `Be Vietnam Pro`
+- Verified frontend auth bootstrap pattern at code level: app routes are guarded through `router.beforeEach`, login is guest-only, protected routes call `authStore.initialize()`, and failed refresh/network bootstrap falls back to anonymous state so the login page can still render
+- Verified frontend API-isolation pattern at code level: backend DTOs stay in `types/auth.ts`, API normalization happens in `frontend/src/api/auth.mappers.ts`, and stores consume domain-shaped `AuthSession` / `CurrentUser` objects instead of raw backend response fields
+- Verified Docker dev scaffold exists in project root:
+  - `docker-compose.yml`
+  - `docker/backend/Dockerfile`
+  - `docker/frontend/Dockerfile`
+  - root `.dockerignore`
+  - `docker/frontend/Dockerfile` sets `NPM_CONFIG_UPDATE_NOTIFIER=false` in the base stage to suppress npm major-version notices in Docker logs
+- Verified Docker dev services on 2026-06-09:
+  - `backend` image based on `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`
+  - `frontend` image based on `node:22-bookworm-slim`
+  - `postgres` image `postgres:16-bookworm`
+  - `minio` image `minio/minio:RELEASE.2025-09-07T16-13-09Z`
+- Verified Docker Compose checks on 2026-06-09:
+  - `docker compose config`
+  - `docker compose up --build -d`
+  - `docker compose ps`
+  - `docker compose exec backend` health call to `http://127.0.0.1:8000/health`
+  - `docker compose exec frontend` fetch to `http://127.0.0.1:5173`
+- Re-verified Docker dev auth runtime on 2026-06-10:
+  - `docker compose exec backend sh -lc "cd /app && uv run alembic upgrade head"`
+  - `docker compose exec backend sh -lc "cd /app && AUTH_SEED_ADMIN_PASSWORD='<local override>' uv run python scripts/seed_auth_rbac.py"`
+  - `POST /api/v1/auth/login` returns `200`, `Access-Control-Allow-Origin: http://localhost:5173`, and `Set-Cookie` for the refresh token
+- Verified host port defaults for Docker dev:
+  - backend `8000`
+  - frontend `5173`
+  - postgres `55432`
+  - minio API `59000`
+  - minio console `59001`
+  - redis is internal-only by default and is not published to a host port
+- Verified `.env.example` exposes `BACKEND_HOST_PORT`, `FRONTEND_HOST_PORT`, `POSTGRES_HOST_PORT`, `MINIO_API_HOST_PORT`, `MINIO_CONSOLE_HOST_PORT`
+- Verified timezone baseline from `.env.example` and `backend/app/core/config.py`: `APP_TIMEZONE=Asia/Ho_Chi_Minh`, `VITE_APP_TIMEZONE=Asia/Ho_Chi_Minh`
+- Verified Phase 2 auth config baseline from `.env.example` and `backend/app/core/config.py`: `AUTH_TOKEN_TRANSPORT=hybrid`, refresh cookie settings, `ACCESS_TOKEN_EXPIRE_MINUTES`, and `REFRESH_TOKEN_EXPIRE_DAYS`
+- Verified Phase 2 seed config baseline from `.env.example` and `backend/app/core/config.py`: `AUTH_SEED_ADMIN_EMAIL`, `AUTH_SEED_ADMIN_PASSWORD`, and `AUTH_SEED_UPDATE_ADMIN_PASSWORD`
+- Verified Docker production scaffold exists in project root:
+  - `docker-compose.prod.yml`
+  - `docker/nginx/prod.conf`
+  - `docker/frontend/nginx.default.conf`
+  - multi-stage `docker/backend/Dockerfile`
+  - multi-stage `docker/frontend/Dockerfile`
+- Verified Docker production checks on 2026-06-09:
+  - `docker compose -f docker-compose.prod.yml config`
+  - `docker compose -f docker-compose.prod.yml build backend frontend`
+- Verified Docker production architecture:
+  - `backend` target `prod` runs `uvicorn` without reload
+  - `frontend` target `prod` builds static assets with `VITE_API_BASE_URL=/api/v1`
+  - `reverse-proxy` Nginx routes `/api/*` and `/health` to backend, `/` to frontend
+  - production compose does not mount source code
+  - production compose does not publish Postgres or MinIO ports
+  - public production entrypoint defaults to `PROXY_HOST_PORT=8080`
+- Verified Docker test scaffold exists in project root:
+  - `docker-compose.test.yml`
+  - `frontend/playwright.docker.config.ts`
+- Verified Docker test checks on 2026-06-09:
+  - `docker compose -f docker-compose.test.yml config`
+  - `docker compose -f docker-compose.test.yml run --rm backend-test`
+  - `docker compose -f docker-compose.test.yml run --rm frontend-test`
+  - `docker compose -f docker-compose.test.yml run --rm e2e-test`
+- Verified Docker test Makefile targets on 2026-07-27 now use `docker compose -f docker-compose.test.yml run --build --rm ...` so backend/frontend/e2e test containers execute against rebuilt images from the current worktree.
+- Verified Docker test architecture:
+  - `backend-test` uses isolated Postgres/MinIO services and runs `pytest`, `ruff`, `mypy`, `bandit`
+  - `frontend-test` runs `lint`, `typecheck`, `test:unit`
+  - `backend-e2e` and `frontend-e2e` provide network targets for browser tests
+  - `e2e-test` has a dedicated Playwright Docker path via the `e2e` target in `docker/frontend/Dockerfile`
+  - `frontend/vite.config.ts` must allow the internal Docker hostname `frontend-e2e` for browser E2E to reach the Vite dev server
+- Verified root quality-gate entrypoint on 2026-06-09:
+  - `Makefile`
+  - `make check`
+  - `make docker-test-e2e`
+- Verified Phase 5 hardening files exist on 2026-06-11:
+  - `backend/app/core/security_headers.py`
+  - `backend/app/core/rate_limit.py`
+  - `backend/tests/test_hardening_api.py`
+  - `.github/workflows/ci.yml`
+  - `scripts/perf/check_users_list.py`
+  - `scripts/perf/check_users_export.py`
+- Verified Phase 5 local checks on 2026-06-11:
+  - `cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run pytest && UV_CACHE_DIR=/tmp/uv-cache uv run ruff check . && UV_CACHE_DIR=/tmp/uv-cache uv run mypy .`
+  - `cd frontend && npm run lint && npm run typecheck && npm run test:unit`
+- Verified Phase 5 Makefile hardening command wiring on 2026-06-11:
+  - `perf-users-list` and `perf-users-export` now execute through the backend Python environment instead of host `python3`
+  - `backend-dependency-audit` now uses `XDG_CACHE_HOME=/tmp/.cache`
+  - `frontend-dependency-audit` now uses `NPM_CONFIG_CACHE=/tmp/.npm`
+- Verified Phase 6 production-readiness files exist on 2026-06-11:
+  - `backend/app/core/observability.py`
+  - `docker-compose.observability.yml`
+  - `docker/observability/otel-collector.yaml`
+  - `docker/observability/prometheus.yml`
+  - `docker/observability/alert_rules.yml`
+  - `scripts/compliance/check-production-readiness.sh`
+  - `scripts/ops/backup-postgres.sh`
+  - `scripts/ops/backup-minio.sh`
+  - `scripts/ops/restore-postgres.sh`
+  - `scripts/ops/restore-minio.sh`
+  - `scripts/ops/restore-drill.sh`
+  - `.env.production.example`
+  - `docs/phase-6-production-readiness.md`
+  - `docs/runbooks/backup-restore.md`
+  - `docs/runbooks/deploy-rollback-restore.md`
+- Verified Phase 6 backend/runtime configuration on 2026-06-11:
+  - `backend/app/core/config.py` supports secret-file inputs for JWT, database URL, and MinIO credentials
+  - backend exposes `/metrics` and `/ready`
+  - backend logging supports `LOG_FORMAT=json`
+  - OTEL baseline packages are installed in backend env and instrumentation hooks exist for FastAPI, HTTPX, and SQLAlchemy
+- Verified Phase 6 local checks on 2026-06-11:
+  - `cd backend && UV_CACHE_DIR=/tmp/uv-cache uv sync`
+  - `cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/test_health.py tests/test_production_readiness.py -q`
+  - `cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run pytest`
+  - `cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run ruff check .`
+  - `cd backend && UV_CACHE_DIR=/tmp/uv-cache uv run mypy .`
+  - `bash scripts/compliance/check-production-readiness.sh`
+  - `cd frontend && npm run lint && npm run typecheck && npm run test:unit`
+
+## Planned Stack
+
+- Backend: FastAPI `0.136.3`, Python `3.12` or `3.13` target, Pydantic v2, SQLAlchemy, Alembic
+- Infrastructure: Docker dev/prod/test, Docker Compose, Postgres, MinIO, production reverse proxy, Redis or compatible broker/cache if background jobs require it
+- Frontend: Vue 3, TypeScript, Vite, Pinia, PrimeVue v4, PrimeIcons
+- Admin UI reference: Sakai Vue
+- Form validation: VeeValidate + Zod
+- Backend quality tools: Ruff, mypy or pyright, pytest, pytest-asyncio, pytest-cov, testcontainers or Docker Compose test profile, Bandit
+- Frontend quality tools: ESLint, Prettier, vue-tsc, Vitest, Vue Test Utils, Playwright, MSW or API mock layer
+- Frontend UX constraint: the admin UI must be mobile responsive across mobile, tablet, and desktop viewports
+- Frontend typography constraint: shared UI uses `Be Vietnam Pro` as the default body font
+- Time handling constraint: business-facing date/time behavior defaults to `Asia/Ho_Chi_Minh` (`GMT+7`) and must not depend on host/browser runtime timezone implicitly
+- Auth strategy constraint: Phase 2 uses a hybrid browser-first model with short-lived Bearer access token plus `httpOnly` refresh cookie
+- Enterprise features: async User import/export jobs, large DataTable performance, heavy file import/export handling, RBAC, audit logging, rate limiting, dependency/container scanning
+- Current phase status: Phases 2, 3, and 4 are complete; Phase 5 Hardening is implemented and locally verified, with unrestricted dependency-audit/perf verification still pending; Phase 6 Production Readiness baseline is implemented and locally verified
+- Production readiness: OpenTelemetry, structured logs, metrics/tracing, backup/restore, secret management, SLO, compliance gates
+
+## Unverified
+
+- Real database migrations and MinIO bucket bootstrap have not been exercised yet.
+- Auth/RBAC migration has been scaffolded, but `alembic upgrade` and runtime ORM import verification against the installed dependency set were not exercised in this turn because the sandboxed `uv` path could not fetch `hatchling` from PyPI and the system Python lacks `sqlalchemy`.
+- Auth core syntax is verified with `python3 -m py_compile`, but backend runtime tests against the installed dependency set remain unverified in this sandbox because `uv` still cannot fetch `hatchling` from PyPI.
+- Auth API syntax is verified with `python3 -m py_compile`, but route runtime verification remains unconfirmed in this sandbox for the same dependency/network reason.
+- Auth seed syntax is verified with `python3 -m py_compile`, but runtime execution of `backend/scripts/seed_auth_rbac.py` remains unconfirmed in this sandbox because the installed dependency set could not be exercised through `uv`.
+- Host-side `curl` to mapped Docker ports could not be verified from this agent session because the shell environment blocks localhost socket access with `Operation not permitted`; container-internal HTTP checks did pass.
+- Full production runtime startup via `docker compose -f docker-compose.prod.yml up` has not been exercised yet; only config validity and production image builds were verified in this step.
+- Local host-level browser E2E via `npm --prefix frontend run test:e2e` remains environment-sensitive in this agent session because the sandbox blocks opening a listening socket on `127.0.0.1:4173` with `EPERM`; the Docker E2E path is verified and should be treated as the reliable browser gate in sandboxed automation.
+- `make backend-dependency-audit` is wired correctly but remained unverified against live advisories in this session because sandbox DNS could not resolve `pypi.org`.
+- `make frontend-dependency-audit` is wired correctly but remained unverified against live advisories in this session because sandbox DNS could not resolve `registry.npmjs.org`.
+- `make perf-users-list` and `make perf-users-export` are wired correctly to the backend Python environment, but host-side runtime verification remained blocked in this session because localhost socket access returned `Operation not permitted`.
+- `docker compose -f docker-compose.observability.yml up` has not been exercised yet in this session; only config validation and asset existence were verified.
+- Backup/restore scripts and runbooks have been added, but a real restore drill against isolated runtime data has not been executed yet in this session.
+
+## Important Note
+
+Backend, frontend, Docker dev, Docker production, Docker test profile, and root quality gates are implemented and verified at scaffold level.
+
+Any agent that later creates or verifies the real stack from code should update this file immediately.

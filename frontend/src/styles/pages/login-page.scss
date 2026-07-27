@@ -1,0 +1,156 @@
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(43, 138, 117, 0.16),
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(43, 138, 117, 0.12),
+      transparent 24%
+    ),
+    var(--app-surface-ground);
+}
+
+.login-page__card {
+  width: min(100%, 25rem);
+  display: grid;
+  gap: 1.9rem;
+  padding: 2.2rem 1.75rem 2.1rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: var(--app-login-card-bg);
+  box-shadow: 0 1.6rem 4rem rgba(7, 18, 16, 0.18);
+}
+
+.login-page__header {
+  display: grid;
+  justify-items: center;
+  gap: 0.85rem;
+  text-align: center;
+}
+
+.login-page__logo {
+  width: 3.5rem;
+  height: 3.5rem;
+  display: block;
+  object-fit: contain;
+  border-radius: 999px;
+  box-shadow: 0 0.55rem 1.4rem var(--app-login-logo-shadow);
+}
+
+.login-page__title {
+  margin: 0;
+  color: var(--app-login-primary);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.login-page__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--app-login-text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.login-page__form {
+  display: grid;
+  gap: 1.55rem;
+}
+
+.login-page__field {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.login-page__label {
+  color: var(--app-login-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.login-page__input,
+.login-page__password,
+.login-page__password .p-password-input {
+  width: 100%;
+}
+
+.login-page__input,
+.login-page__password .p-password-input {
+  height: 2.2rem;
+  background: var(--app-login-field-bg);
+  border-color: var(--app-login-field-border);
+  border-radius: 0.35rem;
+  color: var(--app-login-text);
+  font-size: 0.9rem;
+  box-shadow: 0 0.05rem 0.15rem rgba(15, 23, 42, 0.04) inset;
+}
+
+.login-page__input::placeholder,
+.login-page__password .p-password-input::placeholder {
+  color: var(--app-login-text-muted);
+}
+
+.login-page__password .p-password-toggle-mask-icon {
+  color: var(--app-login-toggle);
+}
+
+.login-page__password .p-password-toggle-mask-icon:hover {
+  color: var(--app-login-submit-bg);
+}
+
+.login-page__error {
+  color: var(--app-danger);
+  font-size: 0.78rem;
+}
+
+.login-page .login-page__submit.p-button {
+  --p-button-primary-background: var(--app-login-submit-bg);
+  --p-button-primary-border-color: var(--app-login-submit-bg);
+  --p-button-primary-color: var(--app-login-submit-text);
+  --p-button-primary-hover-background: var(--app-login-submit-bg-hover);
+  --p-button-primary-hover-border-color: var(--app-login-submit-bg-hover);
+  --p-button-primary-hover-color: var(--app-login-submit-text);
+  --p-button-primary-active-background: var(--app-login-submit-bg-hover);
+  --p-button-primary-active-border-color: var(--app-login-submit-bg-hover);
+  --p-button-primary-active-color: var(--app-login-submit-text);
+  height: 2.15rem;
+  margin-top: 0.45rem;
+  width: 100%;
+  justify-content: center;
+  border-color: var(--app-login-submit-bg);
+  border-radius: 0.35rem;
+  background: var(--app-login-submit-bg);
+  background-image: none;
+  color: var(--app-login-submit-text);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.login-page .login-page__submit.p-button:not(:disabled):hover {
+  border-color: var(--app-login-submit-bg-hover);
+  background: var(--app-login-submit-bg-hover);
+  background-image: none;
+  color: var(--app-login-submit-text);
+}
+
+.login-page__submit .p-button-icon {
+  font-size: 0.86rem;
+}
+
+@media (max-width: 900px) {
+  .login-page {
+    padding: 1rem;
+  }
+
+  .login-page__card {
+    padding: 2rem 1.35rem;
+  }
+}

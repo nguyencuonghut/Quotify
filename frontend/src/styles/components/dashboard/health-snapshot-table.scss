@@ -1,0 +1,31 @@
+.health-table {
+  border-radius: 1.5rem;
+  background: var(--app-surface-panel);
+  border: 1px solid var(--app-border-soft);
+  box-shadow: var(--app-shadow-sm);
+  padding: 1.5rem;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.health-table__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.health-table__eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.health-table__title {
+  margin: 0;
+}

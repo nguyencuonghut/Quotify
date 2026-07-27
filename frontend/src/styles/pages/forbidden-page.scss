@@ -1,0 +1,34 @@
+.forbidden-page {
+  display: grid;
+  gap: 0.9rem;
+  padding: 2rem;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 1.5rem;
+  background: var(--app-surface-panel);
+}
+
+.forbidden-page__eyebrow {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.forbidden-page__title {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+}
+
+.forbidden-page__body {
+  margin: 0;
+  max-width: 44rem;
+  color: var(--app-text-secondary);
+  line-height: 1.7;
+}
+
+.forbidden-page__link {
+  color: var(--app-accent);
+  font-weight: 600;
+  text-decoration: none;
+}

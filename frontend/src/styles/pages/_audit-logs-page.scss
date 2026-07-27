@@ -1,0 +1,208 @@
+.audit-logs-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.audit-logs-page__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.audit-logs-page__filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1rem;
+  flex: 1 1 44rem;
+  min-width: 0;
+}
+
+.audit-logs-page__advanced-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  flex: 1 1 100%;
+  min-width: 0;
+  padding-top: 0.25rem;
+}
+
+.audit-logs-page__filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.audit-logs-page__filter-label {
+  color: var(--app-text-muted);
+  font-size: 0.8rem;
+}
+
+.audit-logs-page__filter-input,
+.audit-logs-page__date-input {
+  width: 100%;
+}
+
+.audit-logs-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.audit-logs-page__action-btn,
+.audit-logs-page__icon-btn {
+  flex-shrink: 0;
+}
+
+.audit-logs-page__general-error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 0.5rem;
+  background-color: color-mix(in srgb, var(--app-text-danger) 10%, transparent);
+  color: var(--app-text-danger);
+}
+
+.audit-logs-page__table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 1rem;
+  background: var(--app-surface-panel);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.audit-logs-page__actor-cell,
+.audit-logs-page__action-cell,
+.audit-logs-page__entity-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 10rem;
+}
+
+.audit-logs-page__actor-cell small,
+.audit-logs-page__action-cell small,
+.audit-logs-page__entity-cell small {
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.audit-logs-page__change-summary {
+  display: inline-block;
+  min-width: 10rem;
+  color: var(--app-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.audit-logs-page__metadata-column {
+  width: 5rem;
+  text-align: right;
+}
+
+.audit-logs-page__metadata-dialog {
+  width: min(90vw, 48rem);
+}
+
+.audit-logs-page__metadata-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.audit-logs-page__metadata-details div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 0.5rem;
+  background: var(--app-surface-panel-alt);
+}
+
+.audit-logs-page__metadata-details span {
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+}
+
+.audit-logs-page__metadata-details strong {
+  color: var(--app-text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.audit-logs-page__metadata-heading {
+  margin: 0 0 0.5rem;
+  color: var(--app-text-secondary);
+  font-size: 0.95rem;
+}
+
+.audit-logs-page__metadata-json {
+  max-height: 60vh;
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 0.5rem;
+  background: var(--app-surface-panel-alt);
+  color: var(--app-text-primary);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.audit-logs-page__empty-state {
+  padding: 2rem;
+  color: var(--app-text-muted);
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .audit-logs-page__header {
+    align-items: stretch;
+  }
+
+  .audit-logs-page__filters {
+    grid-template-columns: 1fr;
+    flex-basis: 100%;
+  }
+
+  .audit-logs-page__actions {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .audit-logs-page__action-btn {
+    flex: 1 1 10rem;
+  }
+
+  .audit-logs-page__icon-btn {
+    flex: 0 0 auto;
+  }
+
+  .audit-logs-page__table-wrapper {
+    padding: 0.75rem;
+  }
+}
