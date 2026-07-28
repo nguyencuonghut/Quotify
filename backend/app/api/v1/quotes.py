@@ -33,6 +33,12 @@ from app.services import (
 from app.api.v1.quotify_settings import get_audit_log_service
 from app.services.quote_pricing import QuotePricingService
 from app.services.quote_service import QuoteService
+from app.services.quote_note_service import QuoteNoteService
+from app.schemas.quote_note import (
+    QuoteNoteResponse,
+    QuoteNoteRevisionResponse,
+    QuoteNoteUpdateRequest,
+)
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 
@@ -52,6 +58,12 @@ def get_quote_service(
     pricing_service: Annotated[QuotePricingService, Depends(get_quote_pricing_service)],
 ) -> QuoteService:
     return QuoteService(session, pricing_service)
+
+
+def get_quote_note_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> QuoteNoteService:
+    return QuoteNoteService(session)
 
 
 def _build_line_response(line: QuoteLine) -> QuoteLineResponse:
@@ -474,4 +486,86 @@ async def download_source_file(
         stream_file(),
         media_type=db_file.content_type,
         headers=headers,
+    )
+
+
+@router.get("/{quote_id}/notes", response_model=QuoteNoteResponse)
+async def get_quote_note(
+    quote_id: UUID,
+    note_service: Annotated[QuoteNoteService, Depends(get_quote_note_service)],
+    _: Annotated[User, Depends(require_permission("quotes.read"))],
+) -> Any:
+    note = await note_service.get_note_by_quote_id(quote_id)
+    if not note:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Quote note not found",
+        )
+    
+    revisions = []
+    for r in note.revisions:
+        revisions.append(
+            QuoteNoteRevisionResponse(
+                id=r.id,
+                revision_number=r.revision_number,
+                content=r.content,
+                author_id=r.author_id,
+                author_name=r.author.full_name if r.author else None,
+                created_at=r.created_at,
+            )
+        )
+    
+    return QuoteNoteResponse(
+        id=note.id,
+        quote_id=note.quote_id,
+        created_at=note.created_at,
+        updated_at=note.updated_at,
+        revisions=revisions,
+    )
+
+
+@router.put("/{quote_id}/notes", response_model=QuoteNoteRevisionResponse)
+async def update_quote_note(
+    request: Request,
+    quote_id: UUID,
+    body: QuoteNoteUpdateRequest,
+    note_service: Annotated[QuoteNoteService, Depends(get_quote_note_service)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    _: Annotated[User, Depends(require_permission("quotes.update"))],
+) -> Any:
+    try:
+        revision = await note_service.update_note(
+            quote_id=quote_id,
+            content=body.content,
+            author_id=current_user.id,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Log audit event
+    context = AuditLogContext.from_request(request, current_user)
+    await audit_service.log_event(
+        db=session,
+        action="quotes.note_updated",
+        entity_type="quote",
+        entity_id=quote_id,
+        context=context,
+        metadata_json={
+            "quote_id": str(quote_id),
+            "revision_number": revision.revision_number,
+        },
+    )
+
+    return QuoteNoteRevisionResponse(
+        id=revision.id,
+        revision_number=revision.revision_number,
+        content=revision.content,
+        author_id=revision.author_id,
+        author_name=current_user.full_name,
+        created_at=revision.created_at,
     )

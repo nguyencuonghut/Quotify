@@ -77,7 +77,8 @@ The repository has been prepared with:
 
 84. Đã hoàn thành tối ưu hóa UX nhập liệu cho báo giá nhiều tháng vào ngày 28/07/2026: Triển khai Phương án 2 (Nhân bản nhanh dòng vật tư - Clone/Duplicate Line) trong composable `useQuoteEditor.ts` và hai view desktop/mobile của `QuoteEditorPage.vue`. Cho phép người dùng clone nhanh một dòng vật tư hiện tại kèm toàn bộ giá trị và đổi tháng giao hàng.
 85. Đã sửa các lỗi phát hiện khi vận hành báo giá ngày 28/07/2026: Sửa lỗi hiển thị nguồn tỷ giá 'Chưa xác định' cho các dòng thêm sau bằng cách gán đúng `exchangeRateSource` trong `useQuoteEditor.ts`; Sửa lỗi `hasPermission` trong `QuoteDetailPage.vue` bằng cách tích hợp `usePermissionStore`; Sửa lỗi `getTodayString is not defined` trong `QuoteEditorPage.vue`; Cải tiến `AdminLayout.vue` tự động highlight active menu 'Nhập báo giá' cho các sub-routes con như tạo phiên bản mới hoặc sửa bản nháp.
+86. Đã hoàn thành Phase 7 Backend (Ghi chú thị trường & Lịch sử chỉnh sửa) ngày 28/07/2026: Viết test và tích hợp thư viện HTML sanitizer `nh3` an toàn; Tạo các database models `QuoteNote`, `QuoteNoteRevision`; Tạo Alembic migration `20260728_1100_create_quote_notes.py`; Cài đặt `QuoteNoteService`; Bổ sung các API endpoints `GET /api/v1/quotes/{quote_id}/notes` và `PUT /api/v1/quotes/{quote_id}/notes` cùng với bộ unit tests cho service và API endpoints.
 
 ## Next Useful Steps
 
-1. Tiến hành Phase 7: Ghi chú thị trường và Lịch sử chỉnh sửa báo giá.
+1. Tiến hành Phase 7: Ghi chú thị trường và Lịch sử chỉnh sửa báo giá (Phần Frontend).
