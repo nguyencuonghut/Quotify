@@ -9,6 +9,9 @@ from app.models.import_job import ImportJob
 from app.models.material import Material
 from app.models.material_type import MaterialType
 from app.models.permission import Permission, role_permissions
+from app.models.quote import Quote
+from app.models.quote_version import QuoteVersion
+from app.models.quote_line import QuoteLine
 from app.models.quotify_setting import QuotifySetting
 from app.models.refresh_token import RefreshToken
 from app.models.role import Role
@@ -27,6 +30,9 @@ __all__ = [
     "Material",
     "MaterialType",
     "Permission",
+    "Quote",
+    "QuoteVersion",
+    "QuoteLine",
     "QuotifySetting",
     "RefreshToken",
     "Role",
@@ -38,3 +44,4 @@ __all__ = [
     "role_permissions",
     "user_roles",
 ]
+

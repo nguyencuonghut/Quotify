@@ -85,12 +85,11 @@
 - Đã hoàn thành Phase 4 Backend Quotify ngày 28/07/2026: thêm `quotify_settings` model/migration/service/schema, settings/env cho Vietcombank URL/timeout/retry/rate limit, adapter `VietcombankExchangeRateClient` bọc `httpx`, parser XML fixture, helper `GET /exchange-rates/usd-sell/today`, API read/update cấu hình chi phí quy đổi, RBAC, rate limit, audit metadata `changes` old/new và allowlist sanitizer. Quy đổi dùng `Decimal`, `ROUND_HALF_UP`, scale 2 chữ số; business today dùng `Asia/Ho_Chi_Minh`; không persist snapshot tỷ giá độc lập. Kiểm chứng đã chạy: `python3 -m py_compile`, Docker targeted test `21 passed, 1 skipped`, Docker ruff/mypy, Docker Alembic upgrade head, full Docker backend pytest `199 passed, 1 skipped`.
 - Đã hoàn thành Phase 4 Frontend Quotify ngày 28/07/2026: thêm type/mapper/API cho `/exchange-rates/usd-sell/today`, `/quotify-settings`, `/quotify-settings/conversion-cost`; thêm composable và trang `/quotify-settings` để xem tỷ giá USD bán ra hôm nay, xem/lưu chi phí quy đổi VNĐ/KG theo quyền; thêm menu `Cấu hình quy đổi` trong nhóm `Báo giá`, SCSS tập trung và unit test mapper. Đồng thời hoàn thiện component `ExchangeRateField.vue` xử lý tỷ giá auto/manual/fallback, viết styles SCSS tập trung, và bổ sung toàn bộ bộ unit tests cho `useQuotifySettingsPage`, `QuotifySettingsPage` và `ExchangeRateField` đạt coverage đầy đủ.
 - Đã sửa lỗi runtime trang `/quotify-settings` ngày 28/07/2026: chạy migration cho Docker dev đang sống, thêm migration seed default `quotify_settings`, commit fallback `get_or_create` trong route đọc, thêm regression test API và E2E browser mở `Cấu hình quy đổi` để chặn lỗi `500`. Kiểm chứng đã chạy: Docker targeted backend tests `5 passed`, Docker backend ruff/mypy targeted, Docker frontend typecheck/lint, kiểm HTTP qua Vite proxy `200`, DB có đúng một dòng default, và `make docker-test-e2e` pass `3 passed`.
+- Hoàn thành Phase 5 Backend ngày 28/07/2026: Tạo database models (Quote, QuoteVersion, QuoteLine), Alembic migrations, backend services (QuoteService, QuotePricingService), schemas, API endpoints (/api/v1/quotes), và bộ unit tests targeted test_quote_lifecycle.py.
 
 ## Open
 
-- Phase 4 Quotify đã hoàn tất 100% cả backend và frontend theo đúng kế hoạch triển khai.
-
-- Bước tiếp theo là Phase 5 Quotify: xây nền vòng đời phiếu báo giá, phiên bản và dòng báo giá, sử dụng lại helper tỷ giá/cấu hình của Phase 4 trong quote workflow.
+- Bước tiếp theo là Phase 6: Giao diện nhập và xem phiếu báo giá (Frontend), tích hợp API backend đã hoàn thành của Phase 5.
 - Finish unrestricted verification for Phase 5 dependency audits and host-side performance smoke outside the current sandbox DNS/socket limits
 - Verify Phase 6 observability stack `up` flow and execute a real restore drill in an isolated runtime environment
 - Optionally install Bun and run the upstream `agent-memory` CLI locally

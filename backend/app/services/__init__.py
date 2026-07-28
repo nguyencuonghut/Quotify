@@ -47,6 +47,8 @@ from app.services.material_type_admin import (
     MaterialTypeInUseError,
     MaterialTypeNotFoundError,
 )
+from app.services.quote_pricing import QuotePricingService
+from app.services.quote_service import QuoteService
 from app.services.quotify_seed import QuotifySeedService, QuotifySeedSummary
 from app.services.quotify_settings_service import QuotifySettingsService
 from app.services.role_admin import (
@@ -104,6 +106,8 @@ __all__ = [
     "MaterialTypeNotFoundError",
     "MaterialTypeNotFoundForMaterialError",
     "PermissionNotFoundError",
+    "QuotePricingService",
+    "QuoteService",
     "QuotifySeedService",
     "QuotifySeedSummary",
     "QuotifySettingsService",
@@ -127,3 +131,4 @@ __all__ = [
     "is_business_today",
     "quantize_money",
 ]
+
