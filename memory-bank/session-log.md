@@ -516,3 +516,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Hoàn tất kiểm chứng Phase 3B Quotify
 - Tóm tắt: Đã chạy lại make docker-test-e2e sau khi chỉnh Audit Logs E2E không gọi auth refresh trên phiên UI; Docker E2E pass 3 passed. Đã ghi bug pattern Playwright API refresh làm mất phiên UI sau full reload và cập nhật Phase 3B trong Memory Bank.
+
+## 2026-07-28 01:31:46Z - codex
+
+- Tiêu đề: Hoàn thành Phase 4 Backend Quotify
+- Tóm tắt: Đã triển khai backend Phase 4 cho cấu hình quy đổi và tỷ giá USD bán ra: quotify_settings model/migration/service/API, VietcombankExchangeRateClient, ExchangeRateService, Decimal rounding, business today Asia/Ho_Chi_Minh, RBAC/rate limit/audit. Đã kiểm chứng bằng Docker targeted tests, ruff/mypy, Alembic upgrade head và full backend pytest.

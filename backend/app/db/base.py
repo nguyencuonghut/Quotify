@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401,E402
     material,
     material_type,
     permission,
+    quotify_setting,
     refresh_token,
     role,
     supplier,

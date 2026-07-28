@@ -421,6 +421,34 @@ hardcode toàn bộ logic quanh user import:
   và người dùng có permission import tương ứng. Không dùng `files.read_all` để
   tải lỗi import catalog.
 
+## Quotify Pricing And Exchange Rate Pattern
+
+Luồng quy đổi giá của Quotify phải giữ provenance ổn định và không tính lại dữ
+liệu lịch sử bằng cấu hình hiện tại:
+
+- Không dùng `float` cho tiền, tỷ giá hoặc giá quy đổi. Backend dùng `Decimal`,
+  `ROUND_HALF_UP` và scale 2 chữ số cho `conversion_cost_vnd_per_kg`, tỷ giá và
+  `converted_price_vnd_per_kg`.
+- Cặp USD/MT được quy đổi theo công thức `(Giá USD/MT / 1000) * tỷ giá USD bán ra
+  + chi phí quy đổi`; rounding chỉ thực hiện một lần ở backend sau khi cộng chi
+  phí.
+- Ngày hiện tại của nghiệp vụ tỷ giá phải tính theo `Asia/Ho_Chi_Minh`, không
+  dùng timezone host, UTC date hoặc `date.today()` không timezone.
+- Phase 4 chỉ có helper đọc USD bán ra hôm nay và cấu hình chi phí quy đổi hiện
+  hành. Không tạo CRUD hoặc bảng snapshot tỷ giá độc lập; Phase 5/quote write
+  flow sẽ đóng băng rate/source/retrieved-at/manual reason trực tiếp trên
+  `QuoteLine`.
+- Route không gọi HTTP ra Vietcombank trực tiếp. Nguồn ngoài phải đi qua adapter
+  `VietcombankExchangeRateClient`, bọc `httpx`, có timeout/retry bằng typed
+  settings và test bằng fixture/mock transport, không gọi live Vietcombank trong
+  unit test.
+- Endpoint gọi nguồn tỷ giá ngoài phải có rate limit riêng và quyền
+  `exchange_rates.read`. Cấu hình chi phí quy đổi dùng `quotify_settings.read` và
+  `quotify_settings.update`.
+- Audit update cấu hình phải dùng metadata `changes` có `field`, `label`,
+  `old_value`, `new_value`; mọi key metadata mới cho pricing/exchange-rate phải
+  được đưa vào sanitizer allowlist trước khi ghi event.
+
 ## Production Readiness Pattern
 
 Production-readiness in this repo is split into four layers:

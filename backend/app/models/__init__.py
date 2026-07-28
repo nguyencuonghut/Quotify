@@ -9,6 +9,7 @@ from app.models.import_job import ImportJob
 from app.models.material import Material
 from app.models.material_type import MaterialType
 from app.models.permission import Permission, role_permissions
+from app.models.quotify_setting import QuotifySetting
 from app.models.refresh_token import RefreshToken
 from app.models.role import Role
 from app.models.supplier import Supplier
@@ -26,6 +27,7 @@ __all__ = [
     "Material",
     "MaterialType",
     "Permission",
+    "QuotifySetting",
     "RefreshToken",
     "Role",
     "Supplier",

@@ -2,6 +2,7 @@
 
 from app.schemas.audit_log import AuditLogListResponse, AuditLogResponse
 from app.schemas.auth import AccessTokenResponse, CurrentUserResponse, LoginRequest
+from app.schemas.exchange_rate import ExchangeRateResponse
 from app.schemas.file import FileListResponse, FileResponse
 from app.schemas.job import (
     ExportJobListResponse,
@@ -22,6 +23,10 @@ from app.schemas.material_type import (
     MaterialTypeUpdateRequest,
 )
 from app.schemas.permission import PermissionResponse
+from app.schemas.quotify_settings import (
+    ConversionCostUpdateRequest,
+    QuotifySettingsResponse,
+)
 from app.schemas.role import (
     RoleCreateRequest,
     RoleListResponse,
@@ -52,6 +57,8 @@ __all__ = [
     "AuditLogListResponse",
     "AuditLogResponse",
     "CurrentUserResponse",
+    "ConversionCostUpdateRequest",
+    "ExchangeRateResponse",
     "LoginRequest",
     "MaterialCreateRequest",
     "MaterialListResponse",
@@ -68,6 +75,7 @@ __all__ = [
     "ExportJobResponse",
     "ExportJobListResponse",
     "PermissionResponse",
+    "QuotifySettingsResponse",
     "RoleCreateRequest",
     "RoleListResponse",
     "RoleResponse",

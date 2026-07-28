@@ -143,6 +143,22 @@ class Settings(BaseSettings):
         default=10,
         alias="RATE_LIMIT_USERS_EXPORT",
     )
+    rate_limit_exchange_rates: int = Field(
+        default=20,
+        alias="RATE_LIMIT_EXCHANGE_RATES",
+    )
+    vietcombank_exchange_rate_url: str = Field(
+        default="https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx",
+        alias="VIETCOMBANK_EXCHANGE_RATE_URL",
+    )
+    vietcombank_exchange_rate_timeout_seconds: float = Field(
+        default=5.0,
+        alias="VIETCOMBANK_EXCHANGE_RATE_TIMEOUT_SECONDS",
+    )
+    vietcombank_exchange_rate_retry_count: int = Field(
+        default=1,
+        alias="VIETCOMBANK_EXCHANGE_RATE_RETRY_COUNT",
+    )
     observability_enabled: bool = Field(default=True, alias="OBSERVABILITY_ENABLED")
     metrics_enabled: bool = Field(default=True, alias="METRICS_ENABLED")
     metrics_path: str = Field(default="/metrics", alias="METRICS_PATH")

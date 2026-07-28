@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from httpx import AsyncClient
 
+from app.api.v1.exchange_rates import limit_exchange_rates_fetch
 from app.api.v1.files import limit_files_upload
 from app.api.v1.jobs import limit_users_export
 from app.core.rate_limit import InMemoryRateLimiter
@@ -74,6 +75,16 @@ def test_user_export_route_has_rate_limit_dependency(app: FastAPI) -> None:
     )
 
     assert limit_users_export in dependency_calls
+
+
+def test_exchange_rate_today_route_has_rate_limit_dependency(app: FastAPI) -> None:
+    dependency_calls = get_route_dependency_calls(
+        app,
+        path="/api/v1/exchange-rates/usd-sell/today",
+        method="GET",
+    )
+
+    assert limit_exchange_rates_fetch in dependency_calls
 
 
 def test_user_export_route_has_permission_dependency(app: FastAPI) -> None:
