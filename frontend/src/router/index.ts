@@ -13,6 +13,9 @@ import RolesPage from '@/pages/RolesPage.vue'
 import SuppliersPage from '@/pages/SuppliersPage.vue'
 import UsersPage from '@/pages/UsersPage.vue'
 import BackupsPage from '@/pages/BackupsPage.vue'
+import QuoteEditorPage from '@/pages/QuoteEditorPage.vue'
+import QuoteDetailPage from '@/pages/QuoteDetailPage.vue'
+
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -94,6 +97,51 @@ export const router = createRouter({
           'Cấu hình chi phí quy đổi và tra cứu tỷ giá USD bán ra cho hệ thống Quotify.',
       },
     },
+    {
+      path: '/quotes/new',
+      name: 'quote-new',
+      component: QuoteEditorPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'quotes.create',
+        title: 'Nhập báo giá',
+        description: 'Tạo mới phiếu báo giá nguyên liệu và các dòng vật tư.',
+      },
+    },
+    {
+      path: '/quotes/:quoteId',
+      name: 'quote-detail',
+      component: QuoteDetailPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'quotes.read',
+        title: 'Chi tiết báo giá',
+        description: 'Xem chi tiết phiếu báo giá, lịch sử phiên bản và chốt mua.',
+      },
+    },
+    {
+      path: '/quotes/:quoteId/versions/new',
+      name: 'quote-version-new',
+      component: QuoteEditorPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'quotes.update',
+        title: 'Tạo phiên bản báo giá',
+        description: 'Tạo phiên bản mới dựa trên phiên bản hiện tại của báo giá.',
+      },
+    },
+    {
+      path: '/quotes/:quoteId/versions/:versionId/edit',
+      name: 'quote-draft-edit',
+      component: QuoteEditorPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'quotes.update',
+        title: 'Sửa bản nháp báo giá',
+        description: 'Chỉnh sửa chi tiết bản nháp của phiên bản báo giá.',
+      },
+    },
+
     {
       path: '/users',
       name: 'users',

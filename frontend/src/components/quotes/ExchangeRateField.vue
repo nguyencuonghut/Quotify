@@ -14,6 +14,7 @@
       <!-- Trường nhập/hiển thị Tỷ giá -->
       <div class="exchange-rate-field__form-field">
         <label
+          v-if="!hideLabels"
           class="exchange-rate-field__form-label"
           :class="{ required: isRateRequired }"
           for="exchange-rate-input"
@@ -27,7 +28,7 @@
             class="exchange-rate-field__input"
             :disabled="disabled || isRateReadOnly || loading"
             :invalid="invalid || Boolean(error)"
-            locale="vi-VN"
+            locale="en-US"
             :max="999999"
             :max-fraction-digits="2"
             :min="0"
@@ -38,6 +39,7 @@
           <Button
             v-if="isToday && !disabled"
             aria-label="Lấy lại tỷ giá"
+            title="Lấy lại tỷ giá"
             class="exchange-rate-field__refresh-btn"
             icon="pi pi-refresh"
             :loading="loading"
@@ -54,7 +56,7 @@
 
       <!-- Hiển thị Nguồn tỷ giá -->
       <div class="exchange-rate-field__form-field">
-        <span class="exchange-rate-field__form-label">Nguồn tỷ giá</span>
+        <span v-if="!hideLabels" class="exchange-rate-field__form-label">Nguồn tỷ giá</span>
         <div class="exchange-rate-field__source-badge">
           {{ source || 'Chưa xác định' }}
           <span
@@ -79,6 +81,7 @@
       class="exchange-rate-field__form-field exchange-rate-field__reason-field"
     >
       <label
+        v-if="!hideLabels"
         class="exchange-rate-field__form-label"
         :class="{ required: sourceMode === 'manual_fallback' }"
         for="exchange-rate-reason"
@@ -90,7 +93,7 @@
         :disabled="disabled"
         :invalid="sourceMode === 'manual_fallback' && !manualReason"
         :model-value="manualReason"
-        placeholder="Nhập lý do bắt buộc..."
+        :placeholder="hideLabels ? 'Nhập lý do tỷ giá bắt buộc...' : 'Nhập lý do bắt buộc...'"
         @update:model-value="onReasonChange"
       />
       <small
@@ -117,23 +120,26 @@ interface Props {
   rate: number | null
   source: string
   sourceMode: string // 'auto' | 'manual_past' | 'manual_fallback'
-  manualReason: string
+  manualReason: string | null
   disabled?: boolean
   invalid?: boolean
   error?: string
+  hideLabels?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   invalid: false,
   error: '',
+  manualReason: '',
+  hideLabels: false,
 })
 
 const emit = defineEmits<{
   (e: 'update:rate', value: number | null): void
   (e: 'update:source', value: string): void
   (e: 'update:sourceMode', value: string): void
-  (e: 'update:manualReason', value: string): void
+  (e: 'update:manualReason', value: string | null): void
 }>()
 
 const authStore = useAuthStore()

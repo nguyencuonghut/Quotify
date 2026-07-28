@@ -61,7 +61,17 @@ export function createSupplier(
   }).then(mapSupplierDtoToDomain)
 }
 
+export function getSupplier(
+  supplierId: string,
+  accessToken?: string | null,
+): Promise<SupplierDomain> {
+  return apiRequest<SupplierDto>(`/suppliers/${supplierId}`, {
+    accessToken,
+  }).then(mapSupplierDtoToDomain)
+}
+
 export function updateSupplier(
+
   supplierId: string,
   payload: SupplierPayload,
   accessToken?: string | null,

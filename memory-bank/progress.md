@@ -86,10 +86,11 @@
 - Đã hoàn thành Phase 4 Frontend Quotify ngày 28/07/2026: thêm type/mapper/API cho `/exchange-rates/usd-sell/today`, `/quotify-settings`, `/quotify-settings/conversion-cost`; thêm composable và trang `/quotify-settings` để xem tỷ giá USD bán ra hôm nay, xem/lưu chi phí quy đổi VNĐ/KG theo quyền; thêm menu `Cấu hình quy đổi` trong nhóm `Báo giá`, SCSS tập trung và unit test mapper. Đồng thời hoàn thiện component `ExchangeRateField.vue` xử lý tỷ giá auto/manual/fallback, viết styles SCSS tập trung, và bổ sung toàn bộ bộ unit tests cho `useQuotifySettingsPage`, `QuotifySettingsPage` và `ExchangeRateField` đạt coverage đầy đủ.
 - Đã sửa lỗi runtime trang `/quotify-settings` ngày 28/07/2026: chạy migration cho Docker dev đang sống, thêm migration seed default `quotify_settings`, commit fallback `get_or_create` trong route đọc, thêm regression test API và E2E browser mở `Cấu hình quy đổi` để chặn lỗi `500`. Kiểm chứng đã chạy: Docker targeted backend tests `5 passed`, Docker backend ruff/mypy targeted, Docker frontend typecheck/lint, kiểm HTTP qua Vite proxy `200`, DB có đúng một dòng default, và `make docker-test-e2e` pass `3 passed`.
 - Hoàn thành Phase 5 Backend ngày 28/07/2026: Tạo database models (Quote, QuoteVersion, QuoteLine), Alembic migrations, backend services (QuoteService, QuotePricingService), schemas, API endpoints (/api/v1/quotes), và bộ unit tests targeted test_quote_lifecycle.py.
+- Hoàn thành Phase 6 Giao diện nhập và xem phiếu báo giá (Frontend) ngày 28/07/2026: thêm type/mapper/API client cho Quote/Version/Line, composables useQuoteEditor và useQuoteDetail, màn hình nhập liệu và xem chi tiết responsive, styles SCSS tập trung, đăng ký routes/menu, và đầy đủ unit tests mappers/composables.
 
 ## Open
 
-- Bước tiếp theo là Phase 6: Giao diện nhập và xem phiếu báo giá (Frontend), tích hợp API backend đã hoàn thành của Phase 5.
+- Bước tiếp theo là Phase 7: Ghi chú thị trường và Lịch sử chỉnh sửa báo giá (lịch sử thảo luận / note gắn theo phiếu báo giá).
 - Finish unrestricted verification for Phase 5 dependency audits and host-side performance smoke outside the current sandbox DNS/socket limits
 - Verify Phase 6 observability stack `up` flow and execute a real restore drill in an isolated runtime environment
 - Optionally install Bun and run the upstream `agent-memory` CLI locally

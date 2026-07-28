@@ -5,14 +5,15 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Material, MaterialType
-from app.quotify.seed_data import MATERIAL_SEEDS, MATERIAL_TYPE_SEEDS
+from app.models import Material, MaterialType, Supplier, SupplierMaterial
+from app.quotify.seed_data import MATERIAL_SEEDS, MATERIAL_TYPE_SEEDS, SUPPLIER_SEEDS
 
 
 @dataclass(slots=True, frozen=True)
 class QuotifySeedSummary:
     created_material_types: int
     created_materials: int
+    created_suppliers: int
 
 
 class QuotifySeedService:
@@ -22,11 +23,13 @@ class QuotifySeedService:
     async def seed(self) -> QuotifySeedSummary:
         material_types, created_material_types = await self._ensure_material_types()
         created_materials = await self._ensure_materials(material_types)
+        created_suppliers = await self._ensure_suppliers()
         await self.session.commit()
 
         return QuotifySeedSummary(
             created_material_types=created_material_types,
             created_materials=created_materials,
+            created_suppliers=created_suppliers,
         )
 
     async def _ensure_material_types(self) -> tuple[dict[str, MaterialType], int]:
@@ -79,3 +82,45 @@ class QuotifySeedService:
 
         await self.session.flush()
         return created_materials
+
+    async def _ensure_suppliers(self) -> int:
+        result = await self.session.execute(select(Supplier))
+        suppliers_by_code = {s.code: s for s in result.scalars().all()}
+
+        mat_result = await self.session.execute(select(Material))
+        materials_by_code = {m.code: m for m in mat_result.scalars().all()}
+
+        sm_result = await self.session.execute(select(SupplierMaterial))
+        existing_pairs = {(sm.supplier_id, sm.material_id) for sm in sm_result.scalars().all()}
+
+        created_suppliers = 0
+        for seed in SUPPLIER_SEEDS:
+            supplier = suppliers_by_code.get(seed.code)
+            if not supplier:
+                supplier = Supplier(
+                    code=seed.code,
+                    name=seed.name,
+                    supplier_type=seed.supplier_type,
+                    status=seed.status,
+                    note=seed.note,
+                )
+                self.session.add(supplier)
+                await self.session.flush()
+                suppliers_by_code[seed.code] = supplier
+                created_suppliers += 1
+
+            for mat_code in seed.material_codes:
+                material = materials_by_code.get(mat_code)
+                if material:
+                    pair = (supplier.id, material.id)
+                    if pair not in existing_pairs:
+                        self.session.add(
+                            SupplierMaterial(
+                                supplier_id=supplier.id,
+                                material_id=material.id,
+                            )
+                        )
+                        existing_pairs.add(pair)
+
+        await self.session.flush()
+        return created_suppliers

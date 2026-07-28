@@ -15,7 +15,10 @@
 @use './pages/materials-page';
 @use './pages/suppliers-page';
 @use './pages/quotify-settings-page';
+@use './pages/quote-editor-page';
+@use './pages/quote-detail-page';
 @use './components/dashboard/dashboard-actions';
+
 @use './components/dashboard/health-snapshot-table';
 @use './components/dashboard/summary-cards';
 @use './components/shared/theme-mode-switch';

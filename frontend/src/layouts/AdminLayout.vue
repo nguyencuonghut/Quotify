@@ -220,6 +220,12 @@ const navGroups: NavGroup[] = [
     label: 'Báo giá',
     items: [
       {
+        label: 'Nhập báo giá',
+        icon: 'pi pi-file-edit',
+        to: '/quotes/new',
+        permission: 'quotes.create',
+      },
+      {
         label: 'Cấu hình quy đổi',
         icon: 'pi pi-cog',
         to: '/quotify-settings',
@@ -227,6 +233,7 @@ const navGroups: NavGroup[] = [
       },
     ],
   },
+
   {
     label: 'Người dùng',
     items: [

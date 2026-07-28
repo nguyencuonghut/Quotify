@@ -56,6 +56,12 @@
 
 .exchange-rate-field__refresh-btn {
   flex-shrink: 0;
+  width: 2.375rem;
+  height: 2.375rem;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .exchange-rate-field__field-error {
