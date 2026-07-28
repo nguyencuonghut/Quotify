@@ -5,8 +5,8 @@
         <img alt="" class="login-page__logo" src="/favico.png" />
 
         <div>
-          <h1 id="login-title" class="login-page__title">Hồng Hà HRMS</h1>
-          <p class="login-page__subtitle">Hệ thống Quản lý Nhân sự</p>
+          <h1 id="login-title" class="login-page__title">Quotify</h1>
+          <p class="login-page__subtitle">Hệ thống phân tích báo giá nguyên liệu</p>
         </div>
       </header>
 
@@ -36,13 +36,14 @@
             id="password"
             v-model="password"
             :feedback="false"
-            autocomplete="current-password"
+            :inputProps="{ autocomplete: 'current-password' }"
             class="login-page__password"
             fluid
             placeholder="Nhập mật khẩu"
             toggle-mask
             v-bind="passwordProps"
           />
+
           <small v-if="errors.password" class="login-page__error">
             {{ errors.password }}
           </small>
