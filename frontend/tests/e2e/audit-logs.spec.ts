@@ -49,7 +49,23 @@ test('admin sees a real mutation event in audit logs and viewer renders on deskt
   request,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
+  const settingsStatuses: number[] = []
+  page.on('response', (response) => {
+    if (response.url().includes('/api/v1/quotify-settings')) {
+      settingsStatuses.push(response.status())
+    }
+  })
+
   await loginAsAdmin(page)
+
+  await page.getByRole('link', { name: 'Cấu hình quy đổi', exact: true }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Cấu hình quy đổi' }),
+  ).toBeVisible()
+  await expect(page.getByText('Chi phí quy đổi VNĐ/KG')).toBeVisible()
+  await expect(page.getByText('200,00 VNĐ/KG').first()).toBeVisible()
+  expect(settingsStatuses).toContain(200)
+  expect(settingsStatuses.every((status) => status < 500)).toBe(true)
 
   const accessToken = await getAdminAccessToken(request)
   const roleName = `audit_e2e_${Date.now()}`

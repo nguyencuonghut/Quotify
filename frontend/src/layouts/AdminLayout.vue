@@ -218,7 +218,14 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Báo giá',
-    items: [],
+    items: [
+      {
+        label: 'Cấu hình quy đổi',
+        icon: 'pi pi-cog',
+        to: '/quotify-settings',
+        permission: 'quotify_settings.read',
+      },
+    ],
   },
   {
     label: 'Người dùng',

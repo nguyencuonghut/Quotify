@@ -521,3 +521,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Hoàn thành Phase 4 Backend Quotify
 - Tóm tắt: Đã triển khai backend Phase 4 cho cấu hình quy đổi và tỷ giá USD bán ra: quotify_settings model/migration/service/API, VietcombankExchangeRateClient, ExchangeRateService, Decimal rounding, business today Asia/Ho_Chi_Minh, RBAC/rate limit/audit. Đã kiểm chứng bằng Docker targeted tests, ruff/mypy, Alembic upgrade head và full backend pytest.
+
+## 2026-07-28 01:39:09Z - codex
+
+- Tiêu đề: Hoàn thành Phase 4 Frontend Quotify
+- Tóm tắt: Đã thêm frontend cho cấu hình quy đổi Quotify: API client và mapper tỷ giá/cấu hình, composable useQuotifySettingsPage, trang /quotify-settings, menu Báo giá, SCSS tập trung và unit test mapper. Kiểm chứng Docker frontend typecheck/lint/test:unit/build và git diff --check đều pass.
+
+## 2026-07-28 01:56:58Z - codex
+
+- Tiêu đề: Sửa lỗi 500 trang cấu hình Quotify
+- Tóm tắt: Đã sửa lỗi /quotify-settings trả 500 do DB dev thiếu bảng quotify_settings và default row không được commit ổn định. Đã chạy migration dev, thêm migration seed default idempotent, commit fallback get_or_create trong GET /quotify-settings, thêm regression API/E2E, và kiểm chứng Docker backend/frontend/E2E.

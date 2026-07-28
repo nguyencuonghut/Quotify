@@ -62,8 +62,10 @@ async def get_quotify_settings(
         QuotifySettingsService,
         Depends(get_quotify_settings_service),
     ],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuotifySettingsResponse:
     setting = await settings_service.get_or_create_settings()
+    await session.commit()
     return _build_settings_response(setting)
 
 
@@ -107,3 +109,5 @@ async def update_conversion_cost(
     )
     await session.commit()
     return _build_settings_response(setting)
+
+

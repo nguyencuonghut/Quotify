@@ -1,0 +1,189 @@
+.quotify-settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.quotify-settings-page__general-error,
+.quotify-settings-page__submit-error,
+.quotify-settings-page__success-message {
+  border: 1px solid var(--app-border-soft);
+  border-radius: 0.75rem;
+}
+
+.quotify-settings-page__general-error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  color: var(--app-text-danger);
+  background: color-mix(in srgb, var(--app-text-danger) 10%, transparent);
+}
+
+.quotify-settings-page__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
+  gap: 1rem;
+  align-items: start;
+  min-width: 0;
+}
+
+.quotify-settings-page__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+  padding: 1.25rem;
+  background: var(--app-surface-panel);
+  border: 1px solid var(--app-border-soft);
+  border-radius: 1rem;
+  box-shadow: var(--app-shadow-sm);
+}
+
+.quotify-settings-page__panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.quotify-settings-page__eyebrow,
+.quotify-settings-page__meta-label {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+}
+
+.quotify-settings-page__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.quotify-settings-page__panel-title {
+  margin: 0.25rem 0 0;
+  color: var(--app-text-primary);
+  font-size: 1.1rem;
+  line-height: 1.35;
+}
+
+.quotify-settings-page__status {
+  flex-shrink: 0;
+  padding: 0.45rem 0.65rem;
+  color: var(--app-text-primary);
+  font-size: 0.88rem;
+  font-weight: 700;
+  background: var(--app-surface-muted);
+  border: 1px solid var(--app-border-soft);
+  border-radius: 0.5rem;
+}
+
+.quotify-settings-page__form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.quotify-settings-page__form-label {
+  color: var(--app-text-secondary);
+  font-weight: 600;
+}
+
+.quotify-settings-page__input,
+.quotify-settings-page__input :where(.p-inputnumber-input) {
+  width: 100%;
+}
+
+.quotify-settings-page__field-error {
+  min-height: 1rem;
+  color: var(--app-text-danger);
+  font-size: 0.77rem;
+}
+
+.quotify-settings-page__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.quotify-settings-page__meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.85rem;
+  background: var(--app-surface-muted);
+  border: 1px solid var(--app-border-soft);
+  border-radius: 0.75rem;
+}
+
+.quotify-settings-page__meta-item strong {
+  color: var(--app-text-primary);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.quotify-settings-page__submit-error,
+.quotify-settings-page__success-message {
+  margin: 0;
+  padding: 0.8rem;
+  font-size: 0.88rem;
+}
+
+.quotify-settings-page__submit-error {
+  color: var(--app-text-danger);
+  background: color-mix(in srgb, var(--app-text-danger) 10%, transparent);
+}
+
+.quotify-settings-page__success-message {
+  color: var(--app-text-success);
+  background: color-mix(in srgb, var(--app-text-success) 12%, transparent);
+}
+
+.quotify-settings-page__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.quotify-settings-page__rate-value {
+  color: var(--app-text-primary);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+@media (max-width: 900px) {
+  .quotify-settings-page__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .quotify-settings-page__panel,
+  .quotify-settings-page__general-error {
+    padding: 1rem;
+  }
+
+  .quotify-settings-page__panel-header,
+  .quotify-settings-page__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .quotify-settings-page__status,
+  .quotify-settings-page__actions :where(.p-button) {
+    width: 100%;
+  }
+
+  .quotify-settings-page__meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quotify-settings-page__rate-value {
+    font-size: 1.55rem;
+  }
+}

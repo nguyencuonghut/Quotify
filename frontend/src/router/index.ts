@@ -8,6 +8,7 @@ import LoginPage from '@/pages/LoginPage.vue'
 import MaterialTypesPage from '@/pages/MaterialTypesPage.vue'
 import MaterialsPage from '@/pages/MaterialsPage.vue'
 import ProfilePage from '@/pages/ProfilePage.vue'
+import QuotifySettingsPage from '@/pages/QuotifySettingsPage.vue'
 import RolesPage from '@/pages/RolesPage.vue'
 import SuppliersPage from '@/pages/SuppliersPage.vue'
 import UsersPage from '@/pages/UsersPage.vue'
@@ -79,6 +80,18 @@ export const router = createRouter({
         requiredPermission: 'suppliers.read',
         title: 'Nhà cung cấp',
         description: 'Quản lý danh mục nhà cung cấp, liên hệ và vật tư cung cấp.',
+      },
+    },
+    {
+      path: '/quotify-settings',
+      name: 'quotify-settings',
+      component: QuotifySettingsPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'quotify_settings.read',
+        title: 'Cấu hình quy đổi',
+        description:
+          'Cấu hình chi phí quy đổi và tra cứu tỷ giá USD bán ra cho hệ thống Quotify.',
       },
     },
     {

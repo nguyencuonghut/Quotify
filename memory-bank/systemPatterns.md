@@ -289,6 +289,9 @@ container dev đang sống nếu mục tiêu là kết luận tính năng đã �
 
 - `frontend`/`frontend-e2e` target `dev` không đảm bảo đã cài browser system
   dependencies của Playwright.
+- Docker Playwright E2E chạy `workers: 1` trong `frontend/playwright.docker.config.ts`
+  để tránh các test auth song song tự vượt rate limit đăng nhập. Nếu cần tăng
+  worker, phải điều chỉnh rate-limit E2E hoặc giảm số lần login trong suite trước.
 - E2E credentials (`E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`) được inject qua
   service `e2e-test` trong `docker-compose.test.yml`, không nằm mặc định trong
   container frontend dev.
@@ -438,6 +441,10 @@ liệu lịch sử bằng cấu hình hiện tại:
   hành. Không tạo CRUD hoặc bảng snapshot tỷ giá độc lập; Phase 5/quote write
   flow sẽ đóng băng rate/source/retrieved-at/manual reason trực tiếp trên
   `QuoteLine`.
+- Frontend Phase 4 chỉ expose màn hình cấu hình chi phí quy đổi và API client
+  cho helper tỷ giá. Màn hình quote sau này phải tái sử dụng client/mapper này,
+  không gọi `fetch` trực tiếp hoặc tự định nghĩa lại DTO tỷ giá/cấu hình trong
+  component.
 - Route không gọi HTTP ra Vietcombank trực tiếp. Nguồn ngoài phải đi qua adapter
   `VietcombankExchangeRateClient`, bọc `httpx`, có timeout/retry bằng typed
   settings và test bằng fixture/mock transport, không gọi live Vietcombank trong

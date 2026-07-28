@@ -14,7 +14,10 @@
 @use './pages/material-types-page';
 @use './pages/materials-page';
 @use './pages/suppliers-page';
+@use './pages/quotify-settings-page';
 @use './components/dashboard/dashboard-actions';
 @use './components/dashboard/health-snapshot-table';
 @use './components/dashboard/summary-cards';
 @use './components/shared/theme-mode-switch';
+@use './components/exchange-rate-field';
+

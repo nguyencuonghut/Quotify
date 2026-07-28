@@ -92,10 +92,13 @@ async def test_get_quotify_settings_returns_conversion_cost(
     client: AsyncClient,
     override_dependencies: tuple[MockQuotifySettingsService, MockAuditLogService, MockSession],
 ) -> None:
+    _, _, session = override_dependencies
+
     response = await client.get("/api/v1/quotify-settings")
 
     assert response.status_code == 200
     assert response.json()["conversion_cost_vnd_per_kg"] == "200.00"
+    assert session.committed is True
 
 
 @pytest.mark.asyncio

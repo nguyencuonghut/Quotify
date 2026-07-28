@@ -457,6 +457,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: E2E đã đăng nhập bằng UI không nên gọi `/auth/refresh` thủ công để lấy token. Nếu cần dựng dữ liệu API, dùng `request.post('/api/v1/auth/login')` độc lập hoặc helper seed riêng; khi kiểm tra route trong phiên hiện tại, ưu tiên điều hướng qua UI/router.
 - Related files: `frontend/tests/e2e/audit-logs.spec.ts`, `frontend/src/stores/auth.store.ts`, `frontend/src/router/guards.ts`
 
+### 2026-07-28: Trang Quotify Settings lỗi 500 do DB dev thiếu bảng/dòng default
+
+- Area: Backend migration / Quotify settings API / Docker dev runtime
+- Trigger: Người dùng mở `http://localhost:5173/quotify-settings`; frontend gọi `GET /api/v1/quotify-settings` qua Vite proxy và nhận `500 Internal Server Error`.
+- Root cause: Container backend dev đã chạy trước khi migration Phase 4 được thêm nên DB chưa có bảng `quotify_settings`; log backend xác nhận `UndefinedTableError: relation "quotify_settings" does not exist`. Sau khi chạy migration, phát hiện thêm `get_or_create_settings()` chỉ `flush` default row trong request `GET`, trong khi dependency session không tự commit, nên DB đã có bảng nhưng thiếu dòng default có thể trả object tạm không ổn định.
+- Fix: Chạy `uv run alembic upgrade head` trong backend dev để sửa DB hiện tại; thêm migration `20260728_0930_seed_default_quotify_settings.py` seed dòng default idempotent; route `GET /quotify-settings` commit sau fallback `get_or_create_settings()`; E2E admin mở `Cấu hình quy đổi` và assert request `/api/v1/quotify-settings` trả `200`, không có status `500`.
+- Regression guard: Mọi bảng singleton/config phải được seed bằng migration idempotent hoặc seed service rõ ràng, không chỉ dựa vào `GET get_or_create` không commit. Sau khi thêm migration khi container dev đang sống, phải chạy `docker compose exec -T backend sh -lc 'cd /app && uv run alembic upgrade head'` hoặc restart backend để startup command chạy lại. Docker Playwright E2E phải cover ít nhất một lần mở trang cấu hình để bắt lỗi schema thiếu qua browser.
+- Related files: `backend/alembic/versions/20260728_0930_seed_default_quotify_settings.py`, `backend/app/api/v1/quotify_settings.py`, `backend/tests/test_quotify_settings_api.py`, `frontend/tests/e2e/audit-logs.spec.ts`
+
 
 ## Usage Rule
 
