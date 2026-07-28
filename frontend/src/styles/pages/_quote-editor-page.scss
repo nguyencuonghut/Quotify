@@ -121,6 +121,13 @@
     }
   }
 
+  .quote-editor-page__action-cell {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
   .quote-editor-page__line-num {
     font-weight: 600;
     color: var(--app-text-muted);

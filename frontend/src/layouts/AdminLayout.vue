@@ -44,6 +44,7 @@
             v-for="item in group.items"
             :key="item.to"
             class="admin-layout__nav-link"
+            :class="{ 'router-link-active': isItemActive(item) }"
             :to="item.to"
             @click="layoutStore.closeMobileSidebar"
           >
@@ -145,7 +146,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import Menu from 'primevue/menu'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRouter, useRoute } from 'vue-router'
 
 import ThemeModeSwitch from '@/components/shared/ThemeModeSwitch.vue'
 import { useAuthStore } from '@/stores/auth.store'
@@ -348,6 +349,26 @@ function toggleProfileMenu(event: globalThis.MouseEvent) {
 
 function handleViewportChange() {
   layoutStore.syncViewport()
+}
+
+const route = useRoute()
+
+const isItemActive = (item: NavItem) => {
+  if (route.path === item.to) return true
+
+  // Custom highlight for 'Nhập báo giá' sub-routes
+  if (item.to === '/quotes/new') {
+    const path = route.path
+    return path === '/quotes/new' || 
+      (path.startsWith('/quotes/') && (path.endsWith('/versions/new') || path.endsWith('/edit')))
+  }
+
+  // Active parent catalog/users routes
+  if (item.to !== '/') {
+    return route.path.startsWith(item.to)
+  }
+
+  return false
 }
 
 onMounted(() => {

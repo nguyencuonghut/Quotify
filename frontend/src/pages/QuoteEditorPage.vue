@@ -32,6 +32,7 @@
               placeholder="Chọn nhà cung cấp..."
               class="quote-editor-page__input-w"
               filter
+              :filter-fields="['code', 'name']"
             />
             <InputText
               v-else
@@ -96,7 +97,7 @@
                 <th style="width: 150px">Tiền tệ / Đơn vị <span class="required-marker">*</span></th>
                 <th style="width: 140px">Tháng giao hàng <span class="required-marker">*</span></th>
                 <th>Quy đổi & Preview</th>
-                <th style="width: 60px; text-align: center">Hành động</th>
+                <th style="width: 110px; text-align: center">Hành động</th>
               </tr>
             </thead>
             <tbody>
@@ -112,6 +113,7 @@
                     class="quote-editor-page__input-w"
                     :disabled="isSupplierLoading"
                     filter
+                    :filter-fields="['materialCode', 'materialName']"
                   />
                 </td>
                 <td>
@@ -181,14 +183,26 @@
                   </div>
                 </td>
                 <td style="text-align: center">
-                  <Button
-                    icon="pi pi-trash"
-                    severity="danger"
-                    text
-                    rounded
-                    aria-label="Xóa dòng"
-                    @click="removeLine(index)"
-                  />
+                  <div class="quote-editor-page__action-cell">
+                    <Button
+                      icon="pi pi-copy"
+                      severity="secondary"
+                      text
+                      rounded
+                      title="Nhân bản dòng"
+                      aria-label="Nhân bản dòng"
+                      @click="duplicateLine(index)"
+                    />
+                    <Button
+                      icon="pi pi-trash"
+                      severity="danger"
+                      text
+                      rounded
+                      title="Xóa dòng"
+                      aria-label="Xóa dòng"
+                      @click="removeLine(index)"
+                    />
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -204,14 +218,26 @@
           >
             <div class="quote-editor-page__mobile-card-header">
               <h4>Dòng #{{ index + 1 }}</h4>
-              <Button
-                icon="pi pi-trash"
-                severity="danger"
-                text
-                rounded
-                aria-label="Xóa dòng"
-                @click="removeLine(index)"
-              />
+              <div class="quote-editor-page__action-cell">
+                <Button
+                  icon="pi pi-copy"
+                  severity="secondary"
+                  text
+                  rounded
+                  title="Nhân bản dòng"
+                  aria-label="Nhân bản dòng"
+                  @click="duplicateLine(index)"
+                />
+                <Button
+                  icon="pi pi-trash"
+                  severity="danger"
+                  text
+                  rounded
+                  title="Xóa dòng"
+                  aria-label="Xóa dòng"
+                  @click="removeLine(index)"
+                />
+              </div>
             </div>
             
             <div class="quote-editor-page__form-field">
@@ -225,6 +251,7 @@
                 class="quote-editor-page__input-w"
                 :disabled="isSupplierLoading"
                 filter
+                :filter-fields="['materialCode', 'materialName']"
               />
             </div>
 
@@ -347,7 +374,7 @@ import { listSuppliers } from '@/api/suppliers.api'
 import { getQuote, createQuote, updateDraft, createVersion } from '@/api/quotes.api'
 import type { SupplierDomain } from '@/types/suppliers'
 import type { QuoteDomain, QuoteVersionDomain } from '@/types/quotes'
-import { useQuoteEditor } from '@/composables/useQuoteEditor'
+import { useQuoteEditor, getTodayString } from '@/composables/useQuoteEditor'
 import ExchangeRateField from '@/components/quotes/ExchangeRateField.vue'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 
@@ -380,6 +407,7 @@ const {
   fetchUsdRateToday,
   addLine,
   removeLine,
+  duplicateLine,
   loadVersionData,
   getLinePreviewPrice,
   validateForm,

@@ -26,6 +26,23 @@ export function getCurrentMonthString(): string {
   return `${yyyy}-${mm}`
 }
 
+export function getNextMonthString(currentMonthStr: string): string {
+  if (!currentMonthStr || !currentMonthStr.includes('-')) {
+    return getCurrentMonthString()
+  }
+  const [yyyyStr, mmStr] = currentMonthStr.split('-')
+  let year = parseInt(yyyyStr, 10)
+  let month = parseInt(mmStr, 10)
+  
+  month += 1
+  if (month > 12) {
+    month = 1
+    year += 1
+  }
+  
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
 export interface QuoteEditorLine {
   id?: string
   materialId: string | null
@@ -210,6 +227,28 @@ export function useQuoteEditor(accessToken: string | null) {
     lines.value.splice(index, 1)
   }
 
+  const duplicateLine = (index: number) => {
+    const sourceLine = lines.value[index]
+    if (!sourceLine) return
+    const nextMonth = sourceLine.deliveryMonth
+      ? getNextMonthString(sourceLine.deliveryMonth)
+      : getCurrentMonthString()
+    const clonedLine: QuoteEditorLine = {
+      materialId: sourceLine.materialId,
+      priceOriginal: sourceLine.priceOriginal,
+      currency: sourceLine.currency,
+      unit: sourceLine.unit,
+      deliveryMonth: nextMonth,
+      exchangeRate: sourceLine.exchangeRate,
+      exchangeRateSource: sourceLine.exchangeRateSource || '',
+      exchangeRateManualReason: sourceLine.exchangeRateManualReason,
+      rateSourceMode: sourceLine.rateSourceMode,
+      autoRateFetched: sourceLine.autoRateFetched,
+      isRateLoading: false,
+    }
+    lines.value.splice(index + 1, 0, clonedLine)
+  }
+
   // Pre-fill editor from an existing draft or for version clone
   const loadVersionData = async (version: QuoteVersionDomain, quote?: QuoteDomain) => {
     if (quote) {
@@ -380,6 +419,7 @@ export function useQuoteEditor(accessToken: string | null) {
     fetchUsdRateToday,
     addLine,
     removeLine,
+    duplicateLine,
     loadVersionData,
     getLinePreviewPrice,
     validateForm,

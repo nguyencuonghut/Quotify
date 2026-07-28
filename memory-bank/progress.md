@@ -87,6 +87,8 @@
 - Đã sửa lỗi runtime trang `/quotify-settings` ngày 28/07/2026: chạy migration cho Docker dev đang sống, thêm migration seed default `quotify_settings`, commit fallback `get_or_create` trong route đọc, thêm regression test API và E2E browser mở `Cấu hình quy đổi` để chặn lỗi `500`. Kiểm chứng đã chạy: Docker targeted backend tests `5 passed`, Docker backend ruff/mypy targeted, Docker frontend typecheck/lint, kiểm HTTP qua Vite proxy `200`, DB có đúng một dòng default, và `make docker-test-e2e` pass `3 passed`.
 - Hoàn thành Phase 5 Backend ngày 28/07/2026: Tạo database models (Quote, QuoteVersion, QuoteLine), Alembic migrations, backend services (QuoteService, QuotePricingService), schemas, API endpoints (/api/v1/quotes), và bộ unit tests targeted test_quote_lifecycle.py.
 - Hoàn thành Phase 6 Giao diện nhập và xem phiếu báo giá (Frontend) ngày 28/07/2026: thêm type/mapper/API client cho Quote/Version/Line, composables useQuoteEditor và useQuoteDetail, màn hình nhập liệu và xem chi tiết responsive, styles SCSS tập trung, đăng ký routes/menu, và đầy đủ unit tests mappers/composables.
+- Hoàn thành tối ưu hóa UX nhập báo giá nhiều tháng ngày 28/07/2026: Triển khai Phương án 2 (Nhân bản nhanh dòng vật tư - Clone/Duplicate Line) trong `useQuoteEditor.ts` và `QuoteEditorPage.vue` (cả desktop/mobile view).
+- Đã sửa các lỗi phát hiện khi vận hành báo giá ngày 28/07/2026: Sửa lỗi hiển thị nguồn tỷ giá 'Chưa xác định' cho các dòng thêm sau bằng cách gán đúng `exchangeRateSource` trong `useQuoteEditor.ts`; Sửa lỗi `hasPermission` trong `QuoteDetailPage.vue`; Sửa lỗi `getTodayString is not defined` trong `QuoteEditorPage.vue`; Cải tiến `AdminLayout.vue` tự động highlight active menu 'Nhập báo giá' cho các sub-routes con.
 
 ## Open
 

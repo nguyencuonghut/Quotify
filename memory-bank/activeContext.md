@@ -75,7 +75,9 @@ The repository has been prepared with:
 82. Phase 6 Frontend đã hoàn thành vào ngày 28/07/2026: Đã xây dựng hoàn chỉnh giao diện nhập và xem chi tiết phiếu báo giá. Bao gồm: các kiểu dữ liệu `quotes.ts`, mappers chuyển đổi thô DTO sang Domain, API client tích hợp đầy đủ luồng, composable quản lý form editor (`useQuoteEditor.ts`), composable chi tiết/timeline/file (`useQuoteDetail.ts`), hai màn hình trang chính `QuoteEditorPage.vue` và `QuoteDetailPage.vue` hỗ trợ responsive, styles SCSS tập trung không dùng scoped css blocks, đăng ký routes/menu, và đầy đủ bộ unit tests kiểm thử logic form, mapping và preview giá quy đổi.
 83. Đã sửa lỗi layout & components của Phase 6 vào ngày 28/07/2026: Bọc toàn bộ trang `QuoteEditorPage.vue` và `QuoteDetailPage.vue` trong `<AdminLayout>` để đồng bộ style hệ thống; thay thế các component cũ (Dropdown, Calendar) thành (Select, DatePicker) theo chuẩn PrimeVue v4; bổ sung logic seed dữ liệu default supplier và liên kết 27 vật tư.
 
+84. Đã hoàn thành tối ưu hóa UX nhập liệu cho báo giá nhiều tháng vào ngày 28/07/2026: Triển khai Phương án 2 (Nhân bản nhanh dòng vật tư - Clone/Duplicate Line) trong composable `useQuoteEditor.ts` và hai view desktop/mobile của `QuoteEditorPage.vue`. Cho phép người dùng clone nhanh một dòng vật tư hiện tại kèm toàn bộ giá trị và đổi tháng giao hàng.
+85. Đã sửa các lỗi phát hiện khi vận hành báo giá ngày 28/07/2026: Sửa lỗi hiển thị nguồn tỷ giá 'Chưa xác định' cho các dòng thêm sau bằng cách gán đúng `exchangeRateSource` trong `useQuoteEditor.ts`; Sửa lỗi `hasPermission` trong `QuoteDetailPage.vue` bằng cách tích hợp `usePermissionStore`; Sửa lỗi `getTodayString is not defined` trong `QuoteEditorPage.vue`; Cải tiến `AdminLayout.vue` tự động highlight active menu 'Nhập báo giá' cho các sub-routes con như tạo phiên bản mới hoặc sửa bản nháp.
+
 ## Next Useful Steps
 
-1. Chạy lệnh `make seed` ở terminal để tự động nạp danh sách 7 nhà cung cấp nguyên liệu/vi lượng lớn tại Việt Nam (Tân Long, Cargill, Wilmar, Ajinomoto, CJ Vina, Tiến Thành, Đức Giang) đã được gán liên kết vật tư tương ứng.
-2. Tiến hành Phase 7: Ghi chú thị trường và Lịch sử chỉnh sửa báo giá.
+1. Tiến hành Phase 7: Ghi chú thị trường và Lịch sử chỉnh sửa báo giá.
