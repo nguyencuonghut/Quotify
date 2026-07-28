@@ -506,3 +506,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Hoàn thành Phase 3A Quotify
 - Tóm tắt: Mở rộng ImportJob thành substrate dùng chung cho import catalog bằng entity_type/task_name; tách create/commit khỏi enqueue; scope user import theo entity_type users; worker import user đọc CSV streaming; cập nhật tests và Memory Bank.
+
+## 2026-07-27 09:54:07Z - codex
+
+- Tiêu đề: Hoàn thành Phase 3B Quotify
+- Tóm tắt: Đã triển khai import CSV danh mục cho loại vật tư, vật tư và nhà cung cấp qua catalog-imports API, import_catalog_task, template CSV, error-file route, permission allowlist theo entity_type, frontend import dialog trên 3 trang danh mục và kiểm chứng bằng Docker backend/frontend gates.
+
+## 2026-07-27 10:04:01Z - codex
+
+- Tiêu đề: Hoàn tất kiểm chứng Phase 3B Quotify
+- Tóm tắt: Đã chạy lại make docker-test-e2e sau khi chỉnh Audit Logs E2E không gọi auth refresh trên phiên UI; Docker E2E pass 3 passed. Đã ghi bug pattern Playwright API refresh làm mất phiên UI sau full reload và cập nhật Phase 3B trong Memory Bank.

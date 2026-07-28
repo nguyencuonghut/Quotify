@@ -448,6 +448,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Permission inventory phải chạy được ở cả repo host và backend-only Docker image. Khi thêm scan xuyên backend/frontend, không hardcode số tầng parent path nếu Docker image chỉ chứa một phần repo.
 - Related files: `backend/tests/test_permission_inventory.py`, `docker-compose.test.yml`, `docker/backend/Dockerfile`
 
+### 2026-07-27: Playwright API refresh làm mất phiên UI sau full reload
+
+- Area: Frontend Playwright E2E / Auth session
+- Trigger: Audit Logs E2E đăng nhập UI thành công, sau đó test gọi `/api/v1/auth/refresh` bằng request context để lấy access token dựng dữ liệu; khi `page.goto('/audit-logs')` reload app, route guard không khôi phục được phiên và quay về màn hình login.
+- Root cause: Bài test trộn phiên UI trong browser với thao tác refresh token ngoài UI. Access token nằm trong Pinia memory, còn full document navigation buộc app khởi tạo lại qua cookie refresh; request phụ trong test làm luồng cookie/refresh token khó ổn định và không cần thiết cho mục tiêu UI.
+- Fix: Test lấy bearer token dựng dữ liệu bằng `/auth/login` qua API request fixture độc lập, không gọi `/auth/refresh` trên phiên UI; điều hướng audit bằng click menu trong SPA thay vì full reload khi mục tiêu là kiểm tra UI đã đăng nhập.
+- Regression guard: E2E đã đăng nhập bằng UI không nên gọi `/auth/refresh` thủ công để lấy token. Nếu cần dựng dữ liệu API, dùng `request.post('/api/v1/auth/login')` độc lập hoặc helper seed riêng; khi kiểm tra route trong phiên hiện tại, ưu tiên điều hướng qua UI/router.
+- Related files: `frontend/tests/e2e/audit-logs.spec.ts`, `frontend/src/stores/auth.store.ts`, `frontend/src/router/guards.ts`
+
 
 ## Usage Rule
 

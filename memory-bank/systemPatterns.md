@@ -409,6 +409,17 @@ hardcode toàn bộ logic quanh user import:
   CSV vào RAM trong worker.
 - Terminal status và terminal audit event phải được ghi cùng transaction. Metadata
   audit của import chỉ chứa summary an toàn và các trường đã allowlist.
+- Catalog import dùng route riêng `/catalog-imports`, trong đó server allowlist
+  `entity_type` và tự map permission `material_types.import`, `materials.import`
+  hoặc `suppliers.import`; client không được truyền permission code.
+- Mỗi loại catalog có template CSV riêng và phải validate header trước khi xử lý
+  row. `completed` được phép có `failed_rows > 0` nếu vẫn có dòng được xử lý
+  thành công; `failed` dành cho lỗi toàn file, header sai, file rỗng hoặc toàn bộ
+  dòng đều lỗi.
+- Error report của catalog import được dựng từ `ImportJob.errors_json` qua route
+  `/catalog-imports/{job_id}/error-file`, sau khi kiểm tra job đúng loại catalog
+  và người dùng có permission import tương ứng. Không dùng `files.read_all` để
+  tải lỗi import catalog.
 
 ## Production Readiness Pattern
 

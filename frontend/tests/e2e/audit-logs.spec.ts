@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 interface AccessTokenResponse {
   access_token: string
@@ -31,8 +31,13 @@ async function loginAsAdmin(page: Page) {
   ).toBeVisible()
 }
 
-async function refreshAccessToken(page: Page): Promise<string> {
-  const response = await page.request.post('/api/v1/auth/refresh')
+async function getAdminAccessToken(request: APIRequestContext): Promise<string> {
+  const response = await request.post('/api/v1/auth/login', {
+    data: {
+      email: requireE2ECredential(adminEmail, 'E2E_ADMIN_EMAIL'),
+      password: requireE2ECredential(adminPassword, 'E2E_ADMIN_PASSWORD'),
+    },
+  })
   expect(response.ok()).toBe(true)
 
   const payload = (await response.json()) as AccessTokenResponse
@@ -41,13 +46,14 @@ async function refreshAccessToken(page: Page): Promise<string> {
 
 test('admin sees a real mutation event in audit logs and viewer renders on desktop and mobile', async ({
   page,
+  request,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await loginAsAdmin(page)
 
-  const accessToken = await refreshAccessToken(page)
+  const accessToken = await getAdminAccessToken(request)
   const roleName = `audit_e2e_${Date.now()}`
-  const createRoleResponse = await page.request.post('/api/v1/roles', {
+  const createRoleResponse = await request.post('/api/v1/roles', {
     data: {
       name: roleName,
       description: 'Vai trò dùng để kiểm chứng Audit Log E2E.',
@@ -60,7 +66,7 @@ test('admin sees a real mutation event in audit logs and viewer renders on deskt
 
   expect(createRoleResponse.status()).toBe(201)
 
-  await page.goto('/audit-logs')
+  await page.getByRole('link', { name: 'Nhật ký audit', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'Nhật ký audit' }),
   ).toBeVisible()
@@ -84,7 +90,6 @@ test('admin sees a real mutation event in audit logs and viewer renders on deskt
   })
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/audit-logs')
   await expect(
     page.getByRole('heading', { name: 'Nhật ký audit' }),
   ).toBeVisible()
@@ -97,13 +102,14 @@ test('admin sees a real mutation event in audit logs and viewer renders on deskt
 
 test('user without audit.read cannot read audit logs through the API', async ({
   page,
+  request,
 }) => {
   await loginAsAdmin(page)
 
-  const adminAccessToken = await refreshAccessToken(page)
+  const adminAccessToken = await getAdminAccessToken(request)
   const limitedUserEmail = `audit-limited-${Date.now()}@example.test`
   const limitedUserPassword = 'AuditUser123!'
-  const createUserResponse = await page.request.post('/api/v1/users', {
+  const createUserResponse = await request.post('/api/v1/users', {
     data: {
       email: limitedUserEmail,
       password: limitedUserPassword,
@@ -119,7 +125,7 @@ test('user without audit.read cannot read audit logs through the API', async ({
 
   expect(createUserResponse.status()).toBe(201)
 
-  const loginResponse = await page.request.post('/api/v1/auth/login', {
+  const loginResponse = await request.post('/api/v1/auth/login', {
     data: {
       email: limitedUserEmail,
       password: limitedUserPassword,
@@ -128,7 +134,7 @@ test('user without audit.read cannot read audit logs through the API', async ({
   expect(loginResponse.status()).toBe(200)
 
   const limitedPayload = (await loginResponse.json()) as AccessTokenResponse
-  const auditResponse = await page.request.get('/api/v1/audit-logs', {
+  const auditResponse = await request.get('/api/v1/audit-logs', {
     headers: {
       Authorization: `Bearer ${limitedPayload.access_token}`,
     },

@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.audit_logs import router as audit_logs_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.backups import router as backups_router
+from app.api.v1.catalog_imports import router as catalog_imports_router
 from app.api.v1.files import router as files_router
 from app.api.v1.health import router as health_router
 from app.api.v1.jobs import router as jobs_router
@@ -17,6 +18,7 @@ router = APIRouter()
 router.include_router(audit_logs_router)
 router.include_router(auth_router)
 router.include_router(backups_router)
+router.include_router(catalog_imports_router)
 router.include_router(files_router)
 router.include_router(health_router)
 router.include_router(jobs_router)

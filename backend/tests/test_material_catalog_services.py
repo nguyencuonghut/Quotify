@@ -5,6 +5,14 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.models import Material, MaterialType
+from app.services.catalog_import import (
+    CatalogImportHeaderError,
+    build_catalog_import_error_report,
+    build_catalog_import_template,
+    get_catalog_import_config,
+    parse_code_list,
+    validate_catalog_import_headers,
+)
 from app.services.material_admin import (
     MaterialAdminService,
     MaterialAlreadyExistsError,
@@ -102,6 +110,39 @@ class FakeCatalogSession:
 
 def test_normalize_catalog_code_trims_and_uppercases() -> None:
     assert normalize_catalog_code(" corn-01 ") == "CORN-01"
+
+
+def test_catalog_import_template_contains_expected_headers() -> None:
+    config = get_catalog_import_config("materials")
+
+    content = build_catalog_import_template(config).decode("utf-8-sig")
+
+    assert content.splitlines()[0] == "code,name,material_type_code,status,note"
+
+
+def test_catalog_import_rejects_invalid_headers() -> None:
+    config = get_catalog_import_config("material_types")
+
+    with pytest.raises(CatalogImportHeaderError):
+        validate_catalog_import_headers(config, ["code", "name"])
+
+
+def test_catalog_import_error_report_contains_safe_row_summary() -> None:
+    content = build_catalog_import_error_report(
+        [{"row": 2, "code": "SUP-01", "errors": ["Tên NCC là bắt buộc."]}],
+    ).decode("utf-8-sig")
+
+    assert "row,code,errors" in content
+    assert "SUP-01" in content
+    assert "Tên NCC là bắt buộc." in content
+
+
+def test_parse_code_list_accepts_comma_or_semicolon() -> None:
+    assert parse_code_list(" corn; soybean_meal, ddgs ") == [
+        "CORN",
+        "SOYBEAN_MEAL",
+        "DDGS",
+    ]
 
 
 @pytest.mark.asyncio

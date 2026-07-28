@@ -10,7 +10,8 @@ import pytest
 
 from app.models import AuditLog, ExportJob, File, ImportJob, Role, User, UserStatus
 from app.models.backup_log import BackupLog
-from app.worker import export_users_task, import_users_task, run_backup_task
+from app.services.catalog_import import CatalogImportSummary
+from app.worker import export_users_task, import_catalog_task, import_users_task, run_backup_task
 
 
 class FakeMinioResponse:
@@ -127,6 +128,31 @@ class FakeAsyncSession:
         pass
 
 
+class FakeCatalogImportService:
+    next_summary = CatalogImportSummary(
+        total_rows=2,
+        processed_rows=1,
+        failed_rows=1,
+        created_rows=1,
+        updated_rows=0,
+        errors=[{"row": 2, "code": "BAD", "errors": ["Tên là bắt buộc."]}],
+    )
+    received_fieldnames: list[str] | None = None
+
+    def __init__(self, session: FakeAsyncSession) -> None:
+        self.session = session
+
+    async def import_rows(
+        self,
+        *,
+        entity_type: str,
+        rows: object,
+        fieldnames: list[str] | None,
+    ) -> CatalogImportSummary:
+        self.received_fieldnames = fieldnames
+        return self.next_summary
+
+
 @pytest.mark.asyncio
 async def test_import_users_task_success() -> None:
     job_id = uuid4()
@@ -187,6 +213,71 @@ async def test_import_users_task_success() -> None:
     }
     assert minio_response.read_sizes
     assert all(size != -1 for size in minio_response.read_sizes)
+
+
+@pytest.mark.asyncio
+async def test_import_catalog_task_completes_with_partial_row_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_id = uuid4()
+    db_file = File(
+        id=uuid4(),
+        filename="material_types.csv",
+        bucket="bucket",
+        storage_path="x/material_types.csv",
+        content_type="text/csv",
+        size_bytes=100,
+    )
+    job = ImportJob(
+        id=job_id,
+        file_id=db_file.id,
+        entity_type="material_types",
+        task_name="import_catalog_task",
+        status="pending",
+        created_by_id=uuid4(),
+    )
+    job.file = db_file
+
+    session = FakeAsyncSession(import_job=job)
+    session_factory = MagicMock()
+    session_factory.return_value = session
+
+    minio_client = MagicMock()
+    minio_response = FakeMinioResponse(
+        b"code,name,status,note\nGOOD,Hop le,active,\nBAD,,active,"
+    )
+    minio_client.get_object.return_value = minio_response
+    monkeypatch.setattr("app.worker.CatalogImportService", FakeCatalogImportService)
+
+    await import_catalog_task(
+        {
+            "session_factory": session_factory,
+            "minio_client": minio_client,
+        },
+        job_id,
+    )
+
+    assert job.status == "completed"
+    assert job.total_rows == 2
+    assert job.processed_rows == 1
+    assert job.failed_rows == 1
+    assert job.errors_json == [{"row": 2, "code": "BAD", "errors": ["Tên là bắt buộc."]}]
+    assert all(size != -1 for size in minio_response.read_sizes)
+    audit_logs = [item for item in session.added if isinstance(item, AuditLog)]
+    assert len(audit_logs) == 1
+    assert audit_logs[0].action == "catalog.material_types_import_completed"
+    assert audit_logs[0].metadata_json == {
+        "import_job_id": str(job_id),
+        "file_id": str(db_file.id),
+        "import_entity_type": "material_types",
+        "status": "completed",
+        "outcome": "completed",
+        "total_rows": 2,
+        "processed_rows": 1,
+        "failed_rows": 1,
+        "created_rows": 1,
+        "updated_rows": 0,
+    }
 
 
 @pytest.mark.asyncio

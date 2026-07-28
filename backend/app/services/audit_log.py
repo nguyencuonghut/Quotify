@@ -45,6 +45,7 @@ ALLOWED_AUDIT_METADATA_KEYS = frozenset(
         "address",
         "code",
         "contact_count",
+        "created_rows",
         "import_job_id",
         "import_entity_type",
         "export_job_id",
@@ -69,6 +70,7 @@ ALLOWED_AUDIT_METADATA_KEYS = frozenset(
         "status",
         "summary",
         "total_rows",
+        "updated_rows",
         "old_value",
         "new_value",
     }

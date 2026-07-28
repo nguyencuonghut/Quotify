@@ -44,6 +44,13 @@
 
         <div class="materials-page__actions">
           <Button
+            v-if="permissionStore.can('materials.import')"
+            icon="pi pi-upload"
+            label="Import CSV"
+            severity="secondary"
+            @click="openImportDialog"
+          />
+          <Button
             v-if="permissionStore.can('materials.create')"
             icon="pi pi-plus"
             label="Thêm vật tư"
@@ -115,6 +122,54 @@
           </Column>
         </DataTable>
       </section>
+
+      <Dialog
+        v-model:visible="importDialogVisible"
+        class="materials-page__dialog"
+        header="Import vật tư"
+        modal
+      >
+        <div class="materials-page__form">
+          <div v-if="importError" class="materials-page__submit-error">
+            {{ importError }}
+          </div>
+          <div class="materials-page__dialog-actions">
+            <Button
+              icon="pi pi-download"
+              label="Tải template CSV"
+              severity="secondary"
+              text
+              @click="downloadTemplate"
+            />
+          </div>
+          <FileUpload
+            accept=".csv,text/csv"
+            choose-label="Chọn file CSV"
+            custom-upload
+            mode="basic"
+            name="file"
+            :auto="true"
+            :disabled="uploadingImport"
+            @uploader="handleImportUpload"
+          />
+          <div v-if="importJob" class="materials-page__import-status">
+            <strong>{{ formatImportStatus(importJob.status) }}</strong>
+            <span>
+              {{ importJob.processedRows }} thành công,
+              {{ importJob.failedRows }} lỗi trên {{ importJob.totalRows }} dòng
+            </span>
+            <ProgressBar :value="getImportProgress()" />
+            <Button
+              v-if="importJob.failedRows > 0"
+              icon="pi pi-download"
+              label="Tải file lỗi"
+              severity="secondary"
+              text
+              @click="downloadErrorFile"
+            />
+          </div>
+        </div>
+      </Dialog>
 
       <Dialog
         v-model:visible="createDialogVisible"
@@ -359,11 +414,14 @@ import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
+import FileUpload from 'primevue/fileupload'
 import InputText from 'primevue/inputtext'
+import ProgressBar from 'primevue/progressbar'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 
+import { useCatalogImport } from '@/composables/useCatalogImport'
 import { catalogStatusOptions } from '@/composables/useMaterialTypesPage'
 import { useMaterialsPage } from '@/composables/useMaterialsPage'
 import AdminLayout from '@/layouts/AdminLayout.vue'
@@ -423,6 +481,17 @@ const {
   submitEdit,
 } = useMaterialsPage()
 
+const {
+  importDialogVisible,
+  importJob,
+  importError,
+  uploadingImport,
+  openImportDialog,
+  handleImportUpload,
+  downloadTemplate,
+  downloadErrorFile,
+} = useCatalogImport('materials', fetchMaterials)
+
 let searchTimeout: ReturnType<typeof window.setTimeout> | null = null
 function onSearchInput() {
   if (searchTimeout) {
@@ -459,6 +528,25 @@ function onSortChange(event: {
 
 function formatStatus(status: CatalogStatus) {
   return status === 'active' ? 'Đang dùng' : 'Ngừng dùng'
+}
+
+function formatImportStatus(status: string) {
+  if (status === 'completed') return 'Hoàn tất'
+  if (status === 'failed') return 'Thất bại'
+  if (status === 'processing') return 'Đang xử lý'
+  return 'Đang chờ'
+}
+
+function getImportProgress() {
+  if (!importJob.value?.totalRows) return 0
+  return Math.min(
+    100,
+    Math.round(
+      ((importJob.value.processedRows + importJob.value.failedRows) /
+        importJob.value.totalRows) *
+        100,
+    ),
+  )
 }
 
 onMounted(async () => {

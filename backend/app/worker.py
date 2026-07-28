@@ -31,6 +31,11 @@ from app.models.backup_log import BackupLog
 from app.models.backup_schedule import BackupSchedule
 from app.services.audit_log import AuditLogContext, AuditLogService
 from app.services.backup_admin import calculate_next_run
+from app.services.catalog_import import (
+    CatalogImportHeaderError,
+    CatalogImportService,
+    get_catalog_import_config,
+)
 from app.services.email import EmailService
 from app.services.file_admin import FileAdminService
 from app.services.user_admin import RoleNotFoundError, UserAdminService
@@ -276,6 +281,142 @@ async def import_users_task(ctx: dict[str, Any], job_id: UUID) -> None:
                     {
                         "error_category": "all_rows_failed",
                         "error_summary": "All rows failed to import.",
+                    }
+                    if job.status == "failed"
+                    else {}
+                ),
+            },
+        )
+        await session.commit()
+
+
+async def import_catalog_task(ctx: dict[str, Any], job_id: UUID) -> None:
+    session_factory = ctx["session_factory"]
+    minio_client = ctx["minio_client"]
+
+    async with session_factory() as session:
+        stmt = select(ImportJob).where(ImportJob.id == job_id).options(selectinload(ImportJob.file))
+        result = await session.execute(stmt)
+        job = result.scalar_one_or_none()
+
+        if not job:
+            logger.error(f"Catalog import job {job_id} not found.")
+            return
+
+        try:
+            config = get_catalog_import_config(job.entity_type)
+        except ValueError:
+            logger.error(
+                "Catalog import job %s has unsupported entity_type=%s.",
+                job_id,
+                job.entity_type,
+            )
+            return
+
+        if job.status in TERMINAL_STATUSES:
+            logger.warning(f"Catalog import job {job_id} is already in state {job.status}.")
+            return
+
+        if job.status == "pending":
+            job.status = "processing"
+            await session.commit()
+
+        catalog_service = CatalogImportService(session)
+        try:
+            minio_response = minio_client.get_object(
+                bucket_name=job.file.bucket,
+                object_name=job.file.storage_path,
+            )
+            try:
+                reader = csv.DictReader(_iter_decoded_csv_lines(minio_response))
+                summary = await catalog_service.import_rows(
+                    entity_type=config.entity_type,
+                    rows=reader,
+                    fieldnames=reader.fieldnames,
+                )
+            finally:
+                minio_response.close()
+                minio_response.release_conn()
+        except CatalogImportHeaderError as exc:
+            logger.warning("Catalog import job %s has invalid CSV header.", job_id)
+            job.status = "failed"
+            job.error_summary = "Header CSV không hợp lệ."
+            job.errors_json = [{"row": 0, "code": "", "errors": [str(exc)]}]
+            await _log_worker_audit_event(
+                session,
+                action=config.failed_action,
+                entity_type="import_job",
+                entity_id=job.id,
+                actor_user_id=job.created_by_id,
+                metadata_json={
+                    "import_job_id": str(job.id),
+                    "file_id": str(job.file_id),
+                    "import_entity_type": job.entity_type,
+                    "status": job.status,
+                    "outcome": "failed",
+                    "error_category": "invalid_csv_header",
+                    "error_summary": "Header CSV không hợp lệ.",
+                },
+            )
+            await session.commit()
+            return
+        except Exception:
+            logger.exception(f"Failed to read/parse catalog CSV file for job {job_id}")
+            job.status = "failed"
+            job.error_summary = "Không thể đọc hoặc xử lý file CSV import danh mục."
+            await _log_worker_audit_event(
+                session,
+                action=config.failed_action,
+                entity_type="import_job",
+                entity_id=job.id,
+                actor_user_id=job.created_by_id,
+                metadata_json={
+                    "import_job_id": str(job.id),
+                    "file_id": str(job.file_id),
+                    "import_entity_type": job.entity_type,
+                    "status": job.status,
+                    "outcome": "failed",
+                    "error_category": "csv_read_parse_failed",
+                    "error_summary": "Không thể đọc hoặc xử lý file CSV import danh mục.",
+                },
+            )
+            await session.commit()
+            return
+
+        job.status = (
+            "completed"
+            if summary.total_rows > 0 and summary.processed_rows > 0
+            else "failed"
+        )
+        if summary.total_rows == 0:
+            job.error_summary = "File import không có dòng dữ liệu."
+        elif summary.processed_rows == 0:
+            job.error_summary = "Tất cả dòng import đều lỗi."
+        job.total_rows = summary.total_rows
+        job.processed_rows = summary.processed_rows
+        job.failed_rows = summary.failed_rows
+        job.errors_json = summary.errors or []
+        await _log_worker_audit_event(
+            session,
+            action=config.completed_action if job.status == "completed" else config.failed_action,
+            entity_type="import_job",
+            entity_id=job.id,
+            actor_user_id=job.created_by_id,
+            metadata_json={
+                "import_job_id": str(job.id),
+                "file_id": str(job.file_id),
+                "import_entity_type": job.entity_type,
+                "status": job.status,
+                "outcome": "completed" if job.status == "completed" else "failed",
+                "total_rows": job.total_rows,
+                "processed_rows": job.processed_rows,
+                "failed_rows": job.failed_rows,
+                "created_rows": summary.created_rows,
+                "updated_rows": summary.updated_rows,
+                **(
+                    {
+                        "error_category": "all_rows_failed",
+                        "error_summary": "Tất cả dòng import đều lỗi.",
                     }
                     if job.status == "failed"
                     else {}
@@ -628,6 +769,7 @@ class WorkerSettings:
     redis_settings = RedisSettings(host=settings.redis_host, port=settings.redis_port)
     functions = [
         import_users_task,
+        import_catalog_task,
         export_users_task,
         run_backup_task,
         poll_and_run_scheduled_backups,

@@ -7,6 +7,17 @@ from app.services.audit_log_admin import (
     AuditLogListResult,
 )
 from app.services.backup_admin import BackupAdminService, BackupScheduleNotFoundError
+from app.services.catalog_import import (
+    CATALOG_IMPORT_CONFIGS,
+    CATALOG_IMPORT_ENTITY_TYPES,
+    CatalogImportConfig,
+    CatalogImportHeaderError,
+    CatalogImportService,
+    CatalogImportSummary,
+    build_catalog_import_error_report,
+    build_catalog_import_template,
+    get_catalog_import_config,
+)
 from app.services.email import EmailService
 from app.services.file_admin import (
     FileAdminService,
@@ -57,6 +68,12 @@ __all__ = [
     "AuditLogService",
     "BackupAdminService",
     "BackupScheduleNotFoundError",
+    "CATALOG_IMPORT_CONFIGS",
+    "CATALOG_IMPORT_ENTITY_TYPES",
+    "CatalogImportConfig",
+    "CatalogImportHeaderError",
+    "CatalogImportService",
+    "CatalogImportSummary",
     "EmailAlreadyExistsError",
     "EmailService",
     "FileAdminService",
@@ -88,4 +105,7 @@ __all__ = [
     "SystemRoleModificationError",
     "UserAdminService",
     "UserNotFoundError",
+    "build_catalog_import_error_report",
+    "build_catalog_import_template",
+    "get_catalog_import_config",
 ]
