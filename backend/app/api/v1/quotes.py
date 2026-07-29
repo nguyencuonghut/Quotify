@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+import html
 import io
+import re
 from typing import Annotated, Generator
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.auth.dependencies import require_permission, get_current_user
 from app.db.session import get_db_session
-from app.models import Quote, QuoteLine, QuoteVersion, User
+from app.models import Quote, QuoteLine, QuoteVersion, QuoteNote, QuoteNoteRevision, User
 from app.schemas.quote import (
     QuoteCreateRequest,
     QuoteDraftUpdateRequest,
@@ -213,9 +217,26 @@ async def create_quote(
             current_user=current_user,
             entity_id=str(quote.id),
             metadata_json={
+                "quote_id": str(quote.id),
                 "supplier_id": str(quote.supplier_id),
                 "supplier_code": quote.supplier.code,
                 "version_number": 1,
+                "received_date": str(quote.versions[0].received_date) if quote.versions else None,
+                "is_backfilled": quote.versions[0].is_backfilled if quote.versions else False,
+                "backfill_reason": quote.versions[0].backfill_reason if quote.versions else None,
+                "lines": [
+                    {
+                        "material_id": str(line.material_id),
+                        "material_code": line.material.code if line.material else None,
+                        "material_name": line.material.name if line.material else None,
+                        "price_original": float(line.price_original),
+                        "currency": line.currency,
+                        "unit": line.unit,
+                        "delivery_month": str(line.delivery_month),
+                        "exchange_rate": float(line.exchange_rate) if line.exchange_rate else None,
+                    }
+                    for line in (quote.versions[0].lines if quote.versions else [])
+                ]
             },
         ),
     )
@@ -291,6 +312,33 @@ async def update_draft(
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuoteVersionResponse:
+    # Load old version snapshot for audit log
+    old_stmt = select(QuoteVersion).options(
+        selectinload(QuoteVersion.lines).selectinload(QuoteLine.material)
+    ).where(QuoteVersion.id == version_id, QuoteVersion.quote_id == id)
+    old_version = (await session.execute(old_stmt)).scalar_one_or_none()
+    
+    old_data = None
+    if old_version:
+        old_data = {
+            "received_date": str(old_version.received_date),
+            "is_backfilled": old_version.is_backfilled,
+            "backfill_reason": old_version.backfill_reason,
+            "lines": [
+                {
+                    "material_id": str(line.material_id),
+                    "material_code": line.material.code if line.material else None,
+                    "material_name": line.material.name if line.material else None,
+                    "price_original": float(line.price_original),
+                    "currency": line.currency,
+                    "unit": line.unit,
+                    "delivery_month": str(line.delivery_month),
+                    "exchange_rate": float(line.exchange_rate) if line.exchange_rate else None,
+                }
+                for line in old_version.lines
+            ]
+        }
+
     try:
         version = await quote_service.update_draft(
             quote_id=id,
@@ -307,6 +355,33 @@ async def update_draft(
             detail=str(exc),
         ) from exc
 
+    # Calculate changes
+    changes = {}
+    if old_data:
+        new_data = {
+            "received_date": str(version.received_date),
+            "is_backfilled": version.is_backfilled,
+            "backfill_reason": version.backfill_reason,
+            "lines": [
+                {
+                    "material_id": str(line.material_id),
+                    "material_code": line.material.code if line.material else None,
+                    "material_name": line.material.name if line.material else None,
+                    "price_original": float(line.price_original),
+                    "currency": line.currency,
+                    "unit": line.unit,
+                    "delivery_month": str(line.delivery_month),
+                    "exchange_rate": float(line.exchange_rate) if line.exchange_rate else None,
+                }
+                for line in version.lines
+            ]
+        }
+        for key in ["received_date", "is_backfilled", "backfill_reason"]:
+            if old_data[key] != new_data[key]:
+                changes[key] = {"old": old_data[key], "new": new_data[key]}
+        if old_data["lines"] != new_data["lines"]:
+            changes["lines"] = {"old": old_data["lines"], "new": new_data["lines"]}
+
     await audit_service.log_event(
         action="quotes.version_updated",
         entity_type="quote_version",
@@ -317,6 +392,7 @@ async def update_draft(
             metadata_json={
                 "quote_id": str(id),
                 "version_number": version.version_number,
+                "changes": changes,
             },
         ),
     )
@@ -356,6 +432,12 @@ async def confirm_version(
             metadata_json={
                 "quote_id": str(id),
                 "version_number": version.version_number,
+                "changes": {
+                    "status": {
+                        "old": "draft",
+                        "new": "confirmed"
+                    }
+                }
             },
         ),
     )
@@ -374,6 +456,11 @@ async def toggle_purchase(
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuoteLineResponse:
+    # Load old line state for audit log
+    old_stmt = select(QuoteLine).where(QuoteLine.id == line_id)
+    old_line = (await session.execute(old_stmt)).scalar_one_or_none()
+    old_purchase_marked_at = old_line.purchase_marked_at if old_line else None
+
     try:
         line = await quote_service.toggle_line_purchase(
             line_id=line_id,
@@ -398,6 +485,14 @@ async def toggle_purchase(
             metadata_json={
                 "quote_id": str(id),
                 "material_id": str(line.material_id),
+                "material_code": line.material.code if line.material else None,
+                "material_name": line.material.name if line.material else None,
+                "changes": {
+                    "purchase_marked_at": {
+                        "old": str(old_purchase_marked_at) if old_purchase_marked_at else None,
+                        "new": str(line.purchase_marked_at) if line.purchase_marked_at else None,
+                    }
+                }
             },
         ),
     )
@@ -588,6 +683,15 @@ async def get_quote_note(
     )
 
 
+def clean_html_to_text(text: str | None) -> str | None:
+    if not text:
+        return text
+    text = re.sub(r'</?(p|br|div|li)[^>]*>', ' ', text)
+    text = re.sub(r'<[^>]+>', '', text)
+    text = html.unescape(text)
+    return " ".join(text.split())
+
+
 @router.put("/{quote_id}/notes", response_model=QuoteNoteRevisionResponse)
 async def update_quote_note(
     request: Request,
@@ -599,6 +703,17 @@ async def update_quote_note(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     _: Annotated[User, Depends(require_permission("quotes.update"))],
 ) -> Any:
+    note_stmt = select(QuoteNote).where(QuoteNote.quote_id == quote_id)
+    note = (await session.execute(note_stmt)).scalar_one_or_none()
+    old_content = None
+    if note:
+        last_rev_stmt = select(QuoteNoteRevision).where(
+            QuoteNoteRevision.note_id == note.id
+        ).order_by(QuoteNoteRevision.revision_number.desc()).limit(1)
+        last_rev = (await session.execute(last_rev_stmt)).scalar_one_or_none()
+        if last_rev:
+            old_content = last_rev.content
+
     try:
         revision = await note_service.update_note(
             quote_id=quote_id,
@@ -622,6 +737,12 @@ async def update_quote_note(
             metadata_json={
                 "quote_id": str(quote_id),
                 "revision_number": revision.revision_number,
+                "changes": {
+                    "content": {
+                        "old": clean_html_to_text(old_content),
+                        "new": clean_html_to_text(revision.content)
+                    }
+                }
             },
         ),
     )
@@ -650,6 +771,10 @@ async def update_note_revision(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     _: Annotated[User, Depends(require_permission("quotes.update"))],
 ) -> Any:
+    rev_stmt = select(QuoteNoteRevision).where(QuoteNoteRevision.id == revision_id)
+    old_rev = (await session.execute(rev_stmt)).scalar_one_or_none()
+    old_content = old_rev.content if old_rev else None
+
     try:
         revision = await note_service.update_revision(
             revision_id=revision_id,
@@ -672,6 +797,13 @@ async def update_note_revision(
             metadata_json={
                 "quote_id": str(quote_id),
                 "revision_id": str(revision_id),
+                "revision_number": revision.revision_number,
+                "changes": {
+                    "content": {
+                        "old": clean_html_to_text(old_content),
+                        "new": clean_html_to_text(revision.content)
+                    }
+                }
             },
         ),
     )
@@ -698,6 +830,11 @@ async def delete_note_revision(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     _: Annotated[User, Depends(require_permission("quotes.update"))],
 ) -> None:
+    rev_stmt = select(QuoteNoteRevision).where(QuoteNoteRevision.id == revision_id)
+    old_rev = (await session.execute(rev_stmt)).scalar_one_or_none()
+    old_content = old_rev.content if old_rev else None
+    old_revision_number = old_rev.revision_number if old_rev else None
+
     try:
         await note_service.delete_revision(revision_id=revision_id)
     except ValueError as e:
@@ -717,8 +854,9 @@ async def delete_note_revision(
             metadata_json={
                 "quote_id": str(quote_id),
                 "revision_id": str(revision_id),
+                "revision_number": old_revision_number,
+                "content": clean_html_to_text(old_content),
             },
         ),
     )
     await session.commit()
-
