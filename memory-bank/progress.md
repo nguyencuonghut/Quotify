@@ -90,10 +90,10 @@
 - Hoàn thành tối ưu hóa UX nhập báo giá nhiều tháng ngày 28/07/2026: Triển khai Phương án 2 (Nhân bản nhanh dòng vật tư - Clone/Duplicate Line) trong `useQuoteEditor.ts` và `QuoteEditorPage.vue` (cả desktop/mobile view).
 - Đã sửa các lỗi phát hiện khi vận hành báo giá ngày 28/07/2026: Sửa lỗi hiển thị nguồn tỷ giá 'Chưa xác định' cho các dòng thêm sau bằng cách gán đúng `exchangeRateSource` trong `useQuoteEditor.ts`; Sửa lỗi `hasPermission` trong `QuoteDetailPage.vue`; Sửa lỗi `getTodayString is not defined` trong `QuoteEditorPage.vue`; Cải tiến `AdminLayout.vue` tự động highlight active menu 'Nhập báo giá' cho các sub-routes con.
 - Hoàn thành Phase 7 Backend (Ghi chú thị trường & Lịch sử chỉnh sửa) ngày 28/07/2026: Viết test và tích hợp thư viện HTML sanitizer `nh3` an toàn; Tạo các database models `QuoteNote`, `QuoteNoteRevision`; Tạo Alembic migration `20260728_1100_create_quote_notes.py`; Cài đặt `QuoteNoteService`; Bổ sung các API endpoints `GET /api/v1/quotes/{quote_id}/notes` và `PUT /api/v1/quotes/{quote_id}/notes` cùng với bộ unit tests cho service và API endpoints.
+- Hoàn thành Phase 7 Frontend (Ghi chú thị trường) ngày 29/07/2026: Tích hợp PrimeVue Editor, Quill rich text engine; Hiển thị danh sách ghi chú dạng bình luận Facebook (Facebook comment style) sắp xếp theo thời gian, bỏ số hiệu phiên bản; Thêm nút "Thêm" ghi chú mới; Thêm nút "Sửa" và "Xóa" cho từng ghi chú để sửa/xóa trực tiếp (inline); Bổ sung API endpoints PATCH/DELETE note revisions ở backend và các api client/composable/unit tests tương ứng ở frontend.
 
 ## Open
 
-- Bước tiếp theo là Phase 7: Ghi chú thị trường và Lịch sử chỉnh sửa báo giá (Phần Frontend: rich text editor, revision viewer).
 - Finish unrestricted verification for Phase 5 dependency audits and host-side performance smoke outside the current sandbox DNS/socket limits
 - Verify Phase 6 observability stack `up` flow and execute a real restore drill in an isolated runtime environment
 - Optionally install Bun and run the upstream `agent-memory` CLI locally

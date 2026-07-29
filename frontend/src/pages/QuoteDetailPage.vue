@@ -198,6 +198,148 @@
             </Column>
           </DataTable>
         </div>
+
+        <!-- Market Notes Card -->
+        <div class="quote-detail-page__card">
+          <div class="quote-detail-page__section-header">
+            <h3 class="quote-detail-page__section-title">
+              <i class="pi pi-file-edit mr-2 text-primary" />
+              Ghi chú thị trường
+            </h3>
+            <Button
+              v-if="hasUpdatePermission && !isEditingNote && !isEditingRevisionId"
+              label="Thêm"
+              icon="pi pi-plus"
+              severity="secondary"
+              outlined
+              size="small"
+              @click="startAddNote"
+            />
+          </div>
+
+          <div class="quote-detail-page__note-body mt-3">
+            <!-- Edit mode (adding new note) -->
+            <div v-if="isEditingNote" class="flex flex-column gap-3">
+              <Editor
+                v-model="editingContent"
+                editor-style="height: 200px"
+                placeholder="Nhập ghi chú thị trường định dạng rich text..."
+              />
+              <div class="quote-detail-page__note-actions">
+                <Button
+                  label="Hủy bỏ"
+                  icon="pi pi-times"
+                  severity="secondary"
+                  outlined
+                  @click="cancelEditNote"
+                  :disabled="isSavingNote"
+                />
+                <Button
+                  label="Lưu ghi chú"
+                  icon="pi pi-save"
+                  severity="primary"
+                  @click="saveMarketNote"
+                  :loading="isSavingNote"
+                />
+              </div>
+              <div v-if="noteErrorMsg" class="text-xs text-red-600">
+                {{ noteErrorMsg }}
+              </div>
+            </div>
+
+            <!-- Read mode -->
+            <div v-else>
+              <div 
+                v-if="note?.revisions && note.revisions.length > 0" 
+                class="quote-detail-page__comments-list"
+              >
+                <div 
+                  v-for="(rev, idx) in chronologicalRevisions" 
+                  :key="rev.id"
+                  class="quote-detail-page__comment-card"
+                >
+                  <!-- Edit mode for specific revision -->
+                  <div v-if="isEditingRevisionId === rev.id" class="flex flex-column gap-3">
+                    <Editor
+                      v-model="editingRevisionContent"
+                      editor-style="height: 150px"
+                      placeholder="Chỉnh sửa nội dung ghi chú..."
+                    />
+                    <div class="quote-detail-page__note-actions">
+                      <Button
+                        label="Hủy"
+                        icon="pi pi-times"
+                        severity="secondary"
+                        outlined
+                        size="small"
+                        @click="cancelEditRevision"
+                        :disabled="isSavingNote"
+                      />
+                      <Button
+                        label="Cập nhật"
+                        icon="pi pi-save"
+                        severity="primary"
+                        size="small"
+                        @click="saveRevision(rev.id)"
+                        :loading="isSavingNote"
+                      />
+                    </div>
+                  </div>
+
+                  <!-- Read mode for specific revision -->
+                  <div v-else>
+                    <div class="quote-detail-page__comment-header">
+                      <div class="quote-detail-page__comment-author-info">
+                        <div class="quote-detail-page__comment-avatar">
+                          {{ rev.authorName ? rev.authorName.charAt(0).toUpperCase() : 'H' }}
+                        </div>
+                        <div class="quote-detail-page__comment-meta-text">
+                          <span class="quote-detail-page__comment-author">{{ rev.authorName || 'Hệ thống' }}</span>
+                          <span class="quote-detail-page__comment-time">{{ formatDateTime(rev.createdAt) }}</span>
+                        </div>
+                      </div>
+                      <div class="flex align-items-center gap-2">
+                        <span 
+                          v-if="idx === chronologicalRevisions.length - 1" 
+                          class="quote-detail-page__current-badge"
+                        >
+                          Hiện tại
+                        </span>
+                        <div v-if="hasUpdatePermission" class="quote-detail-page__comment-actions">
+                          <Button
+                            icon="pi pi-pencil"
+                            severity="secondary"
+                            text
+                            rounded
+                            size="small"
+                            title="Sửa"
+                            @click="startEditRevision(rev)"
+                          />
+                          <Button
+                            icon="pi pi-trash"
+                            severity="danger"
+                            text
+                            rounded
+                            size="small"
+                            title="Xóa"
+                            @click="confirmDeleteRevision(rev.id)"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div 
+                      class="quote-detail-page__comment-body quote-detail-page__note-html-content" 
+                      v-html="rev.content" 
+                    />
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-gray-500 italic text-sm py-2">
+                Chưa có ghi chú thị trường nào cho báo giá này.
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Cột phụ: Timeline lịch sử phiên bản -->
@@ -241,10 +383,7 @@
     >
       <div class="flex align-items-center gap-3">
         <i class="pi pi-exclamation-triangle text-orange-500 text-3xl" />
-        <span
-          >Sau khi xác nhận, toàn bộ giá gốc, tỷ giá quy đổi và chi phí quy đổi của
-          <strong>Phiên bản #{{ activeVersion?.versionNumber }}</strong> sẽ được khóa chính thức và KHÔNG thể sửa đổi hay xóa. Bạn có chắc chắn muốn xác nhận?</span
-        >
+        <span>After confirmation, all raw prices and exchange rates of <strong>Version #{{ activeVersion?.versionNumber }}</strong> will be locked and CANNOT be edited. Are you sure you want to proceed?</span>
       </div>
       <template #footer>
         <Button
@@ -264,6 +403,30 @@
         />
       </template>
     </Dialog>
+
+    <!-- View Revision Dialog -->
+    <Dialog
+      v-model:visible="showRevisionDialog"
+      :header="'Xem phiên bản ghi chú #' + selectedRevision?.revisionNumber"
+      :modal="true"
+      :style="{ width: '600px' }"
+    >
+      <div v-if="selectedRevision" class="flex flex-column gap-3">
+        <div class="text-xs text-gray-500 bg-gray-50 p-2 border-round">
+          <span>Người viết: <strong>{{ selectedRevision.authorName || 'Hệ thống' }}</strong></span>
+          <span class="ml-4">Thời gian: <strong>{{ formatDateTime(selectedRevision.createdAt) }}</strong></span>
+        </div>
+        <div class="quote-detail-page__note-html-content max-h-20rem overflow-y-auto p-2 border-1 border-gray-200 border-round" v-html="selectedRevision.content" />
+      </div>
+      <template #footer>
+        <Button
+          label="Đóng"
+          icon="pi pi-times"
+          severity="secondary"
+          @click="showRevisionDialog = false"
+        />
+      </template>
+    </Dialog>
   </div>
   </AdminLayout>
 </template>
@@ -278,6 +441,7 @@ import FileUpload from 'primevue/fileupload'
 import Checkbox from 'primevue/checkbox'
 import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
+import Editor from 'primevue/editor'
 
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
@@ -301,11 +465,18 @@ const {
   isFileUploading,
   sortedVersions,
   activeVersion,
+  note,
+  isNoteLoading,
+  isSavingNote,
+  noteErrorMsg,
   loadQuote,
   handleConfirm,
   handleTogglePurchase,
   handleUploadSourceFile,
   getSourceFileDownloadUrl,
+  handleUpdateNote,
+  handleUpdateNoteRevision,
+  handleDeleteNoteRevision,
 } = useQuoteDetail(authStore.accessToken)
 
 const showConfirmDialog = ref<boolean>(false)
@@ -313,6 +484,87 @@ const showConfirmDialog = ref<boolean>(false)
 // Permissions
 const hasUpdatePermission = computed(() => permissionStore.can('quotes.update'))
 const hasPurchasePermission = computed(() => permissionStore.can('quotes.mark_purchased'))
+
+// Note handlers
+const isEditingNote = ref<boolean>(false)
+const editingContent = ref<string>('')
+const isEditingRevisionId = ref<string | null>(null)
+const editingRevisionContent = ref<string>('')
+
+const latestRevision = computed(() => {
+  if (!note.value || !Array.isArray(note.value.revisions) || note.value.revisions.length === 0) {
+    return null
+  }
+  return note.value.revisions[0]
+})
+
+const chronologicalRevisions = computed(() => {
+  if (!note.value || !Array.isArray(note.value.revisions)) {
+    return []
+  }
+  return [...note.value.revisions].reverse()
+})
+
+const startAddNote = () => {
+  editingContent.value = ''
+  isEditingNote.value = true
+  isEditingRevisionId.value = null
+}
+
+const cancelEditNote = () => {
+  isEditingNote.value = false
+  editingContent.value = ''
+}
+
+const saveMarketNote = async () => {
+  try {
+    await handleUpdateNote(quoteId, editingContent.value)
+    isEditingNote.value = false
+    editingContent.value = ''
+  } catch {
+    // handled by composable errorMsg
+  }
+}
+
+const startEditRevision = (rev: any) => {
+  isEditingRevisionId.value = rev.id
+  editingRevisionContent.value = rev.content
+  isEditingNote.value = false
+}
+
+const cancelEditRevision = () => {
+  isEditingRevisionId.value = null
+  editingRevisionContent.value = ''
+}
+
+const saveRevision = async (revId: string) => {
+  try {
+    await handleUpdateNoteRevision(quoteId, revId, editingRevisionContent.value)
+    isEditingRevisionId.value = null
+    editingRevisionContent.value = ''
+  } catch {
+    // handled by composable errorMsg
+  }
+}
+
+const confirmDeleteRevision = async (revId: string) => {
+  if (confirm('Bạn có chắc chắn muốn xóa ghi chú này không?')) {
+    try {
+      await handleDeleteNoteRevision(quoteId, revId)
+    } catch {
+      // handled by composable errorMsg
+    }
+  }
+}
+
+// Revision viewer
+const showRevisionDialog = ref<boolean>(false)
+const selectedRevision = ref<any>(null)
+
+const viewRevision = (revision: any) => {
+  selectedRevision.value = revision
+  showRevisionDialog.value = true
+}
 
 const goBack = () => {
   useRouterObj.push('/')

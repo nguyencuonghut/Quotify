@@ -497,9 +497,12 @@ async def get_quote_note(
 ) -> Any:
     note = await note_service.get_note_by_quote_id(quote_id)
     if not note:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Quote note not found",
+        return QuoteNoteResponse(
+            id=None,
+            quote_id=quote_id,
+            created_at=None,
+            updated_at=None,
+            revisions=[],
         )
     
     revisions = []
@@ -548,18 +551,21 @@ async def update_quote_note(
         )
 
     # Log audit event
-    context = AuditLogContext.from_request(request, current_user)
     await audit_service.log_event(
-        db=session,
         action="quotes.note_updated",
         entity_type="quote",
-        entity_id=quote_id,
-        context=context,
-        metadata_json={
-            "quote_id": str(quote_id),
-            "revision_number": revision.revision_number,
-        },
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+            entity_id=str(quote_id),
+            metadata_json={
+                "quote_id": str(quote_id),
+                "revision_number": revision.revision_number,
+            },
+        ),
     )
+
+    await session.commit()
 
     return QuoteNoteRevisionResponse(
         id=revision.id,
@@ -569,3 +575,89 @@ async def update_quote_note(
         author_name=current_user.full_name,
         created_at=revision.created_at,
     )
+
+
+@router.patch("/{quote_id}/notes/revisions/{revision_id}", response_model=QuoteNoteRevisionResponse)
+async def update_note_revision(
+    request: Request,
+    quote_id: UUID,
+    revision_id: UUID,
+    body: QuoteNoteUpdateRequest,
+    note_service: Annotated[QuoteNoteService, Depends(get_quote_note_service)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    _: Annotated[User, Depends(require_permission("quotes.update"))],
+) -> Any:
+    try:
+        revision = await note_service.update_revision(
+            revision_id=revision_id,
+            content=body.content,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Log audit event
+    await audit_service.log_event(
+        action="quotes.note_revision_updated",
+        entity_type="quote",
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+            entity_id=str(quote_id),
+            metadata_json={
+                "quote_id": str(quote_id),
+                "revision_id": str(revision_id),
+            },
+        ),
+    )
+    await session.commit()
+
+    return QuoteNoteRevisionResponse(
+        id=revision.id,
+        revision_number=revision.revision_number,
+        content=revision.content,
+        author_id=revision.author_id,
+        author_name=revision.author.full_name if revision.author else "Hệ thống",
+        created_at=revision.created_at,
+    )
+
+
+@router.delete("/{quote_id}/notes/revisions/{revision_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_note_revision(
+    request: Request,
+    quote_id: UUID,
+    revision_id: UUID,
+    note_service: Annotated[QuoteNoteService, Depends(get_quote_note_service)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    _: Annotated[User, Depends(require_permission("quotes.update"))],
+) -> None:
+    try:
+        await note_service.delete_revision(revision_id=revision_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Log audit event
+    await audit_service.log_event(
+        action="quotes.note_revision_deleted",
+        entity_type="quote",
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+            entity_id=str(quote_id),
+            metadata_json={
+                "quote_id": str(quote_id),
+                "revision_id": str(revision_id),
+            },
+        ),
+    )
+    await session.commit()
+

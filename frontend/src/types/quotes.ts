@@ -124,3 +124,37 @@ export interface QuoteDraftUpdatePayload {
 export interface QuoteLinePurchaseTogglePayload {
   purchase: boolean
 }
+
+export interface QuoteNoteRevisionDto {
+  id: string
+  revision_number: number
+  content: string
+  author_id: string | null
+  author_name: string | null
+  created_at: string
+}
+
+export interface QuoteNoteDto {
+  id: string
+  quote_id: string
+  created_at: string
+  updated_at: string
+  revisions: QuoteNoteRevisionDto[]
+}
+
+export interface QuoteNoteRevisionDomain {
+  id: string
+  revisionNumber: number
+  content: string
+  authorId: string | null
+  authorName: string | null
+  createdAt: string
+}
+
+export interface QuoteNoteDomain {
+  id: string
+  quoteId: string
+  createdAt: string
+  updatedAt: string
+  revisions: QuoteNoteRevisionDomain[]
+}

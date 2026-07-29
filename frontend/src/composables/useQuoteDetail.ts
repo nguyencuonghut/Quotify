@@ -4,8 +4,12 @@ import {
   confirmVersion,
   toggleLinePurchase,
   uploadSourceFile,
+  getQuoteNote,
+  updateQuoteNote,
+  updateQuoteNoteRevision,
+  deleteQuoteNoteRevision,
 } from '@/api/quotes.api'
-import type { QuoteDomain, QuoteVersionDomain } from '@/types/quotes'
+import type { QuoteDomain, QuoteVersionDomain, QuoteNoteDomain } from '@/types/quotes'
 
 export function useQuoteDetail(accessToken: string | null) {
   const quote = ref<QuoteDomain | null>(null)
@@ -15,6 +19,12 @@ export function useQuoteDetail(accessToken: string | null) {
   
   const isConfirming = ref<boolean>(false)
   const isFileUploading = ref<boolean>(false)
+
+  // Note state
+  const note = ref<QuoteNoteDomain | null>(null)
+  const isNoteLoading = ref<boolean>(false)
+  const isSavingNote = ref<boolean>(false)
+  const noteErrorMsg = ref<string | null>(null)
 
   // Sorted versions descending (highest version number first)
   const sortedVersions = computed<QuoteVersionDomain[]>(() => {
@@ -32,6 +42,45 @@ export function useQuoteDetail(accessToken: string | null) {
     return sortedVersions.value.find((v) => v.id === activeVersionId.value) || sortedVersions.value[0] || null
   })
 
+  const loadNote = async (quoteId: string) => {
+    isNoteLoading.value = true
+    noteErrorMsg.value = null
+    try {
+      const data = await getQuoteNote(quoteId, accessToken)
+      note.value = data
+    } catch (err: any) {
+      noteErrorMsg.value = err.message || 'Không thể tải ghi chú thị trường.'
+    } finally {
+      isNoteLoading.value = false
+    }
+  }
+
+  const handleUpdateNote = async (quoteId: string, content: string) => {
+    isSavingNote.value = true
+    noteErrorMsg.value = null
+    try {
+      const revision = await updateQuoteNote(quoteId, content, accessToken)
+      if (!note.value || !note.value.id) {
+        note.value = {
+          id: 'temp-id',
+          quoteId,
+          createdAt: revision.createdAt,
+          updatedAt: revision.createdAt,
+          revisions: [revision],
+        }
+      } else {
+        note.value.revisions = [revision, ...note.value.revisions]
+        note.value.updatedAt = revision.createdAt
+      }
+      return revision
+    } catch (err: any) {
+      noteErrorMsg.value = err.message || 'Không thể cập nhật ghi chú thị trường.'
+      throw err
+    } finally {
+      isSavingNote.value = false
+    }
+  }
+
   const loadQuote = async (quoteId: string) => {
     isLoading.value = true
     errorMsg.value = null
@@ -45,6 +94,9 @@ export function useQuoteDetail(accessToken: string | null) {
         const sortedAsc = [...data.versions].sort((a, b) => b.versionNumber - a.versionNumber)
         activeVersionId.value = sortedAsc[0].id
       }
+
+      // Load note alongside quote details
+      await loadNote(quoteId)
     } catch (err: any) {
       errorMsg.value = err.message || 'Không thể tải chi tiết phiếu báo giá.'
     } finally {
@@ -76,7 +128,6 @@ export function useQuoteDetail(accessToken: string | null) {
     if (!quote.value) {
       return
     }
-    // Toggle logic: send opposite value of current
     const nextVal = !currentPurchaseVal
     try {
       await toggleLinePurchase(quote.value.id, lineId, nextVal, accessToken)
@@ -111,6 +162,51 @@ export function useQuoteDetail(accessToken: string | null) {
     return `/api/v1/quotes/${quote.value.id}/versions/${version.id}/source-file`
   }
 
+  const handleUpdateNoteRevision = async (quoteId: string, revisionId: string, content: string) => {
+    isSavingNote.value = true
+    noteErrorMsg.value = null
+    try {
+      const updatedRev = await updateQuoteNoteRevision(quoteId, revisionId, content, accessToken)
+      if (note.value && note.value.revisions) {
+        const idx = note.value.revisions.findIndex((r) => r.id === revisionId)
+        if (idx !== -1) {
+          note.value.revisions[idx] = updatedRev
+        }
+      }
+      return updatedRev
+    } catch (err: any) {
+      noteErrorMsg.value = err.message || 'Không thể sửa đổi ghi chú thị trường.'
+      throw err
+    } finally {
+      isSavingNote.value = false
+    }
+  }
+
+  const handleDeleteNoteRevision = async (quoteId: string, revisionId: string) => {
+    isSavingNote.value = true
+    noteErrorMsg.value = null
+    try {
+      await deleteQuoteNoteRevision(quoteId, revisionId, accessToken)
+      if (note.value && note.value.revisions) {
+        note.value.revisions = note.value.revisions.filter((r) => r.id !== revisionId)
+        if (note.value.revisions.length === 0) {
+          note.value = {
+            id: '',
+            quoteId,
+            createdAt: '',
+            updatedAt: '',
+            revisions: [],
+          }
+        }
+      }
+    } catch (err: any) {
+      noteErrorMsg.value = err.message || 'Không thể xóa ghi chú thị trường.'
+      throw err
+    } finally {
+      isSavingNote.value = false
+    }
+  }
+
   return {
     quote,
     activeVersionId,
@@ -120,10 +216,18 @@ export function useQuoteDetail(accessToken: string | null) {
     isFileUploading,
     sortedVersions,
     activeVersion,
+    note,
+    isNoteLoading,
+    isSavingNote,
+    noteErrorMsg,
     loadQuote,
     handleConfirm,
     handleTogglePurchase,
     handleUploadSourceFile,
     getSourceFileDownloadUrl,
+    loadNote,
+    handleUpdateNote,
+    handleUpdateNoteRevision,
+    handleDeleteNoteRevision,
   }
 }

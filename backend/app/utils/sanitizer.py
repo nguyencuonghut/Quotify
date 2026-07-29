@@ -10,7 +10,7 @@ def sanitize_html(raw_html: str) -> str:
         
     allowed_tags = {"p", "br", "b", "strong", "i", "em", "ul", "ol", "li", "a"}
     allowed_attributes = {
-        "a": {"href", "target", "rel"}
+        "a": {"href", "target"}
     }
     allowed_schemes = {"http", "https", "mailto"}
     

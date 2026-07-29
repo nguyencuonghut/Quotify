@@ -75,6 +75,59 @@ class QuoteNoteService:
         self.db.add(revision)
 
         await self.db.flush()
-        await self.db.commit()
 
         return revision
+
+    async def update_revision(
+        self,
+        *,
+        revision_id: UUID,
+        content: str,
+    ) -> QuoteNoteRevision:
+        cleaned_content = sanitize_html(content)
+        stmt = (
+            select(QuoteNoteRevision)
+            .where(QuoteNoteRevision.id == revision_id)
+            .options(selectinload(QuoteNoteRevision.author))
+        )
+        revision = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not revision:
+            raise ValueError("Revision not found")
+
+        revision.content = cleaned_content
+        note = await self.db.get(QuoteNote, revision.note_id)
+        if note:
+            note.updated_at = datetime.now(UTC)
+
+        await self.db.flush()
+        return revision
+
+    async def delete_revision(
+        self,
+        *,
+        revision_id: UUID,
+    ) -> None:
+        revision = await self.db.get(QuoteNoteRevision, revision_id)
+        if not revision:
+            raise ValueError("Revision not found")
+
+        note_id = revision.note_id
+        await self.db.delete(revision)
+
+        # Check if any revisions remain for this note
+        stmt = select(func.count(QuoteNoteRevision.id)).where(QuoteNoteRevision.note_id == note_id)
+        count = (await self.db.execute(stmt)).scalar() or 0
+        
+        # We need to deduct 1 because the current revision deletion might only count after commit,
+        # but SQLAlchemy in-session state count might already exclude it depending on cascade and flush.
+        # Since we just called delete(revision) and haven't flushed yet, count might still be 1.
+        # To be safe, let's flush first, then check count.
+        await self.db.flush()
+        
+        count_stmt = select(func.count(QuoteNoteRevision.id)).where(QuoteNoteRevision.note_id == note_id)
+        count = (await self.db.execute(count_stmt)).scalar() or 0
+        if count == 0:
+            note = await self.db.get(QuoteNote, note_id)
+            if note:
+                await self.db.delete(note)
+                await self.db.flush()

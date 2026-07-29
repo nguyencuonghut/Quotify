@@ -19,11 +19,11 @@ class QuoteNoteRevisionResponse(BaseModel):
 
 
 class QuoteNoteResponse(BaseModel):
-    id: UUID
+    id: UUID | None = None
     quote_id: UUID
-    created_at: datetime
-    updated_at: datetime
-    revisions: list[QuoteNoteRevisionResponse]
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    revisions: list[QuoteNoteRevisionResponse] = []
 
     class Config:
         from_attributes = True

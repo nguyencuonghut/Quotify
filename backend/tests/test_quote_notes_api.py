@@ -81,6 +81,25 @@ class MockQuoteNoteService:
         self.revisions.append(revision)
         return revision
 
+    async def update_revision(self, *, revision_id: Any, content: str) -> QuoteNoteRevision:
+        if content == "error":
+            raise ValueError("Invalid revision content")
+        for r in self.revisions:
+            if r.id == revision_id:
+                r.content = content
+                return r
+        raise ValueError("Revision not found")
+
+    async def delete_revision(self, *, revision_id: Any) -> None:
+        found = False
+        for r in self.revisions:
+            if r.id == revision_id:
+                found = True
+                break
+        if not found:
+            raise ValueError("Revision not found")
+        self.revisions = [r for r in self.revisions if r.id != revision_id]
+
 
 @pytest.fixture
 def override_dependencies(
@@ -110,13 +129,17 @@ def override_dependencies(
 
 
 @pytest.mark.asyncio
-async def test_get_note_returns_404_if_not_found(
+async def test_get_note_returns_empty_note_if_not_found(
     client: AsyncClient,
     override_dependencies: tuple[MockQuoteNoteService, MockAuditLogService, MockSession],
 ) -> None:
-    response = await client.get(f"/api/v1/quotes/{uuid4()}/notes")
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Quote note not found"
+    quote_id = uuid4()
+    response = await client.get(f"/api/v1/quotes/{quote_id}/notes")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["quote_id"] == str(quote_id)
+    assert data["id"] is None
+    assert data["revisions"] == []
 
 
 @pytest.mark.asyncio
@@ -180,3 +203,55 @@ async def test_update_note_handles_value_error(
 
     assert response.status_code == 400
     assert "Invalid content" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_update_revision_api_success_and_logs_audit(
+    client: AsyncClient,
+    override_dependencies: tuple[MockQuoteNoteService, MockAuditLogService, MockSession],
+) -> None:
+    note_service, audit_service, _ = override_dependencies
+    quote_id = uuid4()
+    
+    # Pre-populate note and a revision
+    revision = await note_service.update_note(quote_id=quote_id, content="<p>Initial content</p>", author_id=uuid4())
+
+    response = await client.patch(
+        f"/api/v1/quotes/{quote_id}/notes/revisions/{revision.id}",
+        json={"content": "<p>Updated content</p>"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["content"] == "<p>Updated content</p>"
+    assert data["id"] == str(revision.id)
+
+    # Verify audit log was emitted
+    assert len(audit_service.events) == 2  # first for create, second for update
+    assert audit_service.events[1]["action"] == "quotes.note_revision_updated"
+    assert audit_service.events[1]["metadata_json"]["quote_id"] == str(quote_id)
+    assert audit_service.events[1]["metadata_json"]["revision_id"] == str(revision.id)
+
+
+@pytest.mark.asyncio
+async def test_delete_revision_api_success_and_logs_audit(
+    client: AsyncClient,
+    override_dependencies: tuple[MockQuoteNoteService, MockAuditLogService, MockSession],
+) -> None:
+    note_service, audit_service, _ = override_dependencies
+    quote_id = uuid4()
+    
+    # Pre-populate note and a revision
+    revision = await note_service.update_note(quote_id=quote_id, content="<p>Initial content</p>", author_id=uuid4())
+
+    response = await client.delete(
+        f"/api/v1/quotes/{quote_id}/notes/revisions/{revision.id}",
+    )
+
+    assert response.status_code == 204
+
+    # Verify audit log was emitted
+    assert len(audit_service.events) == 2  # first for create, second for delete
+    assert audit_service.events[1]["action"] == "quotes.note_revision_deleted"
+    assert audit_service.events[1]["metadata_json"]["quote_id"] == str(quote_id)
+    assert audit_service.events[1]["metadata_json"]["revision_id"] == str(revision.id)

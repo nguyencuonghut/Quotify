@@ -313,4 +313,165 @@
 
     // Hide desktop datatable on mobile if custom table is used, or just let primvue scroll
   }
+
+  // Market Notes & Revisions styles
+  .quote-detail-page__note-body {
+    .p-editor-container {
+      border-radius: 8px;
+      overflow: hidden;
+      border-color: var(--app-border-soft);
+    }
+  }
+
+  .quote-detail-page__note-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+  }
+
+  .quote-detail-page__comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .quote-detail-page__comment-card {
+    background-color: var(--app-surface-panel-alt, #f8fafc);
+    border: 1px solid var(--app-border-soft, #e2e8f0);
+    border-radius: 8px;
+    padding: 1.25rem;
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    
+    &:hover {
+      box-shadow: var(--app-shadow-sm, 0 1px 3px 0 rgba(0, 0, 0, 0.05));
+    }
+  }
+
+  .quote-detail-page__comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--app-border-soft, #f1f5f9);
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .quote-detail-page__comment-author-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .quote-detail-page__comment-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: color-mix(in srgb, var(--app-brand-primary, var(--p-primary-color)) 15%, transparent);
+    color: var(--app-brand-primary, var(--p-primary-color));
+    font-weight: 700;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--app-brand-primary, var(--p-primary-color)) 25%, transparent);
+    user-select: none;
+  }
+
+  .quote-detail-page__comment-meta-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .quote-detail-page__comment-author {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--app-text-primary);
+  }
+
+  .quote-detail-page__comment-time {
+    font-size: 0.75rem;
+    color: var(--app-text-muted, #64748b);
+  }
+
+  .quote-detail-page__current-badge {
+    background-color: color-mix(in srgb, #22c55e 12%, transparent);
+    color: #166534;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid color-mix(in srgb, #22c55e 20%, transparent);
+    line-height: 1;
+    display: inline-block;
+  }
+
+  .quote-detail-page__comment-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    opacity: 0.6;
+    transition: opacity 0.15s ease-in-out;
+
+    &:hover {
+      opacity: 1;
+    }
+
+    .p-button.p-button-text {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      color: var(--app-text-muted);
+      
+      &:hover {
+        color: var(--app-text-primary);
+        background-color: var(--app-surface-panel, #f1f5f9);
+      }
+
+      &.p-button-danger:hover {
+        color: var(--p-red-600, #dc2626);
+        background-color: var(--p-red-50, #fef2f2);
+      }
+    }
+  }
+
+  .quote-detail-page__comment-body {
+    &.quote-detail-page__note-html-content {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: var(--app-text-primary);
+      padding: 0.25rem 0;
+      
+      p {
+        margin-top: 0;
+        margin-bottom: 0.75rem;
+        
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+
+      ul, ol {
+        margin-top: 0;
+        margin-bottom: 0.75rem;
+        padding-left: 1.5rem;
+      }
+
+      li {
+        margin-bottom: 0.25rem;
+      }
+
+      a {
+        color: var(--app-brand-primary, var(--p-primary-color));
+        text-decoration: underline;
+        
+        &:hover {
+          opacity: 0.8;
+        }
+      }
+    }
+  }
 }

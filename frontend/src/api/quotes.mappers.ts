@@ -5,6 +5,8 @@ import type {
   QuoteLineDto,
   QuoteVersionDomain,
   QuoteVersionDto,
+  QuoteNoteDto,
+  QuoteNoteDomain,
 } from '@/types/quotes'
 
 export function mapQuoteLineDtoToDomain(dto: QuoteLineDto): QuoteLineDomain {
@@ -63,6 +65,25 @@ export function mapQuoteDtoToDomain(dto: QuoteDto): QuoteDomain {
     updatedAt: dto.updated_at,
     versions: Array.isArray(dto.versions)
       ? dto.versions.map(mapQuoteVersionDtoToDomain)
+      : [],
+  }
+}
+
+export function mapQuoteNoteDtoToDomain(dto: QuoteNoteDto): QuoteNoteDomain {
+  return {
+    id: dto.id,
+    quoteId: dto.quote_id,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+    revisions: Array.isArray(dto.revisions)
+      ? dto.revisions.map((r) => ({
+          id: r.id,
+          revisionNumber: r.revision_number,
+          content: r.content,
+          authorId: r.author_id,
+          authorName: r.author_name,
+          createdAt: r.created_at,
+        }))
       : [],
   }
 }

@@ -34,7 +34,18 @@ class FakeDbSession:
             return self.quotes.get(id)
         if model_class == QuoteNote:
             return self.notes.get(id)
+        if model_class == QuoteNoteRevision:
+            for r in self.revisions:
+                if r.id == id:
+                    return r
         return None
+
+    def delete(self, obj):
+        if isinstance(obj, QuoteNote):
+            if obj.id in self.notes:
+                del self.notes[obj.id]
+        if isinstance(obj, QuoteNoteRevision):
+            self.revisions = [r for r in self.revisions if r.id != obj.id]
 
     # Custom execute mock
     async def execute(self, statement):
@@ -65,6 +76,14 @@ class FakeDbSession:
             if not self.revisions:
                 return FakeResult(None)
             return FakeResult(max(r.revision_number for r in self.revisions))
+
+        if "count" in stmt_str.lower() and "quote_note_revisions" in stmt_str:
+            class ScalarResult:
+                def __init__(self, val):
+                    self._val = val
+                def scalar(self):
+                    return self._val
+            return ScalarResult(len(self.revisions))
 
         if "quote_note_revisions" in stmt_str:
             # Querying revisions of a note
@@ -98,7 +117,7 @@ async def test_update_note_creates_new_note_and_first_revision(note_service, fak
     assert revision.revision_number == 1
     assert revision.content == "<p>Initial note content</p>"
     assert revision.author_id == author_id
-    assert fake_db.committed is True
+    assert fake_db.committed is False
     assert len(fake_db.notes) == 1
     assert len(fake_db.revisions) == 1
 
@@ -130,7 +149,7 @@ async def test_update_note_appends_revision_increments_number(note_service, fake
     assert revision.revision_number == 2
     assert revision.content == "<p>Version 2 update</p>"
     assert len(fake_db.revisions) == 2
-    assert fake_db.committed is True
+    assert fake_db.committed is False
 
 @pytest.mark.asyncio
 async def test_update_note_sanitizes_html_xss(note_service, fake_db):
@@ -164,3 +183,62 @@ async def test_update_note_throws_error_if_payload_exceeds_limit(note_service, f
             content=too_large_content,
             author_id=author_id
         )
+
+@pytest.mark.asyncio
+async def test_update_revision_updates_content_and_sanitizes(note_service, fake_db):
+    quote_id = uuid4()
+    author_id = uuid4()
+    
+    # 1. Setup existing note and revision
+    fake_db.quotes[quote_id] = Quote(id=quote_id)
+    note = QuoteNote(id=uuid4(), quote_id=quote_id, created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+    fake_db.notes[note.id] = note
+    revision = QuoteNoteRevision(
+        id=uuid4(),
+        note_id=note.id,
+        revision_number=1,
+        content="<p>Old content</p>",
+        author_id=author_id,
+        created_at=datetime.now(UTC)
+    )
+    fake_db.revisions.append(revision)
+
+    # 2. Update revision
+    updated_rev = await note_service.update_revision(
+        revision_id=revision.id,
+        content="<p>New content <script>alert('XSS')</script></p>"
+    )
+
+    assert updated_rev.id == revision.id
+    assert "alert" not in updated_rev.content
+    assert "New content" in updated_rev.content
+    assert updated_rev.content == "<p>New content </p>"
+
+@pytest.mark.asyncio
+async def test_delete_revision_deletes_and_cleans_note_if_empty(note_service, fake_db):
+    quote_id = uuid4()
+    author_id = uuid4()
+    
+    # 1. Setup existing note and revision
+    fake_db.quotes[quote_id] = Quote(id=quote_id)
+    note = QuoteNote(id=uuid4(), quote_id=quote_id, created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+    fake_db.notes[note.id] = note
+    revision = QuoteNoteRevision(
+        id=uuid4(),
+        note_id=note.id,
+        revision_number=1,
+        content="<p>Initial content</p>",
+        author_id=author_id,
+        created_at=datetime.now(UTC)
+    )
+    fake_db.revisions.append(revision)
+
+    assert len(fake_db.revisions) == 1
+    assert len(fake_db.notes) == 1
+
+    # 2. Delete revision
+    await note_service.delete_revision(revision_id=revision.id)
+
+    assert len(fake_db.revisions) == 0
+    # Because count of revisions is 0, note should also be deleted
+    assert len(fake_db.notes) == 0
