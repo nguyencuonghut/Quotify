@@ -493,6 +493,24 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Khi Phase mới chỉ chạm dashboard, không quy các lỗi quote lifecycle/note này là regression của dashboard nếu `git diff -- backend/app/services/quote_service.py backend/app/services/quote_note_service.py backend/app/api/v1/quotes.py` rỗng. Trước khi sửa quote lifecycle hoặc note revision, đọc mục này và chạy riêng từng test để xác định fake-session contract hay lỗi production service.
 - Related files: `backend/app/services/quote_service.py`, `backend/tests/test_quote_lifecycle.py`, `backend/app/services/quote_note_service.py`, `backend/app/api/v1/quotes.py`, `backend/tests/test_quote_notes_service.py`, `backend/tests/test_quote_notes_api.py`
 
+### 2026-07-29: Frontend quality gate toàn repo bị chặn bởi lỗi cũ ngoài Phase 9
+
+- Area: Frontend verification / Quote pages / TypeScript và ESLint
+- Trigger: Khi kiểm thử Phase 9 Frontend, `make docker-test-frontend` fail ở bước `npm run lint`; khi chạy riêng `npm run typecheck` trong Docker cũng fail trước khi tới unit test toàn repo.
+- Root cause: Chưa điều tra đầy đủ trong task Phase 9 Frontend vì lỗi nằm ở cụm báo giá/editor/detail/list đã có trước diff dashboard. Dấu hiệu chính gồm nhiều `any` và import/biến không dùng trong `quotes.api.ts`, `useQuoteDetail.ts`, `useQuoteEditor.ts`, `QuoteDetailPage.vue`, `QuoteEditorPage.vue`, `QuotesPage.vue`; type mismatch trong `exchange-rates.mappers.ts`, `quotes.mappers.ts`, DatePicker model đang truyền `string | null` thay vì `Date`; build còn warning CSS cũ do selector `.backups-page__actions :deep(.p-button)` không hợp lệ với Lightning CSS.
+- Fix: Chưa sửa trong Phase 9 để tránh mở rộng phạm vi. Với Phase 9 Frontend, đã kiểm chứng phạm vi thay đổi bằng ESLint mục tiêu cho các file dashboard mới/sửa, unit test mục tiêu `3 files, 6 passed`, `lint:styles`, `git diff --check` và `npx vite build` trong Docker.
+- Regression guard: Khi kiểm thử dashboard Quotify mà quality gate toàn repo fail ở các file Quote/QuoteEditor/QuoteDetail/QuotesPage hoặc backup SCSS, không quy ngay là regression dashboard. Trước khi sửa quality gate, tách task riêng, chạy từng nhóm lint/typecheck theo file, rồi ưu tiên đồng bộ type DatePicker/DTO mapper và dọn `any`/unused variables.
+- Related files: `frontend/src/api/quotes.api.ts`, `frontend/src/composables/useQuoteDetail.ts`, `frontend/src/composables/useQuoteEditor.ts`, `frontend/src/pages/QuoteDetailPage.vue`, `frontend/src/pages/QuoteEditorPage.vue`, `frontend/src/pages/QuotesPage.vue`, `frontend/src/api/exchange-rates.mappers.ts`, `frontend/src/api/quotes.mappers.ts`, `frontend/src/styles/pages/backups-page.scss`
+
+### 2026-07-29: Vite dev lỗi `chart.js/auto` do volume `node_modules` stale
+
+- Area: Frontend Docker dev / Vite dependency optimization / PrimeVue Chart
+- Trigger: Mở dashboard sau Phase 9 Frontend thấy lỗi `[plugin:vite:import-analysis] Failed to resolve import "chart.js/auto" from "node_modules/.vite/deps/primevue_chart.js"`.
+- Root cause: `frontend/package.json` và `package-lock.json` đã có `chart.js`, nhưng container frontend dev đang sống dùng volume riêng `frontend_node_modules:/app/node_modules` được tạo trước khi thêm dependency. Vì vậy `/app/package.json` trong container thấy `chart.js`, còn `/app/node_modules/chart.js` vẫn thiếu; Vite cache `.vite/deps/primevue_chart.js` tiếp tục resolve dynamic import sang package chưa được cài trong volume.
+- Fix: Chạy `docker compose exec -T frontend npm install` để cài dependency vào volume `frontend_node_modules`, xóa cache optimize `docker compose exec -T frontend rm -rf node_modules/.vite/deps`, rồi `docker compose restart frontend`. Xác minh bằng `docker compose exec -T frontend node -e "import('chart.js/auto').then(() => console.log('chart-auto-ok'))"` và request `http://127.0.0.1:5173/src/pages/DashboardPage.vue` từ trong container trả `200 text/javascript`.
+- Regression guard: Khi thêm dependency frontend mới mà dev server Docker đang sống, phải cập nhật volume `node_modules` trong container hoặc rebuild/recreate service frontend. Không chỉ sửa `package.json`/lockfile rồi kết luận runtime đã có package. Nếu Vite báo lỗi từ `node_modules/.vite/deps`, xóa cache `.vite/deps` sau khi cài dependency.
+- Related files: `docker-compose.yml`, `docker/frontend/Dockerfile`, `frontend/package.json`, `frontend/package-lock.json`
+
 
 ## Usage Rule
 

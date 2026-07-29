@@ -36,6 +36,7 @@ class QuotifyPriceTrendPoint(BaseModel):
     supplier_id: UUID
     supplier_name: str
     supplier_code: str
+    supplier_type: str
     supplier_label: str
     material_id: UUID
     material_name: str

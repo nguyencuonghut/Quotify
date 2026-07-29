@@ -50,7 +50,7 @@ export const router = createRouter({
         requiredPermission: 'dashboard.read',
         title: 'Bảng điều khiển',
         description:
-          'Bảng điều khiển tổng quan hệ thống, giám sát sức khỏe dịch vụ và chỉ số hoạt động.',
+          'Bảng điều khiển phân tích báo giá, xu hướng giá và chỉ số nhập liệu Quotify.',
       },
     },
     {

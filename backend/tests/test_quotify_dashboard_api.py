@@ -48,6 +48,7 @@ class MockQuotifyDashboardService:
             "supplier_id": uuid4(),
             "supplier_name": "Supplier ABC",
             "supplier_code": "ABC",
+            "supplier_type": "domestic",
             "supplier_label": "Supplier ABC (ABC)",
             "material_id": material_id,
             "material_name": "Bắp hạt",
@@ -128,6 +129,7 @@ async def test_entry_kpis_endpoint_requires_dashboard_permission_and_passes_filt
             "delivery_month": "2026-08-01",
             "received_date_start": "2026-07-01",
             "received_date_end": "2026-07-31",
+            "supplier_type": "domestic",
         },
     )
 
@@ -140,6 +142,7 @@ async def test_entry_kpis_endpoint_requires_dashboard_permission_and_passes_filt
         "delivery_month": date(2026, 8, 1),
         "received_date_start": date(2026, 7, 1),
         "received_date_end": date(2026, 7, 31),
+        "supplier_type": "domestic",
     }
 
 
@@ -154,5 +157,6 @@ async def test_price_trends_endpoint_returns_summary_points_and_purchase_context
     data = response.json()
     assert data["summary"]["min_price"] == "6500.00"
     assert data["points"][0]["purchased"] is True
+    assert data["points"][0]["supplier_type"] == "domestic"
     assert data["points"][0]["supplier_label"] == "Supplier ABC (ABC)"
     assert data["purchase_contexts"][0]["at_purchase"]["total_lines"] == 1

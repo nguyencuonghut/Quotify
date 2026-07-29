@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -33,12 +33,14 @@ async def get_entry_kpis(
     delivery_month: date | None = None,
     received_date_start: date | None = None,
     received_date_end: date | None = None,
+    supplier_type: Literal["domestic", "international"] | None = None,
 ) -> QuotifyEntryKpisResponse:
     data = await service.get_entry_kpis(
         material_id=material_id,
         delivery_month=delivery_month,
         received_date_start=received_date_start,
         received_date_end=received_date_end,
+        supplier_type=supplier_type,
     )
     return QuotifyEntryKpisResponse.model_validate(data)
 
@@ -51,11 +53,13 @@ async def get_price_trends(
     delivery_month: date | None = None,
     received_date_start: date | None = None,
     received_date_end: date | None = None,
+    supplier_type: Literal["domestic", "international"] | None = None,
 ) -> QuotifyPriceTrendsResponse:
     data = await service.get_price_trends(
         material_id=material_id,
         delivery_month=delivery_month,
         received_date_start=received_date_start,
         received_date_end=received_date_end,
+        supplier_type=supplier_type,
     )
     return QuotifyPriceTrendsResponse.model_validate(data)

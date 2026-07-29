@@ -73,7 +73,7 @@ async def test_get_entry_kpis_counts_quotes_by_original_creator_only() -> None:
     )
 
     service = QuotifyDashboardService(fake_db)
-    response = await service.get_entry_kpis()
+    response = await service.get_entry_kpis(supplier_type="domestic")
 
     assert response["total_quote_count"] == 3
     assert response["user_kpis"][0]["user_id"] == user_id
@@ -82,6 +82,7 @@ async def test_get_entry_kpis_counts_quotes_by_original_creator_only() -> None:
     assert response["user_kpis"][1]["user_label"] == "Không xác định"
     assert len(fake_db.queries) == 2
     assert "quote_versions.status = :status_1" in str(fake_db.queries[0])
+    assert "suppliers.supplier_type = :supplier_type_1" in str(fake_db.queries[0])
 
 
 @pytest.mark.asyncio
@@ -100,6 +101,7 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
             "supplier_id": uuid4(),
             "supplier_name": "Supplier ABC",
             "supplier_code": "ABC",
+            "supplier_type": "international",
             "material_id": material_id,
             "material_name": "Bắp hạt",
             "material_code": "CORN",
@@ -163,14 +165,17 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
     response = await service.get_price_trends(
         material_id=material_id,
         delivery_month=delivery_month,
+        supplier_type="international",
     )
 
     assert response["summary"]["min_price"] == Decimal("6400.00")
     assert response["summary"]["avg_price"] == Decimal("6500.00")
     assert response["points"][0]["line_id"] == purchased_line_id
+    assert response["points"][0]["supplier_type"] == "international"
     assert response["points"][0]["purchased"] is True
     assert response["purchase_contexts"][0]["purchased_line_id"] == purchased_line_id
     assert response["purchase_contexts"][0]["at_purchase"]["total_lines"] == 1
     assert response["purchase_contexts"][0]["after_purchase"]["min_price"] == Decimal("6700.00")
     assert len(fake_db.queries) == 4
     assert "quote_versions.status = :status_1" in str(fake_db.queries[0])
+    assert "suppliers.supplier_type = :supplier_type_1" in str(fake_db.queries[0])

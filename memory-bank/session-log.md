@@ -394,18 +394,18 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 ## 2026-06-11 09:19:18Z - gemini
 
-- Tiêu đề: Tinh chinh Light Mode sang tone trang tinh khiet
-- Tóm tắt: Thay doi nen trang Light Mode ve trang tinh khiet (#ffffff), su dung sidebar mau xam nhe sieu sang (#f9fafb) va cac duong vien manh xam tinh te (#eaeaea) de xoa bo hoan toan cam giac nang ne cua tone xam am cu.
+- Tiêu đề: Tinh chỉnh Light Mode sang tông trắng tinh khiết
+- Tóm tắt: Thay đổi nền trang Light Mode về trắng tinh khiết (#ffffff), sử dụng sidebar màu xám nhẹ siêu sáng (#f9fafb) và các đường viền mảnh xám tinh tế (#eaeaea) để xóa bỏ hoàn toàn cảm giác nặng nề của tông xám ấm cũ.
 
 ## 2026-06-12 03:01:05Z - gemini
 
-- Tiêu đề: Sua footer chuyen nghiep hon
-- Tóm tắt: Da cap nhat footer trong AdminLayout de hien thi ban quyen tieng Viet sach se, kem cuom thong tin metadata ve version, timezone va mot nut trang thai he thong xanh la kieu SaaS cao cap.
+- Tiêu đề: Sửa footer chuyên nghiệp hơn
+- Tóm tắt: Đã cập nhật footer trong AdminLayout để hiển thị bản quyền tiếng Việt sạch sẽ, kèm cụm thông tin metadata về version, timezone và một nút trạng thái hệ thống xanh lá kiểu SaaS cao cấp.
 
 ## 2026-06-12 03:02:30Z - gemini
 
-- Tiêu đề: Bo thong tin mui gio khoi footer
-- Tóm tắt: Da go bo truong du lieu timezone khoi thanh metadata duoi chan trang trong AdminLayout de giu giao dien don gian hon.
+- Tiêu đề: Bỏ thông tin múi giờ khỏi footer
+- Tóm tắt: Đã gỡ bỏ trường dữ liệu timezone khỏi thanh metadata dưới chân trang trong AdminLayout để giữ giao diện đơn giản hơn.
 
 ## 2026-06-12 03:28:41Z - gemini
 
@@ -541,3 +541,23 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Ghi nhớ lỗi phát hiện khi kiểm thử Phase 9
 - Tóm tắt: Đã cập nhật memory-bank/bugPatterns.md với ba nhóm lỗi cần điều tra sau: cache uv/ruff không ghi được do quyền filesystem, mypy 1.20.2 internal error trên Python 3.14, và cụm test quote lifecycle/note đang lỗi ngoài diff Phase 9 liên quan fake-session/API note contract.
+
+## 2026-07-29 04:15:03Z - codex
+
+- Tiêu đề: Hoàn thành Phase 9 Frontend Dashboard Phân Tích Giá
+- Tóm tắt: Đã triển khai dashboard phân tích giá Quotify phía frontend: API client/mapper/type, composable useDashboardPage, giao diện DashboardPage với filter vật tư/kỳ giao hàng/khoảng ngày nhận, KPI cards MIN/MAX/TRUNG BÌNH/tổng báo giá, biểu đồ PrimeVue Chart với chart.js, marker đã chốt mua, KPI người nhập và bối cảnh trước/sau thời điểm chốt mua. Style dùng SCSS tập trung và theme tokens cho dark/light mode. Đã kiểm chứng unit test mục tiêu 6 passed, ESLint mục tiêu pass, lint:styles pass, git diff --check pass, vite build Docker pass. Đã ghi memory về lỗi lint/typecheck toàn repo hiện hữu ngoài diff Phase 9.
+
+## 2026-07-29 04:18:19Z - codex
+
+- Tiêu đề: Sửa lỗi Vite không resolve chart.js auto
+- Tóm tắt: Đã xác định lỗi dashboard do container frontend dev dùng volume node_modules stale: package.json đã có chart.js nhưng /app/node_modules/chart.js trong container bị thiếu. Đã chạy npm install trong container frontend, xóa node_modules/.vite/deps, restart frontend, xác minh import chart.js/auto thành công và Vite transform DashboardPage.vue trả 200 text/javascript. Đã ghi bug pattern vào memory-bank/bugPatterns.md.
+
+## 2026-07-29 04:30:28Z - codex
+
+- Tiêu đề: Cải thiện Dashboard Quotify mặc định Ngô hạt và lọc Loại NCC
+- Tóm tắt: Đã chỉnh trang Bảng điều khiển để chart không mặc định trộn tất cả vật tư: frontend load lookup vật tư trước, ưu tiên chọn Ngô hạt theo mã CORN rồi mới gọi API; Xóa lọc quay lại default này. Đã thêm filter Loại NCC Nội địa/Quốc tế trên UI và truyền supplier_type xuống backend; backend áp dụng filter cho KPI nhập liệu, summary, điểm xu hướng và purchase context. Đã kiểm chứng backend dashboard targeted tests 4 passed, frontend dashboard targeted unit tests 6 passed, ruff targeted pass, ESLint mục tiêu và lint:styles pass, vite build pass.
+
+## 2026-07-29 04:40:42Z - codex
+
+- Tiêu đề: Đổi chart Dashboard Quotify sang trục Kỳ hàng về
+- Tóm tắt: Đã đổi chart chính của trang Bảng điều khiển từ góc nhìn ngày nhận báo giá sang kỳ hàng về. Frontend gom trend points theo delivery_month để hiển thị Giá trung bình, Giá thấp nhất, Giá cao nhất và marker Đã chốt mua; ngày nhận báo giá, NCC và Loại NCC chuyển thành tooltip/ngữ cảnh. Backend trend point trả thêm supplier_type để tooltip phân biệt nội địa/quốc tế. Đã kiểm chứng backend dashboard targeted tests 4 passed, frontend dashboard targeted unit tests 6 passed, ruff targeted pass, ESLint mục tiêu và lint:styles pass, vite build pass.

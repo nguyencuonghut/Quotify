@@ -26,12 +26,14 @@ class QuotifyDashboardService:
         delivery_month: date | None = None,
         received_date_start: date | None = None,
         received_date_end: date | None = None,
+        supplier_type: str | None = None,
     ) -> dict[str, Any]:
         filters = self._build_common_filters(
             material_id=material_id,
             delivery_month=delivery_month,
             received_date_start=received_date_start,
             received_date_end=received_date_end,
+            supplier_type=supplier_type,
         )
 
         total_stmt = (
@@ -39,6 +41,7 @@ class QuotifyDashboardService:
             .select_from(QuoteLine)
             .join(QuoteVersion, QuoteLine.quote_version_id == QuoteVersion.id)
             .join(Quote, QuoteVersion.quote_id == Quote.id)
+            .join(Supplier, Quote.supplier_id == Supplier.id)
             .where(*filters)
         )
         total_row = (await self.db.execute(total_stmt)).first()
@@ -54,6 +57,7 @@ class QuotifyDashboardService:
             .select_from(QuoteLine)
             .join(QuoteVersion, QuoteLine.quote_version_id == QuoteVersion.id)
             .join(Quote, QuoteVersion.quote_id == Quote.id)
+            .join(Supplier, Quote.supplier_id == Supplier.id)
             .outerjoin(User, Quote.created_by_id == User.id)
             .where(*filters)
             .group_by(Quote.created_by_id, User.email, User.full_name)
@@ -86,6 +90,7 @@ class QuotifyDashboardService:
         delivery_month: date | None = None,
         received_date_start: date | None = None,
         received_date_end: date | None = None,
+        supplier_type: str | None = None,
         point_limit: int = 500,
     ) -> dict[str, Any]:
         filters = self._build_common_filters(
@@ -93,6 +98,7 @@ class QuotifyDashboardService:
             delivery_month=delivery_month,
             received_date_start=received_date_start,
             received_date_end=received_date_end,
+            supplier_type=supplier_type,
         )
 
         summary = await self._get_summary(filters)
@@ -102,6 +108,7 @@ class QuotifyDashboardService:
                 point=point,
                 received_date_start=received_date_start,
                 received_date_end=received_date_end,
+                supplier_type=supplier_type,
             )
             for point in points
             if point["purchased"] and point["purchase_marked_at"] is not None
@@ -120,6 +127,7 @@ class QuotifyDashboardService:
         delivery_month: date | None,
         received_date_start: date | None,
         received_date_end: date | None,
+        supplier_type: str | None,
     ) -> list[Any]:
         filters: list[Any] = [
             QuoteVersion.status == "confirmed",
@@ -133,6 +141,8 @@ class QuotifyDashboardService:
             filters.append(QuoteVersion.received_date >= received_date_start)
         if received_date_end is not None:
             filters.append(QuoteVersion.received_date <= received_date_end)
+        if supplier_type is not None:
+            filters.append(Supplier.supplier_type == supplier_type)
         return filters
 
     async def _get_summary(self, filters: list[Any]) -> dict[str, Any]:
@@ -151,6 +161,7 @@ class QuotifyDashboardService:
             .select_from(QuoteLine)
             .join(QuoteVersion, QuoteLine.quote_version_id == QuoteVersion.id)
             .join(Quote, QuoteVersion.quote_id == Quote.id)
+            .join(Supplier, Quote.supplier_id == Supplier.id)
             .where(*filters)
         )
         row = (await self.db.execute(stmt)).first()
@@ -166,6 +177,7 @@ class QuotifyDashboardService:
                 Supplier.id.label("supplier_id"),
                 Supplier.name.label("supplier_name"),
                 Supplier.code.label("supplier_code"),
+                Supplier.supplier_type.label("supplier_type"),
                 Material.id.label("material_id"),
                 Material.name.label("material_name"),
                 Material.code.label("material_code"),
@@ -200,6 +212,7 @@ class QuotifyDashboardService:
         point: dict[str, Any],
         received_date_start: date | None,
         received_date_end: date | None,
+        supplier_type: str | None,
     ) -> dict[str, Any]:
         purchase_marked_at = point["purchase_marked_at"]
         context_filters = self._build_common_filters(
@@ -207,6 +220,7 @@ class QuotifyDashboardService:
             delivery_month=point["delivery_month"],
             received_date_start=received_date_start,
             received_date_end=received_date_end,
+            supplier_type=supplier_type,
         )
         at_purchase = await self._get_summary(
             [*context_filters, QuoteVersion.confirmed_at <= purchase_marked_at]
@@ -255,6 +269,7 @@ class QuotifyDashboardService:
             "supplier_id": row.supplier_id,
             "supplier_name": row.supplier_name,
             "supplier_code": row.supplier_code,
+            "supplier_type": row.supplier_type,
             "supplier_label": supplier_label,
             "material_id": row.material_id,
             "material_name": row.material_name,
