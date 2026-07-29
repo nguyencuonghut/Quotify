@@ -4,6 +4,7 @@ import {
   mapQuoteVersionDtoToDomain,
   mapQuoteLineDtoToDomain,
   mapQuoteNoteDtoToDomain,
+  mapQuoteFlattenedDtoToDomain,
 } from '@/api/quotes.mappers'
 import type {
   QuoteCreatePayload,
@@ -19,6 +20,8 @@ import type {
   QuoteNoteDto,
   QuoteNoteRevisionDomain,
   QuoteNoteRevisionDto,
+  QuoteFlattenedDto,
+  QuoteFlattenedDomain,
 } from '@/types/quotes'
 
 export function createQuote(
@@ -177,4 +180,28 @@ export function deleteQuoteNoteRevision(
     method: 'DELETE',
     accessToken,
   })
+}
+
+export function getQuotesList(
+  params: Record<string, any>,
+  accessToken?: string | null,
+): Promise<{ items: QuoteFlattenedDomain[]; total: number }> {
+  const queryParams: Record<string, string> = {}
+  Object.keys(params).forEach((key) => {
+    if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+      const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+      queryParams[snakeKey] = String(params[key])
+    }
+  })
+
+  const searchParams = new URLSearchParams(queryParams).toString()
+  const url = `/quotes${searchParams ? `?${searchParams}` : ''}`
+
+  return apiRequest<{ items: QuoteFlattenedDto[]; total: number }>(url, {
+    method: 'GET',
+    accessToken,
+  }).then((res) => ({
+    items: Array.isArray(res.items) ? res.items.map(mapQuoteFlattenedDtoToDomain) : [],
+    total: res.total,
+  }))
 }

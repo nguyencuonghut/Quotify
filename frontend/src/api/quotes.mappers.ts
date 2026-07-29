@@ -7,6 +7,8 @@ import type {
   QuoteVersionDto,
   QuoteNoteDto,
   QuoteNoteDomain,
+  QuoteFlattenedDto,
+  QuoteFlattenedDomain,
 } from '@/types/quotes'
 
 export function mapQuoteLineDtoToDomain(dto: QuoteLineDto): QuoteLineDomain {
@@ -85,5 +87,39 @@ export function mapQuoteNoteDtoToDomain(dto: QuoteNoteDto): QuoteNoteDomain {
           createdAt: r.created_at,
         }))
       : [],
+  }
+}
+
+export function mapQuoteFlattenedDtoToDomain(dto: QuoteFlattenedDto): QuoteFlattenedDomain {
+  return {
+    id: dto.id,
+    quoteId: dto.quote_id,
+    quoteVersionId: dto.quote_version_id,
+    supplierId: dto.supplier_id,
+    supplierName: dto.supplier_name,
+    supplierCode: dto.supplier_code,
+    materialId: dto.material_id,
+    material_name: dto.material_name, // Chú ý: backend trả material_name
+    material_code: dto.material_code,
+    material_type_name: dto.material_type_name,
+    material_type_code: dto.material_type_code,
+    materialName: dto.material_name,
+    materialCode: dto.material_code,
+    materialTypeName: dto.material_type_name,
+    materialTypeCode: dto.material_type_code,
+    receivedDate: dto.received_date,
+    deliveryMonth: dto.delivery_month,
+    priceOriginal: Number(dto.price_original),
+    currency: dto.currency,
+    unit: dto.unit,
+    exchangeRate: dto.exchange_rate !== null ? Number(dto.exchange_rate) : null,
+    exchangeRateSource: dto.exchange_rate_source,
+    conversionCostVndPerKg: dto.conversion_cost_vnd_per_kg !== null ? Number(dto.conversion_cost_vnd_per_kg) : null,
+    priceConvertedVndPerKg: Number(dto.price_converted_vnd_per_kg),
+    purchased: dto.purchased,
+    versionNumber: dto.version_number,
+    versionStatus: dto.version_status,
+    createdByName: dto.created_by_name,
+    createdAt: dto.created_at,
   }
 }

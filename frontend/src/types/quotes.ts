@@ -158,3 +158,59 @@ export interface QuoteNoteDomain {
   updatedAt: string
   revisions: QuoteNoteRevisionDomain[]
 }
+
+export interface QuoteFlattenedDto {
+  id: string
+  quote_id: string
+  quote_version_id: string
+  supplier_id: string
+  supplier_name: string
+  supplier_code: string
+  material_id: string
+  material_name: string
+  material_code: string
+  material_type_name: string
+  material_type_code: string
+  received_date: string
+  delivery_month: string
+  price_original: string
+  currency: string
+  unit: string
+  exchange_rate: string | null
+  exchange_rate_source: string | null
+  conversion_cost_vnd_per_kg: string | null
+  price_converted_vnd_per_kg: string
+  purchased: boolean
+  version_number: number
+  version_status: string
+  created_by_name: string | null
+  created_at: string
+}
+
+export interface QuoteFlattenedDomain {
+  id: string
+  quoteId: string
+  quoteVersionId: string
+  supplierId: string
+  supplierName: string
+  supplierCode: string
+  materialId: string
+  materialName: string
+  materialCode: string
+  materialTypeName: string
+  materialTypeCode: string
+  receivedDate: string
+  deliveryMonth: string
+  priceOriginal: number
+  currency: string
+  unit: string
+  exchangeRate: number | null
+  exchangeRateSource: string | null
+  conversionCostVndPerKg: number | null
+  priceConvertedVndPerKg: number
+  purchased: boolean
+  versionNumber: number
+  versionStatus: string
+  createdByName: string | null
+  createdAt: string
+}

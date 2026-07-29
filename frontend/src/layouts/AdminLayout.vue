@@ -221,6 +221,12 @@ const navGroups: NavGroup[] = [
     label: 'Báo giá',
     items: [
       {
+        label: 'Bảng báo giá',
+        icon: 'pi pi-table',
+        to: '/quotes',
+        permission: 'quotes.read',
+      },
+      {
         label: 'Nhập báo giá',
         icon: 'pi pi-file-edit',
         to: '/quotes/new',
@@ -355,6 +361,15 @@ const route = useRoute()
 
 const isItemActive = (item: NavItem) => {
   if (route.path === item.to) return true
+
+  // Custom highlight for 'Bảng báo giá' and its quote detail sub-route
+  if (item.to === '/quotes') {
+    const path = route.path
+    return path.startsWith('/quotes') && 
+      path !== '/quotes/new' && 
+      !path.endsWith('/versions/new') && 
+      !path.endsWith('/edit')
+  }
 
   // Custom highlight for 'Nhập báo giá' sub-routes
   if (item.to === '/quotes/new') {

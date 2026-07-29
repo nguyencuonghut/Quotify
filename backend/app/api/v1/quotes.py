@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 import io
 from typing import Annotated, Generator
 from uuid import UUID
@@ -34,6 +35,8 @@ from app.api.v1.quotify_settings import get_audit_log_service
 from app.services.quote_pricing import QuotePricingService
 from app.services.quote_service import QuoteService
 from app.services.quote_note_service import QuoteNoteService
+from app.services.quote_query_service import QuoteQueryService
+from app.schemas.quote_list import QuoteListResponse
 from app.schemas.quote_note import (
     QuoteNoteResponse,
     QuoteNoteRevisionResponse,
@@ -64,6 +67,12 @@ def get_quote_note_service(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuoteNoteService:
     return QuoteNoteService(session)
+
+
+def get_quote_query_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> QuoteQueryService:
+    return QuoteQueryService(session)
 
 
 def _build_line_response(line: QuoteLine) -> QuoteLineResponse:
@@ -119,6 +128,57 @@ def _build_quote_response(quote: Quote) -> QuoteResponse:
         updated_at=quote.updated_at,
         versions=[_build_version_response(v) for v in quote.versions],
     )
+
+
+@router.get("", response_model=QuoteListResponse)
+async def list_quotes(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    query_service: Annotated[QuoteQueryService, Depends(get_quote_query_service)],
+    audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    _: Annotated[User, Depends(require_permission("quotes.read"))],
+    global_search: str | None = None,
+    material_type_id: UUID | None = None,
+    material_id: UUID | None = None,
+    supplier_id: UUID | None = None,
+    created_by_id: UUID | None = None,
+    received_date_start: date | None = None,
+    received_date_end: date | None = None,
+    delivery_month: date | None = None,
+    currency: str | None = None,
+    purchased: bool | None = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    limit: int = 10,
+    offset: int = 0,
+) -> Any:
+    items, total = await query_service.query_flattened_quotes(
+        global_search=global_search,
+        material_type_id=material_type_id,
+        material_id=material_id,
+        supplier_id=supplier_id,
+        created_by_id=created_by_id,
+        received_date_start=received_date_start,
+        received_date_end=received_date_end,
+        delivery_month=delivery_month,
+        currency=currency,
+        purchased=purchased,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        limit=limit,
+        offset=offset,
+    )
+
+    await audit_service.log_event(
+        action="quotes.list_viewed",
+        entity_type="quote",
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+        ),
+    )
+
+    return QuoteListResponse(items=items, total=total)
 
 
 @router.post("", response_model=QuoteResponse)

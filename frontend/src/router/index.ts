@@ -15,6 +15,7 @@ import UsersPage from '@/pages/UsersPage.vue'
 import BackupsPage from '@/pages/BackupsPage.vue'
 import QuoteEditorPage from '@/pages/QuoteEditorPage.vue'
 import QuoteDetailPage from '@/pages/QuoteDetailPage.vue'
+import QuotesPage from '@/pages/QuotesPage.vue'
 
 
 export const router = createRouter({
@@ -95,6 +96,17 @@ export const router = createRouter({
         title: 'Cấu hình quy đổi',
         description:
           'Cấu hình chi phí quy đổi và tra cứu tỷ giá USD bán ra cho hệ thống Quotify.',
+      },
+    },
+    {
+      path: '/quotes',
+      name: 'quotes',
+      component: QuotesPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'quotes.read',
+        title: 'Bảng báo giá và lịch sử',
+        description: 'Tra cứu lịch sử báo giá vật tư và so sánh biến động giá.',
       },
     },
     {

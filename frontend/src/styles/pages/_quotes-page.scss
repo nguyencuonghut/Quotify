@@ -1,0 +1,127 @@
+.quotes-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 100%;
+  padding-bottom: 2rem;
+
+  .quotes-page__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .quotes-page__filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-grow: 1;
+    min-width: 0;
+  }
+
+  .quotes-page__filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .quotes-page__filter-label {
+    color: var(--app-text-muted);
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  .quotes-page__input-search {
+    min-width: 16rem;
+  }
+
+  .quotes-page__supplier-filter,
+  .quotes-page__material-filter {
+    min-width: 12rem;
+  }
+
+  .quotes-page__filter-button-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .quotes-page__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .quotes-page__filter-advanced {
+    background: var(--app-surface-panel);
+    border: 1px solid var(--app-border-soft);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    width: 100%;
+  }
+
+  .quotes-page__table-wrapper {
+    background: var(--app-surface-panel);
+    border: 1px solid var(--app-border-soft);
+    border-radius: 1rem;
+    box-shadow: var(--app-shadow-sm);
+    padding: 1rem;
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .quotes-page__row-clickable {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background-color: var(--app-surface-panel, #f1f5f9) !important;
+    }
+  }
+
+  .quotes-page__status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    display: inline-block;
+
+    &.status-draft {
+      background-color: color-mix(in srgb, var(--p-orange-500, #f59e0b) 12%, transparent);
+      color: var(--p-orange-700, #b45309);
+      border: 1px solid color-mix(in srgb, var(--p-orange-500, #f59e0b) 20%, transparent);
+    }
+
+    &.status-confirmed {
+      background-color: color-mix(in srgb, var(--p-green-500, #10b981) 12%, transparent);
+      color: var(--p-green-700, #047857);
+      border: 1px solid color-mix(in srgb, var(--p-green-500, #10b981) 20%, transparent);
+    }
+  }
+
+  .quotes-page__purchased-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background-color: color-mix(in srgb, var(--p-blue-500, #3b82f6) 12%, transparent);
+    color: var(--p-blue-700, #1d4ed8);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid color-mix(in srgb, var(--p-blue-500, #3b82f6) 20%, transparent);
+  }
+}
