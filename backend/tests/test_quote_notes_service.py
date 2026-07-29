@@ -1,11 +1,13 @@
-import pytest
+from datetime import UTC, datetime
 from uuid import uuid4
-from datetime import datetime, UTC
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import Quote, User, UserStatus
+
+import pytest
+
+from app.models import Quote
 from app.models.quote_note import QuoteNote
 from app.models.quote_note_revision import QuoteNoteRevision
 from app.services.quote_note_service import QuoteNoteService
+
 
 # Fake session mock
 class FakeDbSession:
@@ -40,7 +42,7 @@ class FakeDbSession:
                     return r
         return None
 
-    def delete(self, obj):
+    async def delete(self, obj):
         if isinstance(obj, QuoteNote):
             if obj.id in self.notes:
                 del self.notes[obj.id]
@@ -86,8 +88,8 @@ class FakeDbSession:
             return ScalarResult(len(self.revisions))
 
         if "quote_note_revisions" in stmt_str:
-            # Querying revisions of a note
-            return FakeResult(self.revisions)
+            # Querying a single revision by id in service methods
+            return FakeResult(self.revisions[0] if self.revisions else None)
 
         return FakeResult(None)
 

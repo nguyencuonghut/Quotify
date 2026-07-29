@@ -9,7 +9,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Quote, QuoteLine, QuoteVersion, SupplierMaterial, Supplier, Material
+from app.models import Quote, QuoteLine, QuoteVersion, Supplier, SupplierMaterial
 from app.services.exchange_rate_service import get_business_today
 from app.services.quote_pricing import QuotePricingService
 
@@ -45,7 +45,7 @@ class QuoteService:
             SupplierMaterial.material_id.in_(unique_mids),
         )
         result = await self.session.execute(stmt)
-        allowed_mids = [row[0] for row in result.all()]
+        allowed_mids = list(result.scalars().all())
         
         missing_mids = [mid for mid in unique_mids if mid not in allowed_mids]
         if missing_mids:

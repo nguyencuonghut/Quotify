@@ -1,6 +1,7 @@
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
-from datetime import datetime, UTC
-from sqlalchemy import select, func
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,6 +22,15 @@ class QuoteNoteService:
             .options(
                 selectinload(QuoteNote.revisions).selectinload(QuoteNoteRevision.author)
             )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_revision_by_id(self, revision_id: UUID) -> QuoteNoteRevision | None:
+        stmt = (
+            select(QuoteNoteRevision)
+            .where(QuoteNoteRevision.id == revision_id)
+            .options(selectinload(QuoteNoteRevision.author))
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
@@ -85,12 +95,7 @@ class QuoteNoteService:
         content: str,
     ) -> QuoteNoteRevision:
         cleaned_content = sanitize_html(content)
-        stmt = (
-            select(QuoteNoteRevision)
-            .where(QuoteNoteRevision.id == revision_id)
-            .options(selectinload(QuoteNoteRevision.author))
-        )
-        revision = (await self.db.execute(stmt)).scalar_one_or_none()
+        revision = await self.get_revision_by_id(revision_id)
         if not revision:
             raise ValueError("Revision not found")
 
@@ -114,16 +119,8 @@ class QuoteNoteService:
         note_id = revision.note_id
         await self.db.delete(revision)
 
-        # Check if any revisions remain for this note
-        stmt = select(func.count(QuoteNoteRevision.id)).where(QuoteNoteRevision.note_id == note_id)
-        count = (await self.db.execute(stmt)).scalar() or 0
-        
-        # We need to deduct 1 because the current revision deletion might only count after commit,
-        # but SQLAlchemy in-session state count might already exclude it depending on cascade and flush.
-        # Since we just called delete(revision) and haven't flushed yet, count might still be 1.
-        # To be safe, let's flush first, then check count.
         await self.db.flush()
-        
+
         count_stmt = select(func.count(QuoteNoteRevision.id)).where(QuoteNoteRevision.note_id == note_id)
         count = (await self.db.execute(count_stmt)).scalar() or 0
         if count == 0:

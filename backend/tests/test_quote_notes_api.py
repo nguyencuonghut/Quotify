@@ -6,10 +6,10 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI, status
+from fastapi import FastAPI
 from httpx import AsyncClient
 
-from app.api.v1.quotes import get_quote_note_service, get_audit_log_service
+from app.api.v1.quotes import get_audit_log_service, get_quote_note_service
 from app.auth.dependencies import get_current_user
 from app.db.session import get_db_session
 from app.models import Permission, Role, User, UserStatus
@@ -33,7 +33,19 @@ class MockAuditLogService:
         self.events: list[dict[str, Any]] = []
 
     async def log_event(self, **kwargs: Any) -> None:
-        self.events.append(kwargs)
+        context = kwargs.pop("context", None)
+        event = dict(kwargs)
+        if context is not None:
+            event.update(
+                {
+                    "actor_user_id": context.actor_user_id,
+                    "entity_id": context.entity_id,
+                    "ip_address": context.ip_address,
+                    "metadata_json": context.metadata_json,
+                    "request_id": context.request_id,
+                }
+            )
+        self.events.append(event)
 
 
 class MockQuoteNoteService:
@@ -89,6 +101,12 @@ class MockQuoteNoteService:
                 r.content = content
                 return r
         raise ValueError("Revision not found")
+
+    async def get_revision_by_id(self, revision_id: Any) -> QuoteNoteRevision | None:
+        for revision in self.revisions:
+            if revision.id == revision_id:
+                return revision
+        return None
 
     async def delete_revision(self, *, revision_id: Any) -> None:
         found = False
@@ -184,7 +202,7 @@ async def test_update_note_creates_and_logs_audit(
     # Verify audit log was emitted
     assert len(audit_service.events) == 1
     assert audit_service.events[0]["action"] == "quotes.note_updated"
-    assert audit_service.events[0]["entity_id"] == quote_id
+    assert audit_service.events[0]["entity_id"] == str(quote_id)
     assert audit_service.events[0]["metadata_json"]["quote_id"] == str(quote_id)
     assert audit_service.events[0]["metadata_json"]["revision_number"] == 1
 
@@ -227,10 +245,10 @@ async def test_update_revision_api_success_and_logs_audit(
     assert data["id"] == str(revision.id)
 
     # Verify audit log was emitted
-    assert len(audit_service.events) == 2  # first for create, second for update
-    assert audit_service.events[1]["action"] == "quotes.note_revision_updated"
-    assert audit_service.events[1]["metadata_json"]["quote_id"] == str(quote_id)
-    assert audit_service.events[1]["metadata_json"]["revision_id"] == str(revision.id)
+    assert len(audit_service.events) == 1
+    assert audit_service.events[0]["action"] == "quotes.note_revision_updated"
+    assert audit_service.events[0]["metadata_json"]["quote_id"] == str(quote_id)
+    assert audit_service.events[0]["metadata_json"]["revision_id"] == str(revision.id)
 
 
 @pytest.mark.asyncio
@@ -251,7 +269,7 @@ async def test_delete_revision_api_success_and_logs_audit(
     assert response.status_code == 204
 
     # Verify audit log was emitted
-    assert len(audit_service.events) == 2  # first for create, second for delete
-    assert audit_service.events[1]["action"] == "quotes.note_revision_deleted"
-    assert audit_service.events[1]["metadata_json"]["quote_id"] == str(quote_id)
-    assert audit_service.events[1]["metadata_json"]["revision_id"] == str(revision.id)
+    assert len(audit_service.events) == 1
+    assert audit_service.events[0]["action"] == "quotes.note_revision_deleted"
+    assert audit_service.events[0]["metadata_json"]["quote_id"] == str(quote_id)
+    assert audit_service.events[0]["metadata_json"]["revision_id"] == str(revision.id)

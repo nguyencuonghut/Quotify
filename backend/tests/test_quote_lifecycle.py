@@ -16,18 +16,15 @@ from app.models import (
     QuotifySetting,
     Supplier,
     SupplierMaterial,
-    User,
-    UserStatus,
 )
+from app.services import quote_pricing as quote_pricing_module
+from app.services import quote_service as quote_service_module
 from app.services.exchange_rate_service import (
-    ExchangeRateResult,
     ExchangeRateService,
     ExchangeRateUnavailableError,
-    quantize_money,
 )
 from app.services.quote_pricing import QuotePricingService
 from app.services.quote_service import QuoteService
-from app.services.quotify_settings_service import QuotifySettingsService
 
 
 class FakeScalarResult:
@@ -44,6 +41,11 @@ class FakeScalarResult:
             raise AssertionError("Expected scalar value.")
         if isinstance(self._value, list):
             return self._value[0]
+        return self._value
+
+    def scalar(self) -> object | None:
+        if isinstance(self._value, list):
+            return self._value[0] if self._value else None
         return self._value
 
     def scalars(self) -> FakeScalarResult:
@@ -125,7 +127,7 @@ class FakeQuoteSession:
             ]
             return FakeScalarResult(allowed)
 
-        elif "FROM quote_versions" in compiled and "status = 'draft'" in compiled:
+        elif "FROM quote_versions" in compiled and params.get("status_1") == "draft":
             quote_id = params.get("quote_id_1")
             draft = next(
                 (v for v in self.quote_versions.values() if v.quote_id == quote_id and v.status == "draft"),
@@ -210,7 +212,11 @@ class MockQuotifySettingsService:
 
 
 @pytest.fixture
-def test_setup() -> tuple[FakeQuoteSession, QuoteService, MockExchangeRateClient]:
+def test_setup(monkeypatch: pytest.MonkeyPatch) -> tuple[FakeQuoteSession, QuoteService, MockExchangeRateClient]:
+    business_today = date(2026, 7, 28)
+    monkeypatch.setattr(quote_service_module, "get_business_today", lambda *_, **__: business_today)
+    monkeypatch.setattr(quote_pricing_module, "get_business_today", lambda *_, **__: business_today)
+
     session = FakeQuoteSession()
     
     # Seed mock master data

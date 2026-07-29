@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, datetime
 import html
 import io
 import re
-from typing import Annotated, Generator
+from collections.abc import Generator
+from datetime import date
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
@@ -13,9 +14,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth.dependencies import require_permission, get_current_user
+from app.api.v1.exchange_rates import get_exchange_rate_service
+from app.api.v1.files import get_file_admin_service
+from app.api.v1.quotify_settings import get_audit_log_service, get_quotify_settings_service
+from app.auth.dependencies import get_current_user, require_permission
 from app.db.session import get_db_session
-from app.models import Quote, QuoteLine, QuoteVersion, QuoteNote, QuoteNoteRevision, User
+from app.models import Quote, QuoteLine, QuoteVersion, User
 from app.schemas.quote import (
     QuoteCreateRequest,
     QuoteDraftUpdateRequest,
@@ -24,9 +28,12 @@ from app.schemas.quote import (
     QuoteResponse,
     QuoteVersionResponse,
 )
-from app.api.v1.exchange_rates import get_exchange_rate_service
-from app.api.v1.quotify_settings import get_quotify_settings_service
-from app.api.v1.files import get_file_admin_service
+from app.schemas.quote_list import QuoteListResponse
+from app.schemas.quote_note import (
+    QuoteNoteResponse,
+    QuoteNoteRevisionResponse,
+    QuoteNoteUpdateRequest,
+)
 from app.services import (
     AuditLogContext,
     AuditLogService,
@@ -35,17 +42,10 @@ from app.services import (
     FileMetadataNotFoundError,
     QuotifySettingsService,
 )
-from app.api.v1.quotify_settings import get_audit_log_service
-from app.services.quote_pricing import QuotePricingService
-from app.services.quote_service import QuoteService
 from app.services.quote_note_service import QuoteNoteService
+from app.services.quote_pricing import QuotePricingService
 from app.services.quote_query_service import QuoteQueryService
-from app.schemas.quote_list import QuoteListResponse
-from app.schemas.quote_note import (
-    QuoteNoteResponse,
-    QuoteNoteRevisionResponse,
-    QuoteNoteUpdateRequest,
-)
+from app.services.quote_service import QuoteService
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 
@@ -632,11 +632,9 @@ async def download_source_file(
 
     disposition = "inline" if inline else "attachment"
     headers = {
-        "Content-Disposition": f'{disposition}; filename="{sa.text(db_file.filename)}"' if not db_file.filename.isascii() else f'{disposition}; filename="{db_file.filename}"',
+        "Content-Disposition": f'{disposition}; filename="{db_file.filename}"',
         "Content-Length": str(db_file.size_bytes),
     }
-    # Fix filename for non-ascii using format fallback if needed or just simple header
-    headers["Content-Disposition"] = f'{disposition}; filename="{db_file.filename}"'
     
     return StreamingResponse(
         stream_file(),
@@ -703,16 +701,11 @@ async def update_quote_note(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     _: Annotated[User, Depends(require_permission("quotes.update"))],
 ) -> Any:
-    note_stmt = select(QuoteNote).where(QuoteNote.quote_id == quote_id)
-    note = (await session.execute(note_stmt)).scalar_one_or_none()
     old_content = None
+    note = await note_service.get_note_by_quote_id(quote_id)
     if note:
-        last_rev_stmt = select(QuoteNoteRevision).where(
-            QuoteNoteRevision.note_id == note.id
-        ).order_by(QuoteNoteRevision.revision_number.desc()).limit(1)
-        last_rev = (await session.execute(last_rev_stmt)).scalar_one_or_none()
-        if last_rev:
-            old_content = last_rev.content
+        last_revision = max(note.revisions, key=lambda revision: revision.revision_number, default=None)
+        old_content = last_revision.content if last_revision else None
 
     try:
         revision = await note_service.update_note(
@@ -771,8 +764,7 @@ async def update_note_revision(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     _: Annotated[User, Depends(require_permission("quotes.update"))],
 ) -> Any:
-    rev_stmt = select(QuoteNoteRevision).where(QuoteNoteRevision.id == revision_id)
-    old_rev = (await session.execute(rev_stmt)).scalar_one_or_none()
+    old_rev = await note_service.get_revision_by_id(revision_id)
     old_content = old_rev.content if old_rev else None
 
     try:
@@ -830,8 +822,7 @@ async def delete_note_revision(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     _: Annotated[User, Depends(require_permission("quotes.update"))],
 ) -> None:
-    rev_stmt = select(QuoteNoteRevision).where(QuoteNoteRevision.id == revision_id)
-    old_rev = (await session.execute(rev_stmt)).scalar_one_or_none()
+    old_rev = await note_service.get_revision_by_id(revision_id)
     old_content = old_rev.content if old_rev else None
     old_revision_number = old_rev.revision_number if old_rev else None
 

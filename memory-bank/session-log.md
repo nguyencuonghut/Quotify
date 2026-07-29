@@ -561,3 +561,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Đổi chart Dashboard Quotify sang trục Kỳ hàng về
 - Tóm tắt: Đã đổi chart chính của trang Bảng điều khiển từ góc nhìn ngày nhận báo giá sang kỳ hàng về. Frontend gom trend points theo delivery_month để hiển thị Giá trung bình, Giá thấp nhất, Giá cao nhất và marker Đã chốt mua; ngày nhận báo giá, NCC và Loại NCC chuyển thành tooltip/ngữ cảnh. Backend trend point trả thêm supplier_type để tooltip phân biệt nội địa/quốc tế. Đã kiểm chứng backend dashboard targeted tests 4 passed, frontend dashboard targeted unit tests 6 passed, ruff targeted pass, ESLint mục tiêu và lint:styles pass, vite build pass.
+
+## 2026-07-29 05:12:05Z - codex
+
+- Tiêu đề: Sửa lỗi backend quote sau Phase 9
+- Tóm tắt: Đã debug cụm lỗi backend quote lifecycle/note phát hiện sau Phase 9 BE: sửa scalar select supplier-material sang result.scalars(), thêm lookup revision trong QuoteNoteService, chuyển route note update/delete sang dùng service lookup thay vì session.execute trực tiếp, đồng bộ fake AsyncSession trong tests và cố định business today trong lifecycle tests. Xác minh bằng Docker targeted tests quote 21 passed, dashboard backend + permission inventory 6 passed 1 skipped, ruff mục tiêu I/F401/F821 pass.
