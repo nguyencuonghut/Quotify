@@ -4,9 +4,17 @@ from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
-from app.models import Material, MaterialType, Supplier, SupplierMaterial
-from app.quotify.seed_data import MATERIAL_SEEDS, MATERIAL_TYPE_SEEDS, SUPPLIER_SEEDS
+from app.auth.hashing import hash_password
+from app.auth.seed_data import USER_ROLE_NAME
+from app.models import Material, MaterialType, Role, Supplier, SupplierMaterial, User, UserStatus
+from app.quotify.seed_data import (
+    MATERIAL_SEEDS,
+    MATERIAL_TYPE_SEEDS,
+    QUOTIFY_USER_SEEDS,
+    SUPPLIER_SEEDS,
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -14,6 +22,7 @@ class QuotifySeedSummary:
     created_material_types: int
     created_materials: int
     created_suppliers: int
+    created_users: int
 
 
 class QuotifySeedService:
@@ -24,12 +33,14 @@ class QuotifySeedService:
         material_types, created_material_types = await self._ensure_material_types()
         created_materials = await self._ensure_materials(material_types)
         created_suppliers = await self._ensure_suppliers()
+        created_users = await self._ensure_users()
         await self.session.commit()
 
         return QuotifySeedSummary(
             created_material_types=created_material_types,
             created_materials=created_materials,
             created_suppliers=created_suppliers,
+            created_users=created_users,
         )
 
     async def _ensure_material_types(self) -> tuple[dict[str, MaterialType], int]:
@@ -124,3 +135,54 @@ class QuotifySeedService:
 
         await self.session.flush()
         return created_suppliers
+
+    async def _ensure_users(self) -> int:
+        role_result = await self.session.execute(select(Role).where(Role.name == USER_ROLE_NAME))
+        user_role = role_result.scalar_one()
+
+        result = await self.session.execute(select(User))
+        users_by_email = {user.email.lower(): user for user in result.scalars().all()}
+
+        created_users = 0
+        for seed in QUOTIFY_USER_SEEDS:
+            email = seed.email.strip().rstrip(".").lower()
+            user = users_by_email.get(email)
+            if user is None:
+                legacy_emails = [
+                    legacy_email.strip().rstrip(".").lower()
+                    for legacy_email in seed.legacy_emails
+                ]
+                legacy_user = next(
+                    (
+                        users_by_email[legacy_email]
+                        for legacy_email in legacy_emails
+                        if legacy_email in users_by_email
+                    ),
+                    None,
+                )
+                if legacy_user is not None:
+                    for legacy_email in legacy_emails:
+                        users_by_email.pop(legacy_email, None)
+                    legacy_user.email = email
+                    users_by_email[email] = legacy_user
+                    user = legacy_user
+
+            if user is not None:
+                user.full_name = seed.full_name
+                user.status = UserStatus.ACTIVE
+                continue
+
+            user = User(
+                email=email,
+                password_hash=hash_password(seed.password),
+                status=UserStatus.ACTIVE,
+                full_name=seed.full_name,
+            )
+            set_committed_value(user, "roles", [])
+            user.roles = [user_role]
+            self.session.add(user)
+            users_by_email[email] = user
+            created_users += 1
+
+        await self.session.flush()
+        return created_users

@@ -621,3 +621,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Khóa quyền menu Cấu hình quy đổi
 - Tóm tắt: Đã xác nhận route/sidebar Cấu hình quy đổi nằm trong nhóm Báo giá và yêu cầu quotify_settings.read; nút lưu vẫn yêu cầu quotify_settings.update. Thêm migration 20260729_0810 thu hồi quotify_settings.read/update khỏi role hệ thống user để DB cũ không cho User thường truy cập cấu hình. Thêm unit test sidebar bảo đảm user có quotes.read nhưng thiếu quotify_settings.read không thấy menu Cấu hình quy đổi. Kiểm chứng Alembic upgrade head pass, unit sidebar 8 passed, permission inventory 2 passed 1 skipped, DB dev role user có 0 quyền quotify_settings.*.
+
+## 2026-07-29 09:44:26Z - codex
+
+- Tiêu đề: Thêm seed user Quotify
+- Tóm tắt: Đã thêm seed idempotent cho 7 user Quotify theo yêu cầu, mật khẩu mặc định Hongha@123, trạng thái active và role user; chuẩn hóa email Phạm Thị Trang bỏ dấu chấm cuối để hợp lệ đăng nhập; seed không ghi đè mật khẩu user đã tồn tại. Kiểm chứng bằng unit test, Ruff, mypy, chạy seed DB dev hai lần và truy vấn DB xác nhận user/role.

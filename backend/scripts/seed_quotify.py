@@ -3,7 +3,12 @@ from __future__ import annotations
 import asyncio
 
 from app.db.session import get_sessionmaker
-from app.quotify.seed_data import MATERIAL_SEEDS, MATERIAL_TYPE_SEEDS, SUPPLIER_SEEDS
+from app.quotify.seed_data import (
+    MATERIAL_SEEDS,
+    MATERIAL_TYPE_SEEDS,
+    QUOTIFY_USER_SEEDS,
+    SUPPLIER_SEEDS,
+)
 from app.services.quotify_seed import QuotifySeedService
 
 
@@ -17,6 +22,7 @@ async def main() -> int:
     print(f"Created material types: {summary.created_material_types}")
     print(f"Created materials: {summary.created_materials}")
     print(f"Created suppliers: {summary.created_suppliers}")
+    print(f"Created users: {summary.created_users}")
     print("Material types:")
     for material_type in MATERIAL_TYPE_SEEDS:
         print(f"- {material_type.code}: {material_type.name}")
@@ -26,6 +32,9 @@ async def main() -> int:
     print("Suppliers:")
     for supplier in SUPPLIER_SEEDS:
         print(f"- {supplier.code}: {supplier.name}")
+    print("Users:")
+    for user in QUOTIFY_USER_SEEDS:
+        print(f"- {user.full_name}: {user.email.rstrip('.')}")
     return 0
 
 

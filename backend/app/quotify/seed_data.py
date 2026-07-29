@@ -208,6 +208,14 @@ class SupplierSeed:
     material_codes: list[str]
 
 
+@dataclass(slots=True, frozen=True)
+class QuotifyUserSeed:
+    full_name: str
+    email: str
+    password: str
+    legacy_emails: tuple[str, ...] = ()
+
+
 SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
     SupplierSeed(
         code="TAN_LONG",
@@ -255,7 +263,16 @@ SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
         supplier_type="domestic",
         status="active",
         note="Nhà phân phối phụ gia, enzyme và premix uy tín tại thị trường VN.",
-        material_codes=["CHOLINE_CHLORIDE", "VITAMIN_PREMIX", "MINERAL_PREMIX", "PHYTASE", "TOXIN_BINDER", "MOLD_INHIBITOR", "ANTIOXIDANT", "ACIDIFIER"],
+        material_codes=[
+            "CHOLINE_CHLORIDE",
+            "VITAMIN_PREMIX",
+            "MINERAL_PREMIX",
+            "PHYTASE",
+            "TOXIN_BINDER",
+            "MOLD_INHIBITOR",
+            "ANTIOXIDANT",
+            "ACIDIFIER",
+        ],
     ),
     SupplierSeed(
         code="DUC_GIANG",
@@ -270,7 +287,10 @@ SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
         name="Bunge Asia (Bunge Limited)",
         supplier_type="international",
         status="active",
-        note="Tập đoàn thương mại nông nghiệp lớn của Mỹ, chuyên chào giá USD cho ngô, khô đậu nành.",
+        note=(
+            "Tập đoàn thương mại nông nghiệp lớn của Mỹ, "
+            "chuyên chào giá USD cho ngô, khô đậu nành."
+        ),
         material_codes=["CORN", "SOYBEAN_MEAL", "WHEAT"],
     ),
     SupplierSeed(
@@ -286,7 +306,10 @@ SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
         name="Archer Daniels Midland (ADM Asia)",
         supplier_type="international",
         status="active",
-        note="Tập đoàn dinh dưỡng vật nuôi và nông nghiệp toàn cầu, chào giá nguyên liệu thô bằng USD.",
+        note=(
+            "Tập đoàn dinh dưỡng vật nuôi và nông nghiệp toàn cầu, "
+            "chào giá nguyên liệu thô bằng USD."
+        ),
         material_codes=["CORN", "SOYBEAN_MEAL", "DDGS", "VITAMIN_PREMIX"],
     ),
     SupplierSeed(
@@ -294,7 +317,50 @@ SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
         name="Evonik Industries AG",
         supplier_type="international",
         status="active",
-        note="Tập đoàn hóa chất chuyên dụng của Đức, nhà cung cấp axit amin DL-Methionine chào giá USD.",
+        note=(
+            "Tập đoàn hóa chất chuyên dụng của Đức, "
+            "nhà cung cấp axit amin DL-Methionine chào giá USD."
+        ),
         material_codes=["DL_METHIONINE", "L_THREONINE", "L_TRYPTOPHAN"],
+    ),
+)
+
+
+QUOTIFY_USER_SEEDS: tuple[QuotifyUserSeed, ...] = (
+    QuotifyUserSeed(
+        full_name="Phạm Thị Trang",
+        email="phamthitrang@honghafeed.com.vn",
+        password="Hongha@123",
+        legacy_emails=("phamthitrang@honghafeed.com",),
+    ),
+    QuotifyUserSeed(
+        full_name="Lê Thị Hồng",
+        email="lethihong@honghafeed.com.vn",
+        password="Hongha@123",
+    ),
+    QuotifyUserSeed(
+        full_name="Vũ Hoàng Giang",
+        email="vuhoanggiang@longhaigroup.com.vn",
+        password="Hongha@123",
+    ),
+    QuotifyUserSeed(
+        full_name="Nguyễn Thị Kim Loan",
+        email="nguyenthikimloan@honghafeed.com.vn",
+        password="Hongha@123",
+    ),
+    QuotifyUserSeed(
+        full_name="Nguyễn Xuân Hảo",
+        email="nguyenxuanhao@honghafeed.com.vn",
+        password="Hongha@123",
+    ),
+    QuotifyUserSeed(
+        full_name="Hoàng Thúy Dung",
+        email="hoangthuydung@honghafeed.com.vn",
+        password="Hongha@123",
+    ),
+    QuotifyUserSeed(
+        full_name="Trịnh Thị Điểm",
+        email="trinhthidiem@honghafeed.com.vn",
+        password="Hongha@123",
     ),
 )
