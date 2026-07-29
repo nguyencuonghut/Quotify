@@ -128,9 +128,54 @@
           </div>
 
           <!-- Lines DataTable -->
-          <h4 class="font-semibold text-sm mb-3 text-gray-700">Danh sách dòng vật tư</h4>
+          <div class="quote-detail-page__lines-header">
+            <h4 class="font-semibold text-sm text-gray-700">Danh sách dòng vật tư</h4>
+            <span class="quote-detail-page__lines-count">
+              {{ filteredQuoteLines.length }}/{{ activeVersion?.lines.length || 0 }} dòng
+            </span>
+          </div>
+          <div class="quote-detail-page__line-filters">
+            <label class="quote-detail-page__filter-field quote-detail-page__filter-field--search">
+              <span class="quote-detail-page__filter-label">Tìm kiếm</span>
+              <InputText
+                v-model="lineGlobalSearch"
+                placeholder="Tìm mã, tên vật tư, giá, tháng..."
+              />
+            </label>
+            <label class="quote-detail-page__filter-field">
+              <span class="quote-detail-page__filter-label">Tên vật tư</span>
+              <Select
+                v-model="lineMaterialNameFilter"
+                :options="lineMaterialNameOptions"
+                aria-label="Tên vật tư"
+                option-label="label"
+                option-value="value"
+                placeholder="Tất cả vật tư"
+                show-clear
+              />
+            </label>
+            <label class="quote-detail-page__filter-field">
+              <span class="quote-detail-page__filter-label">Tháng giao</span>
+              <Select
+                v-model="lineDeliveryMonthFilter"
+                :options="lineDeliveryMonthOptions"
+                aria-label="Tháng giao"
+                option-label="label"
+                option-value="value"
+                placeholder="Tất cả tháng"
+                show-clear
+              />
+            </label>
+            <Button
+              icon="pi pi-sync"
+              label="Xóa lọc"
+              severity="secondary"
+              outlined
+              @click="resetLineFilters"
+            />
+          </div>
           <DataTable
-            :value="activeVersion?.lines || []"
+            :value="filteredQuoteLines"
             class="p-datatable-sm"
             responsive-layout="scroll"
           >
@@ -150,7 +195,7 @@
             <Column field="unit" header="Đơn vị" style="width: 80px" />
             <Column header="Tháng giao" style="width: 110px">
               <template #body="slotProps">
-                {{ slotProps.data.deliveryMonth.substring(0, 7) }}
+                {{ formatDeliveryMonth(slotProps.data.deliveryMonth) }}
               </template>
             </Column>
             <Column style="width: 140px;">
@@ -485,6 +530,8 @@ import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
 import Editor from 'primevue/editor'
 import DatePicker from 'primevue/datepicker'
+import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
 
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
@@ -527,6 +574,89 @@ const showConfirmDialog = ref<boolean>(false)
 // Permissions
 const hasUpdatePermission = computed(() => permissionStore.can('quotes.update'))
 const hasPurchasePermission = computed(() => permissionStore.can('quotes.mark_purchased'))
+
+const lineGlobalSearch = ref<string>('')
+const lineMaterialNameFilter = ref<string | null>(null)
+const lineDeliveryMonthFilter = ref<string | null>(null)
+
+const normalizeSearchText = (value: string | number | null | undefined) => {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+const formatDeliveryMonth = (value: string) => {
+  if (!value) return ''
+  const [year, month] = value.split('-')
+  return month && year ? `${month}/${year}` : value
+}
+
+const lineMaterialNameOptions = computed(() => {
+  const names = new Map<string, string>()
+  for (const line of activeVersion.value?.lines ?? []) {
+    names.set(line.materialName, line.materialName)
+  }
+
+  return Array.from(names.values())
+    .sort((left, right) => left.localeCompare(right, 'vi'))
+    .map((name) => ({ label: name, value: name }))
+})
+
+const lineDeliveryMonthOptions = computed(() => {
+  const months = new Set<string>()
+  for (const line of activeVersion.value?.lines ?? []) {
+    months.add(line.deliveryMonth)
+  }
+
+  return Array.from(months)
+    .sort((left, right) => left.localeCompare(right))
+    .map((month) => ({ label: formatDeliveryMonth(month), value: month }))
+})
+
+const filteredQuoteLines = computed(() => {
+  const search = normalizeSearchText(lineGlobalSearch.value)
+  const selectedMaterialName = lineMaterialNameFilter.value
+  const selectedDeliveryMonth = lineDeliveryMonthFilter.value
+
+  return (activeVersion.value?.lines ?? []).filter((line) => {
+    if (selectedMaterialName && line.materialName !== selectedMaterialName) {
+      return false
+    }
+
+    if (selectedDeliveryMonth && line.deliveryMonth !== selectedDeliveryMonth) {
+      return false
+    }
+
+    if (!search) {
+      return true
+    }
+
+    const searchableText = [
+      line.materialCode,
+      line.materialName,
+      line.currency,
+      line.unit,
+      formatDeliveryMonth(line.deliveryMonth),
+      line.deliveryMonth,
+      line.priceOriginal,
+      line.priceConvertedVndPerKg,
+      line.exchangeRate,
+      line.exchangeRateSource,
+    ]
+      .map(normalizeSearchText)
+      .join(' ')
+
+    return searchableText.includes(search)
+  })
+})
+
+const resetLineFilters = () => {
+  lineGlobalSearch.value = ''
+  lineMaterialNameFilter.value = null
+  lineDeliveryMonthFilter.value = null
+}
 
 // Note handlers
 const isEditingNote = ref<boolean>(false)

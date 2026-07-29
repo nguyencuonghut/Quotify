@@ -601,3 +601,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Chuẩn hóa nhãn VNĐ/KG trên giao diện báo giá
 - Tóm tắt: Đã đổi hiển thị VND/KG từ ký hiệu `đ`/`₫` sang `VNĐ/KG` trên danh sách và chi tiết báo giá; giữ `USD/MT` cho giá gốc quốc tế và cập nhật guard E2E mobile.
+
+## 2026-07-29 07:37:50Z - codex
+
+- Tiêu đề: Thêm filter dòng vật tư ở chi tiết báo giá
+- Tóm tắt: Đã thêm global search, filter `Tên vật tư` và filter `Tháng giao` cho DataTable dòng vật tư trong trang chi tiết báo giá; filter chạy client-side trên `activeVersion.lines` và có E2E spec cho quote mẫu.
