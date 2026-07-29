@@ -616,3 +616,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Cải tiến hiệu năng danh sách báo giá
 - Tóm tắt: Đã cải tiến backend cho DataTable /quotes: cap limit bằng Query(le=100), chặn offset âm, clamp limit/offset trong QuoteQueryService, đổi count từ subquery select nhiều cột sang count trực tiếp QuoteLine.id, thêm tie-breaker QuoteLine.id khi sort, và thêm migration index tổng hợp + GIN trigram phục vụ filter/sort/global search. Kiểm chứng targeted tests 4 passed, Ruff hẹp pass, Alembic upgrade head trong Docker dev pass. Ghi chú: UI vẫn dùng offset pagination nên cursor/keyset mode riêng vẫn là hướng tiếp theo nếu cần nhảy page rất sâu trên hàng triệu dòng.
+
+## 2026-07-29 09:18:14Z - codex
+
+- Tiêu đề: Khóa quyền menu Cấu hình quy đổi
+- Tóm tắt: Đã xác nhận route/sidebar Cấu hình quy đổi nằm trong nhóm Báo giá và yêu cầu quotify_settings.read; nút lưu vẫn yêu cầu quotify_settings.update. Thêm migration 20260729_0810 thu hồi quotify_settings.read/update khỏi role hệ thống user để DB cũ không cho User thường truy cập cấu hình. Thêm unit test sidebar bảo đảm user có quotes.read nhưng thiếu quotify_settings.read không thấy menu Cấu hình quy đổi. Kiểm chứng Alembic upgrade head pass, unit sidebar 8 passed, permission inventory 2 passed 1 skipped, DB dev role user có 0 quyền quotify_settings.*.

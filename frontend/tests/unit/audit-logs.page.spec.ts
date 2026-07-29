@@ -174,7 +174,7 @@ describe('AuditLogsPage', () => {
         title: 'Trang thử nghiệm',
       },
       global: {
-        plugins: [pinia],
+        plugins: [pinia, router],
         stubs: {
           RouterLink: {
             props: ['to'],
@@ -224,7 +224,7 @@ describe('AuditLogsPage', () => {
         title: 'Trang thử nghiệm',
       },
       global: {
-        plugins: [pinia],
+        plugins: [pinia, router],
         stubs: {
           RouterLink: {
             props: ['to'],
@@ -265,7 +265,7 @@ describe('AuditLogsPage', () => {
         title: 'Trang thử nghiệm',
       },
       global: {
-        plugins: [pinia],
+        plugins: [pinia, router],
         stubs: {
           RouterLink: {
             props: ['to'],
@@ -278,5 +278,48 @@ describe('AuditLogsPage', () => {
     })
 
     expect(wrapper.find('a[href="/audit-logs"]').exists()).toBe(false)
+  })
+
+  it('hides Quotify settings from quote users without quotify_settings.read', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const authStore = useAuthStore()
+    authStore.accessToken = 'access-token'
+    authStore.currentUser = {
+      id: 'user-1',
+      email: 'buyer@example.com',
+      status: 'active',
+      roles: ['user'],
+      permissions: ['dashboard.read', 'quotes.read', 'quotes.create'],
+      lastLoginAt: null,
+      fullName: 'Buyer',
+      avatarUrl: null,
+    }
+
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+    } as Response)
+
+    const wrapper = mount(AdminLayout, {
+      props: {
+        title: 'Trang thử nghiệm',
+      },
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+          Menu: true,
+          ThemeModeSwitch: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('Báo giá')
+    expect(wrapper.find('a[href="/quotes"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/quotify-settings"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Cấu hình quy đổi')
   })
 })
