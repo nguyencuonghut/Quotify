@@ -188,7 +188,7 @@
             </Column>
             <Column header="Chốt mua" style="width: 160px; text-align: left">
               <template #body="slotProps">
-                <div class="flex align-items-center gap-2" style="padding-left: 0.75rem; white-space: nowrap; width: 100%; min-height: 24px;">
+                <div style="display: flex; align-items: center; padding-left: 0.75rem; gap: 0.25rem; white-space: nowrap; width: 100%; min-height: 24px;">
                   <Checkbox
                     :model-value="Boolean(slotProps.data.purchaseMarkedAt)"
                     binary
@@ -198,7 +198,7 @@
                   <div
                     v-if="slotProps.data.purchaseMarkedAt"
                     class="quote-detail-page__line-purchase-marked m-0"
-                    style="display: inline-block;"
+                    style="display: inline-block; margin-left: 0.5rem;"
                   >
                     <span>Chốt: {{ formatOnlyDate(slotProps.data.purchaseMarkedAt) }}</span>
                   </div>
