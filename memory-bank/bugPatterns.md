@@ -556,6 +556,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Với các DataTable nghiệp vụ có nhiều cột, mobile cần layout thay thế dạng card hoặc stacked content, không chỉ dựa vào horizontal scroll. Phải có E2E/mobile viewport kiểm tra mobile list hiển thị, desktop table bị ẩn và không phát sinh horizontal overflow.
 - Related files: `frontend/src/pages/QuotesPage.vue`, `frontend/src/styles/pages/_quotes-page.scss`, `frontend/src/composables/useQuotesPage.ts`, `frontend/tests/e2e/quotes-mobile.spec.ts`
 
+### 2026-07-29: Không được chuẩn hóa cột Giá gốc trên danh sách báo giá
+
+- Area: Frontend Quotes list / price display
+- Trigger: Có đề xuất đổi cột `Giá gốc` trên trang `/quotes` sang cùng đơn vị `VNĐ/KG` như cột `Giá quy đổi`.
+- Root cause: Diễn giải sai ý nghĩa của `Giá gốc`. `Giá gốc` là provenance của báo giá nhà cung cấp, nên phải giữ nguyên tiền tệ và đơn vị ban đầu; chỉ `Giá quy đổi` mới là giá đã chuẩn hóa về `VNĐ/KG` để so sánh.
+- Fix: Giữ `Giá gốc` hiển thị nguyên bản: báo giá `VND/KG` hiển thị bằng nhãn `VNĐ/KG`, báo giá `USD/MT` hiển thị bằng nhãn `USD/MT`. Không tính lại `Giá gốc` bằng tỷ giá hoặc trừ chi phí quy đổi.
+- Regression guard: Trên danh sách báo giá và chi tiết báo giá, không đổi nghĩa trường `priceOriginal`. Nếu cần so sánh theo chuẩn, dùng `priceConvertedVndPerKg`; nếu cần provenance, dùng `priceOriginal + currency/unit`.
+- Related files: `frontend/src/pages/QuotesPage.vue`, `frontend/tests/e2e/quotes-mobile.spec.ts`
+
 
 ## Usage Rule
 

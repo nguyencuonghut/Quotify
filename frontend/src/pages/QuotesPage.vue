@@ -189,7 +189,7 @@
 
           <Column field="price_original" header="Giá gốc" sortable>
             <template #body="{ data }">
-              {{ formatCurrency(data.priceOriginal, data.currency) }} / {{ data.unit }}
+              {{ formatOriginalPrice(data.priceOriginal, data.currency, data.unit) }}
             </template>
           </Column>
 
@@ -266,7 +266,7 @@
               </div>
               <div>
                 <dt>Giá gốc</dt>
-                <dd>{{ formatCurrency(item.priceOriginal, item.currency) }} / {{ item.unit }}</dd>
+                <dd>{{ formatOriginalPrice(item.priceOriginal, item.currency, item.unit) }}</dd>
               </div>
               <div>
                 <dt>Kỳ giao hàng</dt>
@@ -452,11 +452,23 @@ const onMobileRowsChange = () => {
   handlePageChange({ first: 0, rows: limit.value })
 }
 
-// Utility formatting
-const formatCurrency = (val: number, currency: string) => {
+const formatOriginalPrice = (val: number, currency: string, unit: string) => {
   if (val === null || val === undefined) return ''
-  const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
-  return currency === 'USD' ? `$${formatted}` : `${formatted} ₫`
+  const normalizedCurrency = currency.toUpperCase()
+  const normalizedUnit = unit.toUpperCase()
+  const formatted = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val)
+  if (normalizedCurrency === 'VND' && normalizedUnit === 'KG') {
+    return `${formatted} VNĐ/KG`
+  }
+
+  if (normalizedCurrency === 'USD' && normalizedUnit === 'MT') {
+    return `$${formatted} USD/MT`
+  }
+
+  return `${formatted} ${normalizedCurrency}/${normalizedUnit}`
 }
 
 const formatVndPerKg = (val: number) => {

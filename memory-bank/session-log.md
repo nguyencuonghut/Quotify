@@ -591,3 +591,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Sửa responsive mobile trang danh sách báo giá
 - Tóm tắt: Đã thêm mobile card list và paginator riêng cho trang `/quotes`, giữ DataTable cho desktop, dọn type DatePicker trong `useQuotesPage` và thêm E2E mobile regression spec.
+
+## 2026-07-29 07:24:23Z - codex
+
+- Tiêu đề: Giữ nguyên đơn vị Giá gốc trên danh sách báo giá
+- Tóm tắt: Đã sửa lại cột và card `Giá gốc` trên trang `/quotes` để hiển thị đúng giá nguyên bản của nhà cung cấp (`VND/KG` hoặc `USD/MT`); `Giá quy đổi` mới dùng `VNĐ/KG`.
+
+## 2026-07-29 07:32:42Z - codex
+
+- Tiêu đề: Chuẩn hóa nhãn VNĐ/KG trên giao diện báo giá
+- Tóm tắt: Đã đổi hiển thị VND/KG từ ký hiệu `đ`/`₫` sang `VNĐ/KG` trên danh sách và chi tiết báo giá; giữ `USD/MT` cho giá gốc quốc tế và cập nhật guard E2E mobile.

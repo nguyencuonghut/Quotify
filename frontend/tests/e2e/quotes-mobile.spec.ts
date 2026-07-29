@@ -41,6 +41,11 @@ test('quotes list renders as mobile cards instead of a wide desktop table', asyn
   await expect(
     page.locator('.quotes-page__mobile-card, .quotes-page__mobile-state').first(),
   ).toBeVisible()
+  const firstCard = page.locator('.quotes-page__mobile-card').first()
+  if ((await firstCard.count()) > 0) {
+    await expect(firstCard.getByText(/VNĐ\/KG/)).toBeVisible()
+    await expect(firstCard).not.toContainText('₫ / KG')
+  }
   const bodySize = await page.locator('body').evaluate((body) => ({
     clientWidth: body.clientWidth,
     scrollWidth: body.scrollWidth,
