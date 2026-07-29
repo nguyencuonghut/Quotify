@@ -606,3 +606,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Thêm filter dòng vật tư ở chi tiết báo giá
 - Tóm tắt: Đã thêm global search, filter `Tên vật tư` và filter `Tháng giao` cho DataTable dòng vật tư trong trang chi tiết báo giá; filter chạy client-side trên `activeVersion.lines` và có E2E spec cho quote mẫu.
+
+## 2026-07-29 07:44:58Z - codex
+
+- Tiêu đề: Đánh giá hiệu năng DataTable trang quotes
+- Tóm tắt: Đã kiểm tra trang /quotes ở frontend và backend. Frontend dùng PrimeVue DataTable lazy, chỉ giữ page hiện tại với limit mặc định 10 nên không tải hàng triệu dòng lên client. Backend /api/v1/quotes hiện chưa sẵn sàng tối ưu cho hàng triệu dòng vì dùng COUNT(*) trên subquery join nhiều bảng, offset pagination, ILIKE '%...%' cho global search, chưa cap limit bằng Query(le=100), và thiếu index tổng hợp/search theo workload báo giá lớn. Cần tối ưu bằng keyset/cursor pagination, count nhẹ/ước lượng hoặc bỏ total ở chế độ lớn, index tổng hợp phù hợp, trigram/full-text search, và perf smoke/EXPLAIN với dữ liệu lớn.
+
+## 2026-07-29 07:48:28Z - codex
+
+- Tiêu đề: Cải tiến hiệu năng danh sách báo giá
+- Tóm tắt: Đã cải tiến backend cho DataTable /quotes: cap limit bằng Query(le=100), chặn offset âm, clamp limit/offset trong QuoteQueryService, đổi count từ subquery select nhiều cột sang count trực tiếp QuoteLine.id, thêm tie-breaker QuoteLine.id khi sort, và thêm migration index tổng hợp + GIN trigram phục vụ filter/sort/global search. Kiểm chứng targeted tests 4 passed, Ruff hẹp pass, Alembic upgrade head trong Docker dev pass. Ghi chú: UI vẫn dùng offset pagination nên cursor/keyset mode riêng vẫn là hướng tiếp theo nếu cần nhảy page rất sâu trên hàng triệu dòng.

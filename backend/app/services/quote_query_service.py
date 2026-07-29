@@ -4,15 +4,15 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, func, or_, desc, asc
+from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.quote import Quote
-from app.models.quote_version import QuoteVersion
-from app.models.quote_line import QuoteLine
-from app.models.supplier import Supplier
 from app.models.material import Material
 from app.models.material_type import MaterialType
+from app.models.quote import Quote
+from app.models.quote_line import QuoteLine
+from app.models.quote_version import QuoteVersion
+from app.models.supplier import Supplier
 from app.models.user import User
 
 
@@ -20,8 +20,9 @@ class QuoteQueryService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def query_flattened_quotes(
+    def _apply_filters(
         self,
+        stmt: Any,
         *,
         global_search: str | None = None,
         material_type_id: UUID | None = None,
@@ -33,49 +34,7 @@ class QuoteQueryService:
         delivery_month: date | None = None,
         currency: str | None = None,
         purchased: bool | None = None,
-        sort_by: str = "created_at",
-        sort_order: str = "desc",
-        limit: int = 10,
-        offset: int = 0,
-    ) -> tuple[list[dict[str, Any]], int]:
-        # base query selecting fields to build QuoteFlattenedResponse
-        stmt = (
-            select(
-                QuoteLine.id,
-                Quote.id.label("quote_id"),
-                QuoteVersion.id.label("quote_version_id"),
-                Supplier.id.label("supplier_id"),
-                Supplier.name.label("supplier_name"),
-                Supplier.code.label("supplier_code"),
-                Material.id.label("material_id"),
-                Material.name.label("material_name"),
-                Material.code.label("material_code"),
-                MaterialType.name.label("material_type_name"),
-                MaterialType.code.label("material_type_code"),
-                QuoteVersion.received_date,
-                QuoteLine.delivery_month,
-                QuoteLine.price_original,
-                QuoteLine.currency,
-                QuoteLine.unit,
-                QuoteLine.exchange_rate,
-                QuoteLine.exchange_rate_source,
-                QuoteLine.conversion_cost_vnd_per_kg,
-                QuoteLine.price_converted_vnd_per_kg,
-                QuoteLine.purchase_marked_at,
-                QuoteVersion.version_number,
-                QuoteVersion.status.label("version_status"),
-                User.full_name.label("created_by_name"),
-                QuoteLine.created_at,
-            )
-            .join(QuoteVersion, QuoteLine.quote_version_id == QuoteVersion.id)
-            .join(Quote, QuoteVersion.quote_id == Quote.id)
-            .join(Supplier, Quote.supplier_id == Supplier.id)
-            .join(Material, QuoteLine.material_id == Material.id)
-            .join(MaterialType, Material.material_type_id == MaterialType.id)
-            .outerjoin(User, QuoteVersion.created_by_id == User.id)
-        )
-
-        # Apply filters
+    ) -> Any:
         filters = []
 
         if global_search:
@@ -122,8 +81,101 @@ class QuoteQueryService:
         if filters:
             stmt = stmt.where(*filters)
 
-        # Get total count before pagination
-        count_stmt = select(func.count()).select_from(stmt.subquery())
+        return stmt
+
+    async def query_flattened_quotes(
+        self,
+        *,
+        global_search: str | None = None,
+        material_type_id: UUID | None = None,
+        material_id: UUID | None = None,
+        supplier_id: UUID | None = None,
+        created_by_id: UUID | None = None,
+        received_date_start: date | None = None,
+        received_date_end: date | None = None,
+        delivery_month: date | None = None,
+        currency: str | None = None,
+        purchased: bool | None = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+        limit: int = 10,
+        offset: int = 0,
+    ) -> tuple[list[dict[str, Any]], int]:
+        limit = max(1, min(limit, 100))
+        offset = max(0, offset)
+
+        # base query selecting fields to build QuoteFlattenedResponse
+        stmt = (
+            select(
+                QuoteLine.id,
+                Quote.id.label("quote_id"),
+                QuoteVersion.id.label("quote_version_id"),
+                Supplier.id.label("supplier_id"),
+                Supplier.name.label("supplier_name"),
+                Supplier.code.label("supplier_code"),
+                Material.id.label("material_id"),
+                Material.name.label("material_name"),
+                Material.code.label("material_code"),
+                MaterialType.name.label("material_type_name"),
+                MaterialType.code.label("material_type_code"),
+                QuoteVersion.received_date,
+                QuoteLine.delivery_month,
+                QuoteLine.price_original,
+                QuoteLine.currency,
+                QuoteLine.unit,
+                QuoteLine.exchange_rate,
+                QuoteLine.exchange_rate_source,
+                QuoteLine.conversion_cost_vnd_per_kg,
+                QuoteLine.price_converted_vnd_per_kg,
+                QuoteLine.purchase_marked_at,
+                QuoteVersion.version_number,
+                QuoteVersion.status.label("version_status"),
+                User.full_name.label("created_by_name"),
+                QuoteLine.created_at,
+            )
+            .join(QuoteVersion, QuoteLine.quote_version_id == QuoteVersion.id)
+            .join(Quote, QuoteVersion.quote_id == Quote.id)
+            .join(Supplier, Quote.supplier_id == Supplier.id)
+            .join(Material, QuoteLine.material_id == Material.id)
+            .join(MaterialType, Material.material_type_id == MaterialType.id)
+            .outerjoin(User, QuoteVersion.created_by_id == User.id)
+        )
+
+        stmt = self._apply_filters(
+            stmt,
+            global_search=global_search,
+            material_type_id=material_type_id,
+            material_id=material_id,
+            supplier_id=supplier_id,
+            created_by_id=created_by_id,
+            received_date_start=received_date_start,
+            received_date_end=received_date_end,
+            delivery_month=delivery_month,
+            currency=currency,
+            purchased=purchased,
+        )
+
+        count_stmt = (
+            select(func.count(QuoteLine.id))
+            .join(QuoteVersion, QuoteLine.quote_version_id == QuoteVersion.id)
+            .join(Quote, QuoteVersion.quote_id == Quote.id)
+            .join(Supplier, Quote.supplier_id == Supplier.id)
+            .join(Material, QuoteLine.material_id == Material.id)
+            .join(MaterialType, Material.material_type_id == MaterialType.id)
+        )
+        count_stmt = self._apply_filters(
+            count_stmt,
+            global_search=global_search,
+            material_type_id=material_type_id,
+            material_id=material_id,
+            supplier_id=supplier_id,
+            created_by_id=created_by_id,
+            received_date_start=received_date_start,
+            received_date_end=received_date_end,
+            delivery_month=delivery_month,
+            currency=currency,
+            purchased=purchased,
+        )
         total = (await self.db.execute(count_stmt)).scalar() or 0
 
         # Apply sorting
@@ -140,9 +192,9 @@ class QuoteQueryService:
 
         sort_col = sort_by_map.get(sort_by, QuoteLine.created_at)
         if sort_order == "desc":
-            stmt = stmt.order_by(desc(sort_col))
+            stmt = stmt.order_by(desc(sort_col), desc(QuoteLine.id))
         else:
-            stmt = stmt.order_by(asc(sort_col))
+            stmt = stmt.order_by(asc(sort_col), asc(QuoteLine.id))
 
         # Apply pagination
         stmt = stmt.offset(offset).limit(limit)

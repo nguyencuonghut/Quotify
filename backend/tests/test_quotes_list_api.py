@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
-from datetime import UTC, datetime, date
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI, status
 from httpx import AsyncClient
 
-from app.api.v1.quotes import get_quote_query_service, get_audit_log_service
+from app.api.v1.quotes import get_audit_log_service, get_quote_query_service
 from app.auth.dependencies import get_current_user
 from app.db.session import get_db_session
 from app.models import Permission, Role, User, UserStatus
@@ -30,6 +30,7 @@ class MockAuditLogService:
 
 class MockQuoteQueryService:
     def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
         self.items = [
             {
                 "id": uuid4(),
@@ -61,6 +62,7 @@ class MockQuoteQueryService:
         ]
 
     async def query_flattened_quotes(self, **kwargs: Any) -> tuple[list[dict[str, Any]], int]:
+        self.calls.append(kwargs)
         return self.items, len(self.items)
 
 
@@ -73,7 +75,12 @@ def override_dependencies(
     ]
     role = Role(id=uuid4(), name="quote-reader", is_system=False)
     role.permissions = permissions
-    user = User(id=uuid4(), email="reader@example.com", status=UserStatus.ACTIVE, full_name="Reader User")
+    user = User(
+        id=uuid4(),
+        email="reader@example.com",
+        status=UserStatus.ACTIVE,
+        full_name="Reader User",
+    )
     user.roles = [role]
 
     query_service = MockQuoteQueryService()
@@ -109,3 +116,17 @@ async def test_list_quotes_api_success_and_audit(
     # Check audit log
     assert len(audit_service.events) == 1
     assert audit_service.events[0]["action"] == "quotes.list_viewed"
+
+
+@pytest.mark.asyncio
+async def test_list_quotes_api_rejects_oversized_limit(
+    client: AsyncClient,
+    override_dependencies: tuple[MockQuoteQueryService, MockAuditLogService],
+) -> None:
+    query_service, audit_service = override_dependencies
+
+    response = await client.get("/api/v1/quotes?limit=500")
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert query_service.calls == []
+    assert audit_service.events == []

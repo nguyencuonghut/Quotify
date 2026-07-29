@@ -8,7 +8,7 @@ from datetime import date
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -154,8 +154,8 @@ async def list_quotes(
     purchased: bool | None = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
-    limit: int = 10,
-    offset: int = 0,
+    limit: int = Query(default=10, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ) -> Any:
     items, total = await query_service.query_flattened_quotes(
         global_search=global_search,

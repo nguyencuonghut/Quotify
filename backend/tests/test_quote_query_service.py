@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime, UTC
+from datetime import UTC, date, datetime
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -9,31 +10,31 @@ from app.services.quote_query_service import QuoteQueryService
 
 
 class FakeResultRow:
-    def __init__(self, data: dict) -> None:
+    def __init__(self, data: dict[str, Any]) -> None:
         self.__dict__.update(data)
 
-    def __getattr__(self, name: str) -> any:
+    def __getattr__(self, name: str) -> Any:
         return self.__dict__.get(name)
 
 
 class FakeResult:
-    def __init__(self, rows: list) -> None:
+    def __init__(self, rows: list[FakeResultRow]) -> None:
         self._rows = rows
 
-    def all(self) -> list:
+    def all(self) -> list[FakeResultRow]:
         return self._rows
 
-    def scalar(self) -> any:
+    def scalar(self) -> Any:
         # Return total count if count query
         return len(self._rows)
 
 
 class FakeDbSession:
-    def __init__(self, rows: list) -> None:
+    def __init__(self, rows: list[FakeResultRow]) -> None:
         self.rows = rows
-        self.queries = []
+        self.queries: list[Any] = []
 
-    async def execute(self, statement) -> FakeResult:
+    async def execute(self, statement: Any) -> FakeResult:
         self.queries.append(statement)
         # Check if statement is count query
         stmt_str = str(statement).lower()
@@ -43,7 +44,7 @@ class FakeDbSession:
 
 
 @pytest.fixture
-def mock_rows() -> list:
+def mock_rows() -> list[FakeResultRow]:
     quote_id = uuid4()
     version_id = uuid4()
     line_id = uuid4()
@@ -81,9 +82,11 @@ def mock_rows() -> list:
 
 
 @pytest.mark.asyncio
-async def test_query_flattened_quotes_returns_items_and_count(mock_rows) -> None:
+async def test_query_flattened_quotes_returns_items_and_count(
+    mock_rows: list[FakeResultRow],
+) -> None:
     fake_db = FakeDbSession(mock_rows)
-    service = QuoteQueryService(fake_db)
+    service = QuoteQueryService(cast(Any, fake_db))
 
     items, total = await service.query_flattened_quotes(
         global_search="Supplier",
@@ -98,3 +101,22 @@ async def test_query_flattened_quotes_returns_items_and_count(mock_rows) -> None
     assert items[0]["price_converted_vnd_per_kg"] == 6525.23
     assert items[0]["purchased"] is True
     assert len(fake_db.queries) == 2  # one count, one select
+
+
+@pytest.mark.asyncio
+async def test_query_flattened_quotes_uses_lightweight_count(
+    mock_rows: list[FakeResultRow],
+) -> None:
+    fake_db = FakeDbSession(mock_rows)
+    service = QuoteQueryService(cast(Any, fake_db))
+
+    await service.query_flattened_quotes(limit=500, offset=-100)
+
+    count_sql = str(fake_db.queries[0]).lower()
+    select_sql = str(fake_db.queries[1]).lower()
+
+    assert "count(quote_lines.id)" in count_sql
+    assert "anon_1" not in count_sql
+    assert "supplier_name" not in count_sql
+    assert "limit" in select_sql
+    assert "offset" in select_sql
