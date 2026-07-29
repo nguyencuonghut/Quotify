@@ -62,7 +62,7 @@ function formatMoney(value: number | null): string {
     return 'Chưa có dữ liệu'
   }
 
-  return `${new Intl.NumberFormat('vi-VN', {
+  return `${new Intl.NumberFormat('en-US', {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   }).format(value)} VNĐ/KG`

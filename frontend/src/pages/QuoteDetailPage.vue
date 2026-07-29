@@ -23,7 +23,6 @@
           v-if="hasUpdatePermission"
           label="Tạo phiên bản mới"
           icon="pi pi-copy"
-          severity="success"
           @click="createNewVersion"
         />
         <Button
@@ -219,8 +218,6 @@
               v-if="hasUpdatePermission && !isEditingNote && !isEditingRevisionId"
               label="Thêm"
               icon="pi pi-plus"
-              severity="secondary"
-              outlined
               size="small"
               @click="startAddNote"
             />

@@ -34,7 +34,7 @@ vi.mock('@/composables/useDashboardPage', async () => {
       metricCards: computed(() => [
         {
           label: 'Giá thấp nhất',
-          value: '10.200,00 VNĐ/KG',
+          value: '10,200.00 VNĐ/KG',
           detail: 'MIN theo bộ lọc hiện tại',
           icon: 'pi pi-arrow-down-right',
           tone: 'success',

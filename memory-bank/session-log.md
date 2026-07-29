@@ -581,3 +581,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Sửa thứ tự dòng chi tiết báo giá
 - Tóm tắt: Đã sửa lỗi trang chi tiết báo giá hiển thị dòng khác thứ tự lúc tạo: thêm quote_lines.line_order, migration backfill dữ liệu cũ theo mã vật tư rồi kỳ giao hàng, service ghi line_order theo index payload khi tạo/sửa version, relationship sort theo line_order, API/frontend mapper trả lineOrder. Đã kiểm quote người dùng báo qua API dev, thứ tự Ngô hạt theo tháng tăng dần rồi tới vật tư khác đúng yêu cầu; targeted backend/frontend tests và checks pass.
+
+## 2026-07-29 07:07:08Z - codex
+
+- Tiêu đề: Sửa định dạng giá tiền Dashboard Quotify
+- Tóm tắt: Đã đổi formatter tiền của Dashboard Quotify sang định dạng dấu phẩy phần nghìn và dấu chấm phần thập phân; thêm regression test cho ba card giá tiền và ghi bug pattern.

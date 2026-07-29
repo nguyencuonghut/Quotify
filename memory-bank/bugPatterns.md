@@ -538,6 +538,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Khi thêm dependency frontend mới mà dev server Docker đang sống, phải cập nhật volume `node_modules` trong container hoặc rebuild/recreate service frontend. Không chỉ sửa `package.json`/lockfile rồi kết luận runtime đã có package. Nếu Vite báo lỗi từ `node_modules/.vite/deps`, xóa cache `.vite/deps` sau khi cài dependency.
 - Related files: `docker-compose.yml`, `docker/frontend/Dockerfile`, `frontend/package.json`, `frontend/package-lock.json`
 
+### 2026-07-29: Dashboard Quotify hiển thị sai định dạng số tiền
+
+- Area: Frontend Dashboard Quotify / number formatting
+- Trigger: Ba card giá tiền trên trang `Bảng điều khiển` hiển thị số theo định dạng Việt Nam, ví dụ `10.200,00 VNĐ/KG`, trong khi nghiệp vụ yêu cầu dấu phẩy ngăn phần nghìn và dấu chấm ngăn phần thập phân, ví dụ `10,200.00 VNĐ/KG`.
+- Root cause: `formatMoney(...)` trong `useDashboardPage.ts` dùng `Intl.NumberFormat('vi-VN')`, locale này mặc định dùng dấu chấm cho phần nghìn và dấu phẩy cho phần thập phân.
+- Fix: Đổi riêng formatter tiền sang `Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })`. Giữ formatter số đếm riêng để không thay đổi ngoài phạm vi giá tiền.
+- Regression guard: Unit test dashboard phải assert cả ba card `Giá thấp nhất`, `Giá cao nhất`, `Giá trung bình` theo format `10,200.00 VNĐ/KG`; không dùng locale trình duyệt hoặc `vi-VN` cho giá tiền khi yêu cầu hiển thị theo dấu phẩy nghìn/dấu chấm thập phân.
+- Related files: `frontend/src/composables/useDashboardPage.ts`, `frontend/tests/unit/useDashboardPage.spec.ts`, `frontend/tests/unit/dashboard.page.spec.ts`
+
 
 ## Usage Rule
 

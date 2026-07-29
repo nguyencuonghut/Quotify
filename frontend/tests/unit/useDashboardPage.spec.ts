@@ -153,7 +153,11 @@ describe('useDashboardPage', () => {
       'Giá trung bình',
       'Tổng báo giá',
     ])
-    expect(page.metricCards.value[0].value).toBe('10.200,00 VNĐ/KG')
+    expect(page.metricCards.value.slice(0, 3).map((card) => card.value)).toEqual([
+      '10,200.00 VNĐ/KG',
+      '11,800.00 VNĐ/KG',
+      '11,000.00 VNĐ/KG',
+    ])
     expect(page.hasTrendData.value).toBe(true)
     expect(page.deliveryMonthBuckets.value.map((bucket) => bucket.label)).toEqual(
       ['08/2026', '09/2026'],
