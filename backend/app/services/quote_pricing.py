@@ -92,8 +92,8 @@ class QuotePricingService:
                 pass
 
             if auto_rate_success and auto_rate_result is not None:
-                # If auto rate is working, reject manual fallback
-                if manual_rate is not None:
+                # If auto rate is working, reject manual fallback unless it matches the auto rate
+                if manual_rate is not None and quantize_money(manual_rate) != quantize_money(auto_rate_result.rate):
                     raise ValueError(
                         "Hệ thống lấy được tỷ giá tự động từ Vietcombank. Bạn không được phép tự nhập tỷ giá."
                     )
