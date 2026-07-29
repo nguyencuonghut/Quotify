@@ -466,6 +466,33 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Mọi bảng singleton/config phải được seed bằng migration idempotent hoặc seed service rõ ràng, không chỉ dựa vào `GET get_or_create` không commit. Sau khi thêm migration khi container dev đang sống, phải chạy `docker compose exec -T backend sh -lc 'cd /app && uv run alembic upgrade head'` hoặc restart backend để startup command chạy lại. Docker Playwright E2E phải cover ít nhất một lần mở trang cấu hình để bắt lỗi schema thiếu qua browser.
 - Related files: `backend/alembic/versions/20260728_0930_seed_default_quotify_settings.py`, `backend/app/api/v1/quotify_settings.py`, `backend/tests/test_quotify_settings_api.py`, `frontend/tests/e2e/audit-logs.spec.ts`
 
+### 2026-07-29: `uv run` và `ruff` lỗi do cache không ghi được
+
+- Area: Backend verification / local sandbox / tool cache
+- Trigger: Khi kiểm thử Phase 9 Backend, `cd backend && uv run pytest ...` trong sandbox lỗi `Could not create temporary file` tại `/home/cuong/.cache/uv/...`; sau đó `uv run ruff check ...` lỗi `Permission denied` tại `backend/.ruff_cache/0.15.16/...`.
+- Root cause: Sandbox chỉ cho ghi workspace và `/tmp`, trong khi `uv` mặc định ghi cache dưới home. Riêng `backend/.ruff_cache` đang thuộc user/group `nobody:nobody`, nên kể cả khi chạy ngoài sandbox, ruff vẫn không ghi được cache mặc định trong repo.
+- Fix: Chạy các lệnh `uv run ...` quan trọng bằng quyền đã được phê duyệt khi cần ghi cache ngoài workspace; với ruff, dùng `--cache-dir /tmp/quotify-ruff-cache` để tránh `.ruff_cache` thuộc `nobody`.
+- Regression guard: Khi lệnh verify fail trước khi chạy test/lint với lỗi cache/temp/permission, không kết luận là lỗi code. Kiểm tra quyền cache bằng `ls -ld backend/.ruff_cache backend/.ruff_cache/0.15.16`; chạy ruff targeted với cache `/tmp`; không sửa source để chữa lỗi cache.
+- Related files: `backend/.ruff_cache`, lệnh kiểm thử backend dùng `uv run`, lệnh lint dùng `uv run ruff check --cache-dir /tmp/quotify-ruff-cache ...`
+
+### 2026-07-29: `mypy` targeted gặp internal error trên Python 3.14
+
+- Area: Backend verification / type checking
+- Trigger: Khi chạy `cd backend && uv run mypy app/api/v1/quotify_dashboard.py app/services/quotify_dashboard_service.py app/schemas/quotify_dashboard.py`, mypy trả `INTERNAL ERROR -- Please try using mypy master on GitHub`, version `1.20.2`, Python `3.14`.
+- Root cause: Chưa xác định trong codebase; đây là lỗi nội bộ của mypy trước khi trả lỗi type cụ thể. Dấu hiệu khớp vấn đề tương thích toolchain mypy/Python 3.14 hơn là lỗi type trong Phase 9.
+- Fix: Với Phase 9 Backend, dùng `py_compile`, targeted pytest, permission inventory và ruff targeted để kiểm chứng thay đổi; ghi rõ mypy targeted bị chặn bởi internal error.
+- Regression guard: Nếu cần điều tra, chạy lại với `--show-traceback` để lấy stacktrace, thử kiểm full command chuẩn của repo hoặc chạy trong Docker image Python ổn định hơn. Không sửa code theo phỏng đoán khi mypy chỉ báo internal error và không có diagnostic type.
+- Related files: `backend/app/api/v1/quotify_dashboard.py`, `backend/app/services/quotify_dashboard_service.py`, `backend/app/schemas/quotify_dashboard.py`, cấu hình mypy backend.
+
+### 2026-07-29: Cụm test quote lifecycle/note đang lỗi ngoài diff Phase 9
+
+- Area: Backend quote tests / fake session / note API contract
+- Trigger: Sau khi Phase 9 Backend targeted tests đã pass, chạy mở rộng `cd backend && uv run pytest tests/test_quote_lifecycle.py tests/test_quote_query_service.py tests/test_quotes_list_api.py tests/test_quote_notes_service.py tests/test_quote_notes_api.py -q` trả `13 failed, 8 passed`.
+- Root cause: Chưa điều tra đầy đủ trong task Phase 9 vì các file logic lỗi không nằm trong diff. Dấu hiệu chính gồm `QuoteService._validate_supplier_materials(...)` đang đọc `row[0]` nhưng fake session trả trực tiếp `UUID`; `QuoteNoteService.update_revision(...)` nhận `list` thay vì revision object từ fake result; `QuoteNoteService.delete_revision(...)` `await self.db.delete(...)` nhưng fake DB trả `None`; một số API note tests dùng `MockSession` thiếu `execute` trong route PATCH/DELETE revision.
+- Fix: Chưa sửa trong Phase 9 để tránh mở rộng phạm vi. Cần một task điều tra riêng, bắt đầu từ việc đồng bộ fake session/fake result với cách SQLAlchemy async result thật trả dữ liệu, hoặc chỉnh service để chấp nhận shape row ổn định hơn nếu hợp lý.
+- Regression guard: Khi Phase mới chỉ chạm dashboard, không quy các lỗi quote lifecycle/note này là regression của dashboard nếu `git diff -- backend/app/services/quote_service.py backend/app/services/quote_note_service.py backend/app/api/v1/quotes.py` rỗng. Trước khi sửa quote lifecycle hoặc note revision, đọc mục này và chạy riêng từng test để xác định fake-session contract hay lỗi production service.
+- Related files: `backend/app/services/quote_service.py`, `backend/tests/test_quote_lifecycle.py`, `backend/app/services/quote_note_service.py`, `backend/app/api/v1/quotes.py`, `backend/tests/test_quote_notes_service.py`, `backend/tests/test_quote_notes_api.py`
+
 
 ## Usage Rule
 

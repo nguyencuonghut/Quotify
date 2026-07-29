@@ -531,3 +531,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Sửa lỗi 500 trang cấu hình Quotify
 - Tóm tắt: Đã sửa lỗi /quotify-settings trả 500 do DB dev thiếu bảng quotify_settings và default row không được commit ổn định. Đã chạy migration dev, thêm migration seed default idempotent, commit fallback get_or_create trong GET /quotify-settings, thêm regression API/E2E, và kiểm chứng Docker backend/frontend/E2E.
+
+## 2026-07-29 03:53:25Z - codex
+
+- Tiêu đề: Hoàn thành Phase 9 Backend Dashboard Phân Tích Giá
+- Tóm tắt: Đã thêm backend dashboard Quotify gồm service aggregate, schema và hai endpoint /api/v1/dashboard/quotify/entry-kpis, /api/v1/dashboard/quotify/price-trends. Endpoint dùng dashboard.read, chỉ lấy version confirmed, tính MIN/MAX/AVG bằng SQL trên giá quy đổi đã đóng băng, KPI đếm phiếu theo người tạo ban đầu và trả purchase context trước/sau dựa trên confirmed_at so với purchase_marked_at. Đã kiểm thử targeted dashboard, permission inventory, ruff targeted và py_compile; mypy targeted gặp internal error của mypy 1.20.2 trên Python 3.14.
+
+## 2026-07-29 03:55:06Z - codex
+
+- Tiêu đề: Ghi nhớ lỗi phát hiện khi kiểm thử Phase 9
+- Tóm tắt: Đã cập nhật memory-bank/bugPatterns.md với ba nhóm lỗi cần điều tra sau: cache uv/ruff không ghi được do quyền filesystem, mypy 1.20.2 internal error trên Python 3.14, và cụm test quote lifecycle/note đang lỗi ngoài diff Phase 9 liên quan fake-session/API note contract.
