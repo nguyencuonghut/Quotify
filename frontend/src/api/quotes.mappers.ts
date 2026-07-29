@@ -21,6 +21,7 @@ export function mapQuoteLineDtoToDomain(dto: QuoteLineDto): QuoteLineDomain {
     currency: dto.currency,
     unit: dto.unit,
     deliveryMonth: dto.delivery_month,
+    lineOrder: dto.line_order,
     exchangeRate: dto.exchange_rate !== null ? Number(dto.exchange_rate) : null,
     exchangeRateSource: dto.exchange_rate_source,
     exchangeRateSourceMode: dto.exchange_rate_source_mode,

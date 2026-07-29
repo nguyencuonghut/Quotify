@@ -100,7 +100,7 @@ class QuoteService:
         await self.session.flush()
 
         # Create lines (preview calculation)
-        for line in lines_data:
+        for line_order, line in enumerate(lines_data):
             material_id = UUID(str(line["material_id"]))
             price_original = Decimal(str(line["price_original"]))
             currency = str(line["currency"])
@@ -127,6 +127,7 @@ class QuoteService:
                 currency=currency,
                 unit=unit,
                 delivery_month=delivery_month,
+                line_order=line_order,
                 exchange_rate=pricing["exchange_rate"],
                 exchange_rate_source=pricing["exchange_rate_source"],
                 exchange_rate_source_mode=pricing["exchange_rate_source_mode"],
@@ -202,7 +203,7 @@ class QuoteService:
         self.session.add(version)
         await self.session.flush()
 
-        for line in lines_data:
+        for line_order, line in enumerate(lines_data):
             material_id = UUID(str(line["material_id"]))
             price_original = Decimal(str(line["price_original"]))
             currency = str(line["currency"])
@@ -229,6 +230,7 @@ class QuoteService:
                 currency=currency,
                 unit=unit,
                 delivery_month=delivery_month,
+                line_order=line_order,
                 exchange_rate=pricing["exchange_rate"],
                 exchange_rate_source=pricing["exchange_rate_source"],
                 exchange_rate_source_mode=pricing["exchange_rate_source_mode"],
@@ -295,7 +297,7 @@ class QuoteService:
         await self.session.execute(del_stmt)
 
         # Write new lines
-        for line in lines_data:
+        for line_order, line in enumerate(lines_data):
             material_id = UUID(str(line["material_id"]))
             price_original = Decimal(str(line["price_original"]))
             currency = str(line["currency"])
@@ -322,6 +324,7 @@ class QuoteService:
                 currency=currency,
                 unit=unit,
                 delivery_month=delivery_month,
+                line_order=line_order,
                 exchange_rate=pricing["exchange_rate"],
                 exchange_rate_source=pricing["exchange_rate_source"],
                 exchange_rate_source_mode=pricing["exchange_rate_source_mode"],
@@ -364,7 +367,11 @@ class QuoteService:
             return (await self.session.execute(reload_stmt)).scalar_one()
 
         # Load lines to calculate and freeze pricing
-        lines_stmt = select(QuoteLine).where(QuoteLine.quote_version_id == version_id)
+        lines_stmt = (
+            select(QuoteLine)
+            .where(QuoteLine.quote_version_id == version_id)
+            .order_by(QuoteLine.line_order.asc())
+        )
         lines = (await self.session.execute(lines_stmt)).scalars().all()
 
         for line in lines:

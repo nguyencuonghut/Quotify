@@ -76,5 +76,5 @@ class QuoteVersion(Base):
     lines: Mapped[list[QuoteLine]] = relationship(
         back_populates="version",
         cascade="all, delete-orphan",
-        order_by="QuoteLine.delivery_month.asc()",
+        order_by="QuoteLine.line_order.asc()",
     )

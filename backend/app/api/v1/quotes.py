@@ -89,6 +89,7 @@ def _build_line_response(line: QuoteLine) -> QuoteLineResponse:
         currency=line.currency,
         unit=line.unit,
         delivery_month=line.delivery_month,
+        line_order=line.line_order,
         exchange_rate=line.exchange_rate,
         exchange_rate_source=line.exchange_rate_source,
         exchange_rate_source_mode=line.exchange_rate_source_mode,

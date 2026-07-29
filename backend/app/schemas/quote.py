@@ -41,6 +41,7 @@ class QuoteLineResponse(BaseModel):
     currency: str
     unit: str
     delivery_month: date
+    line_order: int
     exchange_rate: Decimal | None = None
     exchange_rate_source: str | None = None
     exchange_rate_source_mode: str | None = None

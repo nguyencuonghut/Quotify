@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, func
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,6 +37,7 @@ class QuoteLine(Base):
     currency: Mapped[str] = mapped_column(String(10), nullable=False)
     unit: Mapped[str] = mapped_column(String(10), nullable=False)
     delivery_month: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    line_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     
     # Provenance fields for USD/MT
     exchange_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)

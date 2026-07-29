@@ -576,3 +576,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Sửa lỗi click Edit nhà cung cấp sau khi tìm kiếm
 - Tóm tắt: Đã sửa lỗi trang Nhà cung cấp khi nhập W rồi bấm Edit lần đầu chỉ nháy: debounce search DataTable lazy 250ms, bỏ qua response list cũ bằng latestFetchId, thêm @click.stop cho nút sửa/xóa trong hàng, bổ sung unit test useSuppliersPage và E2E spec supplier. Kiểm chứng unit target 3 passed, ESLint mục tiêu pass, lint styles pass, git diff --check pass; Docker E2E chuẩn bị chặn bởi lỗi typecheck cũ ở module báo giá.
+
+## 2026-07-29 06:57:59Z - codex
+
+- Tiêu đề: Sửa thứ tự dòng chi tiết báo giá
+- Tóm tắt: Đã sửa lỗi trang chi tiết báo giá hiển thị dòng khác thứ tự lúc tạo: thêm quote_lines.line_order, migration backfill dữ liệu cũ theo mã vật tư rồi kỳ giao hàng, service ghi line_order theo index payload khi tạo/sửa version, relationship sort theo line_order, API/frontend mapper trả lineOrder. Đã kiểm quote người dùng báo qua API dev, thứ tự Ngô hạt theo tháng tăng dần rồi tới vật tư khác đúng yêu cầu; targeted backend/frontend tests và checks pass.

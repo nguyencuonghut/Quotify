@@ -7,6 +7,7 @@ export interface QuoteLineDto {
   currency: string
   unit: string
   delivery_month: string
+  line_order: number
   exchange_rate: string | null
   exchange_rate_source: string | null
   exchange_rate_source_mode: string | null
@@ -28,6 +29,7 @@ export interface QuoteLineDomain {
   currency: string
   unit: string
   deliveryMonth: string
+  lineOrder: number
   exchangeRate: number | null
   exchangeRateSource: string | null
   exchangeRateSourceMode: string | null

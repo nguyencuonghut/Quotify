@@ -511,6 +511,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Với DataTable lazy có action trong hàng, không refresh bảng ngay trên từng ký tự search nếu action có thể được bấm tức thì. Luôn chặn propagation cho row action buttons và guard stale async list responses để response cũ không ghi đè state mới.
 - Related files: `frontend/src/composables/useSuppliersPage.ts`, `frontend/src/pages/SuppliersPage.vue`, `frontend/tests/unit/useSuppliersPage.spec.ts`, `frontend/tests/e2e/suppliers.spec.ts`
 
+### 2026-07-29: Chi tiết báo giá hiển thị dòng khác thứ tự lúc nhập
+
+- Area: Backend Quote Line ordering / Quote detail UI
+- Trigger: Người dùng tạo phiếu báo giá theo thứ tự một vật tư qua nhiều tháng, ví dụ `Ngô hạt` tháng 08/09/10/11/12 rồi mới tới vật tư khác, nhưng trang chi tiết `/quotes/{id}` hiển thị dòng theo tháng trước nên trộn các vật tư.
+- Root cause: `QuoteVersion.lines` dùng `order_by="QuoteLine.delivery_month.asc()"`. Backend tạo dòng theo đúng thứ tự payload, nhưng không persist vị trí dòng nghiệp vụ; khi reload detail bằng `selectinload`, relationship sort theo kỳ giao hàng làm mất thứ tự người dùng đã nhập.
+- Fix: Thêm cột `quote_lines.line_order`, migration backfill dữ liệu cũ theo `material code -> delivery_month`, service ghi `line_order` bằng index payload khi tạo quote/tạo version/sửa draft, relationship sort theo `QuoteLine.line_order.asc()`, API trả thêm `line_order`, frontend mapper lưu `lineOrder`.
+- Regression guard: Thứ tự hiển thị dòng báo giá là dữ liệu nghiệp vụ, phải persist bằng cột riêng. Không dùng sort phụ như `delivery_month`, `material_id`, UUID hoặc thứ tự vật lý DB để tái tạo thứ tự người dùng đã nhập.
+- Related files: `backend/app/models/quote_line.py`, `backend/app/models/quote_version.py`, `backend/app/services/quote_service.py`, `backend/alembic/versions/20260729_0700_add_quote_line_order.py`, `frontend/src/api/quotes.mappers.ts`
+
 ### 2026-07-29: Frontend quality gate toàn repo bị chặn bởi lỗi cũ ngoài Phase 9
 
 - Area: Frontend verification / Quote pages / TypeScript và ESLint

@@ -323,6 +323,56 @@ async def test_create_quote_success_usd_auto(test_setup: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_quote_preserves_input_line_order(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_ids = list(session.materials.keys())
+    user_id = uuid4()
+
+    lines = [
+        {
+            "material_id": material_ids[0],
+            "price_original": Decimal("15100.00"),
+            "currency": "VND",
+            "unit": "KG",
+            "delivery_month": date(2026, 9, 1),
+        },
+        {
+            "material_id": material_ids[0],
+            "price_original": Decimal("15000.00"),
+            "currency": "VND",
+            "unit": "KG",
+            "delivery_month": date(2026, 8, 1),
+        },
+        {
+            "material_id": material_ids[1],
+            "price_original": Decimal("12000.00"),
+            "currency": "VND",
+            "unit": "KG",
+            "delivery_month": date(2026, 8, 1),
+        },
+    ]
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=lines,
+        created_by_id=user_id,
+    )
+
+    version_lines = quote.versions[0].lines
+    assert [line.line_order for line in version_lines] == [0, 1, 2]
+    assert [(line.material_id, line.delivery_month) for line in version_lines] == [
+        (material_ids[0], date(2026, 9, 1)),
+        (material_ids[0], date(2026, 8, 1)),
+        (material_ids[1], date(2026, 8, 1)),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_create_quote_fail_future_date(test_setup: Any) -> None:
     session, quote_service, _ = test_setup
     

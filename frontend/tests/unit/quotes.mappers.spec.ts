@@ -18,6 +18,7 @@ describe('quotes.mappers', () => {
         currency: 'USD',
         unit: 'MT',
         delivery_month: '2026-08-01',
+        line_order: 0,
         exchange_rate: '26120.00',
         exchange_rate_source: 'Vietcombank',
         exchange_rate_source_mode: 'auto',
@@ -39,6 +40,7 @@ describe('quotes.mappers', () => {
       expect(domain.conversionCostVndPerKg).toBe(250)
       expect(domain.priceConvertedVndPerKg).toBe(3397.06)
       expect(domain.deliveryMonth).toBe('2026-08-01')
+      expect(domain.lineOrder).toBe(0)
     })
 
     it('handles null values for exchange_rate and conversion_cost', () => {
@@ -51,6 +53,7 @@ describe('quotes.mappers', () => {
         currency: 'VND',
         unit: 'KG',
         delivery_month: '2026-08-01',
+        line_order: 1,
         exchange_rate: null,
         exchange_rate_source: null,
         exchange_rate_source_mode: null,
@@ -97,6 +100,7 @@ describe('quotes.mappers', () => {
             currency: 'VND',
             unit: 'KG',
             delivery_month: '2026-08-01',
+            line_order: 0,
             exchange_rate: null,
             exchange_rate_source: null,
             exchange_rate_source_mode: null,
