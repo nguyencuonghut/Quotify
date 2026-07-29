@@ -566,3 +566,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Sửa lỗi backend quote sau Phase 9
 - Tóm tắt: Đã debug cụm lỗi backend quote lifecycle/note phát hiện sau Phase 9 BE: sửa scalar select supplier-material sang result.scalars(), thêm lookup revision trong QuoteNoteService, chuyển route note update/delete sang dùng service lookup thay vì session.execute trực tiếp, đồng bộ fake AsyncSession trong tests và cố định business today trong lifecycle tests. Xác minh bằng Docker targeted tests quote 21 passed, dashboard backend + permission inventory 6 passed 1 skipped, ruff mục tiêu I/F401/F821 pass.
+
+## 2026-07-29 06:32:21Z - codex
+
+- Tiêu đề: Sửa lỗi lưu Nhà cung cấp
+- Tóm tắt: Đã sửa lỗi PUT /api/v1/suppliers/{id} trả 500 khi payload chứa vật tư đã gắn trước đó. Root cause là update_supplier replace toàn bộ supplier_materials bằng object mới, SQLAlchemy insert trước delete nên trùng unique pair. Fix bằng sync theo diff, giữ link vật tư hiện có và chỉ tạo link mới cho vật tư mới. Đã kiểm chứng supplier tests 8 passed, runtime dev API PUT cùng payload hai lần đều 200, ruff mục tiêu và py_compile pass.
+
+## 2026-07-29 06:44:14Z - codex
+
+- Tiêu đề: Sửa lỗi click Edit nhà cung cấp sau khi tìm kiếm
+- Tóm tắt: Đã sửa lỗi trang Nhà cung cấp khi nhập W rồi bấm Edit lần đầu chỉ nháy: debounce search DataTable lazy 250ms, bỏ qua response list cũ bằng latestFetchId, thêm @click.stop cho nút sửa/xóa trong hàng, bổ sung unit test useSuppliersPage và E2E spec supplier. Kiểm chứng unit target 3 passed, ESLint mục tiêu pass, lint styles pass, git diff --check pass; Docker E2E chuẩn bị chặn bởi lỗi typecheck cũ ở module báo giá.

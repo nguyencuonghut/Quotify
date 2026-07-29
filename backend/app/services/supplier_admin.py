@@ -177,9 +177,7 @@ class SupplierAdminService:
         supplier.address = normalize_optional_text(address)
         supplier.note = normalize_optional_text(note)
         supplier.contacts = self._build_contacts(contacts)
-        supplier.supplier_materials = [
-            SupplierMaterial(material_id=material.id) for material in materials
-        ]
+        self._sync_supplier_materials(supplier, materials)
 
         await self.session.flush()
         return await self.get_supplier_by_id(supplier.id)
@@ -244,4 +242,19 @@ class SupplierAdminService:
                 status=contact.status,
             )
             for contact in contacts
+        ]
+
+    def _sync_supplier_materials(
+        self,
+        supplier: Supplier,
+        materials: Sequence[Material],
+    ) -> None:
+        existing_by_material_id = {
+            supplier_material.material_id: supplier_material
+            for supplier_material in supplier.supplier_materials
+        }
+        supplier.supplier_materials = [
+            existing_by_material_id.get(material.id)
+            or SupplierMaterial(material_id=material.id, material=material)
+            for material in materials
         ]

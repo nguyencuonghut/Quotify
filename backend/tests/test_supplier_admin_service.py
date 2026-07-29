@@ -172,6 +172,46 @@ async def test_create_supplier_rejects_inactive_or_missing_materials() -> None:
 
 
 @pytest.mark.asyncio
+async def test_update_supplier_preserves_existing_material_links() -> None:
+    material_a = Material(id=uuid4(), code="CORN", name="Ngô hạt", status="active")
+    material_b = Material(id=uuid4(), code="SBM", name="Khô dầu đậu tương", status="active")
+    supplier = Supplier(
+        id=uuid4(),
+        code="SUP-01",
+        name="Nhà cung cấp A",
+        supplier_type="domestic",
+        status="active",
+    )
+    existing_link = SupplierMaterial(
+        supplier_id=supplier.id,
+        material_id=material_a.id,
+        material=material_a,
+    )
+    supplier.contacts = []
+    supplier.supplier_materials = [existing_link]
+    session = FakeSupplierSession(
+        suppliers_by_id={supplier.id: supplier},
+        suppliers_by_code={supplier.code: supplier},
+        materials_by_id={material_a.id: material_a, material_b.id: material_b},
+    )
+    service = SupplierAdminService(session)  # type: ignore[arg-type]
+
+    updated_supplier = await service.update_supplier(
+        supplier_id=supplier.id,
+        code="SUP-01",
+        name="Nhà cung cấp A cập nhật",
+        supplier_type="domestic",
+        status="active",
+        material_ids=[material_a.id, material_b.id],
+    )
+
+    assert updated_supplier.supplier_materials[0] is existing_link
+    assert updated_supplier.supplier_materials[1].material_id == material_b.id
+    assert updated_supplier.supplier_materials[1].material is material_b
+    assert session.flush_count == 1
+
+
+@pytest.mark.asyncio
 async def test_lookup_suppliers_by_material_returns_active_suppliers() -> None:
     material_id = uuid4()
     active_supplier = Supplier(

@@ -105,6 +105,8 @@ export function useSuppliersPage() {
   const editContacts = ref<SupplierContactDraft[]>([])
   const createMaterialIds = ref<string[]>([])
   const editMaterialIds = ref<string[]>([])
+  let latestFetchId = 0
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   const lazyParams = reactive<SupplierListQueryParams>({
     limit: 10,
@@ -117,16 +119,21 @@ export function useSuppliersPage() {
   })
 
   async function fetchSuppliers() {
+    const fetchId = ++latestFetchId
     loading.value = true
     generalError.value = null
     try {
       const result = await listSuppliers(lazyParams, authStore.accessToken)
+      if (fetchId !== latestFetchId) return
       suppliers.value = result.items
       totalSuppliers.value = result.total
     } catch {
+      if (fetchId !== latestFetchId) return
       generalError.value = 'Không thể tải danh sách NCC.'
     } finally {
-      loading.value = false
+      if (fetchId === latestFetchId) {
+        loading.value = false
+      }
     }
   }
 
@@ -342,7 +349,15 @@ export function useSuppliersPage() {
     return supplierType === 'domestic' ? 'Nội địa' : 'Quốc tế'
   }
 
+  function clearSearchDebounce() {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = null
+    }
+  }
+
   function onPageChange(event: { first: number; rows: number }) {
+    clearSearchDebounce()
     lazyParams.offset = event.first
     lazyParams.limit = event.rows
     void fetchSuppliers()
@@ -352,6 +367,7 @@ export function useSuppliersPage() {
     sortField?: string | ((item: unknown) => string)
     sortOrder?: number | null
   }) {
+    clearSearchDebounce()
     lazyParams.sort_by = typeof event.sortField === 'string' ? event.sortField : 'code'
     lazyParams.sort_order = event.sortOrder === -1 ? 'desc' : 'asc'
     void fetchSuppliers()
@@ -359,10 +375,15 @@ export function useSuppliersPage() {
 
   function onSearchInput() {
     lazyParams.offset = 0
-    void fetchSuppliers()
+    clearSearchDebounce()
+    searchDebounceTimer = setTimeout(() => {
+      searchDebounceTimer = null
+      void fetchSuppliers()
+    }, 250)
   }
 
   function onFilterChange() {
+    clearSearchDebounce()
     lazyParams.offset = 0
     void fetchSuppliers()
   }

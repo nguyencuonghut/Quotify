@@ -493,6 +493,24 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Với scalar select một cột, dùng `result.scalars()` thay vì giả định result row tuple. Route note không nên query session trực tiếp cho cùng một lookup mà service đã sở hữu, vì làm test/API contract bị rò DB chi tiết. Test nghiệp vụ có khái niệm `today` phải cố định business date hoặc inject `now`, không hardcode ngày rồi để trôi theo lịch thật.
 - Related files: `backend/app/services/quote_service.py`, `backend/tests/test_quote_lifecycle.py`, `backend/app/services/quote_note_service.py`, `backend/app/api/v1/quotes.py`, `backend/tests/test_quote_notes_service.py`, `backend/tests/test_quote_notes_api.py`
 
+### 2026-07-29: Edit nhà cung cấp bị duplicate `supplier_materials`
+
+- Area: Backend Supplier Admin / SQLAlchemy relationship sync
+- Trigger: Trên trang `Nhà cung cấp`, edit và lưu NCC gọi `PUT /api/v1/suppliers/{supplier_id}` trả `500 Internal Server Error`; backend log báo `UniqueViolationError` ở unique constraint `uq_supplier_materials_pair`.
+- Root cause: `SupplierAdminService.update_supplier(...)` thay toàn bộ `supplier.supplier_materials` bằng list `SupplierMaterial(...)` mới. Khi payload vẫn chứa vật tư đã gắn trước đó, SQLAlchemy có thể insert link mới trước khi delete orphan link cũ, làm trùng cặp `(supplier_id, material_id)` trong cùng flush.
+- Fix: Đồng bộ link vật tư theo diff: map link hiện có theo `material_id`, giữ object link cũ nếu payload còn vật tư đó, chỉ tạo `SupplierMaterial` mới cho vật tư mới và để cascade `delete-orphan` xóa link bị bỏ. Thêm regression test `test_update_supplier_preserves_existing_material_links`.
+- Regression guard: Khi update relationship có unique constraint theo cặp cha-con, không replace toàn bộ collection bằng object mới nếu có thể giữ object cũ. Hãy sync theo identity/diff để tránh insert-before-delete trong cùng flush.
+- Related files: `backend/app/services/supplier_admin.py`, `backend/tests/test_supplier_admin_service.py`
+
+### 2026-07-29: Click Edit nhà cung cấp lần đầu sau search bị nháy, lần hai mới mở
+
+- Area: Frontend Supplier Catalog / lazy DataTable search
+- Trigger: Trên trang `Nhà cung cấp`, nhập `W` vào ô tìm kiếm để lọc ra `Wilmar Agro Việt Nam (Wilmar Agro)`, bấm nút `Edit` lần đầu thì màn hình chỉ nháy/refresh nhẹ, bấm lần hai mới hiện dialog edit.
+- Root cause: Ô tìm kiếm gọi `fetchSuppliers()` ngay trên từng input, khiến DataTable lazy chuyển sang trạng thái loading đúng lúc người dùng vừa nhìn thấy kết quả và bấm action. Nút action trong hàng cũng chưa chặn propagation, nên dễ bị ảnh hưởng bởi hành vi nội bộ của DataTable khi bảng đang refresh.
+- Fix: Debounce search 250ms, thêm `latestFetchId` để bỏ qua response cũ trả về muộn, và dùng `@click.stop` cho nút sửa/xóa trong hàng. Thêm unit test khóa hành vi debounce, chống stale response và mở edit state ngay từ supplier được chọn; thêm E2E spec supplier để chạy khi quality gate frontend toàn repo được dọn.
+- Regression guard: Với DataTable lazy có action trong hàng, không refresh bảng ngay trên từng ký tự search nếu action có thể được bấm tức thì. Luôn chặn propagation cho row action buttons và guard stale async list responses để response cũ không ghi đè state mới.
+- Related files: `frontend/src/composables/useSuppliersPage.ts`, `frontend/src/pages/SuppliersPage.vue`, `frontend/tests/unit/useSuppliersPage.spec.ts`, `frontend/tests/e2e/suppliers.spec.ts`
+
 ### 2026-07-29: Frontend quality gate toàn repo bị chặn bởi lỗi cũ ngoài Phase 9
 
 - Area: Frontend verification / Quote pages / TypeScript và ESLint

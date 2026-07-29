@@ -115,7 +115,7 @@
                   rounded
                   severity="secondary"
                   text
-                  @click="openEditDialog(data)"
+                  @click.stop="openEditDialog(data)"
                 />
                 <Button
                   v-if="permissionStore.can('suppliers.delete')"
@@ -124,7 +124,7 @@
                   rounded
                   severity="danger"
                   text
-                  @click="openDeleteDialog(data)"
+                  @click.stop="openDeleteDialog(data)"
                 />
               </div>
             </template>
