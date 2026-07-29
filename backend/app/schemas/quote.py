@@ -92,3 +92,4 @@ class QuoteResponse(BaseModel):
 
 class QuoteLinePurchaseToggleRequest(BaseModel):
     purchase: bool
+    purchase_date: datetime | None = None

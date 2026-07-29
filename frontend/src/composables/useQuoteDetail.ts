@@ -124,13 +124,13 @@ export function useQuoteDetail(accessToken: string | null) {
     }
   }
 
-  const handleTogglePurchase = async (lineId: string, currentPurchaseVal: boolean) => {
+  const handleTogglePurchase = async (lineId: string, currentPurchaseVal: boolean, purchaseDate?: string | null) => {
     if (!quote.value) {
       return
     }
     const nextVal = !currentPurchaseVal
     try {
-      await toggleLinePurchase(quote.value.id, lineId, nextVal, accessToken)
+      await toggleLinePurchase(quote.value.id, lineId, nextVal, purchaseDate, accessToken)
       await loadQuote(quote.value.id)
     } catch (err: any) {
       errorMsg.value = err.message || 'Không thể thay đổi trạng thái chốt mua.'

@@ -403,8 +403,12 @@ class QuoteService:
         line_id: UUID,
         purchase: bool,
         user_id: UUID,
+        purchase_date: datetime | None = None,
     ) -> QuoteLine:
-        stmt = select(QuoteLine).options(selectinload(QuoteLine.version)).where(QuoteLine.id == line_id)
+        stmt = select(QuoteLine).options(
+            selectinload(QuoteLine.version),
+            selectinload(QuoteLine.material)
+        ).where(QuoteLine.id == line_id)
         line = (await self.session.execute(stmt)).scalar_one_or_none()
         if not line:
             raise ValueError("Không tìm thấy dòng báo giá.")
@@ -412,7 +416,7 @@ class QuoteService:
             raise ValueError("Chỉ được chốt mua trên phiên bản báo giá đã xác nhận.")
 
         if purchase:
-            line.purchase_marked_at = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
+            line.purchase_marked_at = purchase_date or datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
             line.purchase_marked_by_id = user_id
         else:
             line.purchase_marked_at = None

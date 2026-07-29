@@ -84,9 +84,13 @@ export function toggleLinePurchase(
   id: string,
   lineId: string,
   purchase: boolean,
+  purchaseDate?: string | null,
   accessToken?: string | null,
 ): Promise<QuoteLineDomain> {
-  const payload: QuoteLinePurchaseTogglePayload = { purchase }
+  const payload: QuoteLinePurchaseTogglePayload = {
+    purchase,
+    purchase_date: purchaseDate,
+  }
   return apiRequest<QuoteLineDto>(`/quotes/${id}/lines/${lineId}/purchase`, {
     method: 'PUT',
     body: JSON.stringify(payload),

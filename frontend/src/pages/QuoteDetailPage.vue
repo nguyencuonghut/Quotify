@@ -154,7 +154,13 @@
                 {{ slotProps.data.deliveryMonth.substring(0, 7) }}
               </template>
             </Column>
-            <Column header="Tỷ giá quy đổi (VNĐ/USD)">
+            <Column style="width: 140px;">
+              <template #header>
+                <div style="display: flex; flex-direction: column; line-height: 1.3;">
+                  <span>Tỷ giá quy đổi</span>
+                  <span class="text-xs text-gray-400 font-normal">(VNĐ/USD)</span>
+                </div>
+              </template>
               <template #body="slotProps">
                 <div v-if="slotProps.data.currency.toUpperCase() === 'USD'">
                   <strong>{{ formatMoney(slotProps.data.exchangeRate) }}</strong>
@@ -180,18 +186,21 @@
                 </div>
               </template>
             </Column>
-            <Column header="Chốt mua" style="width: 100px; text-align: center">
+            <Column header="Chốt mua" style="width: 160px; text-align: left">
               <template #body="slotProps">
-                <div class="flex flex-column align-items-center">
+                <div class="flex align-items-center gap-2" style="padding-left: 0.75rem; white-space: nowrap; width: 100%; min-height: 24px;">
                   <Checkbox
                     :model-value="Boolean(slotProps.data.purchaseMarkedAt)"
                     binary
                     :disabled="!hasPurchasePermission || activeVersion?.status === 'draft'"
                     @click="togglePurchase(slotProps.data)"
                   />
-                  <div v-if="slotProps.data.purchaseMarkedAt" class="quote-detail-page__line-purchase-marked mt-1">
-                    <i class="pi pi-check-circle" />
-                    <span>Chốt: {{ formatDateTimeShort(slotProps.data.purchaseMarkedAt) }}</span>
+                  <div
+                    v-if="slotProps.data.purchaseMarkedAt"
+                    class="quote-detail-page__line-purchase-marked m-0"
+                    style="display: inline-block;"
+                  >
+                    <span>Chốt: {{ formatOnlyDate(slotProps.data.purchaseMarkedAt) }}</span>
                   </div>
                 </div>
               </template>
@@ -404,6 +413,42 @@
       </template>
     </Dialog>
 
+    <!-- Purchase Dialog -->
+    <Dialog
+      v-model:visible="showPurchaseDialog"
+      header="Xác nhận ngày chốt mua"
+      :modal="true"
+      :style="{ width: '450px' }"
+    >
+      <div class="quote-detail-page__purchase-dialog-content" style="display: flex; flex-direction: column; gap: 1rem; padding: 0.5rem 0; width: 100%;">
+        <div class="quote-detail-page__purchase-dialog-field" style="display: flex; flex-direction: column; gap: 0.75rem; width: 100%;">
+          <label class="text-sm font-semibold text-gray-700" style="display: block; margin-bottom: 0.25rem;">Ngày chốt mua</label>
+          <DatePicker
+            v-model="selectedPurchaseDate"
+            dateFormat="yy-mm-dd"
+            placeholder="YYYY-MM-DD"
+            showIcon
+            class="w-full"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <Button
+          label="Hủy"
+          icon="pi pi-times"
+          severity="secondary"
+          outlined
+          @click="showPurchaseDialog = false"
+        />
+        <Button
+          label="Xác nhận chốt"
+          icon="pi pi-check"
+          severity="primary"
+          @click="confirmPurchase"
+        />
+      </template>
+    </Dialog>
+
     <!-- View Revision Dialog -->
     <Dialog
       v-model:visible="showRevisionDialog"
@@ -442,6 +487,7 @@ import Checkbox from 'primevue/checkbox'
 import Dialog from 'primevue/dialog'
 import Message from 'primevue/message'
 import Editor from 'primevue/editor'
+import DatePicker from 'primevue/datepicker'
 
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
@@ -603,9 +649,36 @@ const confirmQuoteVersion = async () => {
   }
 }
 
+const showPurchaseDialog = ref<boolean>(false)
+const selectedPurchaseDate = ref<Date>(new Date())
+const selectedLineForPurchase = ref<QuoteLineDomain | null>(null)
+
 const togglePurchase = async (line: QuoteLineDomain) => {
+  if (line.purchaseMarkedAt) {
+    try {
+      await handleTogglePurchase(line.id, true, null)
+    } catch {
+      // handled by composable errorMsg
+    }
+  } else {
+    selectedLineForPurchase.value = line
+    if (quote.value && quote.value.receivedDate) {
+      selectedPurchaseDate.value = new Date(quote.value.receivedDate)
+    } else {
+      selectedPurchaseDate.value = new Date()
+    }
+    showPurchaseDialog.value = true
+  }
+}
+
+const confirmPurchase = async () => {
+  if (!selectedLineForPurchase.value) return
   try {
-    await handleTogglePurchase(line.id, Boolean(line.purchaseMarkedAt))
+    const tzOffset = selectedPurchaseDate.value.getTimezoneOffset() * 60000
+    const localISOTime = new Date(selectedPurchaseDate.value.getTime() - tzOffset).toISOString()
+    await handleTogglePurchase(selectedLineForPurchase.value.id, false, localISOTime)
+    showPurchaseDialog.value = false
+    selectedLineForPurchase.value = null
   } catch {
     // handled by composable errorMsg
   }
@@ -645,5 +718,14 @@ const formatDateTimeShort = (val: string | null): string => {
   const hh = String(date.getHours()).padStart(2, '0')
   const min = String(date.getMinutes()).padStart(2, '0')
   return `${dd}/${mm} ${hh}:${min}`
+}
+
+const formatOnlyDate = (val: string | null): string => {
+  if (!val) return ''
+  const date = new Date(val)
+  const dd = String(date.getDate()).padStart(2, '0')
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const yyyy = date.getFullYear()
+  return `${dd}/${mm}/${yyyy}`
 }
 </script>

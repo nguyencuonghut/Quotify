@@ -123,6 +123,7 @@ export interface QuoteDraftUpdatePayload {
 
 export interface QuoteLinePurchaseTogglePayload {
   purchase: boolean
+  purchase_date?: string | null
 }
 
 export interface QuoteNoteRevisionDto {

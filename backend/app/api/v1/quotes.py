@@ -378,6 +378,7 @@ async def toggle_purchase(
         line = await quote_service.toggle_line_purchase(
             line_id=line_id,
             purchase=payload.purchase,
+            purchase_date=payload.purchase_date,
             user_id=current_user.id,
         )
     except ValueError as exc:
