@@ -19,6 +19,8 @@
           <span class="dashboard-page__filter-label">Vật tư</span>
           <Select
             v-model="selectedMaterialId"
+            filter
+            filter-placeholder="Tìm vật tư..."
             :loading="isLoadingLookups"
             :options="materials"
             option-label="name"

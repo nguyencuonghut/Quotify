@@ -169,6 +169,13 @@ describe('useDashboardPage', () => {
     expect(page.chartData.value.datasets.map((dataset) => dataset.label)).toEqual(
       ['Giá trung bình', 'Giá thấp nhất', 'Giá cao nhất', 'Đã chốt mua'],
     )
+    expect(
+      page.chartData.value.datasets.find((dataset) => dataset.label === 'Đã chốt mua'),
+    ).toMatchObject({
+      borderColor: '#ef4444',
+      backgroundColor: '#ef4444',
+      pointBackgroundColor: '#ef4444',
+    })
   })
 
   it('sends selected material, month and received date filters to dashboard APIs', async () => {

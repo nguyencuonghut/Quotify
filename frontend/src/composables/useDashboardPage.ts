@@ -254,6 +254,7 @@ export function useDashboardPage() {
     const accent = cssVar('--app-accent', '#7c3aed')
     const success = cssVar('--app-success', '#16a34a')
     const warning = cssVar('--app-warning', '#f59e0b')
+    const danger = cssVar('--app-danger', '#ef4444')
 
     return {
       labels: chartLabels.value,
@@ -294,10 +295,10 @@ export function useDashboardPage() {
         {
           label: 'Đã chốt mua',
           data: deliveryMonthBuckets.value.map((bucket) => bucket.purchasedPrice),
-          borderColor: warning,
-          backgroundColor: warning,
-          pointBackgroundColor: warning,
-          pointBorderColor: success,
+          borderColor: danger,
+          backgroundColor: danger,
+          pointBackgroundColor: danger,
+          pointBorderColor: panel,
           pointRadius: 7,
           pointHoverRadius: 9,
           showLine: false,
