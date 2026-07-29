@@ -343,7 +343,7 @@ import { computed } from 'vue'
           <Column field="version_number" header="Phiên bản" sortable>
             <template #body="{ data }">
               <span class="text-xs">Phiên bản #{{ data.versionNumber }}</span>
-              <span class="block text-xs text-gray-400">bởi {{ data.createdByName || 'Hệ thống' }}</span>
+              <span class="block text-xs text-gray-400"> bởi {{ data.createdByName || 'Hệ thống' }}</span>
             </template>
           </Column>
 
