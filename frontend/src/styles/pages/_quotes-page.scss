@@ -30,6 +30,13 @@
     flex-direction: column;
     gap: 0.5rem;
     min-width: 0;
+
+    .p-inputtext,
+    .p-select,
+    .p-datepicker {
+      width: 100%;
+      min-width: 0;
+    }
   }
 
   .quotes-page__filter-label {
@@ -123,5 +130,209 @@
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     border: 1px solid color-mix(in srgb, var(--p-blue-500, #3b82f6) 20%, transparent);
+  }
+
+  .quotes-page__mobile-list {
+    display: none;
+  }
+
+  .quotes-page__mobile-state {
+    color: var(--app-text-muted);
+    font-size: 0.9rem;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .quotes-page__mobile-card {
+    background: var(--app-surface-panel);
+    border: 1px solid var(--app-border-soft);
+    border-radius: 0.5rem;
+    box-shadow: var(--app-shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+    padding: 1rem;
+  }
+
+  .quotes-page__mobile-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .quotes-page__mobile-kicker {
+    color: var(--app-text-muted);
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+
+  .quotes-page__mobile-title {
+    color: var(--app-text-primary);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .quotes-page__mobile-subtitle {
+    color: var(--app-text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin: 0.25rem 0 0;
+    overflow-wrap: anywhere;
+  }
+
+  .quotes-page__mobile-facts {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+
+    div {
+      min-width: 0;
+    }
+
+    dt {
+      color: var(--app-text-muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+    }
+
+    dd {
+      color: var(--app-text-primary);
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .quotes-page__mobile-price {
+    color: var(--app-accent) !important;
+  }
+
+  .quotes-page__mobile-card-footer,
+  .quotes-page__mobile-paginator,
+  .quotes-page__mobile-page-actions {
+    display: flex;
+    align-items: center;
+  }
+
+  .quotes-page__mobile-card-footer {
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .quotes-page__mobile-muted,
+  .quotes-page__mobile-page-report {
+    color: var(--app-text-muted);
+    font-size: 0.8rem;
+  }
+
+  .quotes-page__mobile-paginator {
+    background: var(--app-surface-panel);
+    border: 1px solid var(--app-border-soft);
+    border-radius: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: space-between;
+    padding: 0.75rem;
+  }
+
+  .quotes-page__mobile-rows {
+    width: 5.75rem;
+  }
+
+  .quotes-page__mobile-page-actions {
+    gap: 0.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .quotes-page {
+    gap: 1rem;
+
+    .quotes-page__header,
+    .quotes-page__filters,
+    .quotes-page__actions,
+    .quotes-page__filter-button-group {
+      align-items: stretch;
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .quotes-page__filter-field,
+    .quotes-page__input-search,
+    .quotes-page__supplier-filter,
+    .quotes-page__material-filter {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .quotes-page__filter-button-group {
+      gap: 0.75rem;
+
+      .p-button {
+        width: 100%;
+      }
+    }
+
+    .quotes-page__actions {
+      .p-button {
+        width: 100%;
+      }
+    }
+
+    .quotes-page__filter-advanced {
+      border-radius: 0.5rem;
+      grid-template-columns: minmax(0, 1fr);
+      padding: 1rem;
+    }
+
+    .quotes-page__table-wrapper {
+      display: none;
+    }
+
+    .quotes-page__mobile-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      min-width: 0;
+      width: 100%;
+    }
+  }
+}
+
+@media (max-width: 420px) {
+  .quotes-page {
+    .quotes-page__mobile-card-header,
+    .quotes-page__mobile-card-footer,
+    .quotes-page__mobile-paginator {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .quotes-page__mobile-facts {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .quotes-page__mobile-card-footer {
+      .p-button {
+        width: 100%;
+      }
+    }
+
+    .quotes-page__mobile-page-actions {
+      justify-content: space-between;
+      width: 100%;
+    }
   }
 }

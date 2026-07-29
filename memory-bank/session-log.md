@@ -586,3 +586,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Sửa định dạng giá tiền Dashboard Quotify
 - Tóm tắt: Đã đổi formatter tiền của Dashboard Quotify sang định dạng dấu phẩy phần nghìn và dấu chấm phần thập phân; thêm regression test cho ba card giá tiền và ghi bug pattern.
+
+## 2026-07-29 07:17:04Z - codex
+
+- Tiêu đề: Sửa responsive mobile trang danh sách báo giá
+- Tóm tắt: Đã thêm mobile card list và paginator riêng cho trang `/quotes`, giữ DataTable cho desktop, dọn type DatePicker trong `useQuotesPage` và thêm E2E mobile regression spec.

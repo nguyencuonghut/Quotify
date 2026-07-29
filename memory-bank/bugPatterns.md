@@ -547,6 +547,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Unit test dashboard phải assert cả ba card `Giá thấp nhất`, `Giá cao nhất`, `Giá trung bình` theo format `10,200.00 VNĐ/KG`; không dùng locale trình duyệt hoặc `vi-VN` cho giá tiền khi yêu cầu hiển thị theo dấu phẩy nghìn/dấu chấm thập phân.
 - Related files: `frontend/src/composables/useDashboardPage.ts`, `frontend/tests/unit/useDashboardPage.spec.ts`, `frontend/tests/unit/dashboard.page.spec.ts`
 
+### 2026-07-29: Trang danh sách báo giá chưa responsive trên mobile
+
+- Area: Frontend Quotes list / mobile responsive
+- Trigger: Mở `http://localhost:5173/quotes` trên màn hình mobile thấy layout chưa responsive; bảng nhiều cột và cụm filter/action vẫn mang kiểu desktop nên trải nghiệm đọc và thao tác kém.
+- Root cause: Trang `QuotesPage.vue` chỉ có DataTable desktop 9 cột bọc `overflow-x: auto`; filter/header dùng flex với `min-width` cố định. Với dữ liệu báo giá nhiều trường, chỉ cho cuộn ngang không đủ tốt cho mobile.
+- Fix: Thêm mobile card list riêng cho `/quotes`, ẩn DataTable desktop ở viewport nhỏ, hiển thị từng dòng báo giá thành card có vật tư, nhà cung cấp, ngày nhận, trạng thái, giá quy đổi, giá gốc, kỳ giao hàng, phiên bản và nút `Chi tiết`; thêm paginator mobile gọn với rows 10/20/30/50, prev/next và report tiếng Việt. Đồng thời đổi state DatePicker của `useQuotesPage` sang `Date | null` rồi convert sang query string khi gọi API.
+- Regression guard: Với các DataTable nghiệp vụ có nhiều cột, mobile cần layout thay thế dạng card hoặc stacked content, không chỉ dựa vào horizontal scroll. Phải có E2E/mobile viewport kiểm tra mobile list hiển thị, desktop table bị ẩn và không phát sinh horizontal overflow.
+- Related files: `frontend/src/pages/QuotesPage.vue`, `frontend/src/styles/pages/_quotes-page.scss`, `frontend/src/composables/useQuotesPage.ts`, `frontend/tests/e2e/quotes-mobile.spec.ts`
+
 
 ## Usage Rule
 

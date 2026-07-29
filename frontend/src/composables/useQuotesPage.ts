@@ -2,6 +2,29 @@ import { ref, computed } from 'vue'
 import { getQuotesList } from '@/api/quotes.api'
 import type { QuoteFlattenedDomain } from '@/types/quotes'
 
+type QuoteListQueryParams = Record<string, string | number | boolean | null>
+
+interface QuotesPageChangeEvent {
+  first: number
+  rows: number
+}
+
+interface QuotesSortChangeEvent {
+  sortField?: string | ((item: unknown) => string)
+  sortOrder?: number | null
+}
+
+function toDateInputValue(value: Date | null): string | null {
+  if (!value) {
+    return null
+  }
+
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function useQuotesPage(accessToken: string | null) {
   const items = ref<QuoteFlattenedDomain[]>([])
   const total = ref<number>(0)
@@ -13,9 +36,9 @@ export function useQuotesPage(accessToken: string | null) {
   const supplierId = ref<string | null>(null)
   const materialId = ref<string | null>(null)
   const materialTypeId = ref<string | null>(null)
-  const receivedDateStart = ref<string | null>(null)
-  const receivedDateEnd = ref<string | null>(null)
-  const deliveryMonth = ref<string | null>(null)
+  const receivedDateStart = ref<Date | null>(null)
+  const receivedDateEnd = ref<Date | null>(null)
+  const deliveryMonth = ref<Date | null>(null)
   const purchased = ref<boolean | null>(null)
 
   // Pagination & Sorting
@@ -25,7 +48,7 @@ export function useQuotesPage(accessToken: string | null) {
   const sortOrder = ref<string>('desc')
 
   const queryParams = computed(() => {
-    const params: Record<string, any> = {
+    const params: QuoteListQueryParams = {
       limit: limit.value,
       offset: offset.value,
       sortBy: sortField.value,
@@ -44,14 +67,18 @@ export function useQuotesPage(accessToken: string | null) {
     if (materialTypeId.value) {
       params.materialTypeId = materialTypeId.value
     }
-    if (receivedDateStart.value) {
-      params.receivedDateStart = receivedDateStart.value
+    const receivedDateStartValue = toDateInputValue(receivedDateStart.value)
+    const receivedDateEndValue = toDateInputValue(receivedDateEnd.value)
+    const deliveryMonthValue = toDateInputValue(deliveryMonth.value)
+
+    if (receivedDateStartValue) {
+      params.receivedDateStart = receivedDateStartValue
     }
-    if (receivedDateEnd.value) {
-      params.receivedDateEnd = receivedDateEnd.value
+    if (receivedDateEndValue) {
+      params.receivedDateEnd = receivedDateEndValue
     }
-    if (deliveryMonth.value) {
-      params.deliveryMonth = deliveryMonth.value
+    if (deliveryMonthValue) {
+      params.deliveryMonth = deliveryMonthValue
     }
     if (purchased.value !== null) {
       params.purchased = purchased.value
@@ -67,21 +94,23 @@ export function useQuotesPage(accessToken: string | null) {
       const res = await getQuotesList(queryParams.value, accessToken)
       items.value = res.items
       total.value = res.total
-    } catch (err: any) {
-      errorMsg.value = err.message || 'Lỗi khi tải danh sách báo giá.'
+    } catch (err: unknown) {
+      errorMsg.value =
+        err instanceof Error ? err.message : 'Lỗi khi tải danh sách báo giá.'
     } finally {
       isLoading.value = false
     }
   }
 
-  const handlePageChange = (event: any) => {
+  const handlePageChange = (event: QuotesPageChangeEvent) => {
     limit.value = event.rows
     offset.value = event.first
     loadQuotesData()
   }
 
-  const handleSortChange = (event: any) => {
-    sortField.value = event.sortField || 'created_at'
+  const handleSortChange = (event: QuotesSortChangeEvent) => {
+    sortField.value =
+      typeof event.sortField === 'string' ? event.sortField : 'created_at'
     sortOrder.value = event.sortOrder === 1 ? 'asc' : 'desc'
     loadQuotesData()
   }

@@ -1,129 +1,3 @@
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth.store'
-import { usePermissionStore } from '@/stores/permission.store'
-import { useQuotesPage } from '@/composables/useQuotesPage'
-import { listSuppliers } from '@/api/suppliers.api'
-import { listMaterials, listMaterialTypesLookup } from '@/api/materials.api'
-import type { SupplierDomain } from '@/types/suppliers'
-import type { MaterialDomain, MaterialTypeDomain } from '@/types/materials'
-import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
-import Select from 'primevue/select'
-import DatePicker from 'primevue/datepicker'
-import DataTable from 'primevue/datatable'
-import Column from 'primevue/column'
-import AdminLayout from '@/layouts/AdminLayout.vue'
-
-const authStore = useAuthStore()
-const permissionStore = usePermissionStore()
-const router = useRouter()
-
-const {
-  items,
-  total,
-  isLoading,
-  errorMsg,
-  globalSearch,
-  supplierId,
-  materialId,
-  materialTypeId,
-  receivedDateStart,
-  receivedDateEnd,
-  deliveryMonth,
-  purchased,
-  limit,
-  sortField,
-  sortOrder,
-  loadQuotesData,
-  handlePageChange,
-  handleSortChange,
-  resetFilters,
-} = useQuotesPage(authStore.accessToken)
-
-// Dropdowns lookups data
-const suppliersList = ref<SupplierDomain[]>([])
-const materialsList = ref<MaterialDomain[]>([])
-const materialTypesList = ref<MaterialTypeDomain[]>([])
-const showAdvancedFilters = ref<boolean>(false)
-
-const currencyOptions = [
-  { label: 'Tất cả ngoại tệ', value: '' },
-  { label: 'VND', value: 'VND' },
-  { label: 'USD', value: 'USD' },
-]
-
-const purchasedOptions = [
-  { label: 'Tất cả trạng thái chốt', value: null },
-  { label: 'Đã chốt mua', value: true },
-  { label: 'Chưa chốt mua', value: false },
-]
-
-const fetchLookups = async () => {
-  try {
-    const [suppRes, matRes, typeRes] = await Promise.all([
-      listSuppliers({ limit: 100, offset: 0, sort_by: 'name', sort_order: 'asc' }, authStore.accessToken),
-      listMaterials({ limit: 100, offset: 0, sort_by: 'name', sort_order: 'asc' }, authStore.accessToken),
-      listMaterialTypesLookup(authStore.accessToken),
-    ])
-    suppliersList.value = suppRes.items
-    materialsList.value = matRes.items
-    materialTypesList.value = typeRes
-  } catch (err) {
-    console.error('Failed to load lookups', err)
-  }
-}
-
-onMounted(() => {
-  fetchLookups()
-  loadQuotesData()
-})
-
-const hasCreatePermission = computed(() => {
-  return permissionStore.can('quotes.create')
-})
-
-const goToNewQuote = () => {
-  router.push('/quotes/new')
-}
-
-const onRowClick = (event: any) => {
-  const quoteId = event.data.quoteId
-  router.push(`/quotes/${quoteId}`)
-}
-
-// Utility formatting
-const formatCurrency = (val: number, currency: string) => {
-  if (val === null || val === undefined) return ''
-  const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
-  return currency === 'USD' ? `$${formatted}` : `${formatted} ₫`
-}
-
-const formatVndPerKg = (val: number) => {
-  if (val === null || val === undefined) return ''
-  const formatted = new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(val)
-  return `${formatted} VNĐ/KG`
-}
-
-const formatDate = (val: string) => {
-  if (!val) return ''
-  const dateObj = new Date(val)
-  return new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(dateObj)
-}
-
-const formatDeliveryMonth = (val: string) => {
-  if (!val) return ''
-  const dateObj = new Date(val)
-  return `${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`
-}
-
-import { computed } from 'vue'
-</script>
-
 <template>
   <AdminLayout section-label="Báo giá" title="Bảng báo giá">
     <div class="quotes-page">
@@ -145,11 +19,11 @@ import { computed } from 'vue'
             <Select
               v-model="supplierId"
               :options="suppliersList"
-              optionLabel="name"
-              optionValue="id"
+              option-label="name"
+              option-value="id"
               placeholder="Tất cả"
               class="quotes-page__supplier-filter"
-              showClear
+              show-clear
               @change="loadQuotesData"
             />
           </label>
@@ -159,11 +33,11 @@ import { computed } from 'vue'
             <Select
               v-model="materialId"
               :options="materialsList"
-              optionLabel="name"
-              optionValue="id"
+              option-label="name"
+              option-value="id"
               placeholder="Tất cả"
               class="quotes-page__material-filter"
-              showClear
+              show-clear
               @change="loadQuotesData"
             />
           </label>
@@ -210,10 +84,10 @@ import { computed } from 'vue'
           <Select
             v-model="materialTypeId"
             :options="materialTypesList"
-            optionLabel="name"
-            optionValue="id"
+            option-label="name"
+            option-value="id"
             placeholder="Tất cả"
-            showClear
+            show-clear
             class="w-full"
             @change="loadQuotesData"
           />
@@ -223,11 +97,11 @@ import { computed } from 'vue'
           <span class="quotes-page__filter-label">Từ ngày nhận</span>
           <DatePicker
             v-model="receivedDateStart"
-            dateFormat="yy-mm-dd"
+            date-format="yy-mm-dd"
             placeholder="YYYY-MM-DD"
-            showIcon
+            show-icon
             class="w-full"
-            @update:modelValue="loadQuotesData"
+            @update:model-value="loadQuotesData"
           />
         </label>
 
@@ -235,11 +109,11 @@ import { computed } from 'vue'
           <span class="quotes-page__filter-label">Đến ngày nhận</span>
           <DatePicker
             v-model="receivedDateEnd"
-            dateFormat="yy-mm-dd"
+            date-format="yy-mm-dd"
             placeholder="YYYY-MM-DD"
-            showIcon
+            show-icon
             class="w-full"
-            @update:modelValue="loadQuotesData"
+            @update:model-value="loadQuotesData"
           />
         </label>
 
@@ -248,11 +122,11 @@ import { computed } from 'vue'
           <DatePicker
             v-model="deliveryMonth"
             view="month"
-            dateFormat="yy-mm"
+            date-format="yy-mm"
             placeholder="YYYY-MM"
-            showIcon
+            show-icon
             class="w-full"
-            @update:modelValue="loadQuotesData"
+            @update:model-value="loadQuotesData"
           />
         </label>
 
@@ -261,8 +135,8 @@ import { computed } from 'vue'
           <Select
             v-model="purchased"
             :options="purchasedOptions"
-            optionLabel="label"
-            optionValue="value"
+            option-label="label"
+            option-value="value"
             placeholder="Tất cả"
             class="w-full"
             @change="loadQuotesData"
@@ -282,15 +156,15 @@ import { computed } from 'vue'
           lazy
           paginator
           :rows="limit"
-          :totalRecords="total"
+          :total-records="total"
           :loading="isLoading"
-          :rowsPerPageOptions="[10, 20, 30, 50]"
-          paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-          currentPageReportTemplate="Hiển thị {first} đến {last} của {totalRecords} dòng"
-          sortField="created_at"
-          :sortOrder="-1"
+          :rows-per-page-options="[10, 20, 30, 50]"
+          paginator-template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+          current-page-report-template="Hiển thị {first} đến {last} của {totalRecords} dòng"
+          sort-field="created_at"
+          :sort-order="-1"
           class="p-datatable-sm"
-          :rowClass="() => 'quotes-page__row-clickable'"
+          :row-class="() => 'quotes-page__row-clickable'"
           @page="handlePageChange"
           @sort="handleSortChange"
           @row-click="onRowClick"
@@ -356,6 +230,253 @@ import { computed } from 'vue'
           </Column>
         </DataTable>
       </section>
+
+      <section class="quotes-page__mobile-list" aria-label="Danh sách báo giá trên mobile">
+        <div v-if="isLoading" class="quotes-page__mobile-state">
+          Đang tải danh sách báo giá...
+        </div>
+        <div v-else-if="items.length === 0" class="quotes-page__mobile-state">
+          Chưa có dữ liệu báo giá phù hợp.
+        </div>
+        <template v-else>
+          <article
+            v-for="item in items"
+            :key="item.id"
+            class="quotes-page__mobile-card"
+          >
+            <div class="quotes-page__mobile-card-header">
+              <div>
+                <span class="quotes-page__mobile-kicker">
+                  {{ formatDate(item.receivedDate) }}
+                </span>
+                <h3 class="quotes-page__mobile-title">{{ item.materialName }}</h3>
+                <p class="quotes-page__mobile-subtitle">{{ item.supplierName }}</p>
+              </div>
+              <span :class="['quotes-page__status-badge', `status-${item.versionStatus}`]">
+                {{ item.versionStatus === 'confirmed' ? 'Đã xác nhận' : 'Bản nháp' }}
+              </span>
+            </div>
+
+            <dl class="quotes-page__mobile-facts">
+              <div>
+                <dt>Giá quy đổi</dt>
+                <dd class="quotes-page__mobile-price">
+                  {{ formatVndPerKg(item.priceConvertedVndPerKg) }}
+                </dd>
+              </div>
+              <div>
+                <dt>Giá gốc</dt>
+                <dd>{{ formatCurrency(item.priceOriginal, item.currency) }} / {{ item.unit }}</dd>
+              </div>
+              <div>
+                <dt>Kỳ giao hàng</dt>
+                <dd>{{ formatDeliveryMonth(item.deliveryMonth) }}</dd>
+              </div>
+              <div>
+                <dt>Phiên bản</dt>
+                <dd>#{{ item.versionNumber }} - {{ item.createdByName || 'Hệ thống' }}</dd>
+              </div>
+            </dl>
+
+            <div class="quotes-page__mobile-card-footer">
+              <span v-if="item.purchased" class="quotes-page__purchased-badge">
+                <i class="pi pi-check-circle" /> Chốt mua
+              </span>
+              <span v-else class="quotes-page__mobile-muted">Chưa chốt</span>
+              <Button
+                icon="pi pi-arrow-right"
+                label="Chi tiết"
+                size="small"
+                text
+                @click="openQuoteDetail(item.quoteId)"
+              />
+            </div>
+          </article>
+        </template>
+
+        <div class="quotes-page__mobile-paginator">
+          <Select
+            v-model="limit"
+            :options="[10, 20, 30, 50]"
+            aria-label="Số dòng mỗi trang"
+            class="quotes-page__mobile-rows"
+            @change="onMobileRowsChange"
+          />
+          <span class="quotes-page__mobile-page-report">
+            Hiển thị {{ pageStart }} đến {{ pageEnd }} trên tổng số {{ total }} dòng
+          </span>
+          <div class="quotes-page__mobile-page-actions">
+            <Button
+              aria-label="Trang trước"
+              icon="pi pi-chevron-left"
+              rounded
+              text
+              :disabled="!canGoPrevious"
+              @click="goToPreviousPage"
+            />
+            <Button
+              aria-label="Trang sau"
+              icon="pi pi-chevron-right"
+              rounded
+              text
+              :disabled="!canGoNext"
+              @click="goToNextPage"
+            />
+          </div>
+        </div>
+      </section>
     </div>
   </AdminLayout>
 </template>
+
+<script setup lang="ts">
+import { computed, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth.store'
+import { usePermissionStore } from '@/stores/permission.store'
+import { useQuotesPage } from '@/composables/useQuotesPage'
+import { listSuppliers } from '@/api/suppliers.api'
+import { listMaterials, listMaterialTypesLookup } from '@/api/materials.api'
+import type { SupplierDomain } from '@/types/suppliers'
+import type { MaterialDomain, MaterialTypeDomain } from '@/types/materials'
+import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
+import DatePicker from 'primevue/datepicker'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
+import AdminLayout from '@/layouts/AdminLayout.vue'
+
+const authStore = useAuthStore()
+const permissionStore = usePermissionStore()
+const router = useRouter()
+
+const {
+  items,
+  total,
+  isLoading,
+  errorMsg,
+  globalSearch,
+  supplierId,
+  materialId,
+  materialTypeId,
+  receivedDateStart,
+  receivedDateEnd,
+  deliveryMonth,
+  purchased,
+  limit,
+  offset,
+  loadQuotesData,
+  handlePageChange,
+  handleSortChange,
+  resetFilters,
+} = useQuotesPage(authStore.accessToken)
+
+// Dropdowns lookups data
+const suppliersList = ref<SupplierDomain[]>([])
+const materialsList = ref<MaterialDomain[]>([])
+const materialTypesList = ref<MaterialTypeDomain[]>([])
+const showAdvancedFilters = ref<boolean>(false)
+
+const purchasedOptions = [
+  { label: 'Tất cả trạng thái chốt', value: null },
+  { label: 'Đã chốt mua', value: true },
+  { label: 'Chưa chốt mua', value: false },
+]
+
+const fetchLookups = async () => {
+  try {
+    const [suppRes, matRes, typeRes] = await Promise.all([
+      listSuppliers({ limit: 100, offset: 0, sort_by: 'name', sort_order: 'asc' }, authStore.accessToken),
+      listMaterials({ limit: 100, offset: 0, sort_by: 'name', sort_order: 'asc' }, authStore.accessToken),
+      listMaterialTypesLookup(authStore.accessToken),
+    ])
+    suppliersList.value = suppRes.items
+    materialsList.value = matRes.items
+    materialTypesList.value = typeRes
+  } catch (err) {
+    console.error('Failed to load lookups', err)
+  }
+}
+
+onMounted(() => {
+  fetchLookups()
+  loadQuotesData()
+})
+
+const hasCreatePermission = computed(() => {
+  return permissionStore.can('quotes.create')
+})
+
+const goToNewQuote = () => {
+  router.push('/quotes/new')
+}
+
+const openQuoteDetail = (quoteId: string) => {
+  router.push(`/quotes/${quoteId}`)
+}
+
+const onRowClick = (event: { data: { quoteId: string } }) => {
+  const quoteId = event.data.quoteId
+  openQuoteDetail(quoteId)
+}
+
+const pageStart = computed(() => {
+  return total.value > 0 && items.value.length > 0 ? offset.value + 1 : 0
+})
+
+const pageEnd = computed(() => {
+  return Math.min(offset.value + items.value.length, total.value)
+})
+
+const canGoPrevious = computed(() => offset.value > 0)
+const canGoNext = computed(() => offset.value + limit.value < total.value)
+
+const goToPreviousPage = () => {
+  if (!canGoPrevious.value) return
+  handlePageChange({
+    first: Math.max(0, offset.value - limit.value),
+    rows: limit.value,
+  })
+}
+
+const goToNextPage = () => {
+  if (!canGoNext.value) return
+  handlePageChange({
+    first: offset.value + limit.value,
+    rows: limit.value,
+  })
+}
+
+const onMobileRowsChange = () => {
+  handlePageChange({ first: 0, rows: limit.value })
+}
+
+// Utility formatting
+const formatCurrency = (val: number, currency: string) => {
+  if (val === null || val === undefined) return ''
+  const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
+  return currency === 'USD' ? `$${formatted}` : `${formatted} ₫`
+}
+
+const formatVndPerKg = (val: number) => {
+  if (val === null || val === undefined) return ''
+  const formatted = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val)
+  return `${formatted} VNĐ/KG`
+}
+
+const formatDate = (val: string) => {
+  if (!val) return ''
+  const dateObj = new Date(val)
+  return new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(dateObj)
+}
+
+const formatDeliveryMonth = (val: string) => {
+  if (!val) return ''
+  const dateObj = new Date(val)
+  return `${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`
+}
+</script>
