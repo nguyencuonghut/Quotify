@@ -207,10 +207,14 @@
 
           <Column field="purchased" header="Chốt mua">
             <template #body="{ data }">
-              <span v-if="data.purchased" class="quotes-page__purchased-badge">
-                <i class="pi pi-check-circle" /> Chốt mua
+              <span v-if="data.purchased" class="quotes-page__purchased-indicator">
+                <Checkbox
+                  :model-value="true"
+                  binary
+                  aria-label="Đã chốt mua"
+                  @click.stop.prevent
+                />
               </span>
-              <span v-else class="text-xs text-gray-400 italic">Chưa chốt</span>
             </template>
           </Column>
 
@@ -279,10 +283,15 @@
             </dl>
 
             <div class="quotes-page__mobile-card-footer">
-              <span v-if="item.purchased" class="quotes-page__purchased-badge">
-                <i class="pi pi-check-circle" /> Chốt mua
+              <span v-if="item.purchased" class="quotes-page__purchased-indicator">
+                <Checkbox
+                  :model-value="true"
+                  binary
+                  aria-label="Đã chốt mua"
+                  @click.stop.prevent
+                />
               </span>
-              <span v-else class="quotes-page__mobile-muted">Chưa chốt</span>
+              <span v-else />
               <Button
                 icon="pi pi-arrow-right"
                 label="Chi tiết"
@@ -340,6 +349,7 @@ import { listMaterials, listMaterialTypesLookup } from '@/api/materials.api'
 import type { SupplierDomain } from '@/types/suppliers'
 import type { MaterialDomain, MaterialTypeDomain } from '@/types/materials'
 import Button from 'primevue/button'
+import Checkbox from 'primevue/checkbox'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import DatePicker from 'primevue/datepicker'
