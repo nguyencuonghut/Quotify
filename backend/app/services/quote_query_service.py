@@ -81,6 +81,7 @@ class QuoteQueryService:
         if filters:
             stmt = stmt.where(*filters)
 
+        stmt = stmt.where(QuoteVersion.status != "superseded")
         return stmt
 
     async def query_flattened_quotes(

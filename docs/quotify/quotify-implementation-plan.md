@@ -220,7 +220,7 @@ version là một snapshot đầy đủ và độc lập. Quy tắc copy chi ti�
 | NCC và identity của `Quote` | giữ nguyên |
 | Material, giá gốc, tiền tệ, đơn vị của từng dòng | sao chép |
 | Ngày báo giá, ngày nhận | yêu cầu người dùng xác nhận/nhập cho version mới |
-| Tỷ giá, nguồn tỷ giá, chi phí và giá quy đổi | tính và đóng băng lại khi confirm theo ngày nhận của version mới |
+| Tỷ giá, nguồn tỷ giá, chi phí và giá quy đổi | nếu bản điều chỉnh giữ nguyên ngày nhận báo giá của version cũ thì dùng lại snapshot tỷ giá/chi phí cũ và chỉ tính lại giá quy đổi theo giá gốc mới; nếu ngày nhận đổi sang hôm nay thì lấy tỷ giá Vietcombank tự động tại thời điểm tạo/xác nhận bản điều chỉnh |
 | `is_purchased`, actor và các timestamp chốt mua | reset; không sao chép |
 | File nguồn | không sao chép; version mới upload file riêng nếu có |
 | Ghi chú | giữ ở cấp `Quote`; không nhân bản revision |
@@ -723,7 +723,10 @@ core; frontend hoàn chỉnh được làm ở Phase 6.
 4. Version mới là snapshot đầy đủ được sao chép từ version trước rồi chỉnh những
    dòng thay đổi theo copy matrix DG-01; đây là mặc định đề xuất và cần chốt ở
    Phase 0.
-5. Version confirmed không sửa giá/date/material; thay đổi tạo version mới.
+5. Version `confirmed` không sửa giá/date/material trực tiếp; khi phát hiện nhập sai,
+   người dùng tạo bản điều chỉnh có lý do bắt buộc. Khi bản điều chỉnh được xác
+   nhận, version `confirmed` cũ chuyển sang `superseded` và không còn là dữ liệu
+   hiệu lực cho danh sách báo giá/dashboard mặc định.
 6. Version draft được sửa/xóa dòng trước khi confirm.
 7. Mỗi `Quote` chỉ có tối đa một draft; unique `(quote_id, version_number)` và
    partial unique index cho draft là constraint ở database.
@@ -740,20 +743,24 @@ core; frontend hoàn chỉnh được làm ở Phase 6.
     backend từ chối manual fallback.
 14. Với ngày nhận quá khứ, payload bắt buộc có manual rate; source mode là
     `manual_past`.
-15. `QuoteLine` lưu rate, source, source mode, retrieved/entered time, manual
+15. Với bản điều chỉnh báo giá đã xác nhận: nếu `received_date` giữ nguyên như
+    version hiệu lực cũ, backend phải dùng lại snapshot tỷ giá/chi phí của dòng
+    cũ có cùng material, kỳ giao, tiền tệ và đơn vị; nếu `received_date` đổi sang
+    hôm nay, backend lấy lại tỷ giá Vietcombank tự động theo quy tắc ngày hiện tại.
+16. `QuoteLine` lưu rate, source, source mode, retrieved/entered time, manual
     reason, actor nhập tay, conversion cost và converted price.
-16. NCC phải đang cung cấp material được chọn.
-17. Ngày nhận không ở tương lai.
-18. Predicate nhập lại duy nhất là `received_date < today` **hoặc**
+17. NCC phải đang cung cấp material được chọn.
+18. Ngày nhận không ở tương lai.
+19. Predicate nhập lại duy nhất là `received_date < today` **hoặc**
     `delivery_month < first_day_of_current_month`, tính theo
     `Asia/Ho_Chi_Minh`. Khi đúng, backend và UI đều bắt buộc
     `is_backfilled=true` cùng lý do. Định nghĩa này đã được Phase 0 đồng bộ vào
     `Requirements.txt` và `CONTEXT.md`.
-19. Checkbox purchase tự lưu `purchase_marked_at`,
+20. Checkbox purchase tự lưu `purchase_marked_at`,
     `purchase_marked_by_id`; không nhận timestamp do frontend gửi.
-20. Untick được phép nếu user có `quotes.mark_purchased`; lưu actor/time bỏ đánh
+21. Untick được phép nếu user có `quotes.mark_purchased`; lưu actor/time bỏ đánh
     dấu và audit vẫn giữ lịch sử.
-21. Tệp báo giá gốc tái sử dụng `FileAdminService`, file private.
+22. Tệp báo giá gốc tái sử dụng `FileAdminService`, file private.
 
 ### API Dự Kiến
 

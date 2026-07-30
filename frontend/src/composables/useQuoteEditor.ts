@@ -1,9 +1,9 @@
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
 import { getUsdSellRateToday } from '@/api/exchange-rates.api'
 import { getQuotifySettings } from '@/api/quotify-settings.api'
 import { getSupplier } from '@/api/suppliers.api'
 import type { SupplierMaterialDomain } from '@/types/suppliers'
-import type { QuoteLineCreatePayload, QuoteCreatePayload, QuoteDraftUpdatePayload, QuoteVersionDomain, QuoteDomain } from '@/types/quotes'
+import type { QuoteCreatePayload, QuoteDraftUpdatePayload, QuoteVersionDomain, QuoteDomain } from '@/types/quotes'
 
 export function getTodayString(): string {
   const tzOffset = 7 * 60 // GMT+7
@@ -53,6 +53,11 @@ export interface QuoteEditorLine {
   exchangeRate: number | null
   exchangeRateSource?: string | null
   exchangeRateManualReason: string | null
+  snapshotReceivedDate?: string | null
+  snapshotExchangeRate?: number | null
+  snapshotExchangeRateSource?: string | null
+  snapshotExchangeRateSourceMode?: 'auto' | 'manual_past' | 'manual_fallback' | null
+  snapshotExchangeRateManualReason?: string | null
   
   // UI states
   rateSourceMode: 'auto' | 'manual_past' | 'manual_fallback' | null
@@ -66,6 +71,7 @@ export function useQuoteEditor(accessToken: string | null) {
   const receivedDate = ref<string>(getTodayString())
   const isBackfilled = ref<boolean>(false)
   const backfillReason = ref<string | null>(null)
+  const correctionReason = ref<string | null>(null)
   
   const lines = ref<QuoteEditorLine[]>([])
   
@@ -128,6 +134,14 @@ export function useQuoteEditor(accessToken: string | null) {
       line.exchangeRate = null
       line.exchangeRateSource = ''
       line.exchangeRateManualReason = null
+      return
+    }
+
+    if (line.snapshotReceivedDate && receivedDate.value === line.snapshotReceivedDate) {
+      line.rateSourceMode = line.snapshotExchangeRateSourceMode ?? null
+      line.exchangeRate = line.snapshotExchangeRate ?? null
+      line.exchangeRateSource = line.snapshotExchangeRateSource || ''
+      line.exchangeRateManualReason = line.snapshotExchangeRateManualReason ?? null
       return
     }
 
@@ -242,6 +256,11 @@ export function useQuoteEditor(accessToken: string | null) {
       exchangeRate: sourceLine.exchangeRate,
       exchangeRateSource: sourceLine.exchangeRateSource || '',
       exchangeRateManualReason: sourceLine.exchangeRateManualReason,
+      snapshotReceivedDate: null,
+      snapshotExchangeRate: null,
+      snapshotExchangeRateSource: null,
+      snapshotExchangeRateSourceMode: null,
+      snapshotExchangeRateManualReason: null,
       rateSourceMode: sourceLine.rateSourceMode,
       autoRateFetched: sourceLine.autoRateFetched,
       isRateLoading: false,
@@ -257,6 +276,7 @@ export function useQuoteEditor(accessToken: string | null) {
     receivedDate.value = version.receivedDate
     isBackfilled.value = version.isBackfilled
     backfillReason.value = version.backfillReason
+    correctionReason.value = version.correctionReason
     
     lines.value = version.lines.map((line) => {
       const editorLine: QuoteEditorLine = {
@@ -269,6 +289,11 @@ export function useQuoteEditor(accessToken: string | null) {
         exchangeRate: line.exchangeRate,
         exchangeRateSource: line.exchangeRateSource || '',
         exchangeRateManualReason: line.exchangeRateManualReason,
+        snapshotReceivedDate: version.receivedDate,
+        snapshotExchangeRate: line.exchangeRate,
+        snapshotExchangeRateSource: line.exchangeRateSource || '',
+        snapshotExchangeRateSourceMode: line.exchangeRateSourceMode as any,
+        snapshotExchangeRateManualReason: line.exchangeRateManualReason,
         rateSourceMode: line.exchangeRateSourceMode as any,
         autoRateFetched: null,
         isRateLoading: false,
@@ -389,6 +414,7 @@ export function useQuoteEditor(accessToken: string | null) {
       received_date: receivedDate.value,
       is_backfilled: isBackfilled.value,
       backfill_reason: backfillReason.value,
+      correction_reason: correctionReason.value,
       lines: lines.value.map((l) => ({
         material_id: l.materialId!,
         price_original: l.priceOriginal!,
@@ -406,6 +432,7 @@ export function useQuoteEditor(accessToken: string | null) {
     receivedDate,
     isBackfilled,
     backfillReason,
+    correctionReason,
     lines,
     supplierMaterials,
     conversionCost,

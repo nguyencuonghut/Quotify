@@ -132,6 +132,7 @@ def test_quotify_user_role_business_crud_permissions_are_seeded() -> None:
         "quotes.create",
         "quotes.update",
         "quotes.mark_purchased",
+        "exchange_rates.read",
     }
     user_role_permissions = _load_user_role_permission_codes()
 

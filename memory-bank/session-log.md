@@ -636,3 +636,18 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Cấp quyền business CRUD cho role User
 - Tóm tắt: Đã cập nhật auth/RBAC seed để role user nhận dashboard.read, CRUD Loại vật tư, CRUD Vật tư, CRUD Nhà cung cấp và các quyền báo giá hiện có quotes.read/create/update/mark_purchased. Không thêm quotes.delete vì codebase chưa có permission hoặc route xóa báo giá. Đã chạy permission inventory, Ruff/mypy mục tiêu, seed_auth_rbac.py trong Docker dev và query DB xác nhận đủ 17 quyền.
+
+## 2026-07-30 01:44:12Z - codex
+
+- Tiêu đề: Sửa quyền lấy tỷ giá Vietcombank cho role User
+- Tóm tắt: Đã xác nhận user Phạm Thị Trang bị 403 khi gọi API tỷ giá do thiếu quyền exchange_rates.read, trong khi Admin trả 200. Đã thêm exchange_rates.read vào USER_ROLE_PERMISSION_CODES, cập nhật permission inventory test, chạy lại seed_auth_rbac.py, kiểm chứng API user/Admin đều trả 200 và ghi bug pattern.
+
+## 2026-07-30 02:08:04Z - codex
+
+- Tiêu đề: Bổ sung bản điều chỉnh báo giá
+- Tóm tắt: Đã thêm cơ chế tạo bản điều chỉnh cho báo giá đã xác nhận: bắt buộc lý do điều chỉnh, confirm bản mới sẽ chuyển bản confirmed cũ sang superseded, danh sách báo giá loại superseded và dashboard chỉ dùng bản confirmed hiệu lực. Frontend đổi action thành Tạo bản điều chỉnh, thêm field Lý do điều chỉnh và hiển thị trạng thái Đã bị thay thế.
+
+## 2026-07-30 02:19:36Z - codex
+
+- Tiêu đề: Quy tắc tỷ giá bản điều chỉnh báo giá
+- Tóm tắt: Đã triển khai quy tắc bản điều chỉnh Quotify: giữ nguyên ngày nhận báo giá thì dùng lại snapshot tỷ giá/nguồn/chi phí của version hiệu lực cũ; đổi ngày nhận sang hôm nay thì lấy tỷ giá Vietcombank tự động. Backend đảm bảo tại create_version và confirm_version, frontend không tự ép ngày nhận về hôm nay khi clone bản điều chỉnh, tài liệu và memory đã cập nhật.

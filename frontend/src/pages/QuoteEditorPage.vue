@@ -1,7 +1,7 @@
 <template>
   <AdminLayout
     section-label="Báo giá"
-    :title="isNewQuote ? 'Nhập báo giá mới' : isNewVersion ? 'Tạo phiên bản mới' : 'Chỉnh sửa bản nháp'"
+    :title="isNewQuote ? 'Nhập báo giá mới' : isNewVersion ? 'Tạo bản điều chỉnh' : 'Chỉnh sửa bản nháp'"
   >
     <div class="quote-editor-page">
       <!-- Error Banner -->
@@ -56,6 +56,29 @@
               placeholder="Chọn ngày nhận..."
               class="quote-editor-page__input-w"
               show-icon
+            />
+          </div>
+        </div>
+
+        <div v-if="isNewVersion" class="quote-editor-page__correction-banner">
+          <p class="quote-editor-page__backfill-title">
+            <i class="pi pi-exclamation-circle" />
+            Bản điều chỉnh sẽ thay thế phiên bản đã xác nhận hiện tại sau khi được xác nhận.
+          </p>
+          <p class="quote-editor-page__correction-hint">
+            Giữ ngày nhận báo giá như phiên bản cũ để dùng snapshot tỷ giá cũ. Đổi sang hôm nay để lấy tỷ giá Vietcombank mới.
+          </p>
+          <div class="quote-editor-page__form-field">
+            <label for="correction-reason-input">
+              Lý do điều chỉnh
+              <span class="required-marker">*</span>
+            </label>
+            <Textarea
+              id="correction-reason-input"
+              v-model="correctionReason"
+              rows="2"
+              placeholder="Ví dụ: Sửa giá nhập nhầm từ báo giá nhà cung cấp..."
+              class="quote-editor-page__input-w"
             />
           </div>
         </div>
@@ -374,7 +397,7 @@ import { listSuppliers } from '@/api/suppliers.api'
 import { getQuote, createQuote, updateDraft, createVersion } from '@/api/quotes.api'
 import type { SupplierDomain } from '@/types/suppliers'
 import type { QuoteDomain, QuoteVersionDomain } from '@/types/quotes'
-import { useQuoteEditor, getTodayString } from '@/composables/useQuoteEditor'
+import { useQuoteEditor } from '@/composables/useQuoteEditor'
 import ExchangeRateField from '@/components/quotes/ExchangeRateField.vue'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 
@@ -398,6 +421,7 @@ const {
   receivedDate,
   isBackfilled,
   backfillReason,
+  correctionReason,
   lines,
   supplierMaterials,
   isSupplierLoading,
@@ -490,9 +514,6 @@ onMounted(async () => {
         const latest = sorted[0]
         if (latest) {
           await loadVersionData(latest, quote)
-          // Evaluate backfill and rates for new clone version under current date
-          receivedDate.value = getTodayString()
-          // evaluateRateModeForLine will be triggered dynamically
         } else {
           addLine()
         }
@@ -513,6 +534,10 @@ const goBack = () => {
 
 const submitForm = async () => {
   if (!validateForm()) {
+    return
+  }
+  if (isNewVersion.value && (!correctionReason.value || !correctionReason.value.trim())) {
+    errorMsg.value = 'Vui lòng nhập lý do điều chỉnh báo giá.'
     return
   }
 

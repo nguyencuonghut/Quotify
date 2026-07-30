@@ -138,8 +138,8 @@ export const router = createRouter({
       meta: {
         requiresAuth: true,
         requiredPermission: 'quotes.update',
-        title: 'Tạo phiên bản báo giá',
-        description: 'Tạo phiên bản mới dựa trên phiên bản hiện tại của báo giá.',
+        title: 'Tạo bản điều chỉnh báo giá',
+        description: 'Tạo bản điều chỉnh để thay thế phiên bản đã xác nhận hiện tại.',
       },
     },
     {

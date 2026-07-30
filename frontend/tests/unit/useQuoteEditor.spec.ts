@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useQuoteEditor } from '@/composables/useQuoteEditor'
+import { getTodayString, useQuoteEditor } from '@/composables/useQuoteEditor'
 import { useAuthStore } from '@/stores/auth.store'
 
 const exchangeRatesApiMock = vi.hoisted(() => ({
@@ -104,6 +104,120 @@ describe('useQuoteEditor', () => {
     
     editor.evaluateBackfill()
     expect(editor.isBackfilled.value).toBe(true)
+  })
+
+  it('preserves cloned quote version rate snapshot while received date is unchanged', async () => {
+    exchangeRatesApiMock.getUsdSellRateToday.mockResolvedValue({
+      rate: 27000,
+      source: 'Vietcombank USD bán ra',
+      retrievedAt: '2026-07-30T08:00:00+07:00',
+    })
+    const today = getTodayString()
+    const editor = useQuoteEditor('mock-token')
+    await editor.fetchUsdRateToday()
+
+    await editor.loadVersionData({
+      id: 'version-1',
+      quoteId: 'quote-1',
+      versionNumber: 1,
+      receivedDate: today,
+      status: 'confirmed',
+      fileId: null,
+      isBackfilled: false,
+      backfillReason: null,
+      correctionReason: null,
+      createdById: 'user-1',
+      confirmedAt: null,
+      confirmedById: null,
+      supersededAt: null,
+      supersededById: null,
+      supersededByVersionId: null,
+      createdAt: today,
+      updatedAt: today,
+      lines: [{
+        id: 'line-1',
+        materialId: 'mat-1',
+        materialCode: 'MAT-1',
+        materialName: 'Ngô hạt',
+        priceOriginal: 700,
+        currency: 'USD',
+        unit: 'MT',
+        deliveryMonth: '2026-08-01',
+        lineOrder: 0,
+        exchangeRate: 26000,
+        exchangeRateSource: 'Vietcombank USD bán ra',
+        exchangeRateSourceMode: 'auto',
+        exchangeRateEnteredAt: '2026-07-30T08:00:00+07:00',
+        exchangeRateManualReason: null,
+        exchangeRateActorId: null,
+        conversionCostVndPerKg: 150,
+        priceConvertedVndPerKg: 18350,
+        purchaseMarkedAt: null,
+        purchaseMarkedById: null,
+      }],
+    })
+    editor.evaluateRateModeForLine(editor.lines.value[0])
+
+    expect(editor.lines.value[0].exchangeRate).toBe(26000)
+    expect(editor.lines.value[0].rateSourceMode).toBe('auto')
+  })
+
+  it('switches cloned quote version rate to automatic when received date changes to today', async () => {
+    exchangeRatesApiMock.getUsdSellRateToday.mockResolvedValue({
+      rate: 27000,
+      source: 'Vietcombank USD bán ra',
+      retrievedAt: '2026-07-30T08:00:00+07:00',
+    })
+    const today = getTodayString()
+    const editor = useQuoteEditor('mock-token')
+    await editor.fetchUsdRateToday()
+
+    await editor.loadVersionData({
+      id: 'version-1',
+      quoteId: 'quote-1',
+      versionNumber: 1,
+      receivedDate: '2026-07-27',
+      status: 'confirmed',
+      fileId: null,
+      isBackfilled: true,
+      backfillReason: 'Nhập lại báo giá cũ.',
+      correctionReason: null,
+      createdById: 'user-1',
+      confirmedAt: null,
+      confirmedById: null,
+      supersededAt: null,
+      supersededById: null,
+      supersededByVersionId: null,
+      createdAt: '2026-07-27',
+      updatedAt: '2026-07-27',
+      lines: [{
+        id: 'line-1',
+        materialId: 'mat-1',
+        materialCode: 'MAT-1',
+        materialName: 'Ngô hạt',
+        priceOriginal: 700,
+        currency: 'USD',
+        unit: 'MT',
+        deliveryMonth: '2026-08-01',
+        lineOrder: 0,
+        exchangeRate: 25000,
+        exchangeRateSource: 'Nhập tay',
+        exchangeRateSourceMode: 'manual_past',
+        exchangeRateEnteredAt: '2026-07-27T08:00:00+07:00',
+        exchangeRateManualReason: 'Tỷ giá tại ngày nhận báo giá.',
+        exchangeRateActorId: 'user-1',
+        conversionCostVndPerKg: 150,
+        priceConvertedVndPerKg: 17650,
+        purchaseMarkedAt: null,
+        purchaseMarkedById: null,
+      }],
+    })
+    editor.receivedDate.value = today
+    editor.evaluateRateModeForLine(editor.lines.value[0])
+
+    expect(editor.lines.value[0].exchangeRate).toBe(27000)
+    expect(editor.lines.value[0].rateSourceMode).toBe('auto')
+    expect(editor.lines.value[0].exchangeRateManualReason).toBeNull()
   })
 
   it('validates form fields and stops invalid submits', () => {

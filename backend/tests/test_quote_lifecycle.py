@@ -135,6 +135,18 @@ class FakeQuoteSession:
             )
             return FakeScalarResult(draft)
 
+        elif "FROM quote_versions" in compiled and params.get("status_1") == "confirmed":
+            quote_id = params.get("quote_id_1")
+            excluded_version_id = params.get("id_1")
+            confirmed_versions = [
+                v
+                for v in self.quote_versions.values()
+                if v.quote_id == quote_id
+                and v.status == "confirmed"
+                and (excluded_version_id is None or v.id != excluded_version_id)
+            ]
+            return FakeScalarResult(confirmed_versions)
+
         elif "max(quote_versions.version_number)" in compiled:
             quote_id = params.get("quote_id_1")
             versions = [v.version_number for v in self.quote_versions.values() if v.quote_id == quote_id]
@@ -191,6 +203,7 @@ class FakeQuoteSession:
 class MockExchangeRateClient:
     def __init__(self, should_fail: bool = False) -> None:
         self.should_fail = should_fail
+        self.rate = Decimal("26000.00")
 
     async def fetch_usd_sell_rate(self) -> Any:
         if self.should_fail:
@@ -198,7 +211,7 @@ class MockExchangeRateClient:
         
         class FakeRate:
             currency = "USD"
-            rate = Decimal("26000.00")
+            rate = self.rate
             source = "Vietcombank USD bán ra"
             retrieved_at = datetime(2026, 7, 28, 8, 0, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh"))
         return FakeRate()
@@ -507,10 +520,214 @@ async def test_create_version_and_concurrency(test_setup: Any) -> None:
             "delivery_month": date(2026, 8, 1),
         }],
         created_by_id=user_id,
+        correction_reason="Cập nhật báo giá mới từ nhà cung cấp.",
     )
     assert version2.version_number == 2
     assert version2.status == "draft"
     assert version2.lines[0].price_original == Decimal("16000.00")
+
+
+@pytest.mark.asyncio
+async def test_correcting_confirmed_quote_requires_reason_and_supersedes_previous_version(
+    test_setup: Any,
+) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[
+            {
+                "material_id": material_id,
+                "price_original": Decimal("15000.00"),
+                "currency": "VND",
+                "unit": "KG",
+                "delivery_month": date(2026, 8, 1),
+            }
+        ],
+        created_by_id=user_id,
+    )
+    version1 = await quote_service.confirm_version(
+        quote_id=quote.id,
+        version_id=quote.versions[0].id,
+        confirmed_by_id=user_id,
+    )
+
+    with pytest.raises(ValueError, match="bắt buộc phải nhập lý do điều chỉnh"):
+        await quote_service.create_version(
+            quote_id=quote.id,
+            received_date=date(2026, 7, 28),
+            is_backfilled=False,
+            backfill_reason=None,
+            lines_data=[
+                {
+                    "material_id": material_id,
+                    "price_original": Decimal("15100.00"),
+                    "currency": "VND",
+                    "unit": "KG",
+                    "delivery_month": date(2026, 8, 1),
+                }
+            ],
+            created_by_id=user_id,
+        )
+
+    version2 = await quote_service.create_version(
+        quote_id=quote.id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[
+            {
+                "material_id": material_id,
+                "price_original": Decimal("15100.00"),
+                "currency": "VND",
+                "unit": "KG",
+                "delivery_month": date(2026, 8, 1),
+            }
+        ],
+        created_by_id=user_id,
+        correction_reason="Sửa giá nhập nhầm từ báo giá nhà cung cấp.",
+    )
+    confirmed_version2 = await quote_service.confirm_version(
+        quote_id=quote.id,
+        version_id=version2.id,
+        confirmed_by_id=user_id,
+    )
+
+    assert confirmed_version2.status == "confirmed"
+    assert confirmed_version2.correction_reason == "Sửa giá nhập nhầm từ báo giá nhà cung cấp."
+    assert version1.status == "superseded"
+    assert version1.superseded_at == confirmed_version2.confirmed_at
+    assert version1.superseded_by_id == user_id
+    assert version1.superseded_by_version_id == confirmed_version2.id
+
+
+@pytest.mark.asyncio
+async def test_correction_with_same_received_date_uses_previous_rate_snapshot(
+    test_setup: Any,
+) -> None:
+    session, quote_service, rate_client = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[
+            {
+                "material_id": material_id,
+                "price_original": Decimal("600.00"),
+                "currency": "USD",
+                "unit": "MT",
+                "delivery_month": date(2026, 8, 1),
+            }
+        ],
+        created_by_id=user_id,
+    )
+    await quote_service.confirm_version(
+        quote_id=quote.id,
+        version_id=quote.versions[0].id,
+        confirmed_by_id=user_id,
+    )
+
+    rate_client.rate = Decimal("27000.00")
+    version2 = await quote_service.create_version(
+        quote_id=quote.id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[
+            {
+                "material_id": material_id,
+                "price_original": Decimal("700.00"),
+                "currency": "USD",
+                "unit": "MT",
+                "delivery_month": date(2026, 8, 1),
+            }
+        ],
+        created_by_id=user_id,
+        correction_reason="Sửa giá nhập nhầm từ báo giá nhà cung cấp.",
+    )
+    confirmed_version2 = await quote_service.confirm_version(
+        quote_id=quote.id,
+        version_id=version2.id,
+        confirmed_by_id=user_id,
+    )
+
+    line = confirmed_version2.lines[0]
+    assert line.exchange_rate == Decimal("26000.00")
+    assert line.exchange_rate_source_mode == "auto"
+    assert line.conversion_cost_vnd_per_kg == Decimal("150.00")
+    assert line.price_converted_vnd_per_kg == Decimal("18350.00")
+
+
+@pytest.mark.asyncio
+async def test_correction_with_today_received_date_fetches_current_vietcombank_rate(
+    test_setup: Any,
+) -> None:
+    session, quote_service, rate_client = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 27),
+        is_backfilled=True,
+        backfill_reason="Nhập lại báo giá hôm qua.",
+        lines_data=[
+            {
+                "material_id": material_id,
+                "price_original": Decimal("600.00"),
+                "currency": "USD",
+                "unit": "MT",
+                "delivery_month": date(2026, 8, 1),
+                "exchange_rate": Decimal("25000.00"),
+                "exchange_rate_manual_reason": "Tỷ giá bán ra tại ngày nhận báo giá.",
+            }
+        ],
+        created_by_id=user_id,
+    )
+    await quote_service.confirm_version(
+        quote_id=quote.id,
+        version_id=quote.versions[0].id,
+        confirmed_by_id=user_id,
+    )
+
+    rate_client.rate = Decimal("27000.00")
+    version2 = await quote_service.create_version(
+        quote_id=quote.id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[
+            {
+                "material_id": material_id,
+                "price_original": Decimal("700.00"),
+                "currency": "USD",
+                "unit": "MT",
+                "delivery_month": date(2026, 8, 1),
+            }
+        ],
+        created_by_id=user_id,
+        correction_reason="Sửa giá nhập nhầm từ báo giá nhà cung cấp.",
+    )
+
+    line = version2.lines[0]
+    assert line.exchange_rate == Decimal("27000.00")
+    assert line.exchange_rate_source_mode == "auto"
+    assert line.price_converted_vnd_per_kg == Decimal("19050.00")
 
 
 @pytest.mark.asyncio

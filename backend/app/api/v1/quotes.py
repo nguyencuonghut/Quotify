@@ -113,9 +113,13 @@ def _build_version_response(version: QuoteVersion) -> QuoteVersionResponse:
         file_id=version.file_id,
         is_backfilled=version.is_backfilled,
         backfill_reason=version.backfill_reason,
+        correction_reason=version.correction_reason,
         created_by_id=version.created_by_id,
         confirmed_at=version.confirmed_at,
         confirmed_by_id=version.confirmed_by_id,
+        superseded_at=version.superseded_at,
+        superseded_by_id=version.superseded_by_id,
+        superseded_by_version_id=version.superseded_by_version_id,
         created_at=version.created_at,
         updated_at=version.updated_at,
         lines=[_build_line_response(line) for line in version.lines],
@@ -278,6 +282,7 @@ async def create_version(
             backfill_reason=payload.backfill_reason,
             lines_data=[line.model_dump() for line in payload.lines],
             created_by_id=current_user.id,
+            correction_reason=payload.correction_reason,
         )
     except ValueError as exc:
         raise HTTPException(
@@ -295,6 +300,7 @@ async def create_version(
             metadata_json={
                 "quote_id": str(id),
                 "version_number": version.version_number,
+                "correction_reason": version.correction_reason,
             },
         ),
     )
@@ -325,6 +331,7 @@ async def update_draft(
             "received_date": str(old_version.received_date),
             "is_backfilled": old_version.is_backfilled,
             "backfill_reason": old_version.backfill_reason,
+            "correction_reason": old_version.correction_reason,
             "lines": [
                 {
                     "material_id": str(line.material_id),
@@ -347,6 +354,7 @@ async def update_draft(
             received_date=payload.received_date,
             is_backfilled=payload.is_backfilled,
             backfill_reason=payload.backfill_reason,
+            correction_reason=payload.correction_reason,
             lines_data=[line.model_dump() for line in payload.lines],
             updated_by_id=current_user.id,
         )
@@ -363,6 +371,7 @@ async def update_draft(
             "received_date": str(version.received_date),
             "is_backfilled": version.is_backfilled,
             "backfill_reason": version.backfill_reason,
+            "correction_reason": version.correction_reason,
             "lines": [
                 {
                     "material_id": str(line.material_id),
@@ -377,7 +386,7 @@ async def update_draft(
                 for line in version.lines
             ]
         }
-        for key in ["received_date", "is_backfilled", "backfill_reason"]:
+        for key in ["received_date", "is_backfilled", "backfill_reason", "correction_reason"]:
             if old_data[key] != new_data[key]:
                 changes[key] = {"old": old_data[key], "new": new_data[key]}
         if old_data["lines"] != new_data["lines"]:

@@ -228,7 +228,7 @@
           <Column field="version_status" header="Trạng thái">
             <template #body="{ data }">
               <span :class="['quotes-page__status-badge', `status-${data.versionStatus}`]">
-                {{ data.versionStatus === 'confirmed' ? 'Đã xác nhận' : 'Bản nháp' }}
+                {{ getVersionStatusLabel(data.versionStatus) }}
               </span>
             </template>
           </Column>
@@ -257,7 +257,7 @@
                 <p class="quotes-page__mobile-subtitle">{{ item.supplierName }}</p>
               </div>
               <span :class="['quotes-page__status-badge', `status-${item.versionStatus}`]">
-                {{ item.versionStatus === 'confirmed' ? 'Đã xác nhận' : 'Bản nháp' }}
+                {{ getVersionStatusLabel(item.versionStatus) }}
               </span>
             </div>
 
@@ -360,6 +360,13 @@ import AdminLayout from '@/layouts/AdminLayout.vue'
 const authStore = useAuthStore()
 const permissionStore = usePermissionStore()
 const router = useRouter()
+
+const getVersionStatusLabel = (status: string): string => {
+  if (status === 'draft') return 'Bản nháp'
+  if (status === 'confirmed') return 'Đã xác nhận'
+  if (status === 'superseded') return 'Đã bị thay thế'
+  return status
+}
 
 const {
   items,

@@ -20,8 +20,8 @@
           @click="goBack"
         />
         <Button
-          v-if="hasUpdatePermission"
-          label="Tạo phiên bản mới"
+          v-if="hasUpdatePermission && activeVersion?.status !== 'draft'"
+          label="Tạo bản điều chỉnh"
           icon="pi pi-copy"
           @click="createNewVersion"
         />
@@ -61,7 +61,7 @@
               class="quote-detail-page__status-badge"
               :class="activeVersion.status"
             >
-              {{ activeVersion.status === 'draft' ? 'Bản nháp' : 'Đã xác nhận' }}
+              {{ getVersionStatusLabel(activeVersion.status) }}
             </span>
           </div>
 
@@ -82,6 +82,14 @@
             <div v-if="activeVersion.confirmedAt" class="quote-detail-page__meta-item">
               <span>Thời điểm xác nhận</span>
               <strong>{{ formatDateTime(activeVersion.confirmedAt) }}</strong>
+            </div>
+            <div v-if="activeVersion.correctionReason" class="quote-detail-page__meta-item" style="grid-column: span 2">
+              <span>Lý do điều chỉnh</span>
+              <strong>{{ activeVersion.correctionReason }}</strong>
+            </div>
+            <div v-if="activeVersion.supersededAt" class="quote-detail-page__meta-item">
+              <span>Thời điểm bị thay thế</span>
+              <strong>{{ formatDateTime(activeVersion.supersededAt) }}</strong>
             </div>
           </div>
 
@@ -236,7 +244,7 @@
                   <Checkbox
                     :model-value="Boolean(slotProps.data.purchaseMarkedAt)"
                     binary
-                    :disabled="!hasPurchasePermission || activeVersion?.status === 'draft'"
+                    :disabled="!hasPurchasePermission || activeVersion?.status !== 'confirmed'"
                     @click="togglePurchase(slotProps.data)"
                   />
                   <div
@@ -413,7 +421,7 @@
               <div class="quote-detail-page__timeline-header">
                 <span>Phiên bản V{{ v.versionNumber }}</span>
                 <span class="quote-detail-page__status-badge scale-75" :class="v.status">
-                  {{ v.status === 'draft' ? 'Nháp' : 'Chốt' }}
+                  {{ getVersionStatusLabel(v.status) }}
                 </span>
               </div>
               <div class="quote-detail-page__timeline-date">
@@ -434,7 +442,12 @@
     >
       <div class="flex align-items-center gap-3">
         <i class="pi pi-exclamation-triangle text-orange-500 text-3xl" />
-        <span>After confirmation, all raw prices and exchange rates of <strong>Version #{{ activeVersion?.versionNumber }}</strong> will be locked and CANNOT be edited. Are you sure you want to proceed?</span>
+        <span>
+          Sau khi xác nhận, toàn bộ giá gốc và tỷ giá của
+          <strong>Phiên bản #{{ activeVersion?.versionNumber }}</strong>
+          sẽ bị khóa. Nếu đây là bản điều chỉnh, phiên bản đã xác nhận trước đó sẽ chuyển sang trạng thái
+          <strong>Đã bị thay thế</strong>.
+        </span>
       </div>
       <template #footer>
         <Button
@@ -574,6 +587,13 @@ const showConfirmDialog = ref<boolean>(false)
 // Permissions
 const hasUpdatePermission = computed(() => permissionStore.can('quotes.update'))
 const hasPurchasePermission = computed(() => permissionStore.can('quotes.mark_purchased'))
+
+const getVersionStatusLabel = (status: string): string => {
+  if (status === 'draft') return 'Bản nháp'
+  if (status === 'confirmed') return 'Đã xác nhận'
+  if (status === 'superseded') return 'Đã bị thay thế'
+  return status
+}
 
 const lineGlobalSearch = ref<string>('')
 const lineMaterialNameFilter = ref<string | null>(null)

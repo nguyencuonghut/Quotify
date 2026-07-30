@@ -99,6 +99,12 @@
       color: var(--green-600, #059669);
       border: 1px solid rgba(16, 185, 129, 0.3);
     }
+
+    &.superseded {
+      background: color-mix(in srgb, var(--app-text-muted) 12%, transparent);
+      color: var(--app-text-muted);
+      border: 1px solid color-mix(in srgb, var(--app-text-muted) 24%, transparent);
+    }
   }
 
   .quote-detail-page__meta-grid {

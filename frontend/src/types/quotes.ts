@@ -51,9 +51,13 @@ export interface QuoteVersionDto {
   file_id: string | null
   is_backfilled: boolean
   backfill_reason: string | null
+  correction_reason: string | null
   created_by_id: string | null
   confirmed_at: string | null
   confirmed_by_id: string | null
+  superseded_at: string | null
+  superseded_by_id: string | null
+  superseded_by_version_id: string | null
   created_at: string
   updated_at: string
   lines: QuoteLineDto[]
@@ -68,9 +72,13 @@ export interface QuoteVersionDomain {
   fileId: string | null
   isBackfilled: boolean
   backfillReason: string | null
+  correctionReason: string | null
   createdById: string | null
   confirmedAt: string | null
   confirmedById: string | null
+  supersededAt: string | null
+  supersededById: string | null
+  supersededByVersionId: string | null
   createdAt: string
   updatedAt: string
   lines: QuoteLineDomain[]
@@ -120,6 +128,7 @@ export interface QuoteDraftUpdatePayload {
   received_date: string
   is_backfilled: boolean
   backfill_reason: string | null
+  correction_reason?: string | null
   lines: QuoteLineCreatePayload[]
 }
 

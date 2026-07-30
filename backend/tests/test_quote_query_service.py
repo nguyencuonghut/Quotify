@@ -118,5 +118,6 @@ async def test_query_flattened_quotes_uses_lightweight_count(
     assert "count(quote_lines.id)" in count_sql
     assert "anon_1" not in count_sql
     assert "supplier_name" not in count_sql
+    assert "quote_versions.status != :status_1" in count_sql
     assert "limit" in select_sql
     assert "offset" in select_sql

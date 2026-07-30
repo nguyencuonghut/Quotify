@@ -93,6 +93,24 @@
     font-size: 0.95rem;
   }
 
+  .quote-editor-page__correction-banner {
+    background: color-mix(in srgb, var(--app-warning) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--app-warning) 35%, transparent);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .quote-editor-page__correction-hint {
+    color: var(--app-text-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin: -0.25rem 0 0;
+  }
+
   // Lines table styles
   .quote-editor-page__table-wrapper {
     overflow-x: auto;

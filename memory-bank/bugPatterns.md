@@ -17,6 +17,33 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard:
 - Related files:
 
+### 2026-07-30: Role User không lấy được tỷ giá Vietcombank khi nhập báo giá
+
+- Area: Backend RBAC seed / Quotify quote entry workflow
+- Trigger: Đăng nhập bằng user phòng Thu Mua, ví dụ `phamthitrang@honghafeed.com.vn`, rồi nhập báo giá USD/MT trong ngày hiện tại; frontend báo không lấy được tỷ giá tự động từ Vietcombank, trong khi Admin lấy được bình thường.
+- Root cause: Endpoint `GET /api/v1/exchange-rates/usd-sell/today` yêu cầu quyền `exchange_rates.read`, nhưng `USER_ROLE_PERMISSION_CODES` mới chỉ cấp quyền dashboard, CRUD danh mục và quyền báo giá chính cho role `user`. Vì vậy user thường bị `403`, còn Admin qua được do có toàn bộ quyền.
+- Fix: Thêm `exchange_rates.read` vào `USER_ROLE_PERMISSION_CODES`, chạy lại `seed_auth_rbac.py` để đồng bộ role `user` trong database dev.
+- Regression guard: `test_quotify_user_role_business_crud_permissions_are_seeded` phải bao gồm cả các quyền phụ trợ cần cho workflow nhập báo giá, không chỉ CRUD trực tiếp. Khi thêm màn hình nghiệp vụ, kiểm tra các API phụ trợ mà màn hình gọi dưới role người dùng thật.
+- Related files: `backend/app/auth/seed_data.py`, `backend/tests/test_permission_inventory.py`, `backend/app/api/v1/exchange_rates.py`, `frontend/src/api/exchange-rates.api.ts`
+
+### 2026-07-30: Báo giá đã xác nhận bị nhập sai vẫn lọt vào phân tích
+
+- Area: Quotify quote version lifecycle / dashboard analytics
+- Trigger: User nhập sai giá rồi đã xác nhận; nếu chỉ tạo version mới để sửa, version cũ sai vẫn có trạng thái `confirmed` và có thể tiếp tục được `/quotes` hoặc dashboard phân tích giá sử dụng.
+- Root cause: Vòng đời version trước đó chỉ có `draft|confirmed`, chưa có trạng thái loại khỏi dữ liệu hiệu lực sau khi một bản điều chỉnh đã thay thế bản cũ.
+- Fix: Thêm metadata điều chỉnh trên `quote_versions`, bắt buộc `correction_reason` khi tạo bản điều chỉnh từ quote đã có version `confirmed`, và khi confirm bản điều chỉnh thì chuyển version `confirmed` cũ sang `superseded`. Danh sách báo giá loại `superseded`; dashboard vẫn chỉ đọc `confirmed`.
+- Regression guard: Test vòng đời báo giá phải kiểm thiếu lý do điều chỉnh bị `422`/`ValueError`, confirm bản điều chỉnh làm version cũ thành `superseded`, và API/danh sách mặc định không trả dòng của version bị thay thế.
+- Related files: `backend/app/services/quote_service.py`, `backend/app/services/quote_query_service.py`, `backend/alembic/versions/20260730_0200_add_quote_version_correction.py`, `frontend/src/pages/QuoteEditorPage.vue`, `frontend/src/pages/QuoteDetailPage.vue`
+
+### 2026-07-30: Bản điều chỉnh cùng ngày có thể bị ghi đè snapshot tỷ giá
+
+- Area: Quotify quote version lifecycle / exchange-rate provenance
+- Trigger: Tạo bản điều chỉnh cho báo giá USD/MT đã xác nhận, giữ nguyên `Ngày nhận báo giá` của version cũ, nhưng hệ thống resolve lại tỷ giá Vietcombank hiện tại khi tạo/confirm bản điều chỉnh.
+- Root cause: `QuoteService.create_version(...)` và `confirm_version(...)` luôn gọi `QuotePricingService.resolve_pricing_provenance(...)` cho dòng USD/MT, chưa phân biệt bản điều chỉnh sửa lỗi dữ liệu cùng ngày với bản điều chỉnh có ngày nhận mới.
+- Fix: Khi bản điều chỉnh có `received_date` trùng version `confirmed` hiệu lực cũ, backend match dòng cũ theo `material_id`, `delivery_month`, `currency`, `unit`, dùng lại snapshot tỷ giá/nguồn/chi phí của dòng cũ và chỉ tính lại `price_converted_vnd_per_kg` theo giá gốc mới. Nếu `received_date` đổi sang hôm nay thì vẫn gọi adapter Vietcombank tự động. Frontend clone bản điều chỉnh không tự đổi ngày nhận sang hôm nay và giữ snapshot rate khi ngày nhận chưa đổi.
+- Regression guard: `test_correction_with_same_received_date_uses_previous_rate_snapshot` phải giữ rate cũ dù mock Vietcombank đã đổi; `test_correction_with_today_received_date_fetches_current_vietcombank_rate` phải lấy rate mới khi ngày nhận bản điều chỉnh đổi sang hôm nay. Unit test `useQuoteEditor` phải chứng minh cloned snapshot không bị watcher ghi đè khi ngày nhận chưa đổi.
+- Related files: `backend/app/services/quote_service.py`, `backend/tests/test_quote_lifecycle.py`, `frontend/src/composables/useQuoteEditor.ts`, `frontend/src/pages/QuoteEditorPage.vue`, `frontend/tests/unit/useQuoteEditor.spec.ts`
+
 ### 2026-06-09: Vitest scanning Playwright specs
 
 - Area: Frontend test runner configuration

@@ -173,6 +173,19 @@ Import/export flows use asynchronous jobs:
 5. write output or error report to MinIO
 6. audit the operation
 
+## Quotify Quote Version Correction Pattern
+
+Phiếu báo giá giữ lịch sử bất biến bằng version.
+
+1. Không sửa trực tiếp version đã `confirmed`.
+2. Khi người dùng nhập sai báo giá đã xác nhận, tạo bản điều chỉnh mới từ phiếu cũ và bắt buộc nhập lý do điều chỉnh.
+3. Version điều chỉnh bắt đầu ở trạng thái `draft`; chỉ khi confirm mới trở thành dữ liệu hiệu lực.
+4. Khi confirm bản điều chỉnh, các version `confirmed` cũ của cùng quote chuyển sang `superseded`, ghi `superseded_at`, `superseded_by_id` và `superseded_by_version_id`.
+5. Dashboard phân tích và danh sách báo giá mặc định chỉ dùng dữ liệu hiệu lực; bản `superseded` vẫn xem được trong lịch sử chi tiết để audit và truy vết.
+6. Action chốt mua chỉ áp dụng với version đang `confirmed`; không cho tick mua trên `draft` hoặc `superseded`.
+7. Nếu bản điều chỉnh giữ nguyên `received_date` của version hiệu lực cũ, backend phải dùng lại snapshot tỷ giá/nguồn/chi phí trên dòng cũ có cùng `material_id`, `delivery_month`, `currency` và `unit`, rồi tính lại giá quy đổi theo `price_original` mới.
+8. Nếu bản điều chỉnh đổi `received_date` sang ngày nghiệp vụ hiện tại, backend phải resolve lại tỷ giá Vietcombank tự động theo quy tắc báo giá trong ngày; frontend không được tự ép ngày nhận về hôm nay khi clone bản điều chỉnh.
+
 ## User Avatar Upload Pattern
 
 User avatars should not be entered as raw external URLs in admin forms.

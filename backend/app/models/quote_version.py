@@ -4,7 +4,18 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, Boolean, text, func
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,14 +49,26 @@ class QuoteVersion(Base):
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     received_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(20), default="draft", server_default="draft", nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="draft",
+        server_default="draft",
+        nullable=False,
+        index=True,
+    )
     file_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("files.id", ondelete="SET NULL"),
         nullable=True,
     )
-    is_backfilled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
+    is_backfilled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=text("false"),
+        nullable=False,
+    )
     backfill_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    correction_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_by_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -56,6 +79,18 @@ class QuoteVersion(Base):
         PGUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    superseded_by_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    superseded_by_version_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("quote_versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -73,6 +108,11 @@ class QuoteVersion(Base):
     file: Mapped[File | None] = relationship()
     created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_id])
     confirmed_by: Mapped[User | None] = relationship(foreign_keys=[confirmed_by_id])
+    superseded_by: Mapped[User | None] = relationship(foreign_keys=[superseded_by_id])
+    superseded_by_version: Mapped[QuoteVersion | None] = relationship(
+        remote_side=[id],
+        foreign_keys=[superseded_by_version_id],
+    )
     lines: Mapped[list[QuoteLine]] = relationship(
         back_populates="version",
         cascade="all, delete-orphan",

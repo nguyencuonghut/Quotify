@@ -29,6 +29,7 @@ class QuoteDraftUpdateRequest(BaseModel):
     received_date: date
     is_backfilled: bool = False
     backfill_reason: str | None = Field(default=None, max_length=500)
+    correction_reason: str | None = Field(default=None, max_length=500)
     lines: list[QuoteLineCreateRequest] = Field(min_length=1)
 
 
@@ -66,9 +67,13 @@ class QuoteVersionResponse(BaseModel):
     file_id: UUID | None = None
     is_backfilled: bool
     backfill_reason: str | None = None
+    correction_reason: str | None = None
     created_by_id: UUID | None = None
     confirmed_at: datetime | None = None
     confirmed_by_id: UUID | None = None
+    superseded_at: datetime | None = None
+    superseded_by_id: UUID | None = None
+    superseded_by_version_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
     lines: list[QuoteLineResponse]

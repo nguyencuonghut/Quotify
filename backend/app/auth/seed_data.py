@@ -63,6 +63,7 @@ USER_ROLE_PERMISSION_CODES = [
     "quotes.create",
     "quotes.update",
     "quotes.mark_purchased",
+    "exchange_rates.read",
 ]
 
 ADMIN_ROLE_NAME = "admin"
