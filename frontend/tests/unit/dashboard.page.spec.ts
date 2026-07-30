@@ -6,6 +6,8 @@ const dashboardPageMock = vi.hoisted(() => ({
   bootstrap: vi.fn(),
   applyFilters: vi.fn(),
   resetFilters: vi.fn(),
+  applyWeeklyEntryFilters: vi.fn(),
+  resetWeeklyEntryFilters: vi.fn(),
 }))
 
 vi.mock('@/composables/useDashboardPage', async () => {
@@ -24,6 +26,7 @@ vi.mock('@/composables/useDashboardPage', async () => {
         { label: 'Quốc tế', value: 'international' },
       ],
       isLoading: ref(false),
+      isLoadingWeeklyEntry: ref(false),
       isLoadingLookups: ref(false),
       errorMessage: ref(null),
       selectedMaterialId: ref(null),
@@ -31,6 +34,14 @@ vi.mock('@/composables/useDashboardPage', async () => {
       deliveryMonth: ref(null),
       receivedDateStart: ref(null),
       receivedDateEnd: ref(null),
+      selectedWeek: ref(null),
+      selectedWeeklyUserId: ref(null),
+      weeklyUserOptions: [
+        {
+          label: 'Người mua hàng',
+          value: 'user-1',
+        },
+      ],
       metricCards: computed(() => [
         {
           label: 'Giá thấp nhất',
@@ -53,6 +64,43 @@ vi.mock('@/composables/useDashboardPage', async () => {
           quoteCount: 7,
         },
       ]),
+      weeklyUserActivities: computed(() => [
+        {
+          userId: 'user-1',
+          userLabel: 'Người mua hàng',
+          quoteCount: 7,
+          lastQuoteCreatedAt: '2026-07-29T02:00:00+00:00',
+          hasWarning: false,
+        },
+        {
+          userId: 'user-2',
+          userLabel: 'Người chưa nhập',
+          quoteCount: 0,
+          lastQuoteCreatedAt: null,
+          hasWarning: true,
+        },
+      ]),
+      weeklyWarningUsers: computed(() => [
+        {
+          userId: 'user-2',
+        },
+      ]),
+      weeklyEntryMetricCards: computed(() => [
+        {
+          label: 'Báo giá tuần',
+          value: '7',
+          detail: '27/07/2026 - 02/08/2026',
+          icon: 'pi pi-calendar-clock',
+          tone: 'primary',
+        },
+        {
+          label: 'User chưa nhập',
+          value: '1',
+          detail: 'Cần nhắc nhập báo giá',
+          icon: 'pi pi-exclamation-triangle',
+          tone: 'warn',
+        },
+      ]),
       deliveryMonthBuckets: computed(() => [
         {
           label: '08/2026',
@@ -60,14 +108,25 @@ vi.mock('@/composables/useDashboardPage', async () => {
       ]),
       purchaseContexts: computed(() => []),
       hasTrendData: computed(() => true),
+      hasWeeklyEntryData: computed(() => true),
       chartData: computed(() => ({ labels: ['08/2026'], datasets: [] })),
       chartOptions: computed(() => ({})),
+      weeklyEntryChartData: computed(() => ({
+        labels: ['Người mua hàng', 'Người chưa nhập'],
+        datasets: [],
+      })),
+      weeklyEntryChartOptions: computed(() => ({})),
       bootstrap: dashboardPageMock.bootstrap,
       applyFilters: dashboardPageMock.applyFilters,
       resetFilters: dashboardPageMock.resetFilters,
+      applyWeeklyEntryFilters: dashboardPageMock.applyWeeklyEntryFilters,
+      resetWeeklyEntryFilters: dashboardPageMock.resetWeeklyEntryFilters,
+      getWeeklyEntryRowClass: (row: { hasWarning: boolean }) =>
+        row.hasWarning ? 'dashboard-page__weekly-row--warning' : '',
       formatMoney: (value: number | null) =>
         value === null ? 'Chưa có dữ liệu' : `${value} VNĐ/KG`,
       formatDateLabel: (value: string) => value,
+      formatDateTimeLabel: (value: string | null) => value ?? '-',
       formatMonthLabel: (value: string) => value,
     }),
   }
@@ -100,6 +159,9 @@ describe('DashboardPage', () => {
     expect(wrapper.text()).toContain('Dashboard Quotify')
     expect(wrapper.text()).toContain('Phân tích giá quy đổi VNĐ/KG')
     expect(wrapper.text()).toContain('Loại NCC')
+    expect(wrapper.text()).toContain('Tình hình nhập báo giá theo tuần')
+    expect(wrapper.text()).toContain('Người nhập')
+    expect(wrapper.text()).toContain('User chưa nhập')
     expect(wrapper.text()).toContain('Giá thấp nhất')
     expect(wrapper.text()).toContain('Tổng báo giá')
     expect(wrapper.text()).toContain('Giá theo kỳ hàng về')

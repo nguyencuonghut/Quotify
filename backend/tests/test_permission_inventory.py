@@ -113,6 +113,32 @@ def test_quotify_permission_bundle_is_seeded() -> None:
     assert expected_permissions <= _load_seeded_permission_codes()
 
 
+def test_quotify_user_role_business_crud_permissions_are_seeded() -> None:
+    expected_permissions = {
+        "dashboard.read",
+        "material_types.read",
+        "material_types.create",
+        "material_types.update",
+        "material_types.delete",
+        "materials.read",
+        "materials.create",
+        "materials.update",
+        "materials.delete",
+        "suppliers.read",
+        "suppliers.create",
+        "suppliers.update",
+        "suppliers.delete",
+        "quotes.read",
+        "quotes.create",
+        "quotes.update",
+        "quotes.mark_purchased",
+    }
+    user_role_permissions = _load_user_role_permission_codes()
+
+    assert expected_permissions <= user_role_permissions
+    assert user_role_permissions <= _load_seeded_permission_codes()
+
+
 def _load_seeded_permission_codes() -> set[str]:
     tree = ast.parse(SEED_DATA_PATH.read_text(encoding="utf-8"), filename=str(SEED_DATA_PATH))
     for node in tree.body:
@@ -133,3 +159,25 @@ def _load_seeded_permission_codes() -> set[str]:
         }
 
     raise AssertionError("BASE_PERMISSION_CODES was not found in seed_data.py")
+
+
+def _load_user_role_permission_codes() -> set[str]:
+    tree = ast.parse(SEED_DATA_PATH.read_text(encoding="utf-8"), filename=str(SEED_DATA_PATH))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        has_permission_assignment = any(
+            isinstance(target, ast.Name) and target.id == "USER_ROLE_PERMISSION_CODES"
+            for target in node.targets
+        )
+        if not has_permission_assignment:
+            continue
+        if not isinstance(node.value, ast.List):
+            continue
+        return {
+            item.value
+            for item in node.value.elts
+            if isinstance(item, ast.Constant) and isinstance(item.value, str)
+        }
+
+    raise AssertionError("USER_ROLE_PERMISSION_CODES was not found in seed_data.py")

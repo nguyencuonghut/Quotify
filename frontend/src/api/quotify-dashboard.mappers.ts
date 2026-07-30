@@ -11,6 +11,10 @@ import type {
   QuotifyPriceTrendsDto,
   QuotifyPurchaseContext,
   QuotifyPurchaseContextDto,
+  QuotifyWeeklyEntryActivity,
+  QuotifyWeeklyEntryActivityDto,
+  QuotifyWeeklyEntryUserActivity,
+  QuotifyWeeklyEntryUserActivityDto,
 } from '@/types/quotify-dashboard'
 
 function mapNullableMoney(value: string | null): number | null {
@@ -49,6 +53,36 @@ export function mapEntryKpisDtoToDomain(
     totalQuoteCount: dto.total_quote_count,
     userKpis: Array.isArray(dto.user_kpis)
       ? dto.user_kpis.map(mapEntryUserKpiDtoToDomain)
+      : [],
+  }
+}
+
+export function mapWeeklyEntryUserActivityDtoToDomain(
+  dto: QuotifyWeeklyEntryUserActivityDto,
+): QuotifyWeeklyEntryUserActivity {
+  return {
+    userId: dto.user_id,
+    userEmail: dto.user_email,
+    userFullName: dto.user_full_name,
+    userLabel: dto.user_label,
+    quoteCount: dto.quote_count,
+    lastQuoteCreatedAt: dto.last_quote_created_at,
+    hasWarning: dto.has_warning,
+  }
+}
+
+export function mapWeeklyEntryActivityDtoToDomain(
+  dto: QuotifyWeeklyEntryActivityDto,
+): QuotifyWeeklyEntryActivity {
+  return {
+    weekStart: dto.week_start,
+    weekEnd: dto.week_end,
+    totalQuoteCount: dto.total_quote_count,
+    activeUserCount: dto.active_user_count,
+    usersWithQuotes: dto.users_with_quotes,
+    usersWithoutQuotes: dto.users_without_quotes,
+    userActivities: Array.isArray(dto.user_activities)
+      ? dto.user_activities.map(mapWeeklyEntryUserActivityDtoToDomain)
       : [],
   }
 }

@@ -626,3 +626,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Thêm seed user Quotify
 - Tóm tắt: Đã thêm seed idempotent cho 7 user Quotify theo yêu cầu, mật khẩu mặc định Hongha@123, trạng thái active và role user; chuẩn hóa email Phạm Thị Trang bỏ dấu chấm cuối để hợp lệ đăng nhập; seed không ghi đè mật khẩu user đã tồn tại. Kiểm chứng bằng unit test, Ruff, mypy, chạy seed DB dev hai lần và truy vấn DB xác nhận user/role.
+
+## 2026-07-29 10:08:22Z - codex
+
+- Tiêu đề: Bổ sung KPI nhập báo giá theo tuần
+- Tóm tắt: Đã thêm backend endpoint weekly-entry-activity cho Dashboard Quotify, chuẩn hóa tuần Thứ Hai-Chủ nhật theo Asia/Ho_Chi_Minh, đếm phiếu báo giá đã xác nhận theo Quote.created_at và Quote.created_by_id, trả cả active user có 0 phiếu để frontend highlight warning. Frontend thêm filter Tuần/Người nhập, KPI tuần, bar chart ngang theo user và bảng trạng thái. Kiểm chứng bằng backend tests, frontend unit tests, Ruff/mypy/ESLint/style lint và vite build.
+
+## 2026-07-30 01:13:22Z - codex
+
+- Tiêu đề: Cấp quyền business CRUD cho role User
+- Tóm tắt: Đã cập nhật auth/RBAC seed để role user nhận dashboard.read, CRUD Loại vật tư, CRUD Vật tư, CRUD Nhà cung cấp và các quyền báo giá hiện có quotes.read/create/update/mark_purchased. Không thêm quotes.delete vì codebase chưa có permission hoặc route xóa báo giá. Đã chạy permission inventory, Ruff/mypy mục tiêu, seed_auth_rbac.py trong Docker dev và query DB xác nhận đủ 17 quyền.

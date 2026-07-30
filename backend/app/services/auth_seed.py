@@ -8,7 +8,12 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.auth.hashing import hash_password
-from app.auth.seed_data import ADMIN_ROLE_NAME, BASE_PERMISSION_CODES, USER_ROLE_NAME
+from app.auth.seed_data import (
+    ADMIN_ROLE_NAME,
+    BASE_PERMISSION_CODES,
+    USER_ROLE_NAME,
+    USER_ROLE_PERMISSION_CODES,
+)
 from app.core.config import get_settings
 from app.models import Permission, Role, User, UserStatus
 
@@ -106,10 +111,10 @@ class AuthSeedService:
         await self.session.flush()
 
         admin_role.permissions = list(permissions)
-        dashboard_permission = next(
-            permission for permission in permissions if permission.code == "dashboard.read"
-        )
-        user_role.permissions = [dashboard_permission]
+        user_permission_codes = set(USER_ROLE_PERMISSION_CODES)
+        user_role.permissions = [
+            permission for permission in permissions if permission.code in user_permission_codes
+        ]
         return created_roles
 
     async def _ensure_admin_user(self) -> tuple[bool, bool]:

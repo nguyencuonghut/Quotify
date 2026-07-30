@@ -45,5 +45,25 @@ BASE_PERMISSION_CODES = [
     "quotify_settings.update",
 ]
 
+USER_ROLE_PERMISSION_CODES = [
+    "dashboard.read",
+    "material_types.read",
+    "material_types.create",
+    "material_types.update",
+    "material_types.delete",
+    "materials.read",
+    "materials.create",
+    "materials.update",
+    "materials.delete",
+    "suppliers.read",
+    "suppliers.create",
+    "suppliers.update",
+    "suppliers.delete",
+    "quotes.read",
+    "quotes.create",
+    "quotes.update",
+    "quotes.mark_purchased",
+]
+
 ADMIN_ROLE_NAME = "admin"
 USER_ROLE_NAME = "user"

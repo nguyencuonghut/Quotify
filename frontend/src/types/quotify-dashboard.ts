@@ -22,6 +22,26 @@ export interface QuotifyEntryKpisDto {
   user_kpis: QuotifyEntryUserKpiDto[]
 }
 
+export interface QuotifyWeeklyEntryUserActivityDto {
+  user_id: string
+  user_email: string
+  user_full_name: string
+  user_label: string
+  quote_count: number
+  last_quote_created_at: string | null
+  has_warning: boolean
+}
+
+export interface QuotifyWeeklyEntryActivityDto {
+  week_start: string
+  week_end: string
+  total_quote_count: number
+  active_user_count: number
+  users_with_quotes: number
+  users_without_quotes: number
+  user_activities: QuotifyWeeklyEntryUserActivityDto[]
+}
+
 export interface QuotifyPriceTrendPointDto {
   received_date: string
   delivery_month: string
@@ -80,6 +100,26 @@ export interface QuotifyEntryKpis {
   userKpis: QuotifyEntryUserKpi[]
 }
 
+export interface QuotifyWeeklyEntryUserActivity {
+  userId: string
+  userEmail: string
+  userFullName: string
+  userLabel: string
+  quoteCount: number
+  lastQuoteCreatedAt: string | null
+  hasWarning: boolean
+}
+
+export interface QuotifyWeeklyEntryActivity {
+  weekStart: string
+  weekEnd: string
+  totalQuoteCount: number
+  activeUserCount: number
+  usersWithQuotes: number
+  usersWithoutQuotes: number
+  userActivities: QuotifyWeeklyEntryUserActivity[]
+}
+
 export interface QuotifyPriceTrendPoint {
   receivedDate: string
   deliveryMonth: string
@@ -122,4 +162,9 @@ export interface QuotifyDashboardQuery {
   receivedDateStart?: string | null
   receivedDateEnd?: string | null
   supplierType?: QuotifyDashboardSupplierType | null
+}
+
+export interface QuotifyWeeklyEntryActivityQuery {
+  weekStart?: string | null
+  userId?: string | null
 }

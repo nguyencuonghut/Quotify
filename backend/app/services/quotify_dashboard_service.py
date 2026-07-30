@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import case, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +13,9 @@ from app.models.quote import Quote
 from app.models.quote_line import QuoteLine
 from app.models.quote_version import QuoteVersion
 from app.models.supplier import Supplier
-from app.models.user import User
+from app.models.user import User, UserStatus
+
+BUSINESS_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 class QuotifyDashboardService:
@@ -118,6 +121,91 @@ class QuotifyDashboardService:
             "summary": summary,
             "points": points,
             "purchase_contexts": purchase_contexts,
+        }
+
+    async def get_weekly_entry_activity(
+        self,
+        *,
+        week_start: date | None = None,
+        user_id: UUID | None = None,
+    ) -> dict[str, Any]:
+        normalized_week_start = self._normalize_week_start(
+            week_start or datetime.now(BUSINESS_TIMEZONE).date()
+        )
+        week_end = normalized_week_start + timedelta(days=6)
+        start_at = datetime.combine(
+            normalized_week_start,
+            time.min,
+            tzinfo=BUSINESS_TIMEZONE,
+        )
+        end_exclusive = datetime.combine(
+            week_end + timedelta(days=1),
+            time.min,
+            tzinfo=BUSINESS_TIMEZONE,
+        )
+
+        quote_counts = (
+            select(
+                Quote.created_by_id.label("user_id"),
+                func.count(distinct(Quote.id)).label("quote_count"),
+                func.max(Quote.created_at).label("last_quote_created_at"),
+            )
+            .select_from(Quote)
+            .join(QuoteVersion, QuoteVersion.quote_id == Quote.id)
+            .where(
+                QuoteVersion.status == "confirmed",
+                Quote.created_at >= start_at,
+                Quote.created_at < end_exclusive,
+            )
+            .group_by(Quote.created_by_id)
+            .subquery()
+        )
+
+        stmt = (
+            select(
+                User.id.label("user_id"),
+                User.email.label("user_email"),
+                User.full_name.label("user_full_name"),
+                func.coalesce(quote_counts.c.quote_count, 0).label("quote_count"),
+                quote_counts.c.last_quote_created_at.label("last_quote_created_at"),
+            )
+            .select_from(User)
+            .outerjoin(quote_counts, quote_counts.c.user_id == User.id)
+            .where(User.status == UserStatus.ACTIVE)
+            .order_by(
+                func.coalesce(quote_counts.c.quote_count, 0).desc(),
+                User.full_name.asc(),
+                User.email.asc(),
+            )
+        )
+        if user_id is not None:
+            stmt = stmt.where(User.id == user_id)
+
+        result = await self.db.execute(stmt)
+        user_activities = [
+            {
+                "user_id": row.user_id,
+                "user_email": row.user_email,
+                "user_full_name": row.user_full_name,
+                "user_label": self._user_label(row.user_full_name, row.user_email),
+                "quote_count": int(row.quote_count or 0),
+                "last_quote_created_at": row.last_quote_created_at,
+                "has_warning": int(row.quote_count or 0) == 0,
+            }
+            for row in result.all()
+        ]
+
+        total_quote_count = sum(row["quote_count"] for row in user_activities)
+        users_with_quotes = sum(1 for row in user_activities if row["quote_count"] > 0)
+
+        return {
+            "week_start": normalized_week_start,
+            "week_end": week_end,
+            "total_quote_count": total_quote_count,
+            "active_user_count": len(user_activities),
+            "users_with_quotes": users_with_quotes,
+            "users_without_quotes": len(user_activities) - users_with_quotes,
+            "user_activities": user_activities,
         }
 
     def _build_common_filters(
@@ -284,3 +372,6 @@ class QuotifyDashboardService:
 
     def _user_label(self, full_name: str | None, email: str | None) -> str:
         return full_name or email or "Không xác định"
+
+    def _normalize_week_start(self, value: date) -> date:
+        return value - timedelta(days=value.weekday())

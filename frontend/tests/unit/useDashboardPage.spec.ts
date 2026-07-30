@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth.store'
 const dashboardApiMock = vi.hoisted(() => ({
   getQuotifyEntryKpis: vi.fn(),
   getQuotifyPriceTrends: vi.fn(),
+  getQuotifyWeeklyEntryActivity: vi.fn(),
 }))
 
 const materialsApiMock = vi.hoisted(() => ({
@@ -100,6 +101,35 @@ const priceTrends = {
   purchaseContexts: [],
 }
 
+const weeklyEntryActivity = {
+  weekStart: '2026-07-27',
+  weekEnd: '2026-08-02',
+  totalQuoteCount: 7,
+  activeUserCount: 2,
+  usersWithQuotes: 1,
+  usersWithoutQuotes: 1,
+  userActivities: [
+    {
+      userId: 'user-1',
+      userEmail: 'buyer@example.com',
+      userFullName: 'Người mua hàng',
+      userLabel: 'Người mua hàng',
+      quoteCount: 7,
+      lastQuoteCreatedAt: '2026-07-29T02:00:00+00:00',
+      hasWarning: false,
+    },
+    {
+      userId: 'user-2',
+      userEmail: 'quiet@example.com',
+      userFullName: 'Người chưa nhập',
+      userLabel: 'Người chưa nhập',
+      quoteCount: 0,
+      lastQuoteCreatedAt: null,
+      hasWarning: true,
+    },
+  ],
+}
+
 describe('useDashboardPage', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -124,6 +154,9 @@ describe('useDashboardPage', () => {
     ])
     dashboardApiMock.getQuotifyEntryKpis.mockResolvedValue(entryKpis)
     dashboardApiMock.getQuotifyPriceTrends.mockResolvedValue(priceTrends)
+    dashboardApiMock.getQuotifyWeeklyEntryActivity.mockResolvedValue(
+      weeklyEntryActivity,
+    )
   })
 
   it('bootstraps lookups, KPI data, trend data and metric cards', async () => {
@@ -141,6 +174,13 @@ describe('useDashboardPage', () => {
         receivedDateStart: null,
         receivedDateEnd: null,
         supplierType: null,
+      },
+      'mock-access-token',
+    )
+    expect(dashboardApiMock.getQuotifyWeeklyEntryActivity).toHaveBeenCalledWith(
+      {
+        weekStart: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        userId: null,
       },
       'mock-access-token',
     )
@@ -180,6 +220,17 @@ describe('useDashboardPage', () => {
       backgroundColor: '#ef4444',
       pointBackgroundColor: '#ef4444',
     })
+    expect(page.weeklyEntryMetricCards.value.map((card) => card.label)).toEqual([
+      'Báo giá tuần',
+      'User đã nhập',
+      'User chưa nhập',
+    ])
+    expect(page.weeklyWarningUsers.value).toHaveLength(1)
+    expect(page.weeklyEntryChartData.value.labels).toEqual([
+      'Người mua hàng',
+      'Người chưa nhập',
+    ])
+    expect(page.weeklyEntryChartData.value.datasets[0].data).toEqual([7, 0])
   })
 
   it('sends selected material, month and received date filters to dashboard APIs', async () => {
@@ -243,6 +294,23 @@ describe('useDashboardPage', () => {
         receivedDateStart: null,
         receivedDateEnd: null,
         supplierType: null,
+      },
+      'mock-access-token',
+    )
+  })
+
+  it('loads weekly entry activity with selected week and user filters', async () => {
+    const page = useDashboardPage()
+
+    page.selectedWeek.value = new Date(2026, 6, 29)
+    page.selectedWeeklyUserId.value = 'user-1'
+
+    await page.applyWeeklyEntryFilters()
+
+    expect(dashboardApiMock.getQuotifyWeeklyEntryActivity).toHaveBeenCalledWith(
+      {
+        weekStart: '2026-07-27',
+        userId: 'user-1',
       },
       'mock-access-token',
     )

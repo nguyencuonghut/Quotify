@@ -19,6 +19,7 @@ class MockQuotifyDashboardService:
     def __init__(self) -> None:
         self.entry_kpi_kwargs: dict[str, Any] | None = None
         self.price_trend_kwargs: dict[str, Any] | None = None
+        self.weekly_entry_activity_kwargs: dict[str, Any] | None = None
 
     async def get_entry_kpis(self, **kwargs: Any) -> dict[str, Any]:
         self.entry_kpi_kwargs = kwargs
@@ -91,6 +92,39 @@ class MockQuotifyDashboardService:
             ],
         }
 
+    async def get_weekly_entry_activity(self, **kwargs: Any) -> dict[str, Any]:
+        self.weekly_entry_activity_kwargs = kwargs
+        user_with_quotes_id = uuid4()
+        user_without_quotes_id = uuid4()
+        return {
+            "week_start": date(2026, 7, 27),
+            "week_end": date(2026, 8, 2),
+            "total_quote_count": 3,
+            "active_user_count": 2,
+            "users_with_quotes": 1,
+            "users_without_quotes": 1,
+            "user_activities": [
+                {
+                    "user_id": user_with_quotes_id,
+                    "user_email": "buyer@example.com",
+                    "user_full_name": "Buyer One",
+                    "user_label": "Buyer One",
+                    "quote_count": 3,
+                    "last_quote_created_at": datetime(2026, 7, 28, 9, 0, tzinfo=UTC),
+                    "has_warning": False,
+                },
+                {
+                    "user_id": user_without_quotes_id,
+                    "user_email": "quiet@example.com",
+                    "user_full_name": "Quiet User",
+                    "user_label": "Quiet User",
+                    "quote_count": 0,
+                    "last_quote_created_at": None,
+                    "has_warning": True,
+                },
+            ],
+        }
+
 
 @pytest.fixture
 def override_dependencies(app: FastAPI) -> Generator[MockQuotifyDashboardService, None, None]:
@@ -160,3 +194,31 @@ async def test_price_trends_endpoint_returns_summary_points_and_purchase_context
     assert data["points"][0]["supplier_type"] == "domestic"
     assert data["points"][0]["supplier_label"] == "Supplier ABC (ABC)"
     assert data["purchase_contexts"][0]["at_purchase"]["total_lines"] == 1
+
+
+@pytest.mark.asyncio
+async def test_weekly_entry_activity_endpoint_passes_week_and_user_filters(
+    client: AsyncClient,
+    override_dependencies: MockQuotifyDashboardService,
+) -> None:
+    user_id = uuid4()
+
+    response = await client.get(
+        "/api/v1/dashboard/quotify/weekly-entry-activity",
+        params={
+            "week_start": "2026-07-29",
+            "user_id": str(user_id),
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["week_start"] == "2026-07-27"
+    assert data["week_end"] == "2026-08-02"
+    assert data["total_quote_count"] == 3
+    assert data["users_without_quotes"] == 1
+    assert data["user_activities"][1]["has_warning"] is True
+    assert override_dependencies.weekly_entry_activity_kwargs == {
+        "week_start": date(2026, 7, 29),
+        "user_id": user_id,
+    }

@@ -10,7 +10,7 @@ from app.services.quotify_dashboard_service import QuotifyDashboardService
 
 
 class FakeResultRow:
-    def __init__(self, data: dict) -> None:
+    def __init__(self, data: dict[str, object]) -> None:
         self.__dict__.update(data)
 
 
@@ -72,7 +72,7 @@ async def test_get_entry_kpis_counts_quotes_by_original_creator_only() -> None:
         ]
     )
 
-    service = QuotifyDashboardService(fake_db)
+    service = QuotifyDashboardService(fake_db)  # type: ignore[arg-type]
     response = await service.get_entry_kpis(supplier_type="domestic")
 
     assert response["total_quote_count"] == 3
@@ -161,7 +161,7 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
         ]
     )
 
-    service = QuotifyDashboardService(fake_db)
+    service = QuotifyDashboardService(fake_db)  # type: ignore[arg-type]
     response = await service.get_price_trends(
         material_id=material_id,
         delivery_month=delivery_month,
@@ -179,3 +179,50 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
     assert len(fake_db.queries) == 4
     assert "quote_versions.status = :status_1" in str(fake_db.queries[0])
     assert "suppliers.supplier_type = :supplier_type_1" in str(fake_db.queries[0])
+
+
+@pytest.mark.asyncio
+async def test_get_weekly_entry_activity_includes_active_users_without_quotes() -> None:
+    user_with_quotes_id = uuid4()
+    user_without_quotes_id = uuid4()
+    fake_db = FakeDbSession(
+        [
+            FakeResult(
+                [
+                    FakeResultRow(
+                        {
+                            "user_id": user_with_quotes_id,
+                            "user_email": "buyer@example.com",
+                            "user_full_name": "Buyer One",
+                            "quote_count": 3,
+                            "last_quote_created_at": datetime(2026, 7, 28, 9, 0, tzinfo=UTC),
+                        }
+                    ),
+                    FakeResultRow(
+                        {
+                            "user_id": user_without_quotes_id,
+                            "user_email": "quiet@example.com",
+                            "user_full_name": "Quiet User",
+                            "quote_count": 0,
+                            "last_quote_created_at": None,
+                        }
+                    ),
+                ]
+            )
+        ]
+    )
+
+    service = QuotifyDashboardService(fake_db)  # type: ignore[arg-type]
+    response = await service.get_weekly_entry_activity(week_start=date(2026, 7, 29))
+
+    assert response["week_start"] == date(2026, 7, 27)
+    assert response["week_end"] == date(2026, 8, 2)
+    assert response["total_quote_count"] == 3
+    assert response["active_user_count"] == 2
+    assert response["users_with_quotes"] == 1
+    assert response["users_without_quotes"] == 1
+    assert response["user_activities"][0]["has_warning"] is False
+    assert response["user_activities"][1]["user_id"] == user_without_quotes_id
+    assert response["user_activities"][1]["has_warning"] is True
+    assert "quotes.created_at >= :created_at_1" in str(fake_db.queries[0])
+    assert "quote_versions.status = :status_1" in str(fake_db.queries[0])

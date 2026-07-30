@@ -115,6 +115,132 @@
         </article>
       </section>
 
+      <section class="dashboard-page__panel dashboard-page__weekly-panel">
+        <div class="dashboard-page__panel-header dashboard-page__weekly-header">
+          <div>
+            <p class="dashboard-page__eyebrow">Nhập báo giá</p>
+            <h3 class="dashboard-page__panel-title">
+              Tình hình nhập báo giá theo tuần
+            </h3>
+          </div>
+
+          <div class="dashboard-page__weekly-filters">
+            <label class="dashboard-page__filter-field">
+              <span class="dashboard-page__filter-label">Tuần</span>
+              <DatePicker
+                v-model="selectedWeek"
+                date-format="dd/mm/yy"
+                placeholder="Chọn tuần"
+                show-icon
+              />
+            </label>
+
+            <label class="dashboard-page__filter-field">
+              <span class="dashboard-page__filter-label">Người nhập</span>
+              <Select
+                v-model="selectedWeeklyUserId"
+                filter
+                filter-placeholder="Tìm người nhập..."
+                :options="weeklyUserOptions"
+                option-label="label"
+                option-value="value"
+                placeholder="Tất cả người nhập"
+                show-clear
+              />
+            </label>
+
+            <div class="dashboard-page__filter-actions">
+              <Button
+                icon="pi pi-filter"
+                label="Lọc"
+                :loading="isLoadingWeeklyEntry"
+                @click="applyWeeklyEntryFilters"
+              />
+              <Button
+                icon="pi pi-refresh"
+                label="Xóa lọc"
+                outlined
+                severity="secondary"
+                @click="resetWeeklyEntryFilters"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-page__weekly-stats" aria-label="Chỉ số nhập báo giá theo tuần">
+          <div
+            v-for="card in weeklyEntryMetricCards"
+            :key="card.label"
+            :class="[
+              'dashboard-page__weekly-stat',
+              `dashboard-page__weekly-stat--${card.tone}`,
+            ]"
+          >
+            <i :class="card.icon" aria-hidden="true" />
+            <span>{{ card.label }}</span>
+            <strong>{{ card.value }}</strong>
+            <small>{{ card.detail }}</small>
+          </div>
+        </div>
+
+        <div class="dashboard-page__weekly-grid">
+          <div>
+            <div class="dashboard-page__subheader">
+              <span>Số phiếu báo giá theo user</span>
+              <Tag
+                :severity="weeklyWarningUsers.length > 0 ? 'warning' : 'success'"
+                :value="
+                  weeklyWarningUsers.length > 0
+                    ? `${weeklyWarningUsers.length} user chưa nhập`
+                    : 'Đủ dữ liệu'
+                "
+              />
+            </div>
+            <div v-if="hasWeeklyEntryData" class="dashboard-page__chart-frame">
+              <Chart
+                class="dashboard-page__weekly-chart"
+                type="bar"
+                :data="weeklyEntryChartData"
+                :options="weeklyEntryChartOptions"
+              />
+            </div>
+            <div v-else class="dashboard-page__empty">
+              <i class="pi pi-users" aria-hidden="true" />
+              <span>Chưa có người dùng active để thống kê.</span>
+            </div>
+          </div>
+
+          <DataTable
+            :value="weeklyUserActivities"
+            data-key="userId"
+            :row-class="getWeeklyEntryRowClass"
+            responsive-layout="scroll"
+            size="small"
+          >
+            <Column field="userLabel" header="Người nhập" />
+            <Column field="quoteCount" header="Số phiếu" />
+            <Column header="Lần nhập gần nhất">
+              <template #body="{ data }">
+                {{ formatDateTimeLabel(data.lastQuoteCreatedAt) }}
+              </template>
+            </Column>
+            <Column header="Trạng thái">
+              <template #body="{ data }">
+                <Tag
+                  :severity="data.hasWarning ? 'warning' : 'success'"
+                  :value="data.hasWarning ? 'Chưa nhập' : 'Đã nhập'"
+                />
+              </template>
+            </Column>
+            <template #empty>
+              <span class="dashboard-page__table-empty">
+                Chưa có dữ liệu người nhập.
+              </span>
+            </template>
+          </DataTable>
+        </div>
+      </section>
+
       <section class="dashboard-page__analysis-grid">
         <section class="dashboard-page__panel dashboard-page__panel--chart">
           <div class="dashboard-page__panel-header">
@@ -227,6 +353,7 @@ const {
   materials,
   supplierTypeOptions,
   isLoading,
+  isLoadingWeeklyEntry,
   isLoadingLookups,
   errorMessage,
   selectedMaterialId,
@@ -234,18 +361,31 @@ const {
   deliveryMonth,
   receivedDateStart,
   receivedDateEnd,
+  selectedWeek,
+  selectedWeeklyUserId,
   metricCards,
   userKpis,
+  weeklyUserOptions,
+  weeklyUserActivities,
+  weeklyWarningUsers,
+  weeklyEntryMetricCards,
   deliveryMonthBuckets,
   purchaseContexts,
   hasTrendData,
+  hasWeeklyEntryData,
   chartData,
   chartOptions,
+  weeklyEntryChartData,
+  weeklyEntryChartOptions,
   bootstrap,
   applyFilters,
   resetFilters,
+  applyWeeklyEntryFilters,
+  resetWeeklyEntryFilters,
+  getWeeklyEntryRowClass,
   formatMoney,
   formatDateLabel,
+  formatDateTimeLabel,
   formatMonthLabel,
 } = useDashboardPage()
 

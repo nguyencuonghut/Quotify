@@ -13,6 +13,7 @@ from app.models import User
 from app.schemas.quotify_dashboard import (
     QuotifyEntryKpisResponse,
     QuotifyPriceTrendsResponse,
+    QuotifyWeeklyEntryActivityResponse,
 )
 from app.services.quotify_dashboard_service import QuotifyDashboardService
 
@@ -63,3 +64,17 @@ async def get_price_trends(
         supplier_type=supplier_type,
     )
     return QuotifyPriceTrendsResponse.model_validate(data)
+
+
+@router.get("/weekly-entry-activity", response_model=QuotifyWeeklyEntryActivityResponse)
+async def get_weekly_entry_activity(
+    service: Annotated[QuotifyDashboardService, Depends(get_quotify_dashboard_service)],
+    _: Annotated[User, Depends(require_permission("dashboard.read"))],
+    week_start: date | None = None,
+    user_id: UUID | None = None,
+) -> QuotifyWeeklyEntryActivityResponse:
+    data = await service.get_weekly_entry_activity(
+        week_start=week_start,
+        user_id=user_id,
+    )
+    return QuotifyWeeklyEntryActivityResponse.model_validate(data)

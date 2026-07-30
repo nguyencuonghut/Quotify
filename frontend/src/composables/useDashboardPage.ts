@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import {
   getQuotifyEntryKpis,
   getQuotifyPriceTrends,
+  getQuotifyWeeklyEntryActivity,
 } from '@/api/quotify-dashboard.api'
 import { listMaterialsLookup } from '@/api/materials.api'
 import { useAuthStore } from '@/stores/auth.store'
@@ -15,6 +16,9 @@ import type {
   QuotifyPriceSummary,
   QuotifyPriceTrendPoint,
   QuotifyPriceTrends,
+  QuotifyWeeklyEntryActivity,
+  QuotifyWeeklyEntryActivityQuery,
+  QuotifyWeeklyEntryUserActivity,
 } from '@/types/quotify-dashboard'
 
 interface DashboardMetricCard {
@@ -28,6 +32,11 @@ interface DashboardMetricCard {
 interface DashboardSupplierTypeOption {
   label: string
   value: QuotifyDashboardSupplierType
+}
+
+interface DashboardUserOption {
+  label: string
+  value: string
 }
 
 interface DeliveryMonthBucket {
@@ -101,6 +110,15 @@ function toDateInputValue(value: Date | null): string | null {
   return `${year}-${month}-${day}`
 }
 
+function getWeekStartDate(value: Date): Date {
+  const weekStart = new Date(value.getFullYear(), value.getMonth(), value.getDate())
+  const day = weekStart.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  weekStart.setDate(weekStart.getDate() + diff)
+  weekStart.setHours(0, 0, 0, 0)
+  return weekStart
+}
+
 function normalizeLookupText(value: string): string {
   return value
     .normalize('NFD')
@@ -111,6 +129,27 @@ function normalizeLookupText(value: string): string {
 
 function formatSupplierType(value: QuotifyDashboardSupplierType): string {
   return value === 'domestic' ? 'Nội địa' : 'Quốc tế'
+}
+
+function formatDateTimeLabel(value: string | null): string {
+  if (!value) {
+    return '-'
+  }
+
+  const parsedDate = new Date(value)
+  if (Number.isNaN(parsedDate.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).format(parsedDate)
+}
+
+function formatWeekRangeLabel(weekStart: string, weekEnd: string): string {
+  return `${formatDateLabel(weekStart)} - ${formatDateLabel(weekEnd)}`
 }
 
 function findDefaultMaterialId(materials: MaterialDomain[]): string | null {
@@ -185,8 +224,11 @@ export function useDashboardPage() {
 
   const entryKpis = ref<QuotifyEntryKpis | null>(null)
   const priceTrends = ref<QuotifyPriceTrends | null>(null)
+  const weeklyEntryActivity = ref<QuotifyWeeklyEntryActivity | null>(null)
   const materials = ref<MaterialDomain[]>([])
+  const weeklyUserOptions = ref<DashboardUserOption[]>([])
   const isLoading = ref(false)
+  const isLoadingWeeklyEntry = ref(false)
   const isLoadingLookups = ref(false)
   const errorMessage = ref<string | null>(null)
 
@@ -195,6 +237,8 @@ export function useDashboardPage() {
   const deliveryMonth = ref<Date | null>(null)
   const receivedDateStart = ref<Date | null>(null)
   const receivedDateEnd = ref<Date | null>(null)
+  const selectedWeek = ref<Date | null>(getWeekStartDate(new Date()))
+  const selectedWeeklyUserId = ref<string | null>(null)
 
   const queryParams = computed<QuotifyDashboardQuery>(() => ({
     materialId: selectedMaterialId.value,
@@ -202,6 +246,13 @@ export function useDashboardPage() {
     receivedDateStart: toDateInputValue(receivedDateStart.value),
     receivedDateEnd: toDateInputValue(receivedDateEnd.value),
     supplierType: selectedSupplierType.value,
+  }))
+
+  const weeklyEntryQueryParams = computed<QuotifyWeeklyEntryActivityQuery>(() => ({
+    weekStart: selectedWeek.value
+      ? toDateInputValue(getWeekStartDate(selectedWeek.value))
+      : null,
+    userId: selectedWeeklyUserId.value,
   }))
 
   const summary = computed(() => priceTrends.value?.summary ?? emptySummary)
@@ -238,6 +289,50 @@ export function useDashboardPage() {
   ])
 
   const userKpis = computed(() => entryKpis.value?.userKpis ?? [])
+  const weeklyUserActivities = computed<QuotifyWeeklyEntryUserActivity[]>(
+    () => weeklyEntryActivity.value?.userActivities ?? [],
+  )
+  const weeklyWarningUsers = computed(() =>
+    weeklyUserActivities.value.filter((activity) => activity.hasWarning),
+  )
+  const hasWeeklyEntryData = computed(() => weeklyUserActivities.value.length > 0)
+  const weeklyEntryPeriodLabel = computed(() =>
+    weeklyEntryActivity.value
+      ? formatWeekRangeLabel(
+          weeklyEntryActivity.value.weekStart,
+          weeklyEntryActivity.value.weekEnd,
+        )
+      : 'Tuần hiện tại',
+  )
+  const weeklyEntryMetricCards = computed<DashboardMetricCard[]>(() => [
+    {
+      label: 'Báo giá tuần',
+      value: formatInteger(weeklyEntryActivity.value?.totalQuoteCount ?? 0),
+      detail: weeklyEntryPeriodLabel.value,
+      icon: 'pi pi-calendar-clock',
+      tone: 'primary',
+    },
+    {
+      label: 'User đã nhập',
+      value: `${formatInteger(weeklyEntryActivity.value?.usersWithQuotes ?? 0)} / ${formatInteger(weeklyEntryActivity.value?.activeUserCount ?? 0)}`,
+      detail: 'Có ít nhất 1 phiếu trong tuần',
+      icon: 'pi pi-user-check',
+      tone: 'success',
+    },
+    {
+      label: 'User chưa nhập',
+      value: formatInteger(weeklyEntryActivity.value?.usersWithoutQuotes ?? 0),
+      detail:
+        (weeklyEntryActivity.value?.usersWithoutQuotes ?? 0) > 0
+          ? 'Cần nhắc nhập báo giá'
+          : 'Không có cảnh báo',
+      icon: 'pi pi-exclamation-triangle',
+      tone:
+        (weeklyEntryActivity.value?.usersWithoutQuotes ?? 0) > 0
+          ? 'warn'
+          : 'success',
+    },
+  ])
   const trendPoints = computed(() => priceTrends.value?.points ?? [])
   const purchaseContexts = computed(() => priceTrends.value?.purchaseContexts ?? [])
   const hasTrendData = computed(() => trendPoints.value.length > 0)
@@ -388,6 +483,83 @@ export function useDashboardPage() {
     }
   })
 
+  const weeklyEntryChartData = computed(() => {
+    const accent = cssVar('--app-accent', '#7c3aed')
+    const warning = cssVar('--app-warning', '#f59e0b')
+    const border = cssVar('--app-border-strong', '#334155')
+
+    return {
+      labels: weeklyUserActivities.value.map((activity) => activity.userLabel),
+      datasets: [
+        {
+          label: 'Số phiếu báo giá',
+          data: weeklyUserActivities.value.map((activity) => activity.quoteCount),
+          backgroundColor: weeklyUserActivities.value.map((activity) =>
+            activity.hasWarning ? warning : accent,
+          ),
+          borderColor: weeklyUserActivities.value.map((activity) =>
+            activity.hasWarning ? warning : border,
+          ),
+          borderWidth: 1,
+          borderRadius: 6,
+        },
+      ],
+    }
+  })
+
+  const weeklyEntryChartOptions = computed(() => {
+    const grid =
+      themeStore.mode === 'dark'
+        ? cssVar('--app-border-strong', '#334155')
+        : cssVar('--app-border-soft', '#e2e8f0')
+    const textColor = cssVar('--app-text-secondary', '#64748b')
+
+    return {
+      indexAxis: 'y',
+      maintainAspectRatio: false,
+      responsive: true,
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          callbacks: {
+            label(context: { dataIndex: number }) {
+              const row = weeklyUserActivities.value[context.dataIndex]
+              if (!row) {
+                return ''
+              }
+
+              return row.hasWarning
+                ? 'Chưa nhập báo giá trong tuần'
+                : `${formatInteger(row.quoteCount)} phiếu báo giá`
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: {
+            color: textColor,
+            precision: 0,
+          },
+          grid: {
+            color: grid,
+          },
+        },
+        y: {
+          ticks: {
+            color: textColor,
+          },
+          grid: {
+            display: false,
+          },
+        },
+      },
+    }
+  })
+
   async function loadLookups() {
     isLoadingLookups.value = true
     try {
@@ -419,9 +591,31 @@ export function useDashboardPage() {
     }
   }
 
+  async function loadWeeklyEntryActivity() {
+    isLoadingWeeklyEntry.value = true
+    errorMessage.value = null
+    try {
+      const response = await getQuotifyWeeklyEntryActivity(
+        weeklyEntryQueryParams.value,
+        authStore.accessToken,
+      )
+      weeklyEntryActivity.value = response
+      if (!selectedWeeklyUserId.value) {
+        weeklyUserOptions.value = response.userActivities.map((activity) => ({
+          label: activity.userLabel,
+          value: activity.userId,
+        }))
+      }
+    } catch {
+      errorMessage.value = 'Không thể tải dữ liệu nhập báo giá theo tuần.'
+    } finally {
+      isLoadingWeeklyEntry.value = false
+    }
+  }
+
   async function bootstrap() {
     await loadLookups()
-    await loadDashboard()
+    await Promise.all([loadDashboard(), loadWeeklyEntryActivity()])
   }
 
   async function applyFilters() {
@@ -437,12 +631,29 @@ export function useDashboardPage() {
     await loadDashboard()
   }
 
+  async function applyWeeklyEntryFilters() {
+    await loadWeeklyEntryActivity()
+  }
+
+  async function resetWeeklyEntryFilters() {
+    selectedWeek.value = getWeekStartDate(new Date())
+    selectedWeeklyUserId.value = null
+    await loadWeeklyEntryActivity()
+  }
+
+  function getWeeklyEntryRowClass(activity: QuotifyWeeklyEntryUserActivity) {
+    return activity.hasWarning ? 'dashboard-page__weekly-row--warning' : ''
+  }
+
   return {
     entryKpis,
     priceTrends,
+    weeklyEntryActivity,
     materials,
+    weeklyUserOptions,
     supplierTypeOptions,
     isLoading,
+    isLoadingWeeklyEntry,
     isLoadingLookups,
     errorMessage,
     selectedMaterialId,
@@ -450,20 +661,34 @@ export function useDashboardPage() {
     deliveryMonth,
     receivedDateStart,
     receivedDateEnd,
+    selectedWeek,
+    selectedWeeklyUserId,
     metricCards,
     userKpis,
+    weeklyUserActivities,
+    weeklyWarningUsers,
+    weeklyEntryMetricCards,
+    weeklyEntryPeriodLabel,
     trendPoints,
     deliveryMonthBuckets,
     purchaseContexts,
     hasTrendData,
+    hasWeeklyEntryData,
     chartData,
     chartOptions,
+    weeklyEntryChartData,
+    weeklyEntryChartOptions,
     bootstrap,
     loadDashboard,
+    loadWeeklyEntryActivity,
     applyFilters,
     resetFilters,
+    applyWeeklyEntryFilters,
+    resetWeeklyEntryFilters,
+    getWeeklyEntryRowClass,
     formatMoney,
     formatDateLabel,
+    formatDateTimeLabel,
     formatMonthLabel,
   }
 }

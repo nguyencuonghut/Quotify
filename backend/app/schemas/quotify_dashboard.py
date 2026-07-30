@@ -20,6 +20,26 @@ class QuotifyEntryKpisResponse(BaseModel):
     user_kpis: list[QuotifyEntryUserKpi]
 
 
+class QuotifyWeeklyEntryUserActivity(BaseModel):
+    user_id: UUID
+    user_email: str
+    user_full_name: str
+    user_label: str
+    quote_count: int
+    last_quote_created_at: datetime | None = None
+    has_warning: bool
+
+
+class QuotifyWeeklyEntryActivityResponse(BaseModel):
+    week_start: date
+    week_end: date
+    total_quote_count: int
+    active_user_count: int
+    users_with_quotes: int
+    users_without_quotes: int
+    user_activities: list[QuotifyWeeklyEntryUserActivity]
+
+
 class QuotifyPriceSummary(BaseModel):
     min_price: Decimal | None = None
     max_price: Decimal | None = None
