@@ -282,7 +282,7 @@ export function useDashboardPage() {
     {
       label: 'Tổng báo giá',
       value: formatInteger(summary.value.totalQuotes),
-      detail: `${formatInteger(summary.value.totalLines)} dòng, ${formatInteger(summary.value.purchasedLines)} đã chốt`,
+      detail: `${formatInteger(summary.value.totalLines)} dòng, ${formatInteger(summary.value.purchasedLines)} đã chốt mua`,
       icon: 'pi pi-file-check',
       tone: 'primary',
     },
@@ -299,9 +299,9 @@ export function useDashboardPage() {
   const weeklyEntryPeriodLabel = computed(() =>
     weeklyEntryActivity.value
       ? formatWeekRangeLabel(
-          weeklyEntryActivity.value.weekStart,
-          weeklyEntryActivity.value.weekEnd,
-        )
+        weeklyEntryActivity.value.weekStart,
+        weeklyEntryActivity.value.weekEnd,
+      )
       : 'Tuần hiện tại',
   )
   const weeklyEntryMetricCards = computed<DashboardMetricCard[]>(() => [
