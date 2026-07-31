@@ -5,14 +5,10 @@
         <div class="profile-page__identity">
           <div class="profile-page__avatar-shell">
             <img
-              v-if="currentUser?.avatarUrl"
-              :src="currentUser.avatarUrl"
+              :src="profileAvatarUrl"
               alt="Ảnh đại diện người dùng"
               class="profile-page__avatar-image"
             />
-            <span v-else class="profile-page__avatar-fallback">
-              {{ profileInitials }}
-            </span>
           </div>
 
           <div class="profile-page__identity-copy">
@@ -58,5 +54,5 @@
 import { useProfilePage } from '@/composables/useProfilePage'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 
-const { currentUser, profileInitials, formatDateTime } = useProfilePage()
+const { currentUser, profileAvatarUrl, formatDateTime } = useProfilePage()
 </script>

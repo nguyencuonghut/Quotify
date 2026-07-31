@@ -681,3 +681,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Thêm trang 404 cho route không tồn tại
 - Tóm tắt: Đã thêm NotFoundPage và catch-all route /:pathMatch(.*)* để URL đã gỡ như /files không còn làm Vue Router no match hoặc màn hình trống; route 404 yêu cầu auth giống các trang nội bộ.
+
+## 2026-07-31 02:44:44Z - codex
+
+- Tiêu đề: Bổ sung avatar mặc định cho user
+- Tóm tắt: Đã bổ sung bộ avatar SVG mặc định nội bộ cho user không có avatarUrl; frontend dùng helper chọn ảnh ổn định theo id/email/fullName và vẫn ưu tiên ảnh thật đã upload. Quy ước được ghi vào memory-bank/systemPatterns.md và tiến độ được cập nhật trong memory-bank/progress.md.

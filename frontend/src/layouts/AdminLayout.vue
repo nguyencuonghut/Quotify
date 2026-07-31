@@ -87,14 +87,10 @@
           >
             <span class="admin-layout__profile-avatar" aria-hidden="true">
               <img
-                v-if="authStore.currentUser.avatarUrl"
-                :src="authStore.currentUser.avatarUrl"
+                :src="profileAvatarUrl"
                 alt=""
                 class="admin-layout__profile-avatar-image"
               />
-              <span v-else class="admin-layout__profile-avatar-fallback">
-                {{ profileInitials }}
-              </span>
             </span>
             <span class="admin-layout__profile-copy">
               <span class="admin-layout__profile-name">{{
@@ -152,6 +148,7 @@ import ThemeModeSwitch from '@/components/shared/ThemeModeSwitch.vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { usePermissionStore } from '@/stores/permission.store'
+import { getUserAvatarUrl } from '@/utils/default-avatars'
 
 withDefaults(
   defineProps<{
@@ -308,19 +305,7 @@ const displayUserName = computed(() => {
 
   return authStore.currentUser?.email?.trim() ?? 'Người dùng'
 })
-const profileInitials = computed(() => {
-  const fullName = authStore.currentUser?.fullName?.trim()
-  if (fullName) {
-    const parts = fullName.split(/\s+/).filter(Boolean)
-    return parts
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? '')
-      .join('')
-  }
-
-  const email = authStore.currentUser?.email?.trim()
-  return email ? email.slice(0, 2).toUpperCase() : 'FV'
-})
+const profileAvatarUrl = computed(() => getUserAvatarUrl(authStore.currentUser))
 const profileMenuItems = [
   {
     label: 'Hồ sơ',

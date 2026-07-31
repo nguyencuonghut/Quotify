@@ -1,24 +1,13 @@
 import { computed } from 'vue'
 
 import { useAuthStore } from '@/stores/auth.store'
+import { getUserAvatarUrl } from '@/utils/default-avatars'
 
 export function useProfilePage() {
   const authStore = useAuthStore()
 
   const currentUser = computed(() => authStore.currentUser)
-  const profileInitials = computed(() => {
-    const fullName = currentUser.value?.fullName?.trim()
-    if (fullName) {
-      const parts = fullName.split(/\s+/).filter(Boolean)
-      return parts
-        .slice(0, 2)
-        .map((part) => part[0]?.toUpperCase() ?? '')
-        .join('')
-    }
-
-    const email = currentUser.value?.email?.trim()
-    return email ? email.slice(0, 2).toUpperCase() : 'FV'
-  })
+  const profileAvatarUrl = computed(() => getUserAvatarUrl(currentUser.value))
 
   function formatDateTime(value: string | null) {
     if (!value) {
@@ -34,7 +23,7 @@ export function useProfilePage() {
 
   return {
     currentUser,
-    profileInitials,
+    profileAvatarUrl,
     formatDateTime,
   }
 }

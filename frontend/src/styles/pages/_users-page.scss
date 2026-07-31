@@ -93,6 +93,19 @@
   justify-content: flex-end;
 }
 
+.users-page__avatar-column {
+  width: 3.5rem;
+}
+
+.users-page__table-avatar {
+  display: block;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .users-page__dialog {
   width: 90%;
   max-width: 28rem;

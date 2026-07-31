@@ -79,6 +79,15 @@
           @page="onPageChange"
           @sort="onSortChange"
         >
+          <Column header="" class="users-page__avatar-column">
+            <template #body="{ data }">
+              <img
+                :src="getUserAvatarUrl(data)"
+                alt="Ảnh đại diện người dùng"
+                class="users-page__table-avatar"
+              />
+            </template>
+          </Column>
           <Column field="email" header="Email" sortable />
           <Column field="full_name" header="Họ và tên" sortable>
             <template #body="{ data }">
@@ -188,14 +197,10 @@
             <div class="users-page__avatar-field">
               <div class="users-page__avatar-preview-shell">
                 <img
-                  v-if="createAvatarUrl"
-                  :src="createAvatarUrl"
+                  :src="createAvatarPreviewUrl"
                   alt="Xem trước ảnh đại diện mới"
                   class="users-page__avatar-preview-image"
                 />
-                <div v-else class="users-page__avatar-placeholder">
-                  <i class="pi pi-user" aria-hidden="true" />
-                </div>
               </div>
 
               <div class="users-page__avatar-actions">
@@ -348,14 +353,10 @@
             <div class="users-page__avatar-field">
               <div class="users-page__avatar-preview-shell">
                 <img
-                  v-if="editAvatarUrl"
-                  :src="editAvatarUrl"
+                  :src="editAvatarPreviewUrl"
                   alt="Xem trước ảnh đại diện"
                   class="users-page__avatar-preview-image"
                 />
-                <div v-else class="users-page__avatar-placeholder">
-                  <i class="pi pi-user" aria-hidden="true" />
-                </div>
               </div>
 
               <div class="users-page__avatar-actions">
@@ -696,7 +697,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -714,6 +715,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
 import type { FileDomain } from '@/types/files'
 import type { ImportJobDomain } from '@/types/jobs'
+import { getDefaultAvatarUrl, getUserAvatarUrl } from '@/utils/default-avatars'
 
 const authStore = useAuthStore()
 const permissionStore = usePermissionStore()
@@ -784,6 +786,20 @@ const {
 } = useUsersPage()
 
 const expandedRows = ref([])
+const createAvatarPreviewUrl = computed(() => (
+  createAvatarUrl.value
+  || getDefaultAvatarUrl(`${createEmail.value}:${createFullName.value}`)
+))
+const editAvatarPreviewUrl = computed(() => (
+  editAvatarUrl.value
+  || getDefaultAvatarUrl(
+    [
+      selectedUser.value?.id,
+      editEmail.value,
+      editFullName.value,
+    ].filter(Boolean).join(':'),
+  )
+))
 
 function openImportDialog() {
   importDialogVisible.value = true
