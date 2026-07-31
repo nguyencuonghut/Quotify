@@ -706,3 +706,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Đồng bộ fallback avatar theo user
 - Tóm tắt: Đã sửa fallback avatar để cùng một user dùng cùng ảnh mặc định ở topbar và card Ghi chú thị trường. Helper avatar ưu tiên seed theo user.id; ghi chú seed theo authorId và không dùng revisionId khi đã có author. Thêm unit test cho helper default avatar.
+
+## 2026-07-31 03:24:56Z - codex
+
+- Tiêu đề: Gỡ panel người nhập trùng lặp trên dashboard
+- Tóm tắt: Đã bỏ panel Người nhập - Số phiếu báo giá khỏi Dashboard Quotify vì trùng với chart và bảng Tình hình nhập báo giá theo tuần. Dashboard giữ lại nguồn hiển thị giàu thông tin hơn gồm filter tuần/người nhập, chart theo user, bảng trạng thái và cảnh báo user chưa nhập.
+
+## 2026-07-31 03:26:43Z - codex
+
+- Tiêu đề: Mở rộng chart kỳ hàng về full width
+- Tóm tắt: Đã chỉnh Dashboard Quotify để chart Kỳ hàng về - Giá theo kỳ hàng về hiển thị full width sau khi bỏ panel người nhập trùng lặp; loại bỏ wrapper analysis-grid hai cột và dọn CSS responsive liên quan.

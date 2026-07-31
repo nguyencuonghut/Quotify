@@ -151,13 +151,6 @@
   font-size: 0.84rem;
 }
 
-.dashboard-page__analysis-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(19rem, 0.85fr);
-  gap: 1rem;
-  min-width: 0;
-}
-
 .dashboard-page__panel {
   padding: 1rem;
   border-radius: 0.9rem;
@@ -313,7 +306,6 @@
   }
 
   .dashboard-page__metrics,
-  .dashboard-page__analysis-grid,
   .dashboard-page__weekly-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -326,10 +318,6 @@
   .dashboard-page__weekly-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
-  }
-
-  .dashboard-page__panel--chart {
-    grid-column: 1 / -1;
   }
 
   .dashboard-page__weekly-grid > div:first-child {
@@ -356,7 +344,6 @@
 
   .dashboard-page__filters,
   .dashboard-page__metrics,
-  .dashboard-page__analysis-grid,
   .dashboard-page__weekly-filters,
   .dashboard-page__weekly-stats,
   .dashboard-page__weekly-grid {

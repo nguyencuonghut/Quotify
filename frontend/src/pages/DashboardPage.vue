@@ -241,54 +241,30 @@
         </div>
       </section>
 
-      <section class="dashboard-page__analysis-grid">
-        <section class="dashboard-page__panel dashboard-page__panel--chart">
-          <div class="dashboard-page__panel-header">
-            <div>
-              <p class="dashboard-page__eyebrow">Kỳ hàng về</p>
-              <h3 class="dashboard-page__panel-title">Giá theo kỳ hàng về</h3>
-            </div>
-            <Tag
-              :severity="hasTrendData ? 'success' : 'secondary'"
-              :value="hasTrendData ? `${deliveryMonthBuckets.length} kỳ` : 'Chưa có dữ liệu'"
-            />
+      <section class="dashboard-page__panel dashboard-page__panel--chart">
+        <div class="dashboard-page__panel-header">
+          <div>
+            <p class="dashboard-page__eyebrow">Kỳ hàng về</p>
+            <h3 class="dashboard-page__panel-title">Giá theo kỳ hàng về</h3>
           </div>
+          <Tag
+            :severity="hasTrendData ? 'success' : 'secondary'"
+            :value="hasTrendData ? `${deliveryMonthBuckets.length} kỳ` : 'Chưa có dữ liệu'"
+          />
+        </div>
 
-          <div v-if="hasTrendData" class="dashboard-page__chart-frame">
-            <Chart
-              class="dashboard-page__chart"
-              type="line"
-              :data="chartData"
-              :options="chartOptions"
-            />
-          </div>
-          <div v-else class="dashboard-page__empty">
-            <i class="pi pi-chart-line" aria-hidden="true" />
-            <span>Chưa có dữ liệu phù hợp với bộ lọc hiện tại.</span>
-          </div>
-        </section>
-
-        <section class="dashboard-page__panel">
-          <div class="dashboard-page__panel-header">
-            <div>
-              <p class="dashboard-page__eyebrow">Người nhập</p>
-              <h3 class="dashboard-page__panel-title">Số phiếu báo giá</h3>
-            </div>
-          </div>
-
-          <DataTable
-            :value="userKpis"
-            data-key="userLabel"
-            responsive-layout="scroll"
-            size="small"
-          >
-            <Column field="userLabel" header="Người dùng" />
-            <Column field="quoteCount" header="Số phiếu" />
-            <template #empty>
-              <span class="dashboard-page__table-empty">Chưa có dữ liệu.</span>
-            </template>
-          </DataTable>
-        </section>
+        <div v-if="hasTrendData" class="dashboard-page__chart-frame">
+          <Chart
+            class="dashboard-page__chart"
+            type="line"
+            :data="chartData"
+            :options="chartOptions"
+          />
+        </div>
+        <div v-else class="dashboard-page__empty">
+          <i class="pi pi-chart-line" aria-hidden="true" />
+          <span>Chưa có dữ liệu phù hợp với bộ lọc hiện tại.</span>
+        </div>
       </section>
 
       <section class="dashboard-page__panel">
@@ -364,7 +340,6 @@ const {
   selectedWeek,
   selectedWeeklyUserId,
   metricCards,
-  userKpis,
   weeklyUserOptions,
   weeklyUserActivities,
   weeklyWarningUsers,
