@@ -10,14 +10,10 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 
-from app.api.v1.files import get_audit_log_service, get_file_admin_service
-from app.auth.dependencies import get_current_user
+from app.api.v1.files import get_file_admin_service
 from app.db.session import get_db_session
 from app.models import File, User, UserStatus
-from app.services.file_admin import (
-    FileMetadataNotFoundError,
-    FilePermissionDeniedError,
-)
+from app.services.file_admin import FileMetadataNotFoundError
 
 
 class MockSession:
@@ -68,23 +64,6 @@ class MockFileAdminService:
     async def list_files(self, **kwargs: Any) -> tuple[list[File], int]:
         return list(self.files.values()), len(self.files)
 
-    async def delete_file(self, file_id: UUID, **kwargs: Any) -> None:
-        f = self.files.get(file_id)
-        if f is None:
-            raise FileMetadataNotFoundError(f"File metadata {file_id} not found.")
-
-        user_id = kwargs.get("user_id")
-        can_delete_all = kwargs.get("can_delete_all", False)
-        if not can_delete_all and f.uploaded_by_id != user_id:
-            raise FilePermissionDeniedError("Access denied.")
-
-        del self.files[file_id]
-
-
-class MockAuditLogService:
-    async def log_event(self, **kwargs: Any) -> None:
-        pass
-
 
 @pytest.fixture
 def override_dependencies(app: FastAPI) -> Generator[MockFileAdminService, None, None]:
@@ -124,55 +103,13 @@ def override_dependencies(app: FastAPI) -> Generator[MockFileAdminService, None,
     )
 
     mock_file_service = MockFileAdminService([f1, f2])
-    mock_audit_service = MockAuditLogService()
 
-    app.dependency_overrides[get_current_user] = lambda: admin_user
     app.dependency_overrides[get_file_admin_service] = lambda: mock_file_service
-    app.dependency_overrides[get_audit_log_service] = lambda: mock_audit_service
     app.dependency_overrides[get_db_session] = lambda: MockSession()
 
     yield mock_file_service
 
     app.dependency_overrides.clear()
-
-
-@pytest.mark.asyncio
-async def test_upload_file_api_success(
-    app: FastAPI, client: AsyncClient, override_dependencies: MockFileAdminService
-) -> None:
-    # Use Multipart Form
-    files = {"file": ("document.pdf", b"pdf binary content", "application/pdf")}
-    data = {"is_public": "true"}
-
-    response = await client.post("/api/v1/files/upload", files=files, data=data)
-    assert response.status_code == 201
-    res_data = response.json()
-    assert res_data["filename"] == "document.pdf"
-    assert res_data["content_type"] == "application/pdf"
-    assert res_data["is_public"] is True
-    assert "url" in res_data
-
-
-@pytest.mark.asyncio
-async def test_list_files_api(
-    app: FastAPI, client: AsyncClient, override_dependencies: MockFileAdminService
-) -> None:
-    response = await client.get("/api/v1/files")
-    assert response.status_code == 200
-    res_data = response.json()
-    assert res_data["total"] == 2
-    assert len(res_data["items"]) == 2
-
-
-@pytest.mark.asyncio
-async def test_get_file_metadata_api(
-    app: FastAPI, client: AsyncClient, override_dependencies: MockFileAdminService
-) -> None:
-    file_id = list(override_dependencies.files.keys())[0]
-    response = await client.get(f"/api/v1/files/{file_id}")
-    assert response.status_code == 200
-    res_data = response.json()
-    assert res_data["id"] == str(file_id)
 
 
 @pytest.mark.asyncio
@@ -188,13 +125,3 @@ async def test_download_file_api(
     response = await client.get(f"/api/v1/files/{pub_file.id}/download")
     assert response.status_code == 200
     assert response.read() == b"chunk data"
-
-
-@pytest.mark.asyncio
-async def test_delete_file_api_success(
-    app: FastAPI, client: AsyncClient, override_dependencies: MockFileAdminService
-) -> None:
-    file_id = list(override_dependencies.files.keys())[0]
-    response = await client.delete(f"/api/v1/files/{file_id}")
-    assert response.status_code == 204
-    assert file_id not in override_dependencies.files

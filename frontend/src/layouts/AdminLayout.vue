@@ -262,12 +262,6 @@ const navGroups: NavGroup[] = [
     label: 'Hệ thống',
     items: [
       {
-        label: 'Quản lý tập tin',
-        icon: 'pi pi-file',
-        to: '/files',
-        permission: 'files.read',
-      },
-      {
         label: 'Quản lý sao lưu',
         icon: 'pi pi-database',
         to: '/backups',

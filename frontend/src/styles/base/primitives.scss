@@ -42,7 +42,6 @@ label.required::after,
 .required label::after,
 .required .login-page__label::after,
 .required .users-page__form-label::after,
-.required .files-page__form-label::after,
 .required .roles-page__form-label::after {
   content: ' *';
   color: var(--app-danger);

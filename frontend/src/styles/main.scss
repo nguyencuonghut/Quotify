@@ -8,7 +8,6 @@
 @use './pages/profile-page';
 @use './pages/users-page';
 @use './pages/roles-page';
-@use './pages/files-page';
 @use './pages/backups-page';
 @use './pages/audit-logs-page';
 @use './pages/material-types-page';
@@ -24,4 +23,3 @@
 @use './components/dashboard/summary-cards';
 @use './components/shared/theme-mode-switch';
 @use './components/exchange-rate-field';
-

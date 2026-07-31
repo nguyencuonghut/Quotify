@@ -671,3 +671,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Sửa nút Quay lại trang chi tiết báo giá
 - Tóm tắt: Đã đổi nút Quay lại trên trang Chi tiết phiếu báo giá từ điều hướng về homepage sang danh sách báo giá /quotes; ghi bug pattern để tránh mặc định push('/') cho trang con nghiệp vụ.
+
+## 2026-07-31 02:22:15Z - codex
+
+- Tiêu đề: Gỡ tính năng Quản lý tập tin generic khỏi Quotify
+- Tóm tắt: Đã gỡ menu/route/page frontend /files và các endpoint generic upload/list/metadata/delete ở backend; giữ file-storage core, FileAdminService và endpoint download /api/v1/files/{id}/download cho avatar, import/export và file báo giá theo ngữ cảnh nghiệp vụ.

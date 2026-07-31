@@ -37,7 +37,7 @@
 - Verified backend audit foundation scaffold files exist:
   - `backend/app/services/audit_log.py`
   - `backend/tests/test_audit_log_service.py`
-- Verified backend admin user-management, roles and files storage files exist:
+- Verified backend admin user-management, roles and file-storage core files exist:
   - `backend/app/models/file.py`
   - `backend/app/api/v1/users.py`
   - `backend/app/api/v1/roles.py`
@@ -91,16 +91,12 @@
   - `frontend/src/api/files.mappers.ts`
   - `frontend/src/api/users.api.ts`
   - `frontend/src/api/roles.api.ts`
-  - `frontend/src/api/files.api.ts`
   - `frontend/src/composables/useUsersPage.ts`
   - `frontend/src/composables/useRolesPage.ts`
-  - `frontend/src/composables/useFilesPage.ts`
   - `frontend/src/pages/UsersPage.vue`
   - `frontend/src/pages/RolesPage.vue`
-  - `frontend/src/pages/FilesPage.vue`
   - `frontend/src/styles/pages/_users-page.scss`
   - `frontend/src/styles/pages/_roles-page.scss`
-  - `frontend/src/styles/pages/_files-page.scss`
   - `frontend/src/types/users.ts`
   - `frontend/src/types/roles.ts`
   - `frontend/src/types/files.ts`
@@ -185,7 +181,7 @@
   - default auth cookies are `quotify_refresh_token` and `quotify_logged_in`
   - Prometheus metric names use the `quotify_*` prefix
   - `.env.production.example` exists again
-  - `backend/app/auth/seed_data.py` includes existing usage permissions `users.import`, `users.export`, `files.read_all`, `files.delete`
+  - `backend/app/auth/seed_data.py` includes existing usage permissions `users.import`, `users.export`, and `files.read_all`; generic file-manager permissions `files.read`, `files.upload`, and `files.delete` were removed when Quotify dropped the user-facing file manager
   - `backend/app/auth/seed_data.py` includes planned Quotify permissions for material types, materials, suppliers, quotes, quote notes, exchange rates, and settings
   - `backend/tests/test_permission_inventory.py` compares backend `require_permission(...)`/`has_permission(...)` plus frontend `permissionStore.can(...)`, `requiredPermission`, and nav/action `permission` strings against seed data
 - Verified Quotify catalog seed workflow on 2026-07-27:

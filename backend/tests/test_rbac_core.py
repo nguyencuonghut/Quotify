@@ -65,7 +65,7 @@ def test_non_admin_permission_check_respects_resolved_codes() -> None:
 
 
 def test_describe_permissions_returns_roles_and_permissions() -> None:
-    permission = build_permission("files.read")
+    permission = build_permission("files.read_all")
     role = build_role("operator", permission)
     user = build_user(role)
 
@@ -73,5 +73,5 @@ def test_describe_permissions_returns_roles_and_permissions() -> None:
 
     assert description == {
         "roles": {"operator"},
-        "permissions": {"files.read"},
+        "permissions": {"files.read_all"},
     }

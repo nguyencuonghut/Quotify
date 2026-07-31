@@ -57,7 +57,7 @@ Xây dựng Quotify thành hệ thống đơn giản để:
    metadata, router metadata, HTML title, cookie mặc định và observability metric
    prefix. Không đổi migration/history cũ nếu việc đổi tên gây rủi ro.
 3. Phase 0 đã bổ sung permission seed còn thiếu (`users.import`, `users.export`,
-   `files.read_all`, `files.delete`) và toàn bộ permission Quotify dự kiến. Test
+   `files.read_all`) và toàn bộ permission Quotify dự kiến. Test
    inventory quét `require_permission(...)`, `has_permission(...)` và
    `permissionStore.can(...)` để tránh seed lệch usage.
 4. `.env.production.example` đã được khôi phục ở Phase 0 với biến production mẫu

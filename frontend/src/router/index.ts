@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import AuditLogsPage from '@/pages/AuditLogsPage.vue'
 import DashboardPage from '@/pages/DashboardPage.vue'
-import FilesPage from '@/pages/FilesPage.vue'
 import ForbiddenPage from '@/pages/ForbiddenPage.vue'
 import LoginPage from '@/pages/LoginPage.vue'
 import MaterialTypesPage from '@/pages/MaterialTypesPage.vue'
@@ -176,18 +175,6 @@ export const router = createRouter({
         title: 'Quản lý vai trò',
         description:
           'Cấu hình vai trò và quản lý chi tiết phân quyền truy cập hệ thống.',
-      },
-    },
-    {
-      path: '/files',
-      name: 'files',
-      component: FilesPage,
-      meta: {
-        requiresAuth: true,
-        requiredPermission: 'files.read',
-        title: 'Quản lý tệp tin',
-        description:
-          'Tải lên, lưu trữ, quản lý tệp tin bảo mật tích hợp hệ thống lưu trữ MinIO.',
       },
     },
     {

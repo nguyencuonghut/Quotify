@@ -6,7 +6,6 @@ from fastapi.routing import APIRoute
 from httpx import AsyncClient
 
 from app.api.v1.exchange_rates import limit_exchange_rates_fetch
-from app.api.v1.files import limit_files_upload
 from app.api.v1.jobs import limit_users_export
 from app.core.rate_limit import InMemoryRateLimiter
 
@@ -42,29 +41,6 @@ async def test_login_is_rate_limited() -> None:
     assert second.allowed is True
     assert third.allowed is False
     assert third.retry_after >= 1
-
-
-def test_file_upload_route_has_rate_limit_dependency(app: FastAPI) -> None:
-    dependency_calls = get_route_dependency_calls(
-        app,
-        path="/api/v1/files/upload",
-        method="POST",
-    )
-
-    assert limit_files_upload in dependency_calls
-
-
-def test_file_upload_route_has_permission_dependency(app: FastAPI) -> None:
-    dependency_qualnames = {
-        getattr(dependency, "__qualname__", "")
-        for dependency in get_route_dependency_calls(
-            app,
-            path="/api/v1/files/upload",
-            method="POST",
-        )
-    }
-
-    assert "require_permission.<locals>.dependency" in dependency_qualnames
 
 
 def test_user_export_route_has_rate_limit_dependency(app: FastAPI) -> None:
