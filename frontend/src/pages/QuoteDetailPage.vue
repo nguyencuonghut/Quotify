@@ -816,7 +816,7 @@ const viewRevision = (revision: any) => {
 }
 
 const goBack = () => {
-  useRouterObj.push('/')
+  useRouterObj.push('/quotes')
 }
 
 const editDraft = () => {

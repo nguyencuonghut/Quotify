@@ -62,6 +62,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: `test_sanitize_audit_metadata_preserves_quote_draft_delete_keys` phải đảm bảo metadata xóa bản nháp không bị `[REDACTED]`; `test_admin_can_delete_draft_version_for_any_quote` phải assert route truyền metadata đầy đủ vào audit context.
 - Related files: `backend/app/services/audit_log.py`, `backend/app/services/quote_service.py`, `backend/app/api/v1/quotes.py`, `backend/tests/test_audit_log_service.py`, `backend/tests/test_quotes_ownership_api.py`, `backend/tests/test_quote_lifecycle.py`
 
+### 2026-07-31: Nút Quay lại ở trang chi tiết báo giá điều hướng về homepage
+
+- Area: Frontend routing / Quotify quote detail
+- Trigger: Ở trang `Chi tiết phiếu báo giá`, bấm nút `Quay lại` thì bị đưa về `/` thay vì quay về danh sách báo giá.
+- Root cause: Handler `goBack` trong `QuoteDetailPage.vue` hard-code `router.push('/')`, không theo ngữ cảnh module báo giá.
+- Fix: Đổi handler sang `router.push('/quotes')` để quay lại màn hình danh sách `Bảng báo giá`.
+- Regression guard: Với các trang con nghiệp vụ, nút `Quay lại` phải trỏ về màn hình danh sách/module cha tương ứng, không mặc định về `/` trừ khi đó thật sự là hành vi mong muốn.
+- Related files: `frontend/src/pages/QuoteDetailPage.vue`
+
 ### 2026-06-09: Vitest scanning Playwright specs
 
 - Area: Frontend test runner configuration

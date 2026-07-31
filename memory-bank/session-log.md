@@ -666,3 +666,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Sửa metadata audit xóa bản nháp báo giá
 - Tóm tắt: Đã sửa audit metadata cho action quotes.version_deleted: bổ sung snapshot bản nháp trước khi xóa, mở allowlist sanitizer cho các key an toàn và thêm regression tests để deleted_quote không còn bị REDACTED.
+
+## 2026-07-31 02:08:11Z - codex
+
+- Tiêu đề: Sửa nút Quay lại trang chi tiết báo giá
+- Tóm tắt: Đã đổi nút Quay lại trên trang Chi tiết phiếu báo giá từ điều hướng về homepage sang danh sách báo giá /quotes; ghi bug pattern để tránh mặc định push('/') cho trang con nghiệp vụ.
