@@ -656,3 +656,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Ràng buộc ownership phiếu báo giá
 - Tóm tắt: Đã thêm ràng buộc backend: role user chỉ được mutation phiếu báo giá do mình tạo, role admin thao tác được tất cả; frontend trang chi tiết chỉ hiển thị action mutation khi user là chủ phiếu hoặc admin; bổ sung regression tests và cập nhật tài liệu/memory.
+
+## 2026-07-31 01:56:59Z - codex
+
+- Tiêu đề: Xóa bản nháp báo giá
+- Tóm tắt: Đã thêm tính năng xóa bản nháp báo giá: chỉ xóa version draft, xóa draft duy nhất thì xóa cả phiếu nháp, áp dụng ownership guard, audit event, dọn file nguồn nếu có và thêm nút/dialog trên trang chi tiết.
+
+## 2026-07-31 02:03:45Z - codex
+
+- Tiêu đề: Sửa metadata audit xóa bản nháp báo giá
+- Tóm tắt: Đã sửa audit metadata cho action quotes.version_deleted: bổ sung snapshot bản nháp trước khi xóa, mở allowlist sanitizer cho các key an toàn và thêm regression tests để deleted_quote không còn bị REDACTED.

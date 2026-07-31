@@ -110,6 +110,25 @@ class FakeQuoteSession:
     async def commit(self) -> None:
         self.committed = True
 
+    async def delete(self, obj: Any) -> None:
+        self.deleted.append(obj)
+        if isinstance(obj, Quote):
+            for version in list(obj.versions):
+                await self.delete(version)
+            self.quotes.pop(obj.id, None)
+        elif isinstance(obj, QuoteVersion):
+            line_ids = [
+                line_id
+                for line_id, line in self.quote_lines.items()
+                if line.quote_version_id == obj.id
+            ]
+            for line_id in line_ids:
+                self.quote_lines.pop(line_id, None)
+            quote = self.quotes.get(obj.quote_id)
+            if quote:
+                quote.versions = [version for version in quote.versions if version.id != obj.id]
+            self.quote_versions.pop(obj.id, None)
+
     async def execute(self, statement: object) -> FakeScalarResult:
         compiled = str(statement)
         params = statement.compile().params  # type: ignore[attr-defined]
@@ -189,6 +208,11 @@ class FakeQuoteSession:
 
         elif "FROM quote_versions" in compiled:
             version_id = params.get("id_1")
+            quote_id = params.get("quote_id_1")
+            if quote_id and not version_id:
+                return FakeScalarResult([
+                    v for v in self.quote_versions.values() if v.quote_id == quote_id
+                ])
             version = self.quote_versions.get(version_id)
             if version:
                 version.lines = [l for l in self.quote_lines.values() if l.quote_version_id == version_id]
@@ -525,6 +549,141 @@ async def test_create_version_and_concurrency(test_setup: Any) -> None:
     assert version2.version_number == 2
     assert version2.status == "draft"
     assert version2.lines[0].price_original == Decimal("16000.00")
+
+
+@pytest.mark.asyncio
+async def test_delete_draft_version_removes_only_draft_when_quote_has_confirmed_version(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[{
+            "material_id": material_id,
+            "price_original": Decimal("15000.00"),
+            "currency": "VND",
+            "unit": "KG",
+            "delivery_month": date(2026, 8, 1),
+        }],
+        created_by_id=user_id,
+    )
+    confirmed_version = await quote_service.confirm_version(
+        quote_id=quote.id,
+        version_id=quote.versions[0].id,
+        confirmed_by_id=user_id,
+    )
+    draft_version = await quote_service.create_version(
+        quote_id=quote.id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[{
+            "material_id": material_id,
+            "price_original": Decimal("16000.00"),
+            "currency": "VND",
+            "unit": "KG",
+            "delivery_month": date(2026, 8, 1),
+        }],
+        created_by_id=user_id,
+        correction_reason="Sửa nhầm giá.",
+    )
+
+    result = await quote_service.delete_draft_version(
+        quote_id=quote.id,
+        version_id=draft_version.id,
+    )
+
+    assert result.deleted_quote is False
+    assert result.deleted_version_id == draft_version.id
+    assert result.version_number == 2
+    assert result.received_date == date(2026, 7, 28)
+    assert result.correction_reason == "Sửa nhầm giá."
+    assert result.line_count == 1
+    assert result.deleted_scope == "draft_version"
+    assert confirmed_version.id in session.quote_versions
+    assert draft_version.id not in session.quote_versions
+    assert quote.id in session.quotes
+
+
+@pytest.mark.asyncio
+async def test_delete_only_draft_version_removes_whole_draft_quote(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[{
+            "material_id": material_id,
+            "price_original": Decimal("15000.00"),
+            "currency": "VND",
+            "unit": "KG",
+            "delivery_month": date(2026, 8, 1),
+        }],
+        created_by_id=user_id,
+    )
+    version_id = quote.versions[0].id
+
+    result = await quote_service.delete_draft_version(
+        quote_id=quote.id,
+        version_id=version_id,
+    )
+
+    assert result.deleted_quote is True
+    assert result.deleted_quote_id == quote.id
+    assert result.version_number == 1
+    assert result.received_date == date(2026, 7, 28)
+    assert result.correction_reason is None
+    assert result.line_count == 1
+    assert result.deleted_scope == "draft_quote"
+    assert quote.id not in session.quotes
+    assert version_id not in session.quote_versions
+
+
+@pytest.mark.asyncio
+async def test_delete_confirmed_version_is_rejected(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[{
+            "material_id": material_id,
+            "price_original": Decimal("15000.00"),
+            "currency": "VND",
+            "unit": "KG",
+            "delivery_month": date(2026, 8, 1),
+        }],
+        created_by_id=user_id,
+    )
+    version = await quote_service.confirm_version(
+        quote_id=quote.id,
+        version_id=quote.versions[0].id,
+        confirmed_by_id=user_id,
+    )
+
+    with pytest.raises(ValueError, match="Chỉ được xóa phiên bản ở trạng thái bản nháp"):
+        await quote_service.delete_draft_version(
+            quote_id=quote.id,
+            version_id=version.id,
+        )
 
 
 @pytest.mark.asyncio

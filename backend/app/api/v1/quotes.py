@@ -5,7 +5,7 @@ import io
 import re
 from collections.abc import Generator
 from datetime import date
-from typing import Annotated, Any
+from typing import Annotated, Any, BinaryIO
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
@@ -29,7 +29,7 @@ from app.schemas.quote import (
     QuoteResponse,
     QuoteVersionResponse,
 )
-from app.schemas.quote_list import QuoteListResponse
+from app.schemas.quote_list import QuoteFlattenedResponse, QuoteListResponse
 from app.schemas.quote_note import (
     QuoteNoteResponse,
     QuoteNoteRevisionResponse,
@@ -248,7 +248,10 @@ async def list_quotes(
         ),
     )
 
-    return QuoteListResponse(items=items, total=total)
+    return QuoteListResponse(
+        items=[QuoteFlattenedResponse.model_validate(item) for item in items],
+        total=total,
+    )
 
 
 @router.post("", response_model=QuoteResponse)
@@ -531,6 +534,71 @@ async def confirm_version(
     return _build_version_response(version)
 
 
+@router.delete("/{id}/versions/{version_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_draft_version(
+    id: UUID,
+    version_id: UUID,
+    request: Request,
+    current_user: Annotated[User, Depends(require_permission("quotes.update"))],
+    quote_service: Annotated[QuoteService, Depends(get_quote_service)],
+    file_admin_service: Annotated[FileAdminService, Depends(get_file_admin_service)],
+    audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> None:
+    await _ensure_quote_mutation_allowed(
+        session=session,
+        quote_id=id,
+        current_user=current_user,
+    )
+    try:
+        result = await quote_service.delete_draft_version(
+            quote_id=id,
+            version_id=version_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    source_file_cleanup = "not_applicable"
+    if result.file_id:
+        source_file_cleanup = "deleted"
+        try:
+            await file_admin_service.delete_file(
+                file_id=result.file_id,
+                user_id=current_user.id,
+                can_delete_all=True,
+            )
+        except FileMetadataNotFoundError:
+            source_file_cleanup = "metadata_missing"
+
+    await audit_service.log_event(
+        action="quotes.version_deleted",
+        entity_type="quote_version",
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+            entity_id=str(version_id),
+            metadata_json={
+                "quote_id": str(id),
+                "version_id": str(result.deleted_version_id),
+                "version_number": result.version_number,
+                "version_status": "draft",
+                "received_date": result.received_date.isoformat(),
+                "correction_reason": result.correction_reason,
+                "line_count": result.line_count,
+                "deleted_scope": result.deleted_scope,
+                "deleted_quote": result.deleted_quote,
+                "deleted_quote_id": str(result.deleted_quote_id) if result.deleted_quote_id else None,
+                "source_file_id": str(result.file_id) if result.file_id else None,
+                "source_file_cleanup": source_file_cleanup,
+            },
+        ),
+    )
+    await session.commit()
+
+
 @router.put("/{id}/lines/{line_id}/purchase", response_model=QuoteLineResponse)
 async def toggle_purchase(
     id: UUID,
@@ -630,6 +698,7 @@ async def upload_source_file(
         )
 
     file_size = file.size
+    data_stream: io.BytesIO | BinaryIO
     if file_size is None or file_size <= 0:
         file_content = await file.read()
         file_size = len(file_content)
@@ -655,7 +724,11 @@ async def upload_source_file(
     except Exception as e:
         if db_file is not None:
             try:
-                await file_admin_service.delete_file(db_file.id)
+                await file_admin_service.delete_file(
+                    file_id=db_file.id,
+                    user_id=current_user.id,
+                    can_delete_all=True,
+                )
             except Exception:
                 pass
         raise HTTPException(

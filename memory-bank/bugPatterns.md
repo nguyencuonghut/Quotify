@@ -53,6 +53,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: `tests/test_quotes_ownership_api.py` phải cover User khác chủ phiếu bị `403`, User là chủ phiếu được phép, Admin được phép trên phiếu người khác. Khi thêm endpoint mutation quote mới, phải dùng ownership helper trước khi gọi service/audit.
 - Related files: `backend/app/api/v1/quotes.py`, `backend/tests/test_quotes_ownership_api.py`, `frontend/src/pages/QuoteDetailPage.vue`
 
+### 2026-07-31: Audit metadata xóa bản nháp bị che nhầm thành REDACTED
+
+- Area: Backend audit log / Quotify quote version lifecycle
+- Trigger: Xóa bản nháp báo giá rồi xem chi tiết audit log action `quotes.version_deleted`; metadata chỉ còn `"deleted_quote": "[REDACTED]"`, không đủ biết đã xóa phiên bản nào, xóa cả phiếu hay chỉ xóa bản điều chỉnh, có bao nhiêu dòng và tệp nguồn được xử lý thế nào.
+- Root cause: Audit sanitizer dùng allowlist key nghiêm ngặt nhưng metadata mới của route xóa bản nháp chưa được bổ sung vào `ALLOWED_AUDIT_METADATA_KEYS`. Đồng thời route chỉ ghi metadata tối thiểu, nên dù key không bị che thì vẫn thiếu ngữ cảnh nghiệp vụ.
+- Fix: `QuoteService.delete_draft_version(...)` trả snapshot trước khi xóa gồm `received_date`, `correction_reason`, `line_count`, `deleted_scope`, `file_id`; route audit ghi rõ `quote_id`, `version_id`, `version_number`, `version_status`, phạm vi xóa, trạng thái cleanup tệp nguồn và các id liên quan. Bổ sung allowlist cho các key an toàn.
+- Regression guard: `test_sanitize_audit_metadata_preserves_quote_draft_delete_keys` phải đảm bảo metadata xóa bản nháp không bị `[REDACTED]`; `test_admin_can_delete_draft_version_for_any_quote` phải assert route truyền metadata đầy đủ vào audit context.
+- Related files: `backend/app/services/audit_log.py`, `backend/app/services/quote_service.py`, `backend/app/api/v1/quotes.py`, `backend/tests/test_audit_log_service.py`, `backend/tests/test_quotes_ownership_api.py`, `backend/tests/test_quote_lifecycle.py`
+
 ### 2026-06-09: Vitest scanning Playwright specs
 
 - Area: Frontend test runner configuration

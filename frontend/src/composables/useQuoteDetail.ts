@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import {
   getQuote,
   confirmVersion,
+  deleteDraftVersion,
   toggleLinePurchase,
   uploadSourceFile,
   getQuoteNote,
@@ -10,6 +11,14 @@ import {
   deleteQuoteNoteRevision,
 } from '@/api/quotes.api'
 import type { QuoteDomain, QuoteVersionDomain, QuoteNoteDomain } from '@/types/quotes'
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  return fallback
+}
 
 export function useQuoteDetail(accessToken: string | null) {
   const quote = ref<QuoteDomain | null>(null)
@@ -48,8 +57,8 @@ export function useQuoteDetail(accessToken: string | null) {
     try {
       const data = await getQuoteNote(quoteId, accessToken)
       note.value = data
-    } catch (err: any) {
-      noteErrorMsg.value = err.message || 'Không thể tải ghi chú thị trường.'
+    } catch (err: unknown) {
+      noteErrorMsg.value = getErrorMessage(err, 'Không thể tải ghi chú thị trường.')
     } finally {
       isNoteLoading.value = false
     }
@@ -73,8 +82,8 @@ export function useQuoteDetail(accessToken: string | null) {
         note.value.updatedAt = revision.createdAt
       }
       return revision
-    } catch (err: any) {
-      noteErrorMsg.value = err.message || 'Không thể cập nhật ghi chú thị trường.'
+    } catch (err: unknown) {
+      noteErrorMsg.value = getErrorMessage(err, 'Không thể cập nhật ghi chú thị trường.')
       throw err
     } finally {
       isSavingNote.value = false
@@ -97,8 +106,8 @@ export function useQuoteDetail(accessToken: string | null) {
 
       // Load note alongside quote details
       await loadNote(quoteId)
-    } catch (err: any) {
-      errorMsg.value = err.message || 'Không thể tải chi tiết phiếu báo giá.'
+    } catch (err: unknown) {
+      errorMsg.value = getErrorMessage(err, 'Không thể tải chi tiết phiếu báo giá.')
     } finally {
       isLoading.value = false
     }
@@ -116,8 +125,37 @@ export function useQuoteDetail(accessToken: string | null) {
     try {
       await confirmVersion(quote.value.id, activeVersion.value.id, accessToken)
       await loadQuote(quote.value.id)
-    } catch (err: any) {
-      errorMsg.value = err.message || 'Không thể xác nhận phiên bản báo giá.'
+    } catch (err: unknown) {
+      errorMsg.value = getErrorMessage(err, 'Không thể xác nhận phiên bản báo giá.')
+      throw err
+    } finally {
+      isConfirming.value = false
+    }
+  }
+
+  const handleDeleteDraftVersion = async () => {
+    if (!quote.value || !activeVersion.value) {
+      return
+    }
+    if (activeVersion.value.status !== 'draft') {
+      return
+    }
+
+    isConfirming.value = true
+    errorMsg.value = null
+    try {
+      await deleteDraftVersion(quote.value.id, activeVersion.value.id, accessToken)
+      const deletedQuoteId = quote.value.id
+      const remainingVersions = sortedVersions.value.filter((version) => version.id !== activeVersion.value?.id)
+      if (remainingVersions.length === 0) {
+        quote.value = null
+        activeVersionId.value = null
+        return
+      }
+      activeVersionId.value = remainingVersions[0].id
+      await loadQuote(deletedQuoteId)
+    } catch (err: unknown) {
+      errorMsg.value = getErrorMessage(err, 'Không thể xóa bản nháp báo giá.')
       throw err
     } finally {
       isConfirming.value = false
@@ -132,8 +170,8 @@ export function useQuoteDetail(accessToken: string | null) {
     try {
       await toggleLinePurchase(quote.value.id, lineId, nextVal, purchaseDate, accessToken)
       await loadQuote(quote.value.id)
-    } catch (err: any) {
-      errorMsg.value = err.message || 'Không thể thay đổi trạng thái chốt mua.'
+    } catch (err: unknown) {
+      errorMsg.value = getErrorMessage(err, 'Không thể thay đổi trạng thái chốt mua.')
       throw err
     }
   }
@@ -147,8 +185,8 @@ export function useQuoteDetail(accessToken: string | null) {
     try {
       await uploadSourceFile(quote.value.id, activeVersion.value.id, file, accessToken)
       await loadQuote(quote.value.id)
-    } catch (err: any) {
-      errorMsg.value = err.message || 'Đính kèm tệp tin gốc thất bại.'
+    } catch (err: unknown) {
+      errorMsg.value = getErrorMessage(err, 'Đính kèm tệp tin gốc thất bại.')
       throw err
     } finally {
       isFileUploading.value = false
@@ -174,8 +212,8 @@ export function useQuoteDetail(accessToken: string | null) {
         }
       }
       return updatedRev
-    } catch (err: any) {
-      noteErrorMsg.value = err.message || 'Không thể sửa đổi ghi chú thị trường.'
+    } catch (err: unknown) {
+      noteErrorMsg.value = getErrorMessage(err, 'Không thể sửa đổi ghi chú thị trường.')
       throw err
     } finally {
       isSavingNote.value = false
@@ -199,8 +237,8 @@ export function useQuoteDetail(accessToken: string | null) {
           }
         }
       }
-    } catch (err: any) {
-      noteErrorMsg.value = err.message || 'Không thể xóa ghi chú thị trường.'
+    } catch (err: unknown) {
+      noteErrorMsg.value = getErrorMessage(err, 'Không thể xóa ghi chú thị trường.')
       throw err
     } finally {
       isSavingNote.value = false
@@ -222,6 +260,7 @@ export function useQuoteDetail(accessToken: string | null) {
     noteErrorMsg,
     loadQuote,
     handleConfirm,
+    handleDeleteDraftVersion,
     handleTogglePurchase,
     handleUploadSourceFile,
     getSourceFileDownloadUrl,

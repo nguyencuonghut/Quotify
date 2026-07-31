@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -42,6 +42,7 @@ class MockQuoteService:
     def __init__(self, quote_id: UUID) -> None:
         self.quote_id = quote_id
         self.create_version_calls: list[dict[str, Any]] = []
+        self.delete_draft_version_calls: list[dict[str, Any]] = []
 
     async def create_version(self, **kwargs: Any) -> QuoteVersion:
         self.create_version_calls.append(kwargs)
@@ -60,6 +61,22 @@ class MockQuoteService:
         )
         version.lines = []
         return version
+
+    async def delete_draft_version(self, **kwargs: Any) -> Any:
+        self.delete_draft_version_calls.append(kwargs)
+
+        class DeleteResult:
+            deleted_quote = False
+            deleted_quote_id = None
+            deleted_version_id = kwargs["version_id"]
+            version_number = 2
+            received_date = date(2026, 7, 31)
+            correction_reason = "Sửa giá nhập nhầm."
+            line_count = 3
+            file_id = None
+            deleted_scope = "draft_version"
+
+        return DeleteResult()
 
 
 def make_user(*, role_name: str, user_id: UUID | None = None) -> User:
@@ -175,3 +192,56 @@ async def test_user_can_create_correction_version_for_owned_quote(
     assert quote_service.create_version_calls[0]["created_by_id"] == owner_user.id
     assert session.committed is True
     assert len(audit_service.events) == 1
+
+
+@pytest.mark.asyncio
+async def test_user_cannot_delete_draft_version_for_another_users_quote(
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    version_id = uuid4()
+
+    response = await client.delete(f"/api/v1/quotes/{quote.id}/versions/{version_id}")
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert quote_service.delete_draft_version_calls == []
+    assert session.committed is False
+    assert audit_service.events == []
+
+
+@pytest.mark.asyncio
+async def test_admin_can_delete_draft_version_for_any_quote(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    admin_user = make_user(role_name="admin")
+    app.dependency_overrides[get_current_user] = lambda: admin_user
+    version_id = uuid4()
+
+    response = await client.delete(f"/api/v1/quotes/{quote.id}/versions/{version_id}")
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    assert response.content == b""
+    assert quote_service.delete_draft_version_calls == [
+        {"quote_id": quote.id, "version_id": version_id}
+    ]
+    assert session.committed is True
+    assert len(audit_service.events) == 1
+    audit_context = audit_service.events[0]["context"]
+    assert audit_context.metadata_json == {
+        "quote_id": str(quote.id),
+        "version_id": str(version_id),
+        "version_number": 2,
+        "version_status": "draft",
+        "received_date": "2026-07-31",
+        "correction_reason": "Sửa giá nhập nhầm.",
+        "line_count": 3,
+        "deleted_scope": "draft_version",
+        "deleted_quote": False,
+        "deleted_quote_id": None,
+        "source_file_id": None,
+        "source_file_cleanup": "not_applicable",
+    }

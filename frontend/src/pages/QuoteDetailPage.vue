@@ -39,6 +39,14 @@
           severity="primary"
           @click="showConfirmDialog = true"
         />
+        <Button
+          v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
+          label="Xóa bản nháp"
+          icon="pi pi-trash"
+          severity="danger"
+          outlined
+          @click="showDeleteDraftDialog = true"
+        />
       </div>
     </div>
 
@@ -468,6 +476,44 @@
       </template>
     </Dialog>
 
+    <!-- Delete Draft Dialog -->
+    <Dialog
+      v-model:visible="showDeleteDraftDialog"
+      header="Xóa bản nháp"
+      :modal="true"
+      :style="{ width: '450px' }"
+    >
+      <div class="flex align-items-center gap-3">
+        <i class="pi pi-exclamation-triangle text-red-500 text-3xl" />
+        <span>
+          Bản nháp sẽ bị xóa vĩnh viễn.
+          <template v-if="sortedVersions.length === 1">
+            Vì đây là bản nháp duy nhất, phiếu nháp cũng sẽ bị xóa.
+          </template>
+          <template v-else>
+            Phiên bản đã xác nhận trước đó, nếu có, không bị ảnh hưởng.
+          </template>
+        </span>
+      </div>
+      <template #footer>
+        <Button
+          label="Hủy"
+          icon="pi pi-times"
+          severity="secondary"
+          outlined
+          :disabled="isConfirming"
+          @click="showDeleteDraftDialog = false"
+        />
+        <Button
+          label="Xóa bản nháp"
+          icon="pi pi-trash"
+          severity="danger"
+          :loading="isConfirming"
+          @click="deleteDraftVersionFromDetail"
+        />
+      </template>
+    </Dialog>
+
     <!-- Purchase Dialog -->
     <Dialog
       v-model:visible="showPurchaseDialog"
@@ -574,6 +620,7 @@ const {
   noteErrorMsg,
   loadQuote,
   handleConfirm,
+  handleDeleteDraftVersion,
   handleTogglePurchase,
   handleUploadSourceFile,
   getSourceFileDownloadUrl,
@@ -583,6 +630,7 @@ const {
 } = useQuoteDetail(authStore.accessToken)
 
 const showConfirmDialog = ref<boolean>(false)
+const showDeleteDraftDialog = ref<boolean>(false)
 
 // Permissions
 const isAdminUser = computed(() => authStore.roles.includes('admin'))
@@ -799,6 +847,19 @@ const confirmQuoteVersion = async () => {
   try {
     await handleConfirm()
     showConfirmDialog.value = false
+  } catch {
+    // handled by composable errorMsg
+  }
+}
+
+const deleteDraftVersionFromDetail = async () => {
+  try {
+    const shouldGoBack = sortedVersions.value.length === 1
+    await handleDeleteDraftVersion()
+    showDeleteDraftDialog.value = false
+    if (shouldGoBack) {
+      useRouterObj.push('/quotes')
+    }
   } catch {
     // handled by composable errorMsg
   }

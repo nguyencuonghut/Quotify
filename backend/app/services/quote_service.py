@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -17,6 +18,19 @@ from app.services.exchange_rate_service import (
     quantize_money,
 )
 from app.services.quote_pricing import QuotePricingService
+
+
+@dataclass(frozen=True)
+class DeleteDraftVersionResult:
+    deleted_quote: bool
+    deleted_quote_id: UUID | None
+    deleted_version_id: UUID
+    version_number: int
+    received_date: date
+    correction_reason: str | None
+    line_count: int
+    file_id: UUID | None
+    deleted_scope: str
 
 
 class QuoteService:
@@ -640,6 +654,58 @@ class QuoteService:
             selectinload(QuoteVersion.lines).selectinload(QuoteLine.material)
         ).where(QuoteVersion.id == version.id)
         return (await self.session.execute(reload_stmt)).scalar_one()
+
+    async def delete_draft_version(
+        self,
+        *,
+        quote_id: UUID,
+        version_id: UUID,
+    ) -> DeleteDraftVersionResult:
+        stmt = (
+            select(QuoteVersion)
+            .options(selectinload(QuoteVersion.lines))
+            .where(
+                QuoteVersion.id == version_id,
+                QuoteVersion.quote_id == quote_id,
+            )
+            .with_for_update()
+        )
+        version = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not version:
+            raise ValueError("Không tìm thấy phiên bản báo giá.")
+        if version.status != "draft":
+            raise ValueError("Chỉ được xóa phiên bản ở trạng thái bản nháp.")
+
+        quote = await self.session.get(Quote, quote_id)
+        if not quote:
+            raise ValueError("Báo giá không tồn tại.")
+
+        versions_stmt = select(QuoteVersion).where(QuoteVersion.quote_id == quote_id)
+        versions = list((await self.session.execute(versions_stmt)).scalars().all())
+        file_id = version.file_id
+        version_number = version.version_number
+        received_date = version.received_date
+        correction_reason = version.correction_reason
+        line_count = len(version.lines or [])
+        delete_whole_quote = len(versions) == 1
+
+        if delete_whole_quote:
+            await self.session.delete(quote)
+        else:
+            await self.session.delete(version)
+
+        await self.session.flush()
+        return DeleteDraftVersionResult(
+            deleted_quote=delete_whole_quote,
+            deleted_quote_id=quote_id if delete_whole_quote else None,
+            deleted_version_id=version_id,
+            version_number=version_number,
+            received_date=received_date,
+            correction_reason=correction_reason,
+            line_count=line_count,
+            file_id=file_id,
+            deleted_scope="draft_quote" if delete_whole_quote else "draft_version",
+        )
 
     async def get_quote_by_id(self, quote_id: UUID) -> Quote | None:
         stmt = select(Quote).options(

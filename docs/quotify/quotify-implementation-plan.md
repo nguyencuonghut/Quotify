@@ -173,6 +173,7 @@ Không tạo permission xóa báo giá hoặc xóa lịch sử ghi chú trong ph
 | Tải tệp nguồn của version | `quotes.read` và association quote-version-file hợp lệ | action trong quote detail |
 | Tạo/đọc/cập nhật quote | `quotes.create` / `quotes.read` / `quotes.update`; mutation quote kiểm ownership với role `user` | nhóm Báo giá |
 | Tạo bản điều chỉnh | `quotes.update` và ownership quote | nút theo quyền và chủ phiếu |
+| Xóa bản nháp | `quotes.update` và ownership quote; chỉ áp dụng với version `draft` | nút danger trên quote detail |
 | Tick/untick chốt mua | `quotes.mark_purchased` và ownership quote | checkbox theo quyền và chủ phiếu |
 | Đọc/tạo/sửa/xóa ghi chú | `quote_notes.read` / `quote_notes.create` / `quote_notes.update` và ownership quote khi ghi/xóa | panel trong quote detail |
 | Dashboard Quotify | `dashboard.read` | nhóm Tổng quan |
@@ -732,7 +733,9 @@ core; frontend hoàn chỉnh được làm ở Phase 6.
    người dùng tạo bản điều chỉnh có lý do bắt buộc. Khi bản điều chỉnh được xác
    nhận, version `confirmed` cũ chuyển sang `superseded` và không còn là dữ liệu
    hiệu lực cho danh sách báo giá/dashboard mặc định.
-6. Version draft được sửa/xóa dòng trước khi confirm.
+6. Version draft được sửa/xóa dòng trước khi confirm; nếu tạo nhầm bản nháp thì
+   được xóa toàn bộ version draft. Nếu đó là version duy nhất của phiếu, hệ thống
+   xóa cả phiếu nháp để không để lại quote rỗng.
 7. Mỗi `Quote` chỉ có tối đa một draft; unique `(quote_id, version_number)` và
    partial unique index cho draft là constraint ở database.
 8. Khi tạo version, service khóa hàng `Quote` bằng `SELECT ... FOR UPDATE`, cấp
@@ -771,6 +774,10 @@ core; frontend hoàn chỉnh được làm ở Phase 6.
     Rule này áp dụng cho sửa draft, confirm, upload/thay tệp, tick/untick chốt
     mua, tạo bản điều chỉnh, thêm/sửa/xóa ghi chú và các endpoint mutation tương
     lai của quote.
+24. Không cho xóa version `confirmed` hoặc `superseded`. Xóa bản nháp phải ghi
+    audit `quotes.version_deleted`; nếu bản nháp có tệp nguồn, quote module chịu
+    trách nhiệm xóa hoặc unlink file qua `FileAdminService` sau khi đã kiểm
+    ownership quote.
 
 ### API Dự Kiến
 
@@ -778,6 +785,7 @@ core; frontend hoàn chỉnh được làm ở Phase 6.
 - `GET /quotes/{id}`
 - `POST /quotes/{id}/versions`
 - `PUT /quotes/{id}/versions/{version_id}/draft`
+- `DELETE /quotes/{id}/versions/{version_id}`
 - `POST /quotes/{id}/versions/{version_id}/confirm`
 - `POST /quotes/{id}/versions/{version_id}/source-file`
 - `GET /quotes/{id}/versions/{version_id}/source-file`
@@ -820,6 +828,8 @@ core; frontend hoàn chỉnh được làm ở Phase 6.
 - Predicate nhập lại giống nhau ở schema, service và API.
 - Confirm bất biến; copy matrix đầy đủ; purchase state không bị nhân bản.
 - Unique version/draft constraints và concurrency test cho create/confirm/update.
+- Delete draft test cover ba nhánh: xóa draft điều chỉnh chỉ xóa version nháp,
+  xóa draft duy nhất xóa cả phiếu nháp, và không xóa được `confirmed`.
 - Upload/download file private; cross-user có `quotes.read` tải được file nguồn,
   user không có quyền nhận `403`.
 - Purchase mark/unmark và timestamps do server sinh.

@@ -249,3 +249,22 @@ def test_sanitize_audit_metadata_preserves_worker_lifecycle_keys() -> None:
     }
 
     assert sanitize_audit_metadata(metadata) == metadata
+
+
+def test_sanitize_audit_metadata_preserves_quote_draft_delete_keys() -> None:
+    metadata = {
+        "quote_id": "quote-1",
+        "version_id": "version-1",
+        "version_number": 2,
+        "version_status": "draft",
+        "received_date": "2026-07-31",
+        "correction_reason": "Nhập sai giá.",
+        "line_count": 5,
+        "deleted_scope": "draft_version",
+        "deleted_quote": False,
+        "deleted_quote_id": None,
+        "source_file_id": "file-1",
+        "source_file_cleanup": "deleted",
+    }
+
+    assert sanitize_audit_metadata(metadata) == metadata

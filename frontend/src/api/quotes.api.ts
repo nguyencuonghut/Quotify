@@ -80,6 +80,17 @@ export function confirmVersion(
   }).then(mapQuoteVersionDtoToDomain)
 }
 
+export function deleteDraftVersion(
+  id: string,
+  versionId: string,
+  accessToken?: string | null,
+): Promise<void> {
+  return apiRequest<void>(`/quotes/${id}/versions/${versionId}`, {
+    method: 'DELETE',
+    accessToken,
+  })
+}
+
 export function toggleLinePurchase(
   id: string,
   lineId: string,

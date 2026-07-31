@@ -185,6 +185,10 @@ Phiếu báo giá giữ lịch sử bất biến bằng version.
 6. Action chốt mua chỉ áp dụng với version đang `confirmed`; không cho tick mua trên `draft` hoặc `superseded`.
 7. Nếu bản điều chỉnh giữ nguyên `received_date` của version hiệu lực cũ, backend phải dùng lại snapshot tỷ giá/nguồn/chi phí trên dòng cũ có cùng `material_id`, `delivery_month`, `currency` và `unit`, rồi tính lại giá quy đổi theo `price_original` mới.
 8. Nếu bản điều chỉnh đổi `received_date` sang ngày nghiệp vụ hiện tại, backend phải resolve lại tỷ giá Vietcombank tự động theo quy tắc báo giá trong ngày; frontend không được tự ép ngày nhận về hôm nay khi clone bản điều chỉnh.
+9. Chỉ được xóa version `draft`. Không xóa version `confirmed` hoặc `superseded`.
+   Nếu draft là version duy nhất, xóa cả phiếu nháp; nếu quote đã có version hiệu
+   lực, chỉ xóa draft điều chỉnh. Mọi xóa draft phải ghi audit
+   `quotes.version_deleted` và vẫn đi qua ownership guard.
 
 ## Quotify Quote Ownership Mutation Pattern
 
@@ -192,8 +196,8 @@ Permission code chỉ là điều kiện cần cho mutation phiếu báo giá, k
 kiện đủ.
 
 1. Role `admin` được thao tác trên tất cả phiếu báo giá.
-2. Role `user` chỉ được sửa, confirm, upload/thay tệp, tick/untick chốt mua,
-   tạo bản điều chỉnh và thêm/sửa/xóa ghi chú trên phiếu có
+2. Role `user` chỉ được sửa, confirm, xóa bản nháp, upload/thay tệp,
+   tick/untick chốt mua, tạo bản điều chỉnh và thêm/sửa/xóa ghi chú trên phiếu có
    `Quote.created_by_id == current_user.id`.
 3. Backend route mutation phải gọi helper ownership chung trước khi gọi service
    hoặc ghi audit. Frontend chỉ ẩn/disable action để UX rõ hơn, không được coi là
