@@ -854,6 +854,7 @@ async def get_quote_note(
                 content=r.content,
                 author_id=r.author_id,
                 author_name=r.author.full_name if r.author else None,
+                author_avatar_url=r.author.avatar_url if r.author else None,
                 created_at=r.created_at,
             )
         )
@@ -936,6 +937,7 @@ async def update_quote_note(
         content=revision.content,
         author_id=revision.author_id,
         author_name=current_user.full_name,
+        author_avatar_url=current_user.avatar_url,
         created_at=revision.created_at,
     )
 
@@ -1001,6 +1003,7 @@ async def update_note_revision(
         content=revision.content,
         author_id=revision.author_id,
         author_name=revision.author.full_name if revision.author else "Hệ thống",
+        author_avatar_url=revision.author.avatar_url if revision.author else None,
         created_at=revision.created_at,
     )
 

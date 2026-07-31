@@ -162,6 +162,7 @@ export function updateQuoteNote(
     content: r.content,
     authorId: r.author_id,
     authorName: r.author_name,
+    authorAvatarUrl: r.author_avatar_url,
     createdAt: r.created_at,
   }))
 }
@@ -182,6 +183,7 @@ export function updateQuoteNoteRevision(
     content: r.content,
     authorId: r.author_id,
     authorName: r.author_name,
+    authorAvatarUrl: r.author_avatar_url,
     createdAt: r.created_at,
   }))
 }

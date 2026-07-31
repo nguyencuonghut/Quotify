@@ -237,7 +237,8 @@ User avatars should not be entered as raw external URLs in admin forms.
 4. create/edit user forms upload the image first, receive an `avatar_url`, then submit normal JSON payloads to create/update the user
 5. current avatar rendering relies on a directly displayable URL suitable for `<img>` preview in the admin UI
 6. browser-facing file/avatar URLs should be returned as same-origin relative API paths, not absolute URLs derived from backend host metadata
-7. nếu user không có `avatarUrl`, frontend phải hiển thị avatar mặc định nội bộ từ `frontend/public/default-avatars/` thông qua helper dùng seed ổn định theo `id/email/fullName`; không ghi URL avatar mặc định vào database và không thay thế ảnh thật đã upload
+7. nếu user không có `avatarUrl`, frontend phải hiển thị avatar mặc định nội bộ từ `frontend/public/default-avatars/` thông qua helper dùng seed ổn định ưu tiên `user.id`; không ghi URL avatar mặc định vào database và không thay thế ảnh thật đã upload
+8. cùng một user phải có cùng avatar fallback ở mọi nơi trong cùng phiên đăng nhập và giữa các page, ví dụ topbar, hồ sơ, danh sách user và card `Ghi chú thị trường`; không seed fallback bằng id của bản ghi phụ như `revision.id`
 
 ## Production Readiness Pattern
 

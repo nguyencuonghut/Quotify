@@ -75,6 +75,7 @@ describe('useQuoteDetail', () => {
           content: '<p>Standard Market conditions</p>',
           authorId: 'user-1',
           authorName: 'Admin User',
+          authorAvatarUrl: null,
           createdAt: '2026-07-28T00:00:00Z',
         },
       ],
@@ -101,6 +102,7 @@ describe('useQuoteDetail', () => {
       content: newContent,
       authorId: 'user-1',
       authorName: 'Admin User',
+          authorAvatarUrl: null,
       createdAt: '2026-07-28T01:00:00Z',
     }
 
@@ -118,6 +120,7 @@ describe('useQuoteDetail', () => {
           content: '<p>Standard Market conditions</p>',
           authorId: 'user-1',
           authorName: 'Admin User',
+          authorAvatarUrl: null,
           createdAt: '2026-07-28T00:00:00Z',
         },
       ],
@@ -146,6 +149,7 @@ describe('useQuoteDetail', () => {
       content: updatedContent,
       authorId: 'user-1',
       authorName: 'Admin User',
+          authorAvatarUrl: null,
       createdAt: '2026-07-28T00:00:00Z',
     }
 
@@ -162,6 +166,7 @@ describe('useQuoteDetail', () => {
           content: '<p>Old content</p>',
           authorId: 'user-1',
           authorName: 'Admin User',
+          authorAvatarUrl: null,
           createdAt: '2026-07-28T00:00:00Z',
         },
       ],
@@ -193,6 +198,7 @@ describe('useQuoteDetail', () => {
           content: '<p>Content</p>',
           authorId: 'user-1',
           authorName: 'Admin User',
+          authorAvatarUrl: null,
           createdAt: '2026-07-28T00:00:00Z',
         },
       ],

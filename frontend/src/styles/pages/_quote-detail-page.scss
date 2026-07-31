@@ -426,15 +426,11 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background-color: color-mix(in srgb, var(--app-brand-primary, var(--p-primary-color)) 15%, transparent);
-    color: var(--app-brand-primary, var(--p-primary-color));
-    font-weight: 700;
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
+    flex: 0 0 32px;
+    background-color: var(--app-surface-muted);
+    object-fit: cover;
     border: 1px solid color-mix(in srgb, var(--app-brand-primary, var(--p-primary-color)) 25%, transparent);
-    user-select: none;
   }
 
   .quote-detail-page__comment-meta-text {

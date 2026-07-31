@@ -81,7 +81,12 @@ class MockQuoteNoteService:
             note.updated_at = datetime.now(UTC)
 
         # Mock author user object
-        author = User(id=author_id, email="admin@example.com", full_name="Admin User")
+        author = User(
+            id=author_id,
+            email="admin@example.com",
+            full_name="Admin User",
+            avatar_url="/api/v1/files/avatar/download",
+        )
 
         revision = QuoteNoteRevision(
             id=uuid4(),
@@ -197,6 +202,7 @@ async def test_get_note_returns_note_and_revisions(
     assert len(data["revisions"]) == 1
     assert data["revisions"][0]["content"] == "<p>Test note</p>"
     assert data["revisions"][0]["author_name"] == "Admin User"
+    assert data["revisions"][0]["author_avatar_url"] == "/api/v1/files/avatar/download"
 
 
 @pytest.mark.asyncio
@@ -217,6 +223,7 @@ async def test_update_note_creates_and_logs_audit(
     assert data["revision_number"] == 1
     assert data["content"] == "<p>New Content</p>"
     assert data["author_name"] == "Admin User"
+    assert data["author_avatar_url"] is None
 
     # Verify audit log was emitted
     assert len(audit_service.events) == 1

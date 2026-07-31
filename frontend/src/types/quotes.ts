@@ -143,6 +143,7 @@ export interface QuoteNoteRevisionDto {
   content: string
   author_id: string | null
   author_name: string | null
+  author_avatar_url: string | null
   created_at: string
 }
 
@@ -160,6 +161,7 @@ export interface QuoteNoteRevisionDomain {
   content: string
   authorId: string | null
   authorName: string | null
+  authorAvatarUrl: string | null
   createdAt: string
 }
 

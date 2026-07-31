@@ -89,6 +89,7 @@ export function mapQuoteNoteDtoToDomain(dto: QuoteNoteDto): QuoteNoteDomain {
           content: r.content,
           authorId: r.author_id,
           authorName: r.author_name,
+          authorAvatarUrl: r.author_avatar_url,
           createdAt: r.created_at,
         }))
       : [],

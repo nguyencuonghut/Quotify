@@ -357,9 +357,11 @@
                   <div v-else>
                     <div class="quote-detail-page__comment-header">
                       <div class="quote-detail-page__comment-author-info">
-                        <div class="quote-detail-page__comment-avatar">
-                          {{ rev.authorName ? rev.authorName.charAt(0).toUpperCase() : 'H' }}
-                        </div>
+                        <img
+                          :src="getNoteAuthorAvatarUrl(rev)"
+                          :alt="rev.authorName ? `Ảnh đại diện ${rev.authorName}` : 'Ảnh đại diện người viết'"
+                          class="quote-detail-page__comment-avatar"
+                        />
                         <div class="quote-detail-page__comment-meta-text">
                           <span class="quote-detail-page__comment-author">{{ rev.authorName || 'Hệ thống' }}</span>
                           <span class="quote-detail-page__comment-time">{{ formatDateTime(rev.createdAt) }}</span>
@@ -597,6 +599,7 @@ import { usePermissionStore } from '@/stores/permission.store'
 import { useQuoteDetail } from '@/composables/useQuoteDetail'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 import type { QuoteLineDomain, QuoteNoteRevisionDomain } from '@/types/quotes'
+import { getDefaultAvatarUrl } from '@/utils/default-avatars'
 
 const route = useRoute()
 const useRouterObj = useRouter()
@@ -651,6 +654,10 @@ const canManageNoteRevision = (revision: QuoteNoteRevisionDomain) => (
     isAdminUser.value
     || Boolean(revision.authorId && revision.authorId === authStore.currentUser?.id)
   )
+)
+const getNoteAuthorAvatarUrl = (revision: QuoteNoteRevisionDomain) => (
+  revision.authorAvatarUrl
+  || getDefaultAvatarUrl(revision.authorId || revision.authorName || revision.id)
 )
 
 const getVersionStatusLabel = (status: string): string => {

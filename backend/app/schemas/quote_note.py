@@ -12,6 +12,7 @@ class QuoteNoteRevisionResponse(BaseModel):
     content: str
     author_id: UUID | None = None
     author_name: str | None = None
+    author_avatar_url: str | None = None
     created_at: datetime
 
     class Config:

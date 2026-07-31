@@ -696,3 +696,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Ràng buộc tác giả cho sửa xóa ghi chú
 - Tóm tắt: Đã kiểm tra và hoàn thiện contract ghi chú: mọi user có thể thêm ghi chú; user thường chỉ sửa/xóa revision ghi chú do chính mình tạo; Admin quản trị tất cả. Backend kiểm author_id trước PATCH/DELETE revision, frontend chỉ hiện action sửa/xóa cho revision của current user hoặc Admin, role user được seed quote_notes.read/create/update và đã xác nhận DB dev.
+
+## 2026-07-31 03:07:37Z - codex
+
+- Tiêu đề: Hiển thị avatar trong ghi chú thị trường
+- Tóm tắt: Đã bổ sung author_avatar_url vào response ghi chú báo giá và nối qua frontend mapper/domain để card Ghi chú thị trường hiển thị avatar thật của người viết; nếu user chưa có avatar thì dùng avatar mặc định nội bộ.
+
+## 2026-07-31 03:10:45Z - codex
+
+- Tiêu đề: Đồng bộ fallback avatar theo user
+- Tóm tắt: Đã sửa fallback avatar để cùng một user dùng cùng ảnh mặc định ở topbar và card Ghi chú thị trường. Helper avatar ưu tiên seed theo user.id; ghi chú seed theo authorId và không dùng revisionId khi đã có author. Thêm unit test cho helper default avatar.

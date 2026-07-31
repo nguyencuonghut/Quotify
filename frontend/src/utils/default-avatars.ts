@@ -25,9 +25,7 @@ export function getUserAvatarUrl(user: AvatarUserLike | null | undefined): strin
     return user.avatarUrl
   }
 
-  return getDefaultAvatarUrl(
-    [user?.id, user?.email, user?.fullName].filter(Boolean).join(':'),
-  )
+  return getDefaultAvatarUrl(user?.id || user?.email || user?.fullName)
 }
 
 function hashString(value: string): number {
