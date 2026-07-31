@@ -87,6 +87,10 @@ Xây dựng Quotify thành hệ thống đơn giản để:
 15. Mọi boundary ngày phải dùng `Asia/Ho_Chi_Minh`; datetime lưu có timezone.
 16. Phân tích hồi cứu chỉ được dùng version đã xác nhận và thực sự tồn tại trong
     hệ thống tại mốc phân tích; không suy diễn từ `received_date` được nhập lùi.
+17. Backend phải kiểm tra quyền theo dòng dữ liệu cho mọi mutation phiếu báo giá:
+    role `user` chỉ được sửa, xóa ghi chú, tick chốt mua, upload file hoặc tạo
+    bản điều chỉnh trên phiếu do chính mình tạo; role `admin` được thao tác trên
+    tất cả phiếu.
 
 ## Mô Hình Dữ Liệu Mục Tiêu
 
@@ -165,11 +169,12 @@ Không tạo permission xóa báo giá hoặc xóa lịch sử ghi chú trong ph
 | Lấy USD bán ra hôm nay | `exchange_rates.read` | chỉ gọi trong form quote |
 | Đọc/cập nhật chi phí quy đổi | `quotify_settings.read` / `quotify_settings.update` | menu Cấu hình chỉ hiện khi có quyền đọc |
 | Upload tệp cho quote mới | `quotes.create` | action trong form quote |
-| Upload/thay tệp cho version draft | `quotes.update` | action trong form quote |
+| Upload/thay tệp cho version draft | `quotes.update` và ownership quote | action trong form quote |
 | Tải tệp nguồn của version | `quotes.read` và association quote-version-file hợp lệ | action trong quote detail |
-| Tạo/đọc/cập nhật quote | `quotes.create` / `quotes.read` / `quotes.update` | nhóm Báo giá |
-| Tick/untick chốt mua | `quotes.mark_purchased` | checkbox theo quyền |
-| Đọc/tạo/sửa ghi chú | `quote_notes.read` / `quote_notes.create` / `quote_notes.update` | panel trong quote detail |
+| Tạo/đọc/cập nhật quote | `quotes.create` / `quotes.read` / `quotes.update`; mutation quote kiểm ownership với role `user` | nhóm Báo giá |
+| Tạo bản điều chỉnh | `quotes.update` và ownership quote | nút theo quyền và chủ phiếu |
+| Tick/untick chốt mua | `quotes.mark_purchased` và ownership quote | checkbox theo quyền và chủ phiếu |
+| Đọc/tạo/sửa/xóa ghi chú | `quote_notes.read` / `quote_notes.create` / `quote_notes.update` và ownership quote khi ghi/xóa | panel trong quote detail |
 | Dashboard Quotify | `dashboard.read` | nhóm Tổng quan |
 
 Upload tệp trong quote không yêu cầu thêm `files.upload`; quote module sở hữu
@@ -761,6 +766,11 @@ core; frontend hoàn chỉnh được làm ở Phase 6.
 21. Untick được phép nếu user có `quotes.mark_purchased`; lưu actor/time bỏ đánh
     dấu và audit vẫn giữ lịch sử.
 22. Tệp báo giá gốc tái sử dụng `FileAdminService`, file private.
+23. Với role `user`, mọi mutation trên phiếu báo giá phải kiểm
+    `Quote.created_by_id == current_user.id`; role `admin` được bỏ qua ownership.
+    Rule này áp dụng cho sửa draft, confirm, upload/thay tệp, tick/untick chốt
+    mua, tạo bản điều chỉnh, thêm/sửa/xóa ghi chú và các endpoint mutation tương
+    lai của quote.
 
 ### API Dự Kiến
 
@@ -913,8 +923,9 @@ make docker-test-e2e
 
 ### Bối Cảnh Cho Agent
 
-Ghi chú là domain history riêng, không phải audit metadata. User tạo phiếu và
-user ghi chú có thể khác nhau.
+Ghi chú là domain history riêng, không phải audit metadata. Từ rule ownership
+đã chốt ngày 31/07/2026, role `user` chỉ được thêm/sửa/xóa ghi chú trên phiếu
+do chính mình tạo; role `admin` được thao tác trên tất cả phiếu.
 
 ### Mục Tiêu
 
@@ -948,8 +959,8 @@ Không bắt đầu Phase 7 model/API/UI nếu contract này chưa có test và 
 5. Giới hạn kích thước nội dung.
 6. API create/update/list revisions/read.
 7. Audit chỉ lưu note id, revision number, actor và outcome; không lưu raw HTML.
-8. Permission độc lập với người tạo phiếu.
-9. Không có delete trong phiên bản đầu.
+8. Permission ghi/xóa ghi chú phải đi kèm kiểm tra ownership quote ở backend.
+9. Nếu mở delete revision, phải kiểm tra revision thuộc đúng quote trên path.
 
 ### Frontend
 
@@ -957,7 +968,8 @@ Không bắt đầu Phase 7 model/API/UI nếu contract này chưa có test và 
 2. Editor có toolbar tối thiểu: bold, italic, bullet, link nếu sanitizer cho phép.
 3. Timeline revision thể hiện người tạo/sửa và timestamp GMT+7.
 4. Nội dung render an toàn, không dùng HTML chưa sanitize từ nguồn khác.
-5. User B có quyền ghi chú dù User A tạo phiếu.
+5. User thường không thấy action ghi chú nếu không phải chủ phiếu; Admin vẫn
+   thấy action trên mọi phiếu.
 
 ### File Dự Kiến
 
@@ -980,7 +992,8 @@ Không bắt đầu Phase 7 model/API/UI nếu contract này chưa có test và 
 
 ### Kiểm Thử
 
-- User khác nhau tạo/sửa.
+- User khác không phải chủ phiếu bị chặn tạo/sửa/xóa ghi chú; Admin thao tác
+  được trên mọi phiếu.
 - Revision không mất.
 - XSS payload bị loại.
 - Audit không chứa raw content.
@@ -991,7 +1004,8 @@ Không bắt đầu Phase 7 model/API/UI nếu contract này chưa có test và 
 
 - Xem được old/new qua revision timeline.
 - Audit viewer hiển thị event an toàn.
-- E2E cover User A tạo phiếu, User B thêm/sửa ghi chú.
+- E2E hoặc API test cover User A tạo phiếu, User B bị chặn thêm/sửa/xóa ghi chú,
+  và Admin vẫn thao tác được.
 
 ### Rollback
 

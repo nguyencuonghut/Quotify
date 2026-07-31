@@ -18,6 +18,7 @@ from app.api.v1.exchange_rates import get_exchange_rate_service
 from app.api.v1.files import get_file_admin_service
 from app.api.v1.quotify_settings import get_audit_log_service, get_quotify_settings_service
 from app.auth.dependencies import get_current_user, require_permission
+from app.auth.permissions import has_role
 from app.db.session import get_db_session
 from app.models import Quote, QuoteLine, QuoteVersion, User
 from app.schemas.quote import (
@@ -48,6 +49,7 @@ from app.services.quote_query_service import QuoteQueryService
 from app.services.quote_service import QuoteService
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
+QUOTE_OWNER_DENIED_DETAIL = "Bạn chỉ được thao tác trên phiếu báo giá do mình tạo."
 
 
 def get_quote_pricing_service(
@@ -137,6 +139,65 @@ def _build_quote_response(quote: Quote) -> QuoteResponse:
         updated_at=quote.updated_at,
         versions=[_build_version_response(v) for v in quote.versions],
     )
+
+
+def _is_admin_user(user: User) -> bool:
+    return has_role(user, "admin")
+
+
+async def _ensure_quote_mutation_allowed(
+    *,
+    session: AsyncSession,
+    quote_id: UUID,
+    current_user: User,
+) -> None:
+    if _is_admin_user(current_user):
+        return
+    quote = await session.get(Quote, quote_id)
+    if not quote:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy phiếu báo giá.",
+        )
+    if quote.created_by_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=QUOTE_OWNER_DENIED_DETAIL,
+        )
+
+
+async def _ensure_line_belongs_to_quote(
+    *,
+    session: AsyncSession,
+    quote_id: UUID,
+    line_id: UUID,
+) -> QuoteLine:
+    stmt = (
+        select(QuoteLine)
+        .options(selectinload(QuoteLine.version))
+        .where(QuoteLine.id == line_id)
+    )
+    line = (await session.execute(stmt)).scalar_one_or_none()
+    if not line or not line.version or line.version.quote_id != quote_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy dòng báo giá.",
+        )
+    return line
+
+
+async def _ensure_note_revision_belongs_to_quote(
+    *,
+    note_service: QuoteNoteService,
+    quote_id: UUID,
+    revision_id: UUID,
+) -> None:
+    note = await note_service.get_note_by_quote_id(quote_id)
+    if not note or all(revision.id != revision_id for revision in note.revisions):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy phiên bản ghi chú.",
+        )
 
 
 @router.get("", response_model=QuoteListResponse)
@@ -274,6 +335,11 @@ async def create_version(
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuoteVersionResponse:
+    await _ensure_quote_mutation_allowed(
+        session=session,
+        quote_id=id,
+        current_user=current_user,
+    )
     try:
         version = await quote_service.create_version(
             quote_id=id,
@@ -319,6 +385,11 @@ async def update_draft(
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuoteVersionResponse:
+    await _ensure_quote_mutation_allowed(
+        session=session,
+        quote_id=id,
+        current_user=current_user,
+    )
     # Load old version snapshot for audit log
     old_stmt = select(QuoteVersion).options(
         selectinload(QuoteVersion.lines).selectinload(QuoteLine.material)
@@ -420,6 +491,11 @@ async def confirm_version(
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuoteVersionResponse:
+    await _ensure_quote_mutation_allowed(
+        session=session,
+        quote_id=id,
+        current_user=current_user,
+    )
     try:
         version = await quote_service.confirm_version(
             quote_id=id,
@@ -466,10 +542,18 @@ async def toggle_purchase(
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuoteLineResponse:
+    await _ensure_quote_mutation_allowed(
+        session=session,
+        quote_id=id,
+        current_user=current_user,
+    )
     # Load old line state for audit log
-    old_stmt = select(QuoteLine).where(QuoteLine.id == line_id)
-    old_line = (await session.execute(old_stmt)).scalar_one_or_none()
-    old_purchase_marked_at = old_line.purchase_marked_at if old_line else None
+    old_line = await _ensure_line_belongs_to_quote(
+        session=session,
+        quote_id=id,
+        line_id=line_id,
+    )
+    old_purchase_marked_at = old_line.purchase_marked_at
 
     try:
         line = await quote_service.toggle_line_purchase(
@@ -522,6 +606,11 @@ async def upload_source_file(
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuoteVersionResponse:
+    await _ensure_quote_mutation_allowed(
+        session=session,
+        quote_id=id,
+        current_user=current_user,
+    )
     quote_version = await session.get(QuoteVersion, version_id)
     if not quote_version or quote_version.quote_id != id:
         raise HTTPException(
@@ -711,6 +800,11 @@ async def update_quote_note(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     _: Annotated[User, Depends(require_permission("quotes.update"))],
 ) -> Any:
+    await _ensure_quote_mutation_allowed(
+        session=session,
+        quote_id=quote_id,
+        current_user=current_user,
+    )
     old_content = None
     note = await note_service.get_note_by_quote_id(quote_id)
     if note:
@@ -727,7 +821,7 @@ async def update_quote_note(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
 
     # Log audit event
     await audit_service.log_event(
@@ -774,6 +868,16 @@ async def update_note_revision(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     _: Annotated[User, Depends(require_permission("quotes.update"))],
 ) -> Any:
+    await _ensure_quote_mutation_allowed(
+        session=session,
+        quote_id=quote_id,
+        current_user=current_user,
+    )
+    await _ensure_note_revision_belongs_to_quote(
+        note_service=note_service,
+        quote_id=quote_id,
+        revision_id=revision_id,
+    )
     old_rev = await note_service.get_revision_by_id(revision_id)
     old_content = old_rev.content if old_rev else None
 
@@ -786,7 +890,7 @@ async def update_note_revision(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
 
     # Log audit event
     await audit_service.log_event(
@@ -832,6 +936,16 @@ async def delete_note_revision(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     _: Annotated[User, Depends(require_permission("quotes.update"))],
 ) -> None:
+    await _ensure_quote_mutation_allowed(
+        session=session,
+        quote_id=quote_id,
+        current_user=current_user,
+    )
+    await _ensure_note_revision_belongs_to_quote(
+        note_service=note_service,
+        quote_id=quote_id,
+        revision_id=revision_id,
+    )
     old_rev = await note_service.get_revision_by_id(revision_id)
     old_content = old_rev.content if old_rev else None
     old_revision_number = old_rev.revision_number if old_rev else None
@@ -842,7 +956,7 @@ async def delete_note_revision(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
 
     # Log audit event
     await audit_service.log_event(

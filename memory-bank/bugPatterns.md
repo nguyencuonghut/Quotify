@@ -44,6 +44,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: `test_correction_with_same_received_date_uses_previous_rate_snapshot` phải giữ rate cũ dù mock Vietcombank đã đổi; `test_correction_with_today_received_date_fetches_current_vietcombank_rate` phải lấy rate mới khi ngày nhận bản điều chỉnh đổi sang hôm nay. Unit test `useQuoteEditor` phải chứng minh cloned snapshot không bị watcher ghi đè khi ngày nhận chưa đổi.
 - Related files: `backend/app/services/quote_service.py`, `backend/tests/test_quote_lifecycle.py`, `frontend/src/composables/useQuoteEditor.ts`, `frontend/src/pages/QuoteEditorPage.vue`, `frontend/tests/unit/useQuoteEditor.spec.ts`
 
+### 2026-07-31: User có thể mutation phiếu báo giá của người khác nếu chỉ dựa vào permission
+
+- Area: Backend authorization / Quotify quote ownership
+- Trigger: Role `user` được cấp `quotes.update` hoặc `quotes.mark_purchased`, sau đó gọi trực tiếp API mutation như tạo bản điều chỉnh, sửa draft, confirm, tick chốt mua hoặc ghi chú trên phiếu do user khác tạo.
+- Root cause: Route mutation quote trước đó chỉ kiểm permission code, chưa kiểm ownership theo `Quote.created_by_id`. Frontend cũng chỉ kiểm permission nên có thể hiển thị action cho user không phải chủ phiếu.
+- Fix: Thêm helper `_ensure_quote_mutation_allowed(...)`: Admin được bỏ qua ownership, user thường phải là chủ phiếu; áp dụng cho tạo bản điều chỉnh, sửa draft, confirm, tick/untick chốt mua, upload file, thêm/sửa/xóa ghi chú. Route theo `line_id` và `revision_id` kiểm thêm resource con thuộc đúng quote trên path. Frontend `QuoteDetailPage` chỉ hiển thị/enable action mutation khi user có quyền và là chủ phiếu hoặc là Admin.
+- Regression guard: `tests/test_quotes_ownership_api.py` phải cover User khác chủ phiếu bị `403`, User là chủ phiếu được phép, Admin được phép trên phiếu người khác. Khi thêm endpoint mutation quote mới, phải dùng ownership helper trước khi gọi service/audit.
+- Related files: `backend/app/api/v1/quotes.py`, `backend/tests/test_quotes_ownership_api.py`, `frontend/src/pages/QuoteDetailPage.vue`
+
 ### 2026-06-09: Vitest scanning Playwright specs
 
 - Area: Frontend test runner configuration

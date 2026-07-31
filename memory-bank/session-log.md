@@ -651,3 +651,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Quy tắc tỷ giá bản điều chỉnh báo giá
 - Tóm tắt: Đã triển khai quy tắc bản điều chỉnh Quotify: giữ nguyên ngày nhận báo giá thì dùng lại snapshot tỷ giá/nguồn/chi phí của version hiệu lực cũ; đổi ngày nhận sang hôm nay thì lấy tỷ giá Vietcombank tự động. Backend đảm bảo tại create_version và confirm_version, frontend không tự ép ngày nhận về hôm nay khi clone bản điều chỉnh, tài liệu và memory đã cập nhật.
+
+## 2026-07-31 01:32:39Z - codex
+
+- Tiêu đề: Ràng buộc ownership phiếu báo giá
+- Tóm tắt: Đã thêm ràng buộc backend: role user chỉ được mutation phiếu báo giá do mình tạo, role admin thao tác được tất cả; frontend trang chi tiết chỉ hiển thị action mutation khi user là chủ phiếu hoặc admin; bổ sung regression tests và cập nhật tài liệu/memory.

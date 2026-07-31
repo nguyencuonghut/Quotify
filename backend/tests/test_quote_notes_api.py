@@ -9,7 +9,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 
-from app.api.v1.quotes import get_audit_log_service, get_quote_note_service
+from app.api.v1.quotes import get_quote_note_service
+from app.api.v1.quotify_settings import get_audit_log_service
 from app.auth.dependencies import get_current_user
 from app.db.session import get_db_session
 from app.models import Permission, Role, User, UserStatus
@@ -127,7 +128,7 @@ def override_dependencies(
         Permission(id=uuid4(), code="quotes.read"),
         Permission(id=uuid4(), code="quotes.update"),
     ]
-    admin_role = Role(id=uuid4(), name="quote-admin", is_system=False)
+    admin_role = Role(id=uuid4(), name="admin", is_system=True)
     admin_role.permissions = permissions
     admin_user = User(id=uuid4(), email="admin@example.com", status=UserStatus.ACTIVE, full_name="Admin User")
     admin_user.roles = [admin_role]

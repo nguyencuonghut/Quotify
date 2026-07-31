@@ -20,20 +20,20 @@
           @click="goBack"
         />
         <Button
-          v-if="hasUpdatePermission && activeVersion?.status !== 'draft'"
+          v-if="canUpdateQuote && activeVersion?.status !== 'draft'"
           label="Tạo bản điều chỉnh"
           icon="pi pi-copy"
           @click="createNewVersion"
         />
         <Button
-          v-if="hasUpdatePermission && activeVersion && activeVersion.status === 'draft'"
+          v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
           label="Sửa bản nháp"
           icon="pi pi-pencil"
           outlined
           @click="editDraft"
         />
         <Button
-          v-if="hasUpdatePermission && activeVersion && activeVersion.status === 'draft'"
+          v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
           label="Xác nhận phiên bản"
           icon="pi pi-check"
           severity="primary"
@@ -115,7 +115,7 @@
             </div>
             
             <!-- Draft Version without associated file -> show uploader -->
-            <div v-else-if="activeVersion.status === 'draft' && hasUpdatePermission" class="quote-detail-page__file-upload-section">
+            <div v-else-if="activeVersion.status === 'draft' && canUpdateQuote" class="quote-detail-page__file-upload-section">
               <i class="pi pi-cloud-upload text-3xl text-gray-400" />
               <p>Đính kèm tệp tin gốc (.xlsx, .pdf, .docx, .png)</p>
               <FileUpload
@@ -244,7 +244,7 @@
                   <Checkbox
                     :model-value="Boolean(slotProps.data.purchaseMarkedAt)"
                     binary
-                    :disabled="!hasPurchasePermission || activeVersion?.status !== 'confirmed'"
+                    :disabled="!canMarkPurchase || activeVersion?.status !== 'confirmed'"
                     @click="togglePurchase(slotProps.data)"
                   />
                   <div
@@ -268,7 +268,7 @@
               Ghi chú thị trường
             </h3>
             <Button
-              v-if="hasUpdatePermission && !isEditingNote && !isEditingRevisionId"
+              v-if="canUpdateQuote && !isEditingNote && !isEditingRevisionId"
               label="Thêm"
               icon="pi pi-plus"
               size="small"
@@ -364,7 +364,7 @@
                         >
                           Hiện tại
                         </span>
-                        <div v-if="hasUpdatePermission" class="quote-detail-page__comment-actions">
+                        <div v-if="canUpdateQuote" class="quote-detail-page__comment-actions">
                           <Button
                             icon="pi pi-pencil"
                             severity="secondary"
@@ -585,8 +585,16 @@ const {
 const showConfirmDialog = ref<boolean>(false)
 
 // Permissions
-const hasUpdatePermission = computed(() => permissionStore.can('quotes.update'))
-const hasPurchasePermission = computed(() => permissionStore.can('quotes.mark_purchased'))
+const isAdminUser = computed(() => authStore.roles.includes('admin'))
+const canMutateCurrentQuote = computed(() => {
+  if (isAdminUser.value) {
+    return true
+  }
+
+  return Boolean(quote.value?.createdById && quote.value.createdById === authStore.currentUser?.id)
+})
+const canUpdateQuote = computed(() => permissionStore.can('quotes.update') && canMutateCurrentQuote.value)
+const canMarkPurchase = computed(() => permissionStore.can('quotes.mark_purchased') && canMutateCurrentQuote.value)
 
 const getVersionStatusLabel = (status: string): string => {
   if (status === 'draft') return 'Bản nháp'

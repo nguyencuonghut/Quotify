@@ -186,6 +186,24 @@ Phiếu báo giá giữ lịch sử bất biến bằng version.
 7. Nếu bản điều chỉnh giữ nguyên `received_date` của version hiệu lực cũ, backend phải dùng lại snapshot tỷ giá/nguồn/chi phí trên dòng cũ có cùng `material_id`, `delivery_month`, `currency` và `unit`, rồi tính lại giá quy đổi theo `price_original` mới.
 8. Nếu bản điều chỉnh đổi `received_date` sang ngày nghiệp vụ hiện tại, backend phải resolve lại tỷ giá Vietcombank tự động theo quy tắc báo giá trong ngày; frontend không được tự ép ngày nhận về hôm nay khi clone bản điều chỉnh.
 
+## Quotify Quote Ownership Mutation Pattern
+
+Permission code chỉ là điều kiện cần cho mutation phiếu báo giá, không phải điều
+kiện đủ.
+
+1. Role `admin` được thao tác trên tất cả phiếu báo giá.
+2. Role `user` chỉ được sửa, confirm, upload/thay tệp, tick/untick chốt mua,
+   tạo bản điều chỉnh và thêm/sửa/xóa ghi chú trên phiếu có
+   `Quote.created_by_id == current_user.id`.
+3. Backend route mutation phải gọi helper ownership chung trước khi gọi service
+   hoặc ghi audit. Frontend chỉ ẩn/disable action để UX rõ hơn, không được coi là
+   lớp bảo mật.
+4. Với mutation theo resource con như `line_id`, `version_id` hoặc
+   `revision_id`, route phải kiểm resource con thuộc đúng `quote_id` trên path
+   để tránh thao tác chéo phiếu bằng ID hợp lệ của phiếu khác.
+5. Regression test phải cover ít nhất ba nhánh: User khác chủ phiếu bị `403`,
+   User là chủ phiếu được phép, Admin được phép trên phiếu của người khác.
+
 ## User Avatar Upload Pattern
 
 User avatars should not be entered as raw external URLs in admin forms.
