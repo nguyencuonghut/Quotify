@@ -60,10 +60,12 @@ class MockQuoteNoteService:
                 return note
         return None
 
-    async def update_note(self, *, quote_id: Any, content: str, author_id: Any) -> QuoteNoteRevision:
+    async def update_note(
+        self, *, quote_id: Any, content: str, author_id: Any
+    ) -> QuoteNoteRevision:
         if content == "error":
             raise ValueError("Invalid content")
-            
+
         note = await self.get_note_by_quote_id(quote_id)
         if not note:
             note = QuoteNote(
@@ -125,12 +127,15 @@ def override_dependencies(
     app: FastAPI,
 ) -> Generator[tuple[MockQuoteNoteService, MockAuditLogService, MockSession], None, None]:
     permissions = [
-        Permission(id=uuid4(), code="quotes.read"),
-        Permission(id=uuid4(), code="quotes.update"),
+        Permission(id=uuid4(), code="quote_notes.read"),
+        Permission(id=uuid4(), code="quote_notes.create"),
+        Permission(id=uuid4(), code="quote_notes.update"),
     ]
     admin_role = Role(id=uuid4(), name="admin", is_system=True)
     admin_role.permissions = permissions
-    admin_user = User(id=uuid4(), email="admin@example.com", status=UserStatus.ACTIVE, full_name="Admin User")
+    admin_user = User(
+        id=uuid4(), email="admin@example.com", status=UserStatus.ACTIVE, full_name="Admin User"
+    )
     admin_user.roles = [admin_role]
 
     note_service = MockQuoteNoteService()
@@ -145,6 +150,19 @@ def override_dependencies(
     yield note_service, audit_service, session
 
     app.dependency_overrides.clear()
+
+
+def make_note_user(*, permissions: list[str]) -> User:
+    role = Role(id=uuid4(), name="user", is_system=True)
+    role.permissions = [Permission(id=uuid4(), code=permission) for permission in permissions]
+    user = User(
+        id=uuid4(),
+        email=f"user-{uuid4()}@example.com",
+        status=UserStatus.ACTIVE,
+        full_name="Regular User",
+    )
+    user.roles = [role]
+    return user
 
 
 @pytest.mark.asyncio
@@ -209,6 +227,32 @@ async def test_update_note_creates_and_logs_audit(
 
 
 @pytest.mark.asyncio
+async def test_user_with_note_create_permission_can_add_note_to_any_quote(
+    app: FastAPI,
+    client: AsyncClient,
+    override_dependencies: tuple[MockQuoteNoteService, MockAuditLogService, MockSession],
+) -> None:
+    _, audit_service, session = override_dependencies
+    note_user = make_note_user(permissions=["quote_notes.create"])
+    app.dependency_overrides[get_current_user] = lambda: note_user
+    quote_id = uuid4()
+
+    response = await client.put(
+        f"/api/v1/quotes/{quote_id}/notes",
+        json={"content": "<p>Nhận định thị trường mới</p>"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["revision_number"] == 1
+    assert data["author_name"] == "Regular User"
+    assert session.committed is True
+    assert len(audit_service.events) == 1
+    assert audit_service.events[0]["actor_user_id"] == note_user.id
+    assert audit_service.events[0]["entity_id"] == str(quote_id)
+
+
+@pytest.mark.asyncio
 async def test_update_note_handles_value_error(
     client: AsyncClient,
     override_dependencies: tuple[MockQuoteNoteService, MockAuditLogService, MockSession],
@@ -231,9 +275,11 @@ async def test_update_revision_api_success_and_logs_audit(
 ) -> None:
     note_service, audit_service, _ = override_dependencies
     quote_id = uuid4()
-    
+
     # Pre-populate note and a revision
-    revision = await note_service.update_note(quote_id=quote_id, content="<p>Initial content</p>", author_id=uuid4())
+    revision = await note_service.update_note(
+        quote_id=quote_id, content="<p>Initial content</p>", author_id=uuid4()
+    )
 
     response = await client.patch(
         f"/api/v1/quotes/{quote_id}/notes/revisions/{revision.id}",
@@ -253,15 +299,71 @@ async def test_update_revision_api_success_and_logs_audit(
 
 
 @pytest.mark.asyncio
+async def test_user_can_update_own_note_revision(
+    app: FastAPI,
+    client: AsyncClient,
+    override_dependencies: tuple[MockQuoteNoteService, MockAuditLogService, MockSession],
+) -> None:
+    note_service, audit_service, _ = override_dependencies
+    quote_id = uuid4()
+    note_user = make_note_user(permissions=["quote_notes.update"])
+    app.dependency_overrides[get_current_user] = lambda: note_user
+    revision = await note_service.update_note(
+        quote_id=quote_id,
+        content="<p>Nhận định ban đầu</p>",
+        author_id=note_user.id,
+    )
+
+    response = await client.patch(
+        f"/api/v1/quotes/{quote_id}/notes/revisions/{revision.id}",
+        json={"content": "<p>Nhận định đã sửa</p>"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "<p>Nhận định đã sửa</p>"
+    assert len(audit_service.events) == 1
+
+
+@pytest.mark.asyncio
+async def test_user_cannot_update_another_users_note_revision(
+    app: FastAPI,
+    client: AsyncClient,
+    override_dependencies: tuple[MockQuoteNoteService, MockAuditLogService, MockSession],
+) -> None:
+    note_service, audit_service, session = override_dependencies
+    quote_id = uuid4()
+    other_user_id = uuid4()
+    current_user = make_note_user(permissions=["quote_notes.update"])
+    app.dependency_overrides[get_current_user] = lambda: current_user
+    revision = await note_service.update_note(
+        quote_id=quote_id,
+        content="<p>Ghi chú của người khác</p>",
+        author_id=other_user_id,
+    )
+
+    response = await client.patch(
+        f"/api/v1/quotes/{quote_id}/notes/revisions/{revision.id}",
+        json={"content": "<p>Sửa trái phép</p>"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Bạn chỉ được sửa hoặc xóa ghi chú do chính mình tạo."
+    assert audit_service.events == []
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
 async def test_delete_revision_api_success_and_logs_audit(
     client: AsyncClient,
     override_dependencies: tuple[MockQuoteNoteService, MockAuditLogService, MockSession],
 ) -> None:
     note_service, audit_service, _ = override_dependencies
     quote_id = uuid4()
-    
+
     # Pre-populate note and a revision
-    revision = await note_service.update_note(quote_id=quote_id, content="<p>Initial content</p>", author_id=uuid4())
+    revision = await note_service.update_note(
+        quote_id=quote_id, content="<p>Initial content</p>", author_id=uuid4()
+    )
 
     response = await client.delete(
         f"/api/v1/quotes/{quote_id}/notes/revisions/{revision.id}",
@@ -274,3 +376,30 @@ async def test_delete_revision_api_success_and_logs_audit(
     assert audit_service.events[0]["action"] == "quotes.note_revision_deleted"
     assert audit_service.events[0]["metadata_json"]["quote_id"] == str(quote_id)
     assert audit_service.events[0]["metadata_json"]["revision_id"] == str(revision.id)
+
+
+@pytest.mark.asyncio
+async def test_user_cannot_delete_another_users_note_revision(
+    app: FastAPI,
+    client: AsyncClient,
+    override_dependencies: tuple[MockQuoteNoteService, MockAuditLogService, MockSession],
+) -> None:
+    note_service, audit_service, session = override_dependencies
+    quote_id = uuid4()
+    other_user_id = uuid4()
+    current_user = make_note_user(permissions=["quote_notes.update"])
+    app.dependency_overrides[get_current_user] = lambda: current_user
+    revision = await note_service.update_note(
+        quote_id=quote_id,
+        content="<p>Ghi chú của người khác</p>",
+        author_id=other_user_id,
+    )
+
+    response = await client.delete(
+        f"/api/v1/quotes/{quote_id}/notes/revisions/{revision.id}",
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Bạn chỉ được sửa hoặc xóa ghi chú do chính mình tạo."
+    assert audit_service.events == []
+    assert session.committed is False

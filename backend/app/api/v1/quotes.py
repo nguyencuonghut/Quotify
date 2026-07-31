@@ -20,7 +20,7 @@ from app.api.v1.quotify_settings import get_audit_log_service, get_quotify_setti
 from app.auth.dependencies import get_current_user, require_permission
 from app.auth.permissions import has_role
 from app.db.session import get_db_session
-from app.models import Quote, QuoteLine, QuoteVersion, User
+from app.models import Quote, QuoteLine, QuoteNoteRevision, QuoteVersion, User
 from app.schemas.quote import (
     QuoteCreateRequest,
     QuoteDraftUpdateRequest,
@@ -172,11 +172,7 @@ async def _ensure_line_belongs_to_quote(
     quote_id: UUID,
     line_id: UUID,
 ) -> QuoteLine:
-    stmt = (
-        select(QuoteLine)
-        .options(selectinload(QuoteLine.version))
-        .where(QuoteLine.id == line_id)
-    )
+    stmt = select(QuoteLine).options(selectinload(QuoteLine.version)).where(QuoteLine.id == line_id)
     line = (await session.execute(stmt)).scalar_one_or_none()
     if not line or not line.version or line.version.quote_id != quote_id:
         raise HTTPException(
@@ -197,6 +193,25 @@ async def _ensure_note_revision_belongs_to_quote(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Không tìm thấy phiên bản ghi chú.",
+        )
+
+
+def _ensure_note_revision_author_allowed(
+    *,
+    revision: QuoteNoteRevision | None,
+    current_user: User,
+) -> None:
+    if revision is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy phiên bản ghi chú.",
+        )
+    if _is_admin_user(current_user):
+        return
+    if revision.author_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn chỉ được sửa hoặc xóa ghi chú do chính mình tạo.",
         )
 
 
@@ -305,7 +320,7 @@ async def create_quote(
                         "exchange_rate": float(line.exchange_rate) if line.exchange_rate else None,
                     }
                     for line in (quote.versions[0].lines if quote.versions else [])
-                ]
+                ],
             },
         ),
     )
@@ -394,11 +409,13 @@ async def update_draft(
         current_user=current_user,
     )
     # Load old version snapshot for audit log
-    old_stmt = select(QuoteVersion).options(
-        selectinload(QuoteVersion.lines).selectinload(QuoteLine.material)
-    ).where(QuoteVersion.id == version_id, QuoteVersion.quote_id == id)
+    old_stmt = (
+        select(QuoteVersion)
+        .options(selectinload(QuoteVersion.lines).selectinload(QuoteLine.material))
+        .where(QuoteVersion.id == version_id, QuoteVersion.quote_id == id)
+    )
     old_version = (await session.execute(old_stmt)).scalar_one_or_none()
-    
+
     old_data = None
     if old_version:
         old_data = {
@@ -418,7 +435,7 @@ async def update_draft(
                     "exchange_rate": float(line.exchange_rate) if line.exchange_rate else None,
                 }
                 for line in old_version.lines
-            ]
+            ],
         }
 
     try:
@@ -458,7 +475,7 @@ async def update_draft(
                     "exchange_rate": float(line.exchange_rate) if line.exchange_rate else None,
                 }
                 for line in version.lines
-            ]
+            ],
         }
         for key in ["received_date", "is_backfilled", "backfill_reason", "correction_reason"]:
             if old_data[key] != new_data[key]:
@@ -521,12 +538,7 @@ async def confirm_version(
             metadata_json={
                 "quote_id": str(id),
                 "version_number": version.version_number,
-                "changes": {
-                    "status": {
-                        "old": "draft",
-                        "new": "confirmed"
-                    }
-                }
+                "changes": {"status": {"old": "draft", "new": "confirmed"}},
             },
         ),
     )
@@ -590,7 +602,9 @@ async def delete_draft_version(
                 "line_count": result.line_count,
                 "deleted_scope": result.deleted_scope,
                 "deleted_quote": result.deleted_quote,
-                "deleted_quote_id": str(result.deleted_quote_id) if result.deleted_quote_id else None,
+                "deleted_quote_id": str(result.deleted_quote_id)
+                if result.deleted_quote_id
+                else None,
                 "source_file_id": str(result.file_id) if result.file_id else None,
                 "source_file_cleanup": source_file_cleanup,
             },
@@ -654,7 +668,7 @@ async def toggle_purchase(
                         "old": str(old_purchase_marked_at) if old_purchase_marked_at else None,
                         "new": str(line.purchase_marked_at) if line.purchase_marked_at else None,
                     }
-                }
+                },
             },
         ),
     )
@@ -807,7 +821,7 @@ async def download_source_file(
         "Content-Disposition": f'{disposition}; filename="{db_file.filename}"',
         "Content-Length": str(db_file.size_bytes),
     }
-    
+
     return StreamingResponse(
         stream_file(),
         media_type=db_file.content_type,
@@ -819,7 +833,7 @@ async def download_source_file(
 async def get_quote_note(
     quote_id: UUID,
     note_service: Annotated[QuoteNoteService, Depends(get_quote_note_service)],
-    _: Annotated[User, Depends(require_permission("quotes.read"))],
+    _: Annotated[User, Depends(require_permission("quote_notes.read"))],
 ) -> Any:
     note = await note_service.get_note_by_quote_id(quote_id)
     if not note:
@@ -830,7 +844,7 @@ async def get_quote_note(
             updated_at=None,
             revisions=[],
         )
-    
+
     revisions = []
     for r in note.revisions:
         revisions.append(
@@ -843,7 +857,7 @@ async def get_quote_note(
                 created_at=r.created_at,
             )
         )
-    
+
     return QuoteNoteResponse(
         id=note.id,
         quote_id=note.quote_id,
@@ -856,8 +870,8 @@ async def get_quote_note(
 def clean_html_to_text(text: str | None) -> str | None:
     if not text:
         return text
-    text = re.sub(r'</?(p|br|div|li)[^>]*>', ' ', text)
-    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r"</?(p|br|div|li)[^>]*>", " ", text)
+    text = re.sub(r"<[^>]+>", "", text)
     text = html.unescape(text)
     return " ".join(text.split())
 
@@ -871,17 +885,14 @@ async def update_quote_note(
     current_user: Annotated[User, Depends(get_current_user)],
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    _: Annotated[User, Depends(require_permission("quotes.update"))],
+    _: Annotated[User, Depends(require_permission("quote_notes.create"))],
 ) -> Any:
-    await _ensure_quote_mutation_allowed(
-        session=session,
-        quote_id=quote_id,
-        current_user=current_user,
-    )
     old_content = None
     note = await note_service.get_note_by_quote_id(quote_id)
     if note:
-        last_revision = max(note.revisions, key=lambda revision: revision.revision_number, default=None)
+        last_revision = max(
+            note.revisions, key=lambda revision: revision.revision_number, default=None
+        )
         old_content = last_revision.content if last_revision else None
 
     try:
@@ -910,9 +921,9 @@ async def update_quote_note(
                 "changes": {
                     "content": {
                         "old": clean_html_to_text(old_content),
-                        "new": clean_html_to_text(revision.content)
+                        "new": clean_html_to_text(revision.content),
                     }
-                }
+                },
             },
         ),
     )
@@ -939,19 +950,15 @@ async def update_note_revision(
     current_user: Annotated[User, Depends(get_current_user)],
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    _: Annotated[User, Depends(require_permission("quotes.update"))],
+    _: Annotated[User, Depends(require_permission("quote_notes.update"))],
 ) -> Any:
-    await _ensure_quote_mutation_allowed(
-        session=session,
-        quote_id=quote_id,
-        current_user=current_user,
-    )
     await _ensure_note_revision_belongs_to_quote(
         note_service=note_service,
         quote_id=quote_id,
         revision_id=revision_id,
     )
     old_rev = await note_service.get_revision_by_id(revision_id)
+    _ensure_note_revision_author_allowed(revision=old_rev, current_user=current_user)
     old_content = old_rev.content if old_rev else None
 
     try:
@@ -980,9 +987,9 @@ async def update_note_revision(
                 "changes": {
                     "content": {
                         "old": clean_html_to_text(old_content),
-                        "new": clean_html_to_text(revision.content)
+                        "new": clean_html_to_text(revision.content),
                     }
-                }
+                },
             },
         ),
     )
@@ -1007,19 +1014,15 @@ async def delete_note_revision(
     current_user: Annotated[User, Depends(get_current_user)],
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    _: Annotated[User, Depends(require_permission("quotes.update"))],
+    _: Annotated[User, Depends(require_permission("quote_notes.update"))],
 ) -> None:
-    await _ensure_quote_mutation_allowed(
-        session=session,
-        quote_id=quote_id,
-        current_user=current_user,
-    )
     await _ensure_note_revision_belongs_to_quote(
         note_service=note_service,
         quote_id=quote_id,
         revision_id=revision_id,
     )
     old_rev = await note_service.get_revision_by_id(revision_id)
+    _ensure_note_revision_author_allowed(revision=old_rev, current_user=current_user)
     old_content = old_rev.content if old_rev else None
     old_revision_number = old_rev.revision_number if old_rev else None
 

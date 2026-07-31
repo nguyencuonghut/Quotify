@@ -49,9 +49,18 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Area: Backend authorization / Quotify quote ownership
 - Trigger: Role `user` được cấp `quotes.update` hoặc `quotes.mark_purchased`, sau đó gọi trực tiếp API mutation như tạo bản điều chỉnh, sửa draft, confirm, tick chốt mua hoặc ghi chú trên phiếu do user khác tạo.
 - Root cause: Route mutation quote trước đó chỉ kiểm permission code, chưa kiểm ownership theo `Quote.created_by_id`. Frontend cũng chỉ kiểm permission nên có thể hiển thị action cho user không phải chủ phiếu.
-- Fix: Thêm helper `_ensure_quote_mutation_allowed(...)`: Admin được bỏ qua ownership, user thường phải là chủ phiếu; áp dụng cho tạo bản điều chỉnh, sửa draft, confirm, tick/untick chốt mua, upload file, thêm/sửa/xóa ghi chú. Route theo `line_id` và `revision_id` kiểm thêm resource con thuộc đúng quote trên path. Frontend `QuoteDetailPage` chỉ hiển thị/enable action mutation khi user có quyền và là chủ phiếu hoặc là Admin.
+- Fix: Thêm helper `_ensure_quote_mutation_allowed(...)`: Admin được bỏ qua ownership, user thường phải là chủ phiếu; áp dụng cho tạo bản điều chỉnh, sửa draft, confirm, tick/untick chốt mua và upload file. Route theo `line_id` và `revision_id` kiểm thêm resource con thuộc đúng quote trên path. Frontend `QuoteDetailPage` chỉ hiển thị/enable action mutation lõi khi user có quyền và là chủ phiếu hoặc là Admin. Cập nhật ngày 31/07/2026: ghi chú thị trường đã được tách khỏi ownership quote vì đây là luồng cộng tác theo quyền `quote_notes.*`.
 - Regression guard: `tests/test_quotes_ownership_api.py` phải cover User khác chủ phiếu bị `403`, User là chủ phiếu được phép, Admin được phép trên phiếu người khác. Khi thêm endpoint mutation quote mới, phải dùng ownership helper trước khi gọi service/audit.
 - Related files: `backend/app/api/v1/quotes.py`, `backend/tests/test_quotes_ownership_api.py`, `frontend/src/pages/QuoteDetailPage.vue`
+
+### 2026-07-31: User khác chủ phiếu không thấy nút Thêm ghi chú
+
+- Area: Frontend permissions / Backend RBAC / Quotify quote notes
+- Trigger: Đăng nhập bằng user thường như `lethihong@honghafeed.com.vn`, mở chi tiết báo giá do user khác tạo; card `Ghi chú thị trường` không hiển thị nút `Thêm`, trong khi Admin vẫn thấy.
+- Root cause: Sau khi siết ownership quote, frontend dùng `canUpdateQuote` cho nút `Thêm` ghi chú. Biến này yêu cầu `quotes.update` và ownership quote hoặc role Admin. Backend note endpoints cũng dùng nhầm `quotes.update` và `_ensure_quote_mutation_allowed(...)`, còn role hệ thống `user` chưa được seed `quote_notes.read/create/update`.
+- Fix: Tách ghi chú thị trường khỏi mutation quote lõi: `GET /quotes/{id}/notes` dùng `quote_notes.read`, `PUT /quotes/{id}/notes` dùng `quote_notes.create` và không kiểm ownership quote; `PATCH/DELETE revision` dùng `quote_notes.update`, kiểm revision thuộc đúng quote và user thường chỉ sửa/xóa revision do chính mình tạo. Frontend nút `Thêm` dùng `quote_notes.create`, action sửa/xóa chỉ hiện với Admin hoặc revision của chính user hiện tại. Seeder role `user` được cấp `quote_notes.read/create/update`.
+- Regression guard: `test_user_with_note_create_permission_can_add_note_to_any_quote` bảo đảm user thường có `quote_notes.create` thêm được ghi chú trên quote bất kỳ; `test_user_cannot_update_another_users_note_revision` và `test_user_cannot_delete_another_users_note_revision` bảo đảm user không sửa/xóa ghi chú người khác; `test_quotify_user_role_business_crud_permissions_are_seeded` phải bao gồm `quote_notes.read/create/update`.
+- Related files: `backend/app/api/v1/quotes.py`, `backend/app/auth/seed_data.py`, `backend/tests/test_quote_notes_api.py`, `backend/tests/test_permission_inventory.py`, `frontend/src/pages/QuoteDetailPage.vue`, `docs/quotify/quotify-implementation-plan.md`
 
 ### 2026-07-31: Audit metadata xóa bản nháp bị che nhầm thành REDACTED
 

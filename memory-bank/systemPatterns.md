@@ -197,7 +197,7 @@ kiện đủ.
 
 1. Role `admin` được thao tác trên tất cả phiếu báo giá.
 2. Role `user` chỉ được sửa, confirm, xóa bản nháp, upload/thay tệp,
-   tick/untick chốt mua, tạo bản điều chỉnh và thêm/sửa/xóa ghi chú trên phiếu có
+   tick/untick chốt mua và tạo bản điều chỉnh trên phiếu có
    `Quote.created_by_id == current_user.id`.
 3. Backend route mutation phải gọi helper ownership chung trước khi gọi service
    hoặc ghi audit. Frontend chỉ ẩn/disable action để UX rõ hơn, không được coi là
@@ -207,6 +207,25 @@ kiện đủ.
    để tránh thao tác chéo phiếu bằng ID hợp lệ của phiếu khác.
 5. Regression test phải cover ít nhất ba nhánh: User khác chủ phiếu bị `403`,
    User là chủ phiếu được phép, Admin được phép trên phiếu của người khác.
+
+## Quotify Quote Note Collaboration Pattern
+
+Ghi chú thị trường là phần cộng tác nhận định, không phải mutation dữ liệu báo
+giá lõi.
+
+1. User có `quote_notes.read` được đọc ghi chú của phiếu báo giá mà họ truy cập
+   được.
+2. User có `quote_notes.create` được thêm revision ghi chú trên mọi phiếu báo giá
+   mà họ đọc được, không bị giới hạn bởi `Quote.created_by_id`.
+3. Nút `Thêm` trong card `Ghi chú thị trường` phải dựa vào
+   `quote_notes.create`, không dựa vào `quotes.update` hoặc ownership quote.
+4. Sửa/xóa revision ghi chú dùng quyền riêng `quote_notes.update`; user thường
+   chỉ được sửa/xóa revision có `author_id == current_user.id`, còn Admin được
+   quản trị tất cả.
+5. Backend vẫn phải kiểm `revision_id` thuộc đúng `quote_id` trên path trước khi
+   kiểm tác giả để tránh thao tác chéo phiếu.
+6. Không dùng helper ownership của mutation quote cho endpoint thêm ghi chú, vì
+   điều đó sẽ làm user thường không thể góp nhận định vào báo giá của người khác.
 
 ## User Avatar Upload Pattern
 

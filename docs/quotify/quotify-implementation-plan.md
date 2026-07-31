@@ -87,10 +87,10 @@ Xây dựng Quotify thành hệ thống đơn giản để:
 15. Mọi boundary ngày phải dùng `Asia/Ho_Chi_Minh`; datetime lưu có timezone.
 16. Phân tích hồi cứu chỉ được dùng version đã xác nhận và thực sự tồn tại trong
     hệ thống tại mốc phân tích; không suy diễn từ `received_date` được nhập lùi.
-17. Backend phải kiểm tra quyền theo dòng dữ liệu cho mọi mutation phiếu báo giá:
-    role `user` chỉ được sửa, xóa ghi chú, tick chốt mua, upload file hoặc tạo
-    bản điều chỉnh trên phiếu do chính mình tạo; role `admin` được thao tác trên
-    tất cả phiếu.
+17. Backend phải kiểm tra quyền theo dòng dữ liệu cho mọi mutation phiếu báo giá
+    lõi: role `user` chỉ được sửa draft, tick chốt mua, upload file hoặc tạo bản
+    điều chỉnh trên phiếu do chính mình tạo; role `admin` được thao tác trên tất
+    cả phiếu. Ghi chú thị trường là luồng cộng tác riêng, dùng `quote_notes.*`.
 
 ## Mô Hình Dữ Liệu Mục Tiêu
 
@@ -175,7 +175,8 @@ Không tạo permission xóa báo giá hoặc xóa lịch sử ghi chú trong ph
 | Tạo bản điều chỉnh | `quotes.update` và ownership quote | nút theo quyền và chủ phiếu |
 | Xóa bản nháp | `quotes.update` và ownership quote; chỉ áp dụng với version `draft` | nút danger trên quote detail |
 | Tick/untick chốt mua | `quotes.mark_purchased` và ownership quote | checkbox theo quyền và chủ phiếu |
-| Đọc/tạo/sửa/xóa ghi chú | `quote_notes.read` / `quote_notes.create` / `quote_notes.update` và ownership quote khi ghi/xóa | panel trong quote detail |
+| Đọc/tạo ghi chú | `quote_notes.read` / `quote_notes.create`; không kiểm ownership quote để mọi user được góp thêm nhận định thị trường | panel trong quote detail |
+| Sửa/xóa revision ghi chú | `quote_notes.update`; user thường chỉ sửa/xóa revision do chính mình tạo, Admin quản trị tất cả, và backend kiểm revision thuộc đúng quote trên path | action revision trong quote detail |
 | Dashboard Quotify | `dashboard.read` | nhóm Tổng quan |
 
 Upload tệp trong quote không yêu cầu thêm `files.upload`; quote module sở hữu
@@ -769,11 +770,12 @@ core; frontend hoàn chỉnh được làm ở Phase 6.
 21. Untick được phép nếu user có `quotes.mark_purchased`; lưu actor/time bỏ đánh
     dấu và audit vẫn giữ lịch sử.
 22. Tệp báo giá gốc tái sử dụng `FileAdminService`, file private.
-23. Với role `user`, mọi mutation trên phiếu báo giá phải kiểm
+23. Với role `user`, mọi mutation lõi trên phiếu báo giá phải kiểm
     `Quote.created_by_id == current_user.id`; role `admin` được bỏ qua ownership.
     Rule này áp dụng cho sửa draft, confirm, upload/thay tệp, tick/untick chốt
-    mua, tạo bản điều chỉnh, thêm/sửa/xóa ghi chú và các endpoint mutation tương
-    lai của quote.
+    mua, tạo bản điều chỉnh và các endpoint mutation tương lai của quote. Ghi
+    chú thị trường không dùng helper ownership này; thêm ghi chú dùng
+    `quote_notes.create`, sửa/xóa revision dùng `quote_notes.update`.
 24. Không cho xóa version `confirmed` hoặc `superseded`. Xóa bản nháp phải ghi
     audit `quotes.version_deleted`; nếu bản nháp có tệp nguồn, quote module chịu
     trách nhiệm xóa hoặc unlink file qua `FileAdminService` sau khi đã kiểm
@@ -933,9 +935,11 @@ make docker-test-e2e
 
 ### Bối Cảnh Cho Agent
 
-Ghi chú là domain history riêng, không phải audit metadata. Từ rule ownership
-đã chốt ngày 31/07/2026, role `user` chỉ được thêm/sửa/xóa ghi chú trên phiếu
-do chính mình tạo; role `admin` được thao tác trên tất cả phiếu.
+Ghi chú là domain history riêng, không phải audit metadata. Ghi chú thị trường
+được xem như phần cộng tác nhận định, nên user có `quote_notes.create` được thêm
+ghi chú trên mọi phiếu báo giá mà họ đọc được, không bị giới hạn bởi chủ phiếu.
+Sửa/xóa revision ghi chú là quyền riêng `quote_notes.update`; user thường chỉ
+được sửa/xóa revision do chính mình tạo, Admin được quản trị tất cả.
 
 ### Mục Tiêu
 
@@ -969,8 +973,11 @@ Không bắt đầu Phase 7 model/API/UI nếu contract này chưa có test và 
 5. Giới hạn kích thước nội dung.
 6. API create/update/list revisions/read.
 7. Audit chỉ lưu note id, revision number, actor và outcome; không lưu raw HTML.
-8. Permission ghi/xóa ghi chú phải đi kèm kiểm tra ownership quote ở backend.
-9. Nếu mở delete revision, phải kiểm tra revision thuộc đúng quote trên path.
+8. Permission thêm ghi chú dùng `quote_notes.create` và không kiểm ownership
+   quote.
+9. Nếu mở update/delete revision, phải kiểm tra revision thuộc đúng quote trên
+   path, yêu cầu `quote_notes.update`, và với user thường phải kiểm
+   `revision.author_id == current_user.id`.
 
 ### Frontend
 
@@ -978,8 +985,9 @@ Không bắt đầu Phase 7 model/API/UI nếu contract này chưa có test và 
 2. Editor có toolbar tối thiểu: bold, italic, bullet, link nếu sanitizer cho phép.
 3. Timeline revision thể hiện người tạo/sửa và timestamp GMT+7.
 4. Nội dung render an toàn, không dùng HTML chưa sanitize từ nguồn khác.
-5. User thường không thấy action ghi chú nếu không phải chủ phiếu; Admin vẫn
-   thấy action trên mọi phiếu.
+5. User thường có `quote_notes.create` thấy nút `Thêm` ghi chú trên mọi phiếu
+   báo giá họ đọc được; action sửa/xóa revision chỉ hiện trên revision do chính
+   user đó tạo. Admin thấy action sửa/xóa trên mọi revision.
 
 ### File Dự Kiến
 
@@ -1002,8 +1010,10 @@ Không bắt đầu Phase 7 model/API/UI nếu contract này chưa có test và 
 
 ### Kiểm Thử
 
-- User khác không phải chủ phiếu bị chặn tạo/sửa/xóa ghi chú; Admin thao tác
-  được trên mọi phiếu.
+- User khác không phải chủ phiếu vẫn thêm được ghi chú nếu có
+  `quote_notes.create`.
+- User thường sửa/xóa được revision của chính mình và bị chặn `403` khi sửa/xóa
+  revision của người khác.
 - Revision không mất.
 - XSS payload bị loại.
 - Audit không chứa raw content.
@@ -1014,8 +1024,9 @@ Không bắt đầu Phase 7 model/API/UI nếu contract này chưa có test và 
 
 - Xem được old/new qua revision timeline.
 - Audit viewer hiển thị event an toàn.
-- E2E hoặc API test cover User A tạo phiếu, User B bị chặn thêm/sửa/xóa ghi chú,
-  và Admin vẫn thao tác được.
+- E2E hoặc API test cover User A tạo phiếu, User B thêm được ghi chú bằng
+  `quote_notes.create`, User B sửa/xóa được revision của mình và bị chặn khi
+  sửa/xóa revision của người khác.
 
 ### Rollback
 

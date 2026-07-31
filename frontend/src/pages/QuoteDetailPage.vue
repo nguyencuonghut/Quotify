@@ -276,7 +276,7 @@
               Ghi chú thị trường
             </h3>
             <Button
-              v-if="canUpdateQuote && !isEditingNote && !isEditingRevisionId"
+              v-if="canCreateNote && !isEditingNote && !isEditingRevisionId"
               label="Thêm"
               icon="pi pi-plus"
               size="small"
@@ -372,7 +372,7 @@
                         >
                           Hiện tại
                         </span>
-                        <div v-if="canUpdateQuote" class="quote-detail-page__comment-actions">
+                        <div v-if="canManageNoteRevision(rev)" class="quote-detail-page__comment-actions">
                           <Button
                             icon="pi pi-pencil"
                             severity="secondary"
@@ -596,7 +596,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
 import { useQuoteDetail } from '@/composables/useQuoteDetail'
 import AdminLayout from '@/layouts/AdminLayout.vue'
-import type { QuoteLineDomain } from '@/types/quotes'
+import type { QuoteLineDomain, QuoteNoteRevisionDomain } from '@/types/quotes'
 
 const route = useRoute()
 const useRouterObj = useRouter()
@@ -643,6 +643,15 @@ const canMutateCurrentQuote = computed(() => {
 })
 const canUpdateQuote = computed(() => permissionStore.can('quotes.update') && canMutateCurrentQuote.value)
 const canMarkPurchase = computed(() => permissionStore.can('quotes.mark_purchased') && canMutateCurrentQuote.value)
+const canCreateNote = computed(() => permissionStore.can('quote_notes.create'))
+const canUpdateNote = computed(() => permissionStore.can('quote_notes.update'))
+const canManageNoteRevision = (revision: QuoteNoteRevisionDomain) => (
+  canUpdateNote.value
+  && (
+    isAdminUser.value
+    || Boolean(revision.authorId && revision.authorId === authStore.currentUser?.id)
+  )
+)
 
 const getVersionStatusLabel = (status: string): string => {
   if (status === 'draft') return 'Bản nháp'

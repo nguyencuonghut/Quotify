@@ -60,6 +60,9 @@ USER_ROLE_PERMISSION_CODES = [
     "quotes.create",
     "quotes.update",
     "quotes.mark_purchased",
+    "quote_notes.read",
+    "quote_notes.create",
+    "quote_notes.update",
     "exchange_rates.read",
 ]
 

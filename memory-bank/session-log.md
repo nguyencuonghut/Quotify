@@ -686,3 +686,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Bổ sung avatar mặc định cho user
 - Tóm tắt: Đã bổ sung bộ avatar SVG mặc định nội bộ cho user không có avatarUrl; frontend dùng helper chọn ảnh ổn định theo id/email/fullName và vẫn ưu tiên ảnh thật đã upload. Quy ước được ghi vào memory-bank/systemPatterns.md và tiến độ được cập nhật trong memory-bank/progress.md.
+
+## 2026-07-31 02:53:34Z - codex
+
+- Tiêu đề: Sửa quyền thêm ghi chú báo giá
+- Tóm tắt: Đã sửa lỗi user thường như Lê Thị Hồng không thấy nút Thêm ghi chú trên báo giá của user khác. Root cause là UI và backend dùng nhầm quotes.update + ownership quote cho ghi chú. Đã tách ghi chú sang quote_notes.read/create/update, cấp quote_notes.read/create cho role user, cập nhật docs và bug memory, chạy lại seeder RBAC dev và xác nhận role user có quyền quote_notes.create/read.
+
+## 2026-07-31 03:00:01Z - codex
+
+- Tiêu đề: Ràng buộc tác giả cho sửa xóa ghi chú
+- Tóm tắt: Đã kiểm tra và hoàn thiện contract ghi chú: mọi user có thể thêm ghi chú; user thường chỉ sửa/xóa revision ghi chú do chính mình tạo; Admin quản trị tất cả. Backend kiểm author_id trước PATCH/DELETE revision, frontend chỉ hiện action sửa/xóa cho revision của current user hoặc Admin, role user được seed quote_notes.read/create/update và đã xác nhận DB dev.
