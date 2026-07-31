@@ -195,29 +195,6 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'Danh mục',
-    items: [
-      {
-        label: 'Loại vật tư',
-        icon: 'pi pi-tags',
-        to: '/catalog/material-types',
-        permission: 'material_types.read',
-      },
-      {
-        label: 'Vật tư',
-        icon: 'pi pi-box',
-        to: '/catalog/materials',
-        permission: 'materials.read',
-      },
-      {
-        label: 'Nhà cung cấp',
-        icon: 'pi pi-truck',
-        to: '/catalog/suppliers',
-        permission: 'suppliers.read',
-      },
-    ],
-  },
-  {
     label: 'Báo giá',
     items: [
       {
@@ -237,6 +214,29 @@ const navGroups: NavGroup[] = [
         icon: 'pi pi-cog',
         to: '/quotify-settings',
         permission: 'quotify_settings.read',
+      },
+    ],
+  },
+  {
+    label: 'Danh mục',
+    items: [
+      {
+        label: 'Loại vật tư',
+        icon: 'pi pi-tags',
+        to: '/catalog/material-types',
+        permission: 'material_types.read',
+      },
+      {
+        label: 'Vật tư',
+        icon: 'pi pi-box',
+        to: '/catalog/materials',
+        permission: 'materials.read',
+      },
+      {
+        label: 'Nhà cung cấp',
+        icon: 'pi pi-truck',
+        to: '/catalog/suppliers',
+        permission: 'suppliers.read',
       },
     ],
   },
