@@ -71,6 +71,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Với các trang con nghiệp vụ, nút `Quay lại` phải trỏ về màn hình danh sách/module cha tương ứng, không mặc định về `/` trừ khi đó thật sự là hành vi mong muốn.
 - Related files: `frontend/src/pages/QuoteDetailPage.vue`
 
+### 2026-07-31: Route đã gỡ làm frontend hiện màn hình trống
+
+- Area: Frontend routing / removed product features
+- Trigger: Sau khi gỡ tính năng `Quản lý tập tin`, người dùng mở trực tiếp `http://localhost:5173/files`; Vue Router cảnh báo `No match found for location with path "/files"` và frontend chỉ hiện màn hình nền trống.
+- Root cause: Router không có catch-all route cho URL không tồn tại, nên route đã gỡ không render trang lỗi thân thiện.
+- Fix: Thêm `NotFoundPage.vue` và route cuối `/:pathMatch(.*)*` với `requiresAuth`, title/description tiếng Việt. Người dùng đã đăng nhập thấy màn hình `Không tìm thấy trang`; người chưa đăng nhập vẫn được guard đưa về login.
+- Regression guard: Khi xóa route hoặc tính năng user-facing, phải kiểm URL cũ/URL sai được catch bởi route 404, không để Vue Router ở trạng thái không match.
+- Related files: `frontend/src/router/index.ts`, `frontend/src/pages/NotFoundPage.vue`
+
 ### 2026-06-09: Vitest scanning Playwright specs
 
 - Area: Frontend test runner configuration

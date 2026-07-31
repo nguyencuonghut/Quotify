@@ -6,6 +6,7 @@ import ForbiddenPage from '@/pages/ForbiddenPage.vue'
 import LoginPage from '@/pages/LoginPage.vue'
 import MaterialTypesPage from '@/pages/MaterialTypesPage.vue'
 import MaterialsPage from '@/pages/MaterialsPage.vue'
+import NotFoundPage from '@/pages/NotFoundPage.vue'
 import ProfilePage from '@/pages/ProfilePage.vue'
 import QuotifySettingsPage from '@/pages/QuotifySettingsPage.vue'
 import RolesPage from '@/pages/RolesPage.vue'
@@ -220,6 +221,16 @@ export const router = createRouter({
         requiresAuth: true,
         title: 'Không có quyền truy cập',
         description: 'Bạn không có đủ quyền hạn để truy cập tài nguyên này.',
+      },
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: NotFoundPage,
+      meta: {
+        requiresAuth: true,
+        title: 'Không tìm thấy trang',
+        description: 'Trang bạn đang mở không tồn tại trong hệ thống Quotify.',
       },
     },
   ],

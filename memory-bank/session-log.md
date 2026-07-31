@@ -676,3 +676,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Gỡ tính năng Quản lý tập tin generic khỏi Quotify
 - Tóm tắt: Đã gỡ menu/route/page frontend /files và các endpoint generic upload/list/metadata/delete ở backend; giữ file-storage core, FileAdminService và endpoint download /api/v1/files/{id}/download cho avatar, import/export và file báo giá theo ngữ cảnh nghiệp vụ.
+
+## 2026-07-31 02:26:38Z - codex
+
+- Tiêu đề: Thêm trang 404 cho route không tồn tại
+- Tóm tắt: Đã thêm NotFoundPage và catch-all route /:pathMatch(.*)* để URL đã gỡ như /files không còn làm Vue Router no match hoặc màn hình trống; route 404 yêu cầu auth giống các trang nội bộ.
