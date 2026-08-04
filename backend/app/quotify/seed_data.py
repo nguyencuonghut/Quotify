@@ -27,7 +27,17 @@ MATERIAL_TYPE_SEEDS: tuple[MaterialTypeSeed, ...] = (
     MaterialTypeSeed(
         code="VI_LUONG",
         name="Vi lượng",
-        note="Nhóm phụ gia, premix, acid amin, enzyme và khoáng vi lượng.",
+        note="Nhóm phụ gia, acid amin, enzyme và khoáng vi lượng.",
+    ),
+    MaterialTypeSeed(
+        code="BAO_BI",
+        name="Bao bì",
+        note="Nhóm bao bì.",
+    ),
+    MaterialTypeSeed(
+        code="PREMIX",
+        name="Premix",
+        note="Nhóm premix.",
     ),
 )
 

@@ -731,3 +731,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Cho phép nhà cung cấp có nhiều loại NCC
 - Tóm tắt: Đã mở rộng Loại NCC từ một giá trị sang một hoặc nhiều giá trị Nội địa/Quốc tế. Backend API nhận/trả supplier_type dạng danh sách, DB lưu chuỗi canonical domestic,international, import CSV chấp nhận dấu phẩy/chấm phẩy, dashboard filter vẫn match NCC có cả hai loại, frontend form Nhà cung cấp dùng MultiSelect và table hiển thị nhãn ghép. Đã cập nhật docs và Memory Bank.
+
+## 2026-08-04 10:01:45Z - codex
+
+- Tiêu đề: Cập nhật tài liệu seed loại vật tư
+- Tóm tắt: Đã cập nhật Requirements và Memory Bank để phản ánh danh sách loại vật tư seed hiện tại gồm Nguyên liệu, Vi lượng, Bao bì và Premix. Không thay đổi code seed do người dùng đã tự bổ sung trong file chưa commit.
