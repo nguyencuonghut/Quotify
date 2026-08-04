@@ -53,6 +53,11 @@ export interface UserUpdatePayload {
   avatar_url?: string
 }
 
+export interface UserPasswordChangePayload {
+  current_password: string
+  new_password: string
+}
+
 export interface UserListQueryParams {
   limit: number
   offset: number

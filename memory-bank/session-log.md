@@ -716,3 +716,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Mở rộng chart kỳ hàng về full width
 - Tóm tắt: Đã chỉnh Dashboard Quotify để chart Kỳ hàng về - Giá theo kỳ hàng về hiển thị full width sau khi bỏ panel người nhập trùng lặp; loại bỏ wrapper analysis-grid hai cột và dọn CSS responsive liên quan.
+
+## 2026-08-04 02:13:40Z - codex
+
+- Tiêu đề: Thiết kế lại trang hồ sơ cá nhân
+- Tóm tắt: Đã chuyển trang /profile thành self-service: user tự đổi avatar qua API /users/me/avatar, tự đổi mật khẩu qua /users/me/password, UI chia panel thông tin/avatar/mật khẩu, audit không ghi raw password, frontend cập nhật authStore.currentUser sau khi đổi avatar. Verification: backend users API tests 11 passed, Ruff mục tiêu, frontend ESLint mục tiêu, style lint, Vite build và git diff --check pass; build đầy đủ vẫn bị chặn bởi nợ typecheck cũ cụm báo giá.

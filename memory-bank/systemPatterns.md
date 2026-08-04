@@ -240,6 +240,23 @@ User avatars should not be entered as raw external URLs in admin forms.
 7. nếu user không có `avatarUrl`, frontend phải hiển thị avatar mặc định nội bộ từ `frontend/public/default-avatars/` thông qua helper dùng seed ổn định ưu tiên `user.id`; không ghi URL avatar mặc định vào database và không thay thế ảnh thật đã upload
 8. cùng một user phải có cùng avatar fallback ở mọi nơi trong cùng phiên đăng nhập và giữa các page, ví dụ topbar, hồ sơ, danh sách user và card `Ghi chú thị trường`; không seed fallback bằng id của bản ghi phụ như `revision.id`
 
+## Self-Service Profile Pattern
+
+Trang hồ sơ cá nhân phải là nơi user tự quản lý thông tin đăng nhập tối thiểu,
+không chỉ là màn hình xem thông tin.
+
+1. User đã đăng nhập được tự đổi avatar mà không cần quyền admin
+   `users.create` hoặc `users.update`.
+2. Avatar self-service vẫn phải đi qua `FileAdminService` và MinIO/file-storage
+   chung, trả URL same-origin relative và cập nhật `authStore.currentUser` ngay
+   để topbar, hồ sơ và các vị trí dùng avatar không bị lệch state.
+3. User đã đăng nhập được tự đổi mật khẩu bằng mật khẩu hiện tại và mật khẩu mới.
+   Endpoint đổi mật khẩu không được trả hoặc ghi raw password vào audit metadata.
+4. Đổi mật khẩu là route `204 No Content`, nên FastAPI endpoint phải return
+   `None`, không return trực tiếp object `Response`.
+5. UI profile phải dùng style SCSS tập trung, responsive, có dấu `*` cho các
+   input bắt buộc và dùng token dark/light hiện có.
+
 ## Production Readiness Pattern
 
 Production readiness is part of the architecture, not a deployment afterthought.

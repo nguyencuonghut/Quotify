@@ -1,5 +1,7 @@
 import { apiRequest } from '@/api/http'
+import { mapCurrentUserDto } from '@/api/auth.mappers'
 import { mapUserDtoToDomain, mapUserListDtoToDomain } from '@/api/users.mappers'
+import type { CurrentUser, CurrentUserDto } from '@/types/auth'
 import type {
   UserCreatePayload,
   UserAvatarUploadDto,
@@ -8,6 +10,7 @@ import type {
   UserListDto,
   UserListDomain,
   UserListQueryParams,
+  UserPasswordChangePayload,
   UserUpdatePayload,
 } from '@/types/users'
 
@@ -86,4 +89,29 @@ export function uploadUserAvatar(
     body: formData,
     accessToken,
   }).then((dto) => dto.avatar_url)
+}
+
+export function uploadCurrentUserAvatar(
+  file: File,
+  accessToken?: string | null,
+): Promise<CurrentUser> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  return apiRequest<CurrentUserDto>('/users/me/avatar', {
+    method: 'POST',
+    body: formData,
+    accessToken,
+  }).then(mapCurrentUserDto)
+}
+
+export function changeCurrentUserPassword(
+  payload: UserPasswordChangePayload,
+  accessToken?: string | null,
+): Promise<void> {
+  return apiRequest<void>('/users/me/password', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    accessToken,
+  })
 }

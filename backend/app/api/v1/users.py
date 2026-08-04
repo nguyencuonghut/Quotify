@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.url_utils import build_api_file_download_path
 from app.api.v1.auth import _build_current_user_response
 from app.auth.dependencies import get_current_user, require_permission
+from app.auth.hashing import hash_password, verify_password
 from app.auth.permissions import has_permission, resolve_role_names
 from app.core.rate_limit import build_rate_limit_dependency
 from app.db.session import get_db_session
@@ -20,10 +21,12 @@ from app.schemas import (
     UserAvatarUploadResponse,
     UserCreateRequest,
     UserListResponse,
+    UserPasswordChangeRequest,
     UserResponse,
     UserRoleUpdateRequest,
     UserUpdateRequest,
 )
+from app.schemas.auth import CurrentUserResponse
 from app.services import (
     AuditLogContext,
     AuditLogService,
@@ -118,6 +121,132 @@ async def list_users(
         items=[_build_user_response(u) for u in users],
         total=total,
     )
+
+
+@router.post(
+    "/me/avatar",
+    response_model=CurrentUserResponse,
+    dependencies=[Depends(limit_users_avatar_upload)],
+)
+async def upload_current_user_avatar(
+    request: Request,
+    file: UploadFile,
+    current_user: Annotated[User, Depends(get_current_user)],
+    file_admin_service: Annotated[FileAdminService, Depends(get_file_admin_service)],
+    audit_log_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> CurrentUserResponse:
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Filename is missing.",
+        )
+
+    content_type = file.content_type or "application/octet-stream"
+    if not content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Only image uploads are supported for user avatars.",
+        )
+
+    file_size = file.size
+    data_stream: io.BytesIO | typing.BinaryIO
+    if file_size is None or file_size <= 0:
+        file_content = await file.read()
+        file_size = len(file_content)
+        data_stream = io.BytesIO(file_content)
+    else:
+        data_stream = file.file
+
+    previous_avatar_url = current_user.avatar_url
+
+    try:
+        db_file = await file_admin_service.upload_file(
+            filename=file.filename,
+            content_type=content_type,
+            size_bytes=file_size,
+            data_stream=data_stream,
+            is_public=True,
+            uploaded_by_id=current_user.id,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload avatar image: {exc}",
+        ) from exc
+
+    current_user.avatar_url = build_api_file_download_path(str(db_file.id))
+
+    await audit_log_service.log_event(
+        action="users.avatar_uploaded",
+        entity_type="user",
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+            entity_id=str(current_user.id),
+            metadata_json={
+                "email": current_user.email,
+                "filename": db_file.filename,
+                "content_type": db_file.content_type,
+                "size_bytes": db_file.size_bytes,
+                "purpose": "user_avatar",
+                "is_public": db_file.is_public,
+                "outcome": "updated",
+                "changes": [
+                    _build_user_audit_change(
+                        "avatar_url",
+                        previous_avatar_url,
+                        current_user.avatar_url,
+                    )
+                ],
+            },
+        ),
+    )
+
+    await session.commit()
+
+    return _build_current_user_response(current_user)
+
+
+@router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_current_user_password(
+    payload: UserPasswordChangeRequest,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    audit_log_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> None:
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+
+    current_user.password_hash = hash_password(payload.new_password)
+
+    await audit_log_service.log_event(
+        action="users.password_changed",
+        entity_type="user",
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+            entity_id=str(current_user.id),
+            metadata_json={
+                "email": current_user.email,
+                "changes": [
+                    {
+                        "field": "login_information",
+                        "label": "Thông tin đăng nhập",
+                        "old_value": "[HIDDEN]",
+                        "new_value": "Đã cập nhật",
+                    }
+                ],
+                "outcome": "updated",
+            },
+        ),
+    )
+
+    await session.commit()
 
 
 @router.get("/{user_id}", response_model=UserResponse)

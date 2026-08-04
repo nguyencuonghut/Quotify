@@ -5,14 +5,21 @@
   width: 100%;
 }
 
-.profile-page__card {
+.profile-page__hero,
+.profile-page__panel {
   display: grid;
   gap: 1.5rem;
   padding: 1.5rem;
   border: 1px solid var(--app-border-soft);
-  border-radius: 1.25rem;
+  border-radius: 0.75rem;
   background: var(--app-surface-panel);
   box-shadow: var(--app-shadow-sm);
+}
+
+.profile-page__workspace {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
 }
 
 .profile-page__identity {
@@ -25,7 +32,7 @@
 .profile-page__avatar-shell {
   width: 5.5rem;
   height: 5.5rem;
-  border-radius: 1.5rem;
+  border-radius: 50%;
   overflow: hidden;
   border: 1px solid var(--app-border-soft);
   background: var(--app-surface-panel-alt);
@@ -41,23 +48,6 @@
   object-fit: cover;
 }
 
-.profile-page__avatar-fallback {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  font-size: 1.15rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--app-text-primary);
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--app-accent) 55%, transparent),
-    color-mix(in srgb, var(--app-accent-strong) 72%, transparent)
-  );
-}
-
 .profile-page__identity-copy {
   display: grid;
   gap: 0.3rem;
@@ -66,7 +56,9 @@
 .profile-page__eyebrow,
 .profile-page__email,
 .profile-page__meta-item dt,
-.profile-page__meta-item dd {
+.profile-page__meta-item dd,
+.profile-page__panel-title,
+.profile-page__panel-description {
   margin: 0;
 }
 
@@ -99,7 +91,7 @@
   gap: 0.35rem;
   padding: 1rem;
   border: 1px solid var(--app-border-soft);
-  border-radius: 1rem;
+  border-radius: 0.65rem;
   background: var(--app-surface-muted);
 }
 
@@ -108,8 +100,121 @@
   font-weight: 600;
 }
 
+.profile-page__panel {
+  align-content: start;
+}
+
+.profile-page__panel-header {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.profile-page__panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--app-border-accent);
+  border-radius: 0.65rem;
+  color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 10%, transparent);
+  flex: 0 0 auto;
+}
+
+.profile-page__panel-title {
+  color: var(--app-text-primary);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.profile-page__panel-description,
+.profile-page__hint {
+  color: var(--app-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.profile-page__avatar-editor {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.profile-page__avatar-preview {
+  width: 6.5rem;
+  height: 6.5rem;
+  overflow: hidden;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 50%;
+  background: var(--app-surface-panel-alt);
+}
+
+.profile-page__avatar-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-page__avatar-actions,
+.profile-page__password-form,
+.profile-page__field {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.profile-page__password-form {
+  gap: 1rem;
+}
+
+.profile-page__label {
+  color: var(--app-text-secondary);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.profile-page__field .p-password,
+.profile-page__field .p-password-input {
+  width: 100%;
+}
+
+.profile-page__error,
+.profile-page__success {
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.profile-page__error {
+  color: var(--app-text-danger);
+}
+
+.profile-page__success {
+  color: var(--app-text-success);
+}
+
+.profile-page .p-button {
+  justify-content: center;
+}
+
 @media (max-width: 768px) {
+  .profile-page__hero,
+  .profile-page__panel {
+    padding: 1rem;
+  }
+
+  .profile-page__workspace,
   .profile-page__meta-grid {
     grid-template-columns: 1fr;
+  }
+
+  .profile-page__avatar-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-page__avatar-preview {
+    width: 5.5rem;
+    height: 5.5rem;
   }
 }

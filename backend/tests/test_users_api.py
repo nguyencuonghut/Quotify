@@ -15,6 +15,7 @@ from app.api.v1.users import (
     get_user_admin_service,
 )
 from app.auth.dependencies import get_current_user
+from app.auth.hashing import hash_password, verify_password
 from app.db.session import get_db_session
 from app.models import File, Role, User, UserStatus
 from app.services import UserNotFoundError
@@ -90,9 +91,11 @@ class MockFileAdminService:
 @pytest.fixture
 def override_dependencies(app: FastAPI) -> Generator[MockUserAdminService, None, None]:
     role = Role(id=uuid4(), name="admin", is_system=True)
+    role.permissions = []
     admin_user = User(
         id=uuid4(),
         email="admin@example.com",
+        password_hash=hash_password("OldPassword123!"),
         status=UserStatus.ACTIVE,
         full_name="Admin",
     )
@@ -101,6 +104,7 @@ def override_dependencies(app: FastAPI) -> Generator[MockUserAdminService, None,
     u1 = User(
         id=uuid4(),
         email="u1@example.com",
+        password_hash=hash_password("OldPassword123!"),
         status=UserStatus.ACTIVE,
         full_name="User One",
         avatar_url="https://old.avatar/image.png",
@@ -239,6 +243,84 @@ async def test_upload_user_avatar_rejects_non_image_files(
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Only image uploads are supported for user avatars."
+
+
+@pytest.mark.asyncio
+async def test_current_user_can_update_own_avatar(
+    app: FastAPI, client: AsyncClient, override_dependencies: MockUserAdminService
+) -> None:
+    current_user = list(override_dependencies.users.values())[0]
+
+    files = {"file": ("me.png", b"fake-image-content", "image/png")}
+    response = await client.post("/api/v1/users/me/avatar", files=files)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == str(current_user.id)
+    assert data["avatar_url"].startswith("/api/v1/files/")
+    assert data["avatar_url"].endswith("/download")
+    assert current_user.avatar_url == data["avatar_url"]
+
+    assert override_dependencies.audit_service is not None
+    audit_event = override_dependencies.audit_service.events[-1]
+    assert audit_event["action"] == "users.avatar_uploaded"
+    assert audit_event["entity_type"] == "user"
+    metadata = audit_event["context"].metadata_json
+    assert metadata["email"] == current_user.email
+    assert metadata["changes"] == [
+        {
+            "field": "avatar_url",
+            "label": "Ảnh đại diện",
+            "old_value": None,
+            "new_value": current_user.avatar_url,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_current_user_can_change_own_password(
+    app: FastAPI, client: AsyncClient, override_dependencies: MockUserAdminService
+) -> None:
+    current_user = list(override_dependencies.users.values())[0]
+
+    response = await client.put(
+        "/api/v1/users/me/password",
+        json={
+            "current_password": "OldPassword123!",
+            "new_password": "NewPassword123!",
+        },
+    )
+
+    assert response.status_code == 204
+    assert verify_password("NewPassword123!", current_user.password_hash) is True
+    assert verify_password("OldPassword123!", current_user.password_hash) is False
+
+    assert override_dependencies.audit_service is not None
+    audit_event = override_dependencies.audit_service.events[-1]
+    assert audit_event["action"] == "users.password_changed"
+    metadata = audit_event["context"].metadata_json
+    assert metadata["email"] == current_user.email
+    assert metadata["outcome"] == "updated"
+    assert "password" not in metadata
+
+
+@pytest.mark.asyncio
+async def test_current_user_password_change_rejects_wrong_current_password(
+    app: FastAPI, client: AsyncClient, override_dependencies: MockUserAdminService
+) -> None:
+    current_user = list(override_dependencies.users.values())[0]
+
+    response = await client.put(
+        "/api/v1/users/me/password",
+        json={
+            "current_password": "WrongPassword123!",
+            "new_password": "NewPassword123!",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Current password is incorrect."
+    assert verify_password("OldPassword123!", current_user.password_hash) is True
 
 
 @pytest.mark.asyncio
