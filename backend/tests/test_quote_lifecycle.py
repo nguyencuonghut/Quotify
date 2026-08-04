@@ -461,12 +461,12 @@ async def test_create_quote_backfill_required(test_setup: Any) -> None:
             created_by_id=uuid4(),
         )
 
-    # Success with backfill details
+    # Success with backfill flag; reason is optional in the simplified workflow.
     quote = await quote_service.create_quote(
         supplier_id=supplier_id,
         received_date=date(2026, 7, 27),
         is_backfilled=True,
-        backfill_reason="Nhập bù báo giá tuần trước",
+        backfill_reason=None,
         lines_data=[{
             "material_id": material_id,
             "price_original": Decimal("15000.00"),
@@ -478,7 +478,7 @@ async def test_create_quote_backfill_required(test_setup: Any) -> None:
         created_by_id=uuid4(),
     )
     assert quote.versions[0].is_backfilled is True
-    assert quote.versions[0].backfill_reason == "Nhập bù báo giá tuần trước"
+    assert quote.versions[0].backfill_reason is None
 
 
 @pytest.mark.asyncio

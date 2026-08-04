@@ -106,6 +106,24 @@ describe('useQuoteEditor', () => {
     expect(editor.isBackfilled.value).toBe(true)
   })
 
+  it('does not require or submit a backfill reason', () => {
+    const editor = useQuoteEditor('mock-token')
+
+    editor.supplierId.value = 'supplier-1'
+    editor.receivedDate.value = '2020-01-01'
+    editor.addLine()
+    editor.lines.value[0].materialId = 'mat-1'
+    editor.lines.value[0].priceOriginal = 15000
+    editor.lines.value[0].deliveryMonth = '2026-08'
+    editor.evaluateBackfill()
+
+    expect(editor.validateForm()).toBe(true)
+    expect(editor.prepareCreatePayload()).toMatchObject({
+      is_backfilled: true,
+      backfill_reason: null,
+    })
+  })
+
   it('preserves cloned quote version rate snapshot while received date is unchanged', async () => {
     exchangeRatesApiMock.getUsdSellRateToday.mockResolvedValue({
       rate: 27000,

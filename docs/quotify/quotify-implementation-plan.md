@@ -763,7 +763,8 @@ core; frontend hoàn chỉnh được làm ở Phase 6.
 19. Predicate nhập lại duy nhất là `received_date < today` **hoặc**
     `delivery_month < first_day_of_current_month`, tính theo
     `Asia/Ho_Chi_Minh`. Khi đúng, backend và UI đều bắt buộc
-    `is_backfilled=true` cùng lý do. Định nghĩa này đã được Phase 0 đồng bộ vào
+    `is_backfilled=true`, nhưng không bắt buộc người dùng nhập lý do nhập lùi.
+    Định nghĩa này đã được Phase 0 đồng bộ vào
     `Requirements.txt` và `CONTEXT.md`.
 20. Checkbox purchase tự lưu `purchase_marked_at`,
     `purchase_marked_by_id`; không nhận timestamp do frontend gửi.

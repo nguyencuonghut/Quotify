@@ -83,25 +83,12 @@
           </div>
         </div>
 
-        <!-- Backfill Banner & Reason -->
+        <!-- Backfill Banner -->
         <div v-if="isBackfilled" class="quote-editor-page__backfill-banner">
           <p class="quote-editor-page__backfill-title">
             <i class="pi pi-info-circle" />
             Báo giá nhập lại (Nhập lùi ngày/tháng trong quá khứ)
           </p>
-          <div class="quote-editor-page__form-field">
-            <label for="backfill-reason-input">
-              Lý do nhập lùi báo giá
-              <span class="required-marker">*</span>
-            </label>
-            <Textarea
-              id="backfill-reason-input"
-              v-model="backfillReason"
-              rows="2"
-              placeholder="Nhập lý do bắt buộc..."
-              class="quote-editor-page__input-w"
-            />
-          </div>
         </div>
       </div>
 
@@ -420,7 +407,6 @@ const {
   supplierId,
   receivedDate,
   isBackfilled,
-  backfillReason,
   correctionReason,
   lines,
   supplierMaterials,

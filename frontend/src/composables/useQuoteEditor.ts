@@ -335,10 +335,6 @@ export function useQuoteEditor(accessToken: string | null) {
       errorMsg.value = 'Vui lòng chọn Ngày nhận báo giá.'
       return false
     }
-    if (isBackfilled.value && (!backfillReason.value || !backfillReason.value.trim())) {
-      errorMsg.value = 'Vui lòng nhập lý do nhập lùi báo giá.'
-      return false
-    }
     if (lines.value.length === 0) {
       errorMsg.value = 'Báo giá phải có ít nhất một dòng vật tư.'
       return false
@@ -396,7 +392,7 @@ export function useQuoteEditor(accessToken: string | null) {
       supplier_id: supplierId.value!,
       received_date: receivedDate.value,
       is_backfilled: isBackfilled.value,
-      backfill_reason: backfillReason.value,
+      backfill_reason: null,
       lines: lines.value.map((l) => ({
         material_id: l.materialId!,
         price_original: l.priceOriginal!,
@@ -413,7 +409,7 @@ export function useQuoteEditor(accessToken: string | null) {
     return {
       received_date: receivedDate.value,
       is_backfilled: isBackfilled.value,
-      backfill_reason: backfillReason.value,
+      backfill_reason: null,
       correction_reason: correctionReason.value,
       lines: lines.value.map((l) => ({
         material_id: l.materialId!,

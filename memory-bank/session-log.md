@@ -721,3 +721,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Thiết kế lại trang hồ sơ cá nhân
 - Tóm tắt: Đã chuyển trang /profile thành self-service: user tự đổi avatar qua API /users/me/avatar, tự đổi mật khẩu qua /users/me/password, UI chia panel thông tin/avatar/mật khẩu, audit không ghi raw password, frontend cập nhật authStore.currentUser sau khi đổi avatar. Verification: backend users API tests 11 passed, Ruff mục tiêu, frontend ESLint mục tiêu, style lint, Vite build và git diff --check pass; build đầy đủ vẫn bị chặn bởi nợ typecheck cũ cụm báo giá.
+
+## 2026-08-04 08:49:39Z - codex
+
+- Tiêu đề: Bỏ lý do nhập lùi báo giá
+- Tóm tắt: Đã bỏ field Lý do nhập lùi báo giá khỏi QuoteEditor, bỏ hiển thị lý do nhập bù ở QuoteDetail, frontend không validate/gửi backfill_reason mới, backend QuoteService không còn bắt buộc backfill_reason khi is_backfilled=true. Vẫn giữ cờ is_backfilled để phân biệt báo giá nhập lại. Đã cập nhật docs kế hoạch và Memory Bank.

@@ -159,8 +159,6 @@ class QuoteService:
         if is_backfill_required:
             if not is_backfilled:
                 raise ValueError("Báo giá nhập lại bắt buộc phải đánh dấu nhập lùi (is_backfilled=true).")
-            if not backfill_reason or not backfill_reason.strip():
-                raise ValueError("Báo giá nhập lại bắt buộc phải ghi rõ lý do nhập lùi.")
         else:
             if is_backfilled:
                 raise ValueError("Báo giá hiện tại không được đánh dấu nhập lùi.")

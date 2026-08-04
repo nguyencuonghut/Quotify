@@ -83,10 +83,6 @@
               <span>Trạng thái nhập lùi</span>
               <strong>{{ activeVersion.isBackfilled ? 'Có (Nhập bù)' : 'Không' }}</strong>
             </div>
-            <div v-if="activeVersion.isBackfilled" class="quote-detail-page__meta-item" style="grid-column: span 2">
-              <span>Lý do nhập bù</span>
-              <strong>{{ activeVersion.backfillReason }}</strong>
-            </div>
             <div v-if="activeVersion.confirmedAt" class="quote-detail-page__meta-item">
               <span>Thời điểm xác nhận</span>
               <strong>{{ formatDateTime(activeVersion.confirmedAt) }}</strong>
