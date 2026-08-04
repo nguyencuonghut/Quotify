@@ -461,7 +461,8 @@ nhiều giữa NCC với vật tư. Loại NCC không được quyết định t
 ### Backend
 
 1. Tạo `Supplier`, `SupplierContact`, `SupplierMaterial`.
-2. `supplier_type` chỉ nhận `domestic|international`.
+2. `supplier_type` cho phép chọn một hoặc nhiều giá trị trong `domestic|international`;
+   API nhận/trả danh sách, DB lưu chuỗi canonical để giữ tương thích dữ liệu cũ.
 3. Unique `supplier.code`; unique cặp `(supplier_id, material_id)`.
 4. Contact có status `active|inactive`; email và số điện thoại optional.
 5. API lookup NCC theo `material_id` để phục vụ form báo giá.

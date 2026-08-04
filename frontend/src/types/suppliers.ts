@@ -23,7 +23,7 @@ export interface SupplierDto {
   id: string
   code: string
   name: string
-  supplier_type: SupplierType
+  supplier_type: SupplierType[]
   status: CatalogStatus
   tax_code: string | null
   address: string | null
@@ -55,7 +55,7 @@ export interface SupplierDomain {
   id: string
   code: string
   name: string
-  supplierType: SupplierType
+  supplierType: SupplierType[]
   status: CatalogStatus
   taxCode: string | null
   address: string | null
@@ -77,7 +77,7 @@ export interface SupplierContactPayload {
 export interface SupplierPayload {
   code: string
   name: string
-  supplier_type: SupplierType
+  supplier_type: SupplierType[]
   status: CatalogStatus
   tax_code: string | null
   address: string | null

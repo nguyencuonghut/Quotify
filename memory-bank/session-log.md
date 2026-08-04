@@ -726,3 +726,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Bỏ lý do nhập lùi báo giá
 - Tóm tắt: Đã bỏ field Lý do nhập lùi báo giá khỏi QuoteEditor, bỏ hiển thị lý do nhập bù ở QuoteDetail, frontend không validate/gửi backfill_reason mới, backend QuoteService không còn bắt buộc backfill_reason khi is_backfilled=true. Vẫn giữ cờ is_backfilled để phân biệt báo giá nhập lại. Đã cập nhật docs kế hoạch và Memory Bank.
+
+## 2026-08-04 09:07:57Z - codex
+
+- Tiêu đề: Cho phép nhà cung cấp có nhiều loại NCC
+- Tóm tắt: Đã mở rộng Loại NCC từ một giá trị sang một hoặc nhiều giá trị Nội địa/Quốc tế. Backend API nhận/trả supplier_type dạng danh sách, DB lưu chuỗi canonical domestic,international, import CSV chấp nhận dấu phẩy/chấm phẩy, dashboard filter vẫn match NCC có cả hai loại, frontend form Nhà cung cấp dùng MultiSelect và table hiển thị nhãn ghép. Đã cập nhật docs và Memory Bank.

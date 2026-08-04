@@ -24,7 +24,7 @@ function buildSupplier(overrides: Partial<SupplierDomain> = {}): SupplierDomain 
     id: 'supplier-1',
     code: 'WILMAR',
     name: 'Wilmar Agro Việt Nam (Wilmar Agro)',
-    supplierType: 'domestic',
+    supplierType: ['domestic'],
     status: 'active',
     taxCode: null,
     address: null,
@@ -137,9 +137,31 @@ describe('useSuppliersPage', () => {
       code: 'WILMAR',
     })
     expect(page.editName.value).toBe('Wilmar Agro Việt Nam (Wilmar Agro)')
+    expect(page.editSupplierType.value).toEqual(['domestic'])
     expect(page.editContacts.value).toEqual([
       expect.objectContaining({ localId: 'contact-1', name: 'Người liên hệ' }),
     ])
     expect(page.editMaterialIds.value).toEqual(['material-1'])
+  })
+
+  it('submits multiple supplier types in create payload', async () => {
+    suppliersApiMock.createSupplier.mockResolvedValue(buildSupplier())
+    suppliersApiMock.listSuppliers.mockResolvedValue({ items: [], total: 0 })
+
+    const page = useSuppliersPage()
+    page.openCreateDialog()
+    page.createCode.value = 'SUP-NEW'
+    page.createName.value = 'Nhà cung cấp mới'
+    page.createSupplierType.value = ['domestic', 'international']
+
+    await page.submitCreate()
+
+    expect(suppliersApiMock.createSupplier).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'SUP-NEW',
+        supplier_type: ['domestic', 'international'],
+      }),
+      'mock-access-token',
+    )
   })
 })

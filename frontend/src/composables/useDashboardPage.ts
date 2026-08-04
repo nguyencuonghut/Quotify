@@ -12,6 +12,7 @@ import type { MaterialDomain } from '@/types/materials'
 import type {
   QuotifyDashboardQuery,
   QuotifyDashboardSupplierType,
+  QuotifyDashboardSupplierTypeFilter,
   QuotifyEntryKpis,
   QuotifyPriceSummary,
   QuotifyPriceTrendPoint,
@@ -31,7 +32,7 @@ interface DashboardMetricCard {
 
 interface DashboardSupplierTypeOption {
   label: string
-  value: QuotifyDashboardSupplierType
+  value: QuotifyDashboardSupplierTypeFilter
 }
 
 interface DashboardUserOption {
@@ -128,7 +129,10 @@ function normalizeLookupText(value: string): string {
 }
 
 function formatSupplierType(value: QuotifyDashboardSupplierType): string {
-  return value === 'domestic' ? 'Nội địa' : 'Quốc tế'
+  return value
+    .split(',')
+    .map((type) => (type === 'domestic' ? 'Nội địa' : 'Quốc tế'))
+    .join(', ')
 }
 
 function formatDateTimeLabel(value: string | null): string {
@@ -233,7 +237,7 @@ export function useDashboardPage() {
   const errorMessage = ref<string | null>(null)
 
   const selectedMaterialId = ref<string | null>(null)
-  const selectedSupplierType = ref<QuotifyDashboardSupplierType | null>(null)
+  const selectedSupplierType = ref<QuotifyDashboardSupplierTypeFilter | null>(null)
   const deliveryMonth = ref<Date | null>(null)
   const receivedDateStart = ref<Date | null>(null)
   const receivedDateEnd = ref<Date | null>(null)

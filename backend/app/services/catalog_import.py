@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models import Material, MaterialType, Supplier, SupplierContact, SupplierMaterial
+from app.schemas.supplier import normalize_supplier_types
 from app.services.material_type_admin import normalize_catalog_code, normalize_optional_text
 
 CatalogImportEntityType = Literal["material_types", "materials", "suppliers"]
@@ -83,7 +84,7 @@ CATALOG_IMPORT_CONFIGS: dict[str, CatalogImportConfig] = {
         sample_row=(
             "SUP-01",
             "Nhà cung cấp A",
-            "domestic",
+            "domestic,international",
             "active",
             "0100000000",
             "Hà Nội",
@@ -358,10 +359,13 @@ def normalize_supplier_type(value: str | None) -> str:
     normalized = normalize_optional_text(value)
     if normalized is None:
         raise ValueError("Loại NCC là bắt buộc.")
-    normalized = normalized.lower()
-    if normalized not in {"domestic", "international"}:
-        raise ValueError("Loại NCC chỉ nhận domestic hoặc international.")
-    return normalized
+    return normalize_supplier_types(
+        [
+            part
+            for part in re.split(r"[;,]", normalized.lower())
+            if normalize_optional_text(part) is not None
+        ],
+    )
 
 
 def parse_code_list(value: str | None) -> list[str]:

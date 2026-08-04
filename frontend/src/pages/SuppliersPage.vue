@@ -214,13 +214,15 @@
               </div>
               <div class="suppliers-page__form-field">
                 <label class="suppliers-page__form-label required">Loại NCC</label>
-                <Select
+                <MultiSelect
                   v-model="createSupplierType"
                   v-bind="createSupplierTypeProps"
                   :options="supplierTypeOptions"
+                  display="chip"
                   fluid
                   option-label="label"
                   option-value="value"
+                  placeholder="Chọn loại NCC"
                 />
               </div>
               <div class="suppliers-page__form-field">
@@ -357,13 +359,15 @@
               </div>
               <div class="suppliers-page__form-field">
                 <label class="suppliers-page__form-label required">Loại NCC</label>
-                <Select
+                <MultiSelect
                   v-model="editSupplierType"
                   v-bind="editSupplierTypeProps"
                   :options="supplierTypeOptions"
+                  display="chip"
                   fluid
                   option-label="label"
                   option-value="value"
+                  placeholder="Chọn loại NCC"
                 />
               </div>
               <div class="suppliers-page__form-field">

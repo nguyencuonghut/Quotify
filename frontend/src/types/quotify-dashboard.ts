@@ -1,4 +1,8 @@
-export type QuotifyDashboardSupplierType = 'domestic' | 'international'
+export type QuotifyDashboardSupplierType =
+  | 'domestic'
+  | 'international'
+  | 'domestic,international'
+export type QuotifyDashboardSupplierTypeFilter = 'domestic' | 'international'
 
 export interface QuotifyPriceSummaryDto {
   min_price: string | null
@@ -161,7 +165,7 @@ export interface QuotifyDashboardQuery {
   deliveryMonth?: string | null
   receivedDateStart?: string | null
   receivedDateEnd?: string | null
-  supplierType?: QuotifyDashboardSupplierType | null
+  supplierType?: QuotifyDashboardSupplierTypeFilter | null
 }
 
 export interface QuotifyWeeklyEntryActivityQuery {

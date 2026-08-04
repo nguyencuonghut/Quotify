@@ -40,7 +40,7 @@
 
 3.3. Quản lý danh mục "Nhà cung cấp"
 
-- Thông tin bao gồm: Mã NCC | Tên NCC | Loại NCC (Nội/Ngoại) | Danh sách vật tư cung cấp | Liên hệ | Trạng thái (active/inactive) | Ghi chú.
+- Thông tin bao gồm: Mã NCC | Tên NCC | Loại NCC (chọn một hoặc nhiều: Nội địa, Quốc tế) | Danh sách vật tư cung cấp | Liên hệ | Trạng thái (active/inactive) | Ghi chú.
 - Loại NCC chỉ dùng để phân loại, không quyết định tiền tệ hoặc đơn vị của báo giá.
 - Một NCC có thể cung cấp một hoặc nhiều vật tư.
 - Liên hệ là thông tin không bắt buộc, gồm: Tên | Email | Số điện thoại | Trạng thái.

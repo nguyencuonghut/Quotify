@@ -10,6 +10,7 @@ from app.services.catalog_import import (
     build_catalog_import_error_report,
     build_catalog_import_template,
     get_catalog_import_config,
+    normalize_supplier_type,
     parse_code_list,
     validate_catalog_import_headers,
 )
@@ -143,6 +144,10 @@ def test_parse_code_list_accepts_comma_or_semicolon() -> None:
         "SOYBEAN_MEAL",
         "DDGS",
     ]
+
+
+def test_normalize_supplier_type_accepts_multiple_types() -> None:
+    assert normalize_supplier_type("international; domestic") == "domestic,international"
 
 
 @pytest.mark.asyncio

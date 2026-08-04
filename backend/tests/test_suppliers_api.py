@@ -80,7 +80,7 @@ def override_dependencies(app: FastAPI) -> Generator[MockSupplierAdminService, N
         id=uuid4(),
         code="SUP-01",
         name="Nhà cung cấp A",
-        supplier_type="domestic",
+        supplier_type="domestic,international",
         status="active",
         tax_code="0100000000",
         address="Hà Nội",
@@ -137,6 +137,7 @@ async def test_list_suppliers_api_returns_child_data(
     data = response.json()
     assert data["total"] == 1
     assert data["items"][0]["code"] == "SUP-01"
+    assert data["items"][0]["supplier_type"] == ["domestic", "international"]
     assert data["items"][0]["contacts"][0]["name"] == "Nguyễn Văn A"
     assert data["items"][0]["materials"][0]["material_name"] == "Ngô hạt"
 
@@ -162,7 +163,7 @@ async def test_create_supplier_api_rejects_duplicate_code(
     payload = {
         "code": "SUP-01",
         "name": "Nhà cung cấp A",
-        "supplier_type": "domestic",
+        "supplier_type": ["domestic", "international"],
         "status": "active",
         "contacts": [],
         "material_ids": [],

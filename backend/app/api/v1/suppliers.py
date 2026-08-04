@@ -18,6 +18,7 @@ from app.schemas import (
     SupplierResponse,
     SupplierUpdateRequest,
 )
+from app.schemas.supplier import split_supplier_types
 from app.services import (
     AuditLogContext,
     AuditLogService,
@@ -49,7 +50,7 @@ def _build_supplier_response(supplier: Supplier) -> SupplierResponse:
         id=supplier.id,
         code=supplier.code,
         name=supplier.name,
-        supplier_type=supplier.supplier_type,  # type: ignore[arg-type]
+        supplier_type=split_supplier_types(supplier.supplier_type),
         status=supplier.status,  # type: ignore[arg-type]
         tax_code=supplier.tax_code,
         address=supplier.address,
@@ -81,7 +82,7 @@ def _supplier_snapshot(supplier: Supplier) -> dict[str, object]:
     return {
         "code": supplier.code,
         "name": supplier.name,
-        "supplier_type": supplier.supplier_type,
+        "supplier_type": split_supplier_types(supplier.supplier_type),
         "status": supplier.status,
         "tax_code": supplier.tax_code,
         "address": supplier.address,

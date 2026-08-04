@@ -230,8 +230,11 @@ class QuotifyDashboardService:
         if received_date_end is not None:
             filters.append(QuoteVersion.received_date <= received_date_end)
         if supplier_type is not None:
-            filters.append(Supplier.supplier_type == supplier_type)
+            filters.append(self._supplier_type_contains(supplier_type))
         return filters
+
+    def _supplier_type_contains(self, supplier_type: str) -> Any:
+        return func.concat(",", Supplier.supplier_type, ",").like(f"%,{supplier_type},%")
 
     async def _get_summary(self, filters: list[Any]) -> dict[str, Any]:
         stmt = (

@@ -19,7 +19,7 @@ class Supplier(Base):
     __tablename__ = "suppliers"
     __table_args__ = (
         CheckConstraint(
-            "supplier_type in ('domestic', 'international')",
+            "supplier_type in ('domestic', 'international', 'domestic,international')",
             name="ck_suppliers_supplier_type",
         ),
         CheckConstraint("status in ('active', 'inactive')", name="ck_suppliers_status"),

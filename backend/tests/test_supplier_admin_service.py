@@ -10,6 +10,7 @@ from app.services.supplier_admin import (
     SupplierAdminService,
     SupplierDuplicateMaterialError,
     SupplierMaterialUnavailableError,
+    _supplier_type_contains,
 )
 
 
@@ -114,7 +115,7 @@ async def test_create_supplier_with_contacts_and_materials() -> None:
     supplier = await service.create_supplier(
         code=" sup-01 ",
         name=" Nhà cung cấp A ",
-        supplier_type="domestic",
+        supplier_type=["domestic", "international"],
         status="active",
         contacts=[
             SupplierContactRequest(
@@ -129,6 +130,7 @@ async def test_create_supplier_with_contacts_and_materials() -> None:
 
     assert supplier.code == "SUP-01"
     assert supplier.name == "Nhà cung cấp A"
+    assert supplier.supplier_type == "domestic,international"
     assert supplier.contacts[0].name == "Nguyễn Văn A"
     assert supplier.contacts[0].phone == "0900000000"
     assert supplier.supplier_materials[0].material_id == material.id
@@ -144,7 +146,7 @@ async def test_create_supplier_rejects_duplicate_material_ids() -> None:
         await service.create_supplier(
             code="SUP-01",
             name="Nhà cung cấp A",
-            supplier_type="domestic",
+            supplier_type=["domestic"],
             status="active",
             material_ids=[material_id, material_id],
         )
@@ -165,7 +167,7 @@ async def test_create_supplier_rejects_inactive_or_missing_materials() -> None:
         await service.create_supplier(
             code="SUP-01",
             name="Nhà cung cấp A",
-            supplier_type="domestic",
+            supplier_type=["domestic"],
             status="active",
             material_ids=[inactive_material.id],
         )
@@ -200,7 +202,7 @@ async def test_update_supplier_preserves_existing_material_links() -> None:
         supplier_id=supplier.id,
         code="SUP-01",
         name="Nhà cung cấp A cập nhật",
-        supplier_type="domestic",
+        supplier_type=["international", "domestic"],
         status="active",
         material_ids=[material_a.id, material_b.id],
     )
@@ -208,6 +210,7 @@ async def test_update_supplier_preserves_existing_material_links() -> None:
     assert updated_supplier.supplier_materials[0] is existing_link
     assert updated_supplier.supplier_materials[1].material_id == material_b.id
     assert updated_supplier.supplier_materials[1].material is material_b
+    assert updated_supplier.supplier_type == "domestic,international"
     assert session.flush_count == 1
 
 
@@ -241,3 +244,10 @@ async def test_lookup_suppliers_by_material_returns_active_suppliers() -> None:
     suppliers = await service.lookup_suppliers_by_material(material_id)
 
     assert [supplier.code for supplier in suppliers] == ["SUP-01"]
+
+
+def test_supplier_type_filter_matches_canonical_multi_type_value() -> None:
+    compiled = str(_supplier_type_contains("international"))
+
+    assert "suppliers.supplier_type" in compiled
+    assert "LIKE" in compiled

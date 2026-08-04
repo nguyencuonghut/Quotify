@@ -7,9 +7,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import set_committed_value
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models import Material, Supplier, SupplierContact, SupplierMaterial
-from app.schemas.supplier import SupplierContactRequest
+from app.schemas.supplier import SupplierContactRequest, SupplierType, normalize_supplier_types
 from app.services.material_type_admin import normalize_catalog_code, normalize_optional_text
 
 
@@ -51,7 +52,7 @@ class SupplierAdminService:
         *,
         code: str,
         name: str,
-        supplier_type: str,
+        supplier_type: Sequence[SupplierType],
         status: str,
         tax_code: str | None = None,
         address: str | None = None,
@@ -67,7 +68,7 @@ class SupplierAdminService:
         supplier = Supplier(
             code=normalized_code,
             name=name.strip(),
-            supplier_type=supplier_type,
+            supplier_type=normalize_supplier_types(supplier_type),
             status=status,
             tax_code=normalize_optional_text(tax_code),
             address=normalize_optional_text(address),
@@ -112,7 +113,7 @@ class SupplierAdminService:
                 | Supplier.name.ilike(f"%{normalized_search}%"),
             )
         if supplier_type:
-            stmt = stmt.where(Supplier.supplier_type == supplier_type)
+            stmt = stmt.where(_supplier_type_contains(supplier_type))
         if status:
             stmt = stmt.where(Supplier.status == status)
 
@@ -148,7 +149,7 @@ class SupplierAdminService:
         supplier_id: UUID,
         code: str,
         name: str,
-        supplier_type: str,
+        supplier_type: Sequence[SupplierType],
         status: str,
         tax_code: str | None = None,
         address: str | None = None,
@@ -171,7 +172,7 @@ class SupplierAdminService:
 
         materials = await self._get_assignable_materials(material_ids)
         supplier.name = name.strip()
-        supplier.supplier_type = supplier_type
+        supplier.supplier_type = normalize_supplier_types(supplier_type)
         supplier.status = status
         supplier.tax_code = normalize_optional_text(tax_code)
         supplier.address = normalize_optional_text(address)
@@ -258,3 +259,7 @@ class SupplierAdminService:
             or SupplierMaterial(material_id=material.id, material=material)
             for material in materials
         ]
+
+
+def _supplier_type_contains(supplier_type: str) -> ColumnElement[bool]:
+    return func.concat(",", Supplier.supplier_type, ",").like(f"%,{supplier_type},%")

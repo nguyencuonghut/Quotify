@@ -82,7 +82,8 @@ async def test_get_entry_kpis_counts_quotes_by_original_creator_only() -> None:
     assert response["user_kpis"][1]["user_label"] == "Không xác định"
     assert len(fake_db.queries) == 2
     assert "quote_versions.status = :status_1" in str(fake_db.queries[0])
-    assert "suppliers.supplier_type = :supplier_type_1" in str(fake_db.queries[0])
+    assert "suppliers.supplier_type" in str(fake_db.queries[0])
+    assert "LIKE" in str(fake_db.queries[0])
 
 
 @pytest.mark.asyncio
@@ -178,7 +179,8 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
     assert response["purchase_contexts"][0]["after_purchase"]["min_price"] == Decimal("6700.00")
     assert len(fake_db.queries) == 4
     assert "quote_versions.status = :status_1" in str(fake_db.queries[0])
-    assert "suppliers.supplier_type = :supplier_type_1" in str(fake_db.queries[0])
+    assert "suppliers.supplier_type" in str(fake_db.queries[0])
+    assert "LIKE" in str(fake_db.queries[0])
 
 
 @pytest.mark.asyncio

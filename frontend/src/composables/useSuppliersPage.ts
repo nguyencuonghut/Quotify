@@ -23,7 +23,7 @@ import type {
 type SupplierFormFields = {
   code: string
   name: string
-  supplierType: SupplierType
+  supplierType: SupplierType[]
   status: CatalogStatus
   taxCode: string
   address: string
@@ -49,7 +49,9 @@ const supplierSchema = toTypedSchema(
       .string()
       .min(1, 'Tên NCC là bắt buộc.')
       .max(200, 'Tên NCC không được quá 200 ký tự.'),
-    supplierType: z.enum(['domestic', 'international']),
+    supplierType: z
+      .array(z.enum(['domestic', 'international']))
+      .min(1, 'Chọn ít nhất 1 loại NCC.'),
     status: z.enum(['active', 'inactive']),
     taxCode: z.string().max(50, 'Mã số thuế không được quá 50 ký tự.').optional(),
     address: z.string().max(2000, 'Địa chỉ không được quá 2000 ký tự.').optional(),
@@ -60,7 +62,7 @@ const supplierSchema = toTypedSchema(
 const emptyFormValues: SupplierFormFields = {
   code: '',
   name: '',
-  supplierType: 'domestic',
+  supplierType: ['domestic'],
   status: 'active',
   taxCode: '',
   address: '',
@@ -238,7 +240,7 @@ export function useSuppliersPage() {
       values: {
         code: supplier.code,
         name: supplier.name,
-        supplierType: supplier.supplierType,
+        supplierType: [...supplier.supplierType],
         status: supplier.status,
         taxCode: supplier.taxCode || '',
         address: supplier.address || '',
@@ -345,8 +347,12 @@ export function useSuppliersPage() {
     return status === 'active' ? 'Đang dùng' : 'Ngừng dùng'
   }
 
-  function formatSupplierType(supplierType: SupplierType) {
-    return supplierType === 'domestic' ? 'Nội địa' : 'Quốc tế'
+  function formatSupplierType(supplierType: SupplierType[] | SupplierType) {
+    const values = Array.isArray(supplierType) ? supplierType : [supplierType]
+    if (values.length === 0) return 'Chưa phân loại'
+    return values
+      .map((type) => (type === 'domestic' ? 'Nội địa' : 'Quốc tế'))
+      .join(', ')
   }
 
   function clearSearchDebounce() {

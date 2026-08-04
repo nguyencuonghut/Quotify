@@ -8,7 +8,15 @@ import type {
   SupplierMaterialDomain,
   SupplierMaterialDto,
   SupplierLookupDto,
+  SupplierType,
 } from '@/types/suppliers'
+
+function normalizeSupplierTypes(value: SupplierDto['supplier_type']): SupplierType[] {
+  if (Array.isArray(value)) {
+    return value
+  }
+  return [value]
+}
 
 export function mapSupplierContactDtoToDomain(
   dto: SupplierContactDto,
@@ -40,7 +48,7 @@ export function mapSupplierDtoToDomain(dto: SupplierDto): SupplierDomain {
     id: dto.id,
     code: dto.code,
     name: dto.name,
-    supplierType: dto.supplier_type,
+    supplierType: normalizeSupplierTypes(dto.supplier_type),
     status: dto.status,
     taxCode: dto.tax_code,
     address: dto.address,
