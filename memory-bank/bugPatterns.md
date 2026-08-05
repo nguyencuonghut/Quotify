@@ -505,10 +505,10 @@ Agents must read the relevant entries before changing behavior in the same area,
 ### 2026-07-27: Chạy Playwright sai target gây thiếu browser hoặc thiếu E2E env
 
 - Area: Docker E2E / Playwright workflow
-- Trigger: Agent nhiều lần thử chạy `docker compose exec -T frontend npx playwright ...` hoặc lệnh Playwright rời trong container dev, dẫn tới lỗi thiếu Chromium, thiếu thư viện hệ thống như `libglib-2.0.so.0`, hoặc thiếu `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD`.
+- Trigger: Agent nhiều lần thử chạy `docker compose exec -T frontend npx playwright ...`, `npm exec playwright ...` hoặc lệnh Playwright rời trong container dev/host, dẫn tới lỗi thiếu Chromium, thiếu thư viện hệ thống như `libglib-2.0.so.0`, thiếu `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD`, hoặc lỗi DNS `EAI_AGAIN` khi npm cố tải package từ registry.
 - Root cause: Container frontend dev không phải runner E2E chuẩn. Browser dependencies chỉ được cài trong Dockerfile target `e2e`; credentials E2E chỉ được inject vào service `e2e-test` trong `docker-compose.test.yml`; lệnh chạy rời còn dễ dùng image/container stale hoặc sai base URL.
 - Fix: Đường chạy chuẩn của repo là `make docker-test-e2e`. Target này gọi `docker compose -f docker-compose.test.yml run --build --rm e2e-test`, dựng backend-e2e/frontend-e2e, chạy migration/seed, inject E2E credentials, dùng `frontend/playwright.docker.config.ts` với base URL `http://frontend-e2e:4173`, và build image E2E có `npx playwright install --with-deps chromium`.
-- Regression guard: Khi cần xác minh browser/auth/proxy/audit/network, chạy `make docker-test-e2e` đầu tiên. Không tự cài Playwright browser/deps vào container đang sống để chữa triệu chứng. Chỉ dùng `npm --prefix frontend run test:e2e` cho local host khi đã tự chuẩn bị backend/frontend local, browser host và env cần thiết.
+- Regression guard: Khi cần xác minh browser/auth/proxy/audit/network, chạy `make docker-test-e2e` đầu tiên và chỉ đường này được dùng để kết luận E2E chính thức. Không tự cài Playwright browser/deps vào container đang sống để chữa triệu chứng. Nếu `make docker-test-e2e` bị chặn trước khi chạy test do nợ build/typecheck đã biết, phải báo rõ “E2E chuẩn bị chặn ở bước build/typecheck” và không chạy Playwright thay thế bằng container dev hoặc host trong cùng task. Chỉ dùng runner khác khi task đang điều tra hạ tầng Playwright hoặc người dùng yêu cầu rõ ràng.
 - Related files: `Makefile`, `docker-compose.test.yml`, `docker/frontend/Dockerfile`, `frontend/playwright.docker.config.ts`, `frontend/playwright.config.ts`
 
 ### 2026-07-27: Permission inventory suy repo root sai trong backend-only container
@@ -636,6 +636,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Fix: Giữ `Giá gốc` hiển thị nguyên bản: báo giá `VND/KG` hiển thị bằng nhãn `VNĐ/KG`, báo giá `USD/MT` hiển thị bằng nhãn `USD/MT`. Không tính lại `Giá gốc` bằng tỷ giá hoặc trừ chi phí quy đổi.
 - Regression guard: Trên danh sách báo giá và chi tiết báo giá, không đổi nghĩa trường `priceOriginal`. Nếu cần so sánh theo chuẩn, dùng `priceConvertedVndPerKg`; nếu cần provenance, dùng `priceOriginal + currency/unit`.
 - Related files: `frontend/src/pages/QuotesPage.vue`, `frontend/tests/e2e/quotes-mobile.spec.ts`
+
+### 2026-08-05: Import danh mục sai header hiển thị `0 lỗi trên 0 dòng`
+
+- Area: Backend worker import danh mục / frontend trạng thái import danh mục
+- Trigger: Người dùng import `Loại vật tư` bằng file CSV khác format template; UI báo `Thất bại` nhưng hiển thị `0 thành công, 0 lỗi trên 0 dòng`.
+- Root cause: Worker ném `CatalogImportHeaderError` ngay ở bước validate header, trước vòng lặp xử lý từng dòng. Nhánh lỗi header chỉ set `status`, `error_summary`, `errors_json`, nhưng không set `total_rows`, `processed_rows`, `failed_rows`; frontend lại hiển thị trực tiếp các bộ đếm của job nên người dùng không thấy lỗi cụ thể.
+- Fix: Nhánh invalid header trong `import_catalog_task(...)` set `total_rows=1`, `processed_rows=0`, `failed_rows=1`, ghi `errors_json` ở dòng 1 và đưa các counter này vào audit metadata. Frontend các trang import danh mục hiển thị thêm `errorSummary` để người dùng thấy `Header CSV không hợp lệ.` trước phần thống kê.
+- Regression guard: Mọi lỗi import xảy ra trước row loop vẫn phải tạo error report có ít nhất một dòng lỗi và counter khác rỗng. Test `test_import_catalog_task_invalid_header_counts_as_failed_row` phải pass; E2E `catalog-import-invalid-header.spec.ts` phải thấy `Header CSV không hợp lệ.` và `0 thành công, 1 lỗi trên 1 dòng`.
+- Related files: `backend/app/worker.py`, `backend/tests/test_worker_tasks.py`, `frontend/src/pages/MaterialTypesPage.vue`, `frontend/src/pages/MaterialsPage.vue`, `frontend/src/pages/SuppliersPage.vue`, `frontend/src/types/jobs.ts`, `frontend/tests/e2e/catalog-import-invalid-header.spec.ts`
 
 
 ## Usage Rule

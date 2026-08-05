@@ -146,6 +146,16 @@
   color: var(--app-text-primary);
 }
 
+.material-types-page__import-status--failed {
+  color: var(--app-text-danger);
+  background: color-mix(in srgb, var(--app-danger) 12%, var(--app-surface-panel));
+  border-color: color-mix(in srgb, var(--app-danger) 42%, var(--app-border-soft));
+}
+
+.material-types-page__import-status--failed strong {
+  color: var(--app-text-danger);
+}
+
 @media (max-width: 768px) {
   .material-types-page__header,
   .material-types-page__filters,

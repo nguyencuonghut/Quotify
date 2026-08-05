@@ -736,3 +736,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Cập nhật tài liệu seed loại vật tư
 - Tóm tắt: Đã cập nhật Requirements và Memory Bank để phản ánh danh sách loại vật tư seed hiện tại gồm Nguyên liệu, Vi lượng, Bao bì và Premix. Không thay đổi code seed do người dùng đã tự bổ sung trong file chưa commit.
+
+## 2026-08-05 01:35:00Z - codex
+
+- Tiêu đề: Sửa import Loại vật tư sai format hiển thị 0 lỗi
+- Tóm tắt: Đã sửa worker import danh mục để lỗi header CSV được tính là 1 dòng lỗi, có `errorSummary`, error report và audit metadata đầy đủ; frontend các trang import danh mục hiển thị `Header CSV không hợp lệ.` thay vì chỉ báo thất bại với `0 lỗi trên 0 dòng`. Đã thêm regression backend và E2E cho dialog import `Loại vật tư`.
+
+## 2026-08-05 01:45:00Z - codex
+
+- Tiêu đề: Siết lại memory chạy Playwright
+- Tóm tắt: Người dùng nhắc lại lỗi agent vẫn chạy Playwright sai target dù đã có memory. Đã cập nhật bug pattern Playwright: chỉ dùng `make docker-test-e2e` để kết luận E2E chính thức; nếu target này bị chặn bởi nợ build/typecheck cũ thì phải báo blocked và không chạy thay thế bằng container frontend dev hoặc host, trừ khi task đang điều tra hạ tầng Playwright hoặc người dùng yêu cầu rõ.

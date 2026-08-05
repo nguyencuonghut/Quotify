@@ -133,8 +133,18 @@
             :disabled="uploadingImport"
             @uploader="handleImportUpload"
           />
-          <div v-if="importJob" class="material-types-page__import-status">
+          <div
+            v-if="importJob"
+            class="material-types-page__import-status"
+            :class="{
+              'material-types-page__import-status--failed':
+                importJob.status === 'failed',
+            }"
+          >
             <strong>{{ formatImportStatus(importJob.status) }}</strong>
+            <span v-if="importJob.errorSummary">
+              {{ importJob.errorSummary }}
+            </span>
             <span>
               {{ importJob.processedRows }} thành công,
               {{ importJob.failedRows }} lỗi trên {{ importJob.totalRows }} dòng

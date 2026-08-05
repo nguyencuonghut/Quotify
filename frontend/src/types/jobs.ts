@@ -2,7 +2,8 @@ import type { FileDto, FileDomain } from './files'
 
 export interface RowError {
   row: number
-  email: string
+  email?: string
+  code?: string
   errors: string[]
 }
 

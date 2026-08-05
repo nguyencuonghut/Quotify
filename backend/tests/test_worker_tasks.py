@@ -281,6 +281,69 @@ async def test_import_catalog_task_completes_with_partial_row_errors(
 
 
 @pytest.mark.asyncio
+async def test_import_catalog_task_invalid_header_counts_as_failed_row() -> None:
+    job_id = uuid4()
+    db_file = File(
+        id=uuid4(),
+        filename="material_types.csv",
+        bucket="bucket",
+        storage_path="x/material_types.csv",
+        content_type="text/csv",
+        size_bytes=100,
+    )
+    job = ImportJob(
+        id=job_id,
+        file_id=db_file.id,
+        entity_type="material_types",
+        task_name="import_catalog_task",
+        status="pending",
+        created_by_id=uuid4(),
+    )
+    job.file = db_file
+
+    session = FakeAsyncSession(import_job=job)
+    session_factory = MagicMock()
+    session_factory.return_value = session
+
+    minio_client = MagicMock()
+    minio_client.get_object.return_value = FakeMinioResponse(
+        b"ma,ten,trang_thai,ghi_chu\nNGUYEN_LIEU,Nguyen lieu,active,"
+    )
+
+    await import_catalog_task(
+        {
+            "session_factory": session_factory,
+            "minio_client": minio_client,
+        },
+        job_id,
+    )
+
+    assert job.status == "failed"
+    assert job.error_summary == "Header CSV không hợp lệ."
+    assert job.total_rows == 1
+    assert job.processed_rows == 0
+    assert job.failed_rows == 1
+    assert job.errors_json is not None
+    assert job.errors_json[0]["row"] == 1
+    assert "Header CSV không hợp lệ" in job.errors_json[0]["errors"][0]
+    audit_logs = [item for item in session.added if isinstance(item, AuditLog)]
+    assert len(audit_logs) == 1
+    assert audit_logs[0].action == "catalog.material_types_import_failed"
+    assert audit_logs[0].metadata_json == {
+        "import_job_id": str(job_id),
+        "file_id": str(db_file.id),
+        "import_entity_type": "material_types",
+        "status": "failed",
+        "outcome": "failed",
+        "total_rows": 1,
+        "processed_rows": 0,
+        "failed_rows": 1,
+        "error_category": "invalid_csv_header",
+        "error_summary": "Header CSV không hợp lệ.",
+    }
+
+
+@pytest.mark.asyncio
 async def test_import_users_task_parse_failure_logs_audit_without_raw_error() -> None:
     job_id = uuid4()
     db_file = File(

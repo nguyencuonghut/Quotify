@@ -340,8 +340,11 @@ async def import_catalog_task(ctx: dict[str, Any], job_id: UUID) -> None:
         except CatalogImportHeaderError as exc:
             logger.warning("Catalog import job %s has invalid CSV header.", job_id)
             job.status = "failed"
+            job.total_rows = 1
+            job.processed_rows = 0
+            job.failed_rows = 1
             job.error_summary = "Header CSV không hợp lệ."
-            job.errors_json = [{"row": 0, "code": "", "errors": [str(exc)]}]
+            job.errors_json = [{"row": 1, "code": "", "errors": [str(exc)]}]
             await _log_worker_audit_event(
                 session,
                 action=config.failed_action,
@@ -354,6 +357,9 @@ async def import_catalog_task(ctx: dict[str, Any], job_id: UUID) -> None:
                     "import_entity_type": job.entity_type,
                     "status": job.status,
                     "outcome": "failed",
+                    "total_rows": job.total_rows,
+                    "processed_rows": job.processed_rows,
+                    "failed_rows": job.failed_rows,
                     "error_category": "invalid_csv_header",
                     "error_summary": "Header CSV không hợp lệ.",
                 },
