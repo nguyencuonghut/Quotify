@@ -156,7 +156,7 @@
   - `reverse-proxy` Nginx routes `/api/*` and `/health` to backend, `/` to frontend
   - production compose does not mount source code
   - production compose does not publish Postgres or MinIO ports
-  - public production entrypoint defaults to `PROXY_HOST_PORT=8080`
+  - public production entrypoint defaults to `PROXY_HTTP_PORT=80`/`PROXY_HTTPS_PORT=443` (đổi từ `PROXY_HOST_PORT=8080` ngày 10/08/2026 khi thêm TLS/certbot cho domain thật `quotify.honghafeed.com.vn`, xem `docs/runbooks/deploy-vps-production.md`)
 - Verified Docker test scaffold exists in project root:
   - `docker-compose.test.yml`
   - `frontend/playwright.docker.config.ts`

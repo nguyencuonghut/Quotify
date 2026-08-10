@@ -74,9 +74,10 @@ Production scaffold hiện có:
 
 Port public mặc định của production scaffold:
 
-- Reverse proxy: `http://127.0.0.1:8080`
+- Reverse proxy: `http://127.0.0.1` (80) và `https://127.0.0.1` (443, cần chứng
+  chỉ TLS hợp lệ — xem `docs/runbooks/deploy-vps-production.md`)
 
-Có thể đổi qua biến `PROXY_HOST_PORT`.
+Có thể đổi qua biến `PROXY_HTTP_PORT`/`PROXY_HTTPS_PORT`.
 
 Audit log IP:
 

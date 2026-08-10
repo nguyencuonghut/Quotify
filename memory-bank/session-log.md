@@ -776,3 +776,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Phương án migrate/seed production
 - Tom tat: Thêm make migrate-prod/seed-prod-auth, cập nhật runbook deploy, quyết định không seed_quotify.py nguyên bản lên production vì hard-code mật khẩu chung cho 7 user thật.
+
+## 2026-08-10 07:51:24Z - claude
+
+- Tieu de: Deploy guide VPS production
+- Tom tat: Tao docs/runbooks/deploy-vps-production.md cho domain quotify.honghafeed.com.vn, build qua SSH khong CI/CD. Them TLS/certbot vao docker-compose.prod.yml + docker/nginx/prod.conf, sua bug CORS_ORIGINS hard-code localhost de domain thuc te hoat dong.

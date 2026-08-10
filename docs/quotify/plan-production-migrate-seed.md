@@ -1,5 +1,10 @@
 # Phương án: Migrate + Seed cho môi trường Production
 
+> Xem thêm `docs/runbooks/deploy-vps-production.md` cho quy trình deploy đầy đủ
+> trên VPS thuê ngoài với domain thật `quotify.honghafeed.com.vn` (bootstrap
+> TLS/certbot, build qua SSH không CI/CD) — tài liệu đó tham chiếu ngược lại
+> các quyết định migrate/seed ở đây.
+
 ## 1. Bối cảnh
 
 Makefile hiện có 3 lệnh, tất cả đang trỏ vào compose context mặc định (dev), không phải `docker-compose.prod.yml`:
