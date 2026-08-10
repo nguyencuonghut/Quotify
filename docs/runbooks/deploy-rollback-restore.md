@@ -19,8 +19,30 @@ docker compose -f docker-compose.prod.yml build backend frontend
 3. Apply migrations:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec backend uv run alembic upgrade head
+make migrate-prod
 ```
+
+3.5. Seed auth/RBAC (chỉ 1 admin + permissions/roles — idempotent, chạy lại vẫn an
+toàn). Đảm bảo `.env` production đã set `AUTH_SEED_ADMIN_EMAIL`/`AUTH_SEED_ADMIN_PASSWORD`
+với giá trị thật (không phải placeholder mẫu) trước khi chạy:
+
+```bash
+make seed-prod-auth
+```
+
+3.6. Seed danh mục vật tư (material types + materials — dữ liệu nghiệp vụ thật,
+idempotent, không kèm nhà cung cấp mẫu hay tài khoản):
+
+```bash
+make seed-prod-catalog
+```
+
+Không chạy `scripts/seed_quotify.py` trên production — script này seed thêm
+nhà cung cấp mẫu (không phải dữ liệu thật) và 7 tài khoản thật dùng chung một
+mật khẩu hard-code trong source code. Danh sách nhà cung cấp thật và 7 tài
+khoản Thu Mua phải tạo thủ công qua UI/API (mật khẩu riêng từng người), không
+qua seed script. Xem `docs/quotify/plan-production-migrate-seed.md` để biết
+chi tiết.
 
 4. Deploy production stack:
 

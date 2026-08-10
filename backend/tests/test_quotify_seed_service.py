@@ -108,8 +108,7 @@ async def test_quotify_seed_creates_catalogs_suppliers_and_users() -> None:
     assert summary.created_suppliers == len(SUPPLIER_SEEDS)
     assert summary.created_users == len(QUOTIFY_USER_SEEDS)
     assert {material_type.name for material_type in session.material_types} == {
-        "Nguyên liệu",
-        "Vi lượng",
+        material_type.name for material_type in MATERIAL_TYPE_SEEDS
     }
     assert all(material.code == material.code.strip().upper() for material in session.materials)
     assert all(material.status == "active" for material in session.materials)
@@ -121,6 +120,20 @@ async def test_quotify_seed_creates_catalogs_suppliers_and_users() -> None:
     }
     assert all(user.status == UserStatus.ACTIVE for user in session.users)
     assert all(user.roles[0].name == USER_ROLE_NAME for user in session.users)
+    assert session.commit_count == 1
+
+
+@pytest.mark.asyncio
+async def test_quotify_seed_material_catalog_skips_suppliers_and_users() -> None:
+    session = FakeSeedSession()
+    service = QuotifySeedService(session)  # type: ignore[arg-type]
+
+    summary = await service.seed_material_catalog()
+
+    assert summary.created_material_types == len(MATERIAL_TYPE_SEEDS)
+    assert summary.created_materials == len(MATERIAL_SEEDS)
+    assert session.suppliers == []
+    assert session.users == []
     assert session.commit_count == 1
 
 

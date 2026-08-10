@@ -2,6 +2,7 @@ SHELL := /bin/bash
 
 UV_CACHE_DIR ?= /tmp/uv-cache
 DOCKER_TEST_COMPOSE := docker compose -f docker-compose.test.yml
+PROD_COMPOSE := docker compose -f docker-compose.prod.yml
 
 .PHONY: \
 	backend-lint \
@@ -34,7 +35,10 @@ DOCKER_TEST_COMPOSE := docker compose -f docker-compose.test.yml
 	docker-test \
 	migrate \
 	migrate-refresh \
-	seed
+	migrate-prod \
+	seed \
+	seed-prod-auth \
+	seed-prod-catalog
 
 backend-lint:
 	cd backend && if [ -x .venv/bin/ruff ]; then .venv/bin/ruff check .; else UV_CACHE_DIR=$(UV_CACHE_DIR) uv run ruff check .; fi
@@ -124,3 +128,18 @@ migrate-refresh:
 seed:
 	docker compose exec backend uv run python scripts/seed_auth_rbac.py
 	docker compose exec backend uv run python scripts/seed_quotify.py
+
+# Production: chỉ dùng đúng các target dưới đây, không dùng migrate/migrate-refresh/seed ở trên.
+# Không có target migrate-refresh-prod hay seed-prod-quotify — cố tình bỏ, xem
+# docs/quotify/plan-production-migrate-seed.md để biết lý do (migrate-refresh xoá
+# toàn bộ dữ liệu; seed_quotify.py gộp thêm nhà cung cấp mẫu và 7 tài khoản thật
+# dùng chung 1 mật khẩu hard-code trong source, không phù hợp seed tự động lên
+# production — 7 tài khoản đó phải tạo thủ công).
+migrate-prod:
+	$(PROD_COMPOSE) exec backend uv run alembic upgrade head
+
+seed-prod-auth:
+	$(PROD_COMPOSE) exec backend uv run python scripts/seed_auth_rbac.py
+
+seed-prod-catalog:
+	$(PROD_COMPOSE) exec backend uv run python scripts/seed_quotify_catalog.py

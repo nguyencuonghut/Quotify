@@ -771,3 +771,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Sua cot NCC trong import bao gia cu: dung ten thay vi ma
 - Tom tat: User cho biet file lich su thuc te ghi ten NCC, khong ghi ma nhu gia dinh ban dau. Doi cot CSV supplier_code -> supplier_name, so khop bang normalize_supplier_name_for_matching (gop khoang trang du, khong phan biet hoa/thuong) truoc khi tra Supplier.name; khong khop hoac khop nhieu hon 1 NCC thi nhom dong loi ro. Vat tu van khop theo material_code (khong doi). Cache NCC doi tu tai theo danh sach ma can dung sang tai toan bo Supplier.name->id mot lan. Kiem chung: backend pytest full 300 passed, ruff khong loi moi, verify thuc qua Docker dev (phai restart worker vi khong tu reload code) - ten NCC du khoang trang/khac hoa thuong van khop dung, ten khong ton tai bao loi ro.
+
+## 2026-08-10 07:28:34Z - claude
+
+- Tieu de: Phương án migrate/seed production
+- Tom tat: Thêm make migrate-prod/seed-prod-auth, cập nhật runbook deploy, quyết định không seed_quotify.py nguyên bản lên production vì hard-code mật khẩu chung cho 7 user thật.

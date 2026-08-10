@@ -57,7 +57,11 @@ from app.services.quote_backfill_import import (
 )
 from app.services.quote_pricing import QuotePricingService
 from app.services.quote_service import QuoteService
-from app.services.quotify_seed import QuotifySeedService, QuotifySeedSummary
+from app.services.quotify_seed import (
+    QuotifyCatalogSeedSummary,
+    QuotifySeedService,
+    QuotifySeedSummary,
+)
 from app.services.quotify_settings_service import QuotifySettingsService
 from app.services.role_admin import (
     PermissionNotFoundError,
@@ -118,8 +122,9 @@ __all__ = [
     "QuoteBackfillImportHeaderError",
     "QuoteBackfillImportService",
     "QuoteBackfillImportSummary",
-    "QuotePricingService",
     "QuoteService",
+    "QuotePricingService",
+    "QuotifyCatalogSeedSummary",
     "QuotifySeedService",
     "QuotifySeedSummary",
     "QuotifySettingsService",

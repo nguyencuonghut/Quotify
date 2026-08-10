@@ -80,20 +80,25 @@ trong source code (ai đọc được repo là biết mật khẩu), tự độn
 thật sẽ có 7 tài khoản thật với mật khẩu ai cũng biết trước, không có bước bắt
 đổi mật khẩu lần đầu.
 
-**Khuyến nghị (đưa ra quyết định thay vì hỏi lại, có thể điều chỉnh sau khi
-review):**
+**Đã xác nhận với nghiệp vụ (2026-08-10):**
 
-- Production seed **KHÔNG chạy `seed_quotify.py` nguyên bản**.
-- Tách seed danh mục nghiệp vụ (mục 1, và mục 2 nếu xác nhận là dữ liệu thật)
-  thành thao tác nhập liệu qua UI (trang quản lý vật tư / nhà cung cấp đã có
-  sẵn trong app) hoặc một script seed riêng chỉ seed `MaterialType`/`Material`/
-  `Supplier`, không đụng tới `User`.
-- Nếu vẫn cần cấp sẵn 7 tài khoản Thu Mua ngay khi go-live, xử lý thủ công
-  ngoài quy trình seed tự động: tạo qua UI/API "tạo user" với mật khẩu ngẫu
-  nhiên riêng từng người, gửi qua kênh an toàn (không phải seed script), và
-  bắt đổi mật khẩu ngay lần đăng nhập đầu (nếu tính năng "buộc đổi mật khẩu
-  lần đầu" đã tồn tại — cần kiểm tra; nếu chưa có, đây là gap cần làm trước
-  khi go-live nếu nghiệp vụ yêu cầu).
+- Danh sách nhà cung cấp trong `SUPPLIER_SEEDS` **không phải dữ liệu thật** —
+  chỉ là dữ liệu mẫu, không seed lên production.
+- 7 tài khoản Thu Mua thật trong `QUOTIFY_USER_SEEDS` **tạo thủ công** (qua
+  UI/API tạo user với mật khẩu riêng từng người), **không đưa vào seeder của
+  production**.
+
+**Quyết định:**
+
+- Production seed **KHÔNG chạy `seed_quotify.py` nguyên bản** (script này gộp
+  cả 2 phần không phù hợp production ở trên).
+- Tách riêng phần danh mục vật tư (material types + materials — dữ liệu
+  nghiệp vụ thật, cần để hệ thống tạo báo giá đúng) thành một service method
+  mới `QuotifySeedService.seed_material_catalog()` (`backend/app/services/quotify_seed.py`)
+  và script riêng `backend/scripts/seed_quotify_catalog.py`, không đụng tới
+  `Supplier`/`User`.
+- Nhà cung cấp thật và 7 tài khoản Thu Mua: tạo thủ công qua UI/API sau khi
+  go-live, không qua bất kỳ seed script nào.
 
 ## 3. Quy trình production đề xuất
 
@@ -118,13 +123,17 @@ docker compose -f docker-compose.prod.yml build backend frontend worker
 # 2. Migrate — tạo đầy đủ toàn bộ table, bao gồm seed idempotent quotify_settings
 docker compose -f docker-compose.prod.yml exec backend uv run alembic upgrade head
 
-# 3. Seed vừa đủ — CHỈ auth/RBAC + 1 admin, không seed danh mục/user nghiệp vụ
+# 3. Seed vừa đủ — auth/RBAC + 1 admin
 docker compose -f docker-compose.prod.yml exec backend uv run python scripts/seed_auth_rbac.py
+
+# 3.5. Seed danh mục vật tư (material types + materials — không kèm nhà cung cấp/user)
+docker compose -f docker-compose.prod.yml exec backend uv run python scripts/seed_quotify_catalog.py
 
 # 4. Lên stack đầy đủ
 docker compose -f docker-compose.prod.yml up -d
 
 # 5. Verify (theo runbook có sẵn): /health, /ready, /metrics, login flow, users list
+# 6. Tạo thủ công qua UI/API: nhà cung cấp thật và 7 tài khoản Thu Mua (mật khẩu riêng từng người)
 ```
 
 Bước 3 yêu cầu `.env` production đã set:
@@ -146,40 +155,50 @@ Makefile/script cho việc này, chỉ cần đảm bảo `.env` thật đã đ�
 ```makefile
 PROD_COMPOSE := docker compose -f docker-compose.prod.yml
 
-.PHONY: migrate-prod seed-prod-auth
+.PHONY: migrate-prod seed-prod-auth seed-prod-catalog
 
 migrate-prod:
 	$(PROD_COMPOSE) exec backend uv run alembic upgrade head
 
 seed-prod-auth:
 	$(PROD_COMPOSE) exec backend uv run python scripts/seed_auth_rbac.py
+
+seed-prod-catalog:
+	$(PROD_COMPOSE) exec backend uv run python scripts/seed_quotify_catalog.py
 ```
 
 Chủ đích: **không thêm** `seed-prod-quotify` hay `migrate-refresh-prod` — để
-không ai vô tình gõ `make migrate-refresh-prod` hay `make seed-prod` (chạy cả
-seed_quotify) và đưa dữ liệu/rủi ro không phù hợp vào production.
+không ai vô tình gõ `make migrate-refresh-prod` hay chạy `seed_quotify.py`
+nguyên bản và đưa dữ liệu/rủi ro không phù hợp vào production.
 
-### 3.4. Cập nhật runbook
+**Trạng thái: đã triển khai** — xem `Makefile`, `docs/runbooks/deploy-rollback-restore.md`,
+`backend/app/services/quotify_seed.py::seed_material_catalog()`,
+`backend/scripts/seed_quotify_catalog.py`.
 
-`docs/runbooks/deploy-rollback-restore.md` hiện chỉ có bước migrate (bước 3),
-chưa có bước seed. Đề xuất chèn bước 3.5 "Seed auth/RBAC (chỉ lần đầu setup,
-idempotent nên chạy lại vẫn an toàn)" giữa bước 3 (migrate) và bước 4 (up -d),
-dùng đúng lệnh `make seed-prod-auth` ở trên.
+### 3.4. Runbook (đã cập nhật)
 
-## 4. Việc cần nghiệp vụ xác nhận trước khi go-live (không tự quyết được từ code)
+`docs/runbooks/deploy-rollback-restore.md` đã có bước 3.5 "Seed auth/RBAC"
+(`make seed-prod-auth`) và bước 3.6 "Seed danh mục vật tư" (`make seed-prod-catalog`)
+giữa bước 3 (migrate) và bước 4 (up -d).
 
-- `SUPPLIER_SEEDS` trong `seed_data.py` (Cargill, Bunge, ADM, LDC, Wilmar, Tan
-  Long...) là nhà cung cấp thật hay dữ liệu mẫu? Nếu thật, cần seed riêng danh
-  mục này (không qua `seed_quotify.py` nguyên bản vì nó cũng tạo 7 user thật).
-- Có cần tính năng "buộc đổi mật khẩu lần đăng nhập đầu tiên" trước khi cấp
-  tài khoản Thu Mua thật lên production không? Hiện chưa thấy cơ chế này
-  trong `AuthSeedService`/`QuotifySeedService`.
+## 4. Việc còn để mở, xử lý ngoài quy trình seed tự động (đã xác nhận với nghiệp vụ)
+
+- Nhà cung cấp thật (khác với `SUPPLIER_SEEDS` — đã xác nhận chỉ là dữ liệu
+  mẫu, không seed) và 7 tài khoản Thu Mua thật: tạo thủ công qua UI/API sau
+  khi go-live, mật khẩu riêng từng người, không qua seed script nào.
+- Chưa có tính năng "buộc đổi mật khẩu lần đăng nhập đầu tiên" trong
+  `AuthSeedService`/`UserAdminService` — vì việc tạo 7 tài khoản Thu Mua giờ
+  là thủ công (người tạo tự đặt mật khẩu riêng, không dùng giá trị chung),
+  rủi ro mật khẩu chung không còn áp dụng nữa; không cần làm thêm tính năng
+  này chỉ vì lý do này.
 
 ## 5. Tóm tắt quyết định
 
 | Lệnh | Dùng trên production? | Ghi chú |
 |---|---|---|
-| `alembic upgrade head` | ✅ Có | Migrate đầy đủ, đã bao gồm seed `quotify_settings` |
-| `alembic downgrade base` | ❌ Không, vĩnh viễn | Xoá toàn bộ dữ liệu |
-| `seed_auth_rbac.py` | ✅ Có | Đúng nghĩa "seed vừa đủ": 1 admin + permissions/roles |
-| `seed_quotify.py` (nguyên bản) | ❌ Không chạy nguyên bản | Gộp cả danh mục nghiệp vụ + 7 tài khoản thật với mật khẩu chung hard-code trong source — cần tách và xác nhận nghiệp vụ trước |
+| `alembic upgrade head` | ✅ Có (`make migrate-prod`) | Migrate đầy đủ, đã bao gồm seed `quotify_settings` |
+| `alembic downgrade base` | ❌ Không, vĩnh viễn | Xoá toàn bộ dữ liệu; không có target Makefile nào expose ra prod |
+| `seed_auth_rbac.py` | ✅ Có (`make seed-prod-auth`) | 1 admin + permissions/roles |
+| `seed_quotify_catalog.py` (mới) | ✅ Có (`make seed-prod-catalog`) | Chỉ material types + materials, không kèm supplier/user |
+| `seed_quotify.py` (nguyên bản) | ❌ Không chạy trên production | Nhà cung cấp mẫu (đã xác nhận không phải dữ liệu thật) + 7 tài khoản thật dùng chung mật khẩu hard-code trong source — cả hai đều không phù hợp seed tự động |
+| Nhà cung cấp thật + 7 tài khoản Thu Mua | Tạo thủ công qua UI/API | Ngoài mọi quy trình seed tự động, mật khẩu riêng từng người |
