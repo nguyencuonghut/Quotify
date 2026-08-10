@@ -7,7 +7,7 @@ import { usePermissionStore } from '@/stores/permission.store'
 
 const settingsApiMock = vi.hoisted(() => ({
   getQuotifySettings: vi.fn(),
-  updateConversionCost: vi.fn(),
+  updateQuotifySettings: vi.fn(),
 }))
 
 const ratesApiMock = vi.hoisted(() => ({
@@ -46,7 +46,8 @@ describe('useQuotifySettingsPage', () => {
   it('fetches settings successfully and populates form', async () => {
     const mockSettings = {
       id: 'settings-1',
-      conversionCostVndPerKg: '250.50',
+      importTaxRatePercent: '5.00',
+      processingCostVndPerKg: '250.50',
       updatedById: 'user-1',
       createdAt: '2026-07-28T01:00:00+00:00',
       updatedAt: '2026-07-28T02:00:00+00:00',
@@ -58,8 +59,10 @@ describe('useQuotifySettingsPage', () => {
 
     expect(settingsApiMock.getQuotifySettings).toHaveBeenCalledWith('mock-access-token')
     expect(page.settings.value).toEqual(mockSettings)
-    expect(page.conversionCostVndPerKg.value).toBe(250.5)
-    expect(page.formattedConversionCost.value).toBe('250,50 VNĐ/KG')
+    expect(page.importTaxRatePercent.value).toBe(5)
+    expect(page.processingCostVndPerKg.value).toBe(250.5)
+    expect(page.formattedImportTaxRatePercent.value).toBe('5,00 %')
+    expect(page.formattedProcessingCost.value).toBe('250,50 VNĐ/KG')
     expect(page.formattedSettingsUpdatedAt.value).toContain('28/07/2026')
   })
 
@@ -71,7 +74,8 @@ describe('useQuotifySettingsPage', () => {
 
     expect(page.settings.value).toBeNull()
     expect(page.generalError.value).toBe('Không thể tải cấu hình quy đổi.')
-    expect(page.formattedConversionCost.value).toBe('Chưa có dữ liệu')
+    expect(page.formattedImportTaxRatePercent.value).toBe('Chưa có dữ liệu')
+    expect(page.formattedProcessingCost.value).toBe('Chưa có dữ liệu')
   })
 
   it('fetches today exchange rate successfully', async () => {
@@ -106,7 +110,8 @@ describe('useQuotifySettingsPage', () => {
   it('updates settings successfully', async () => {
     const mockSettings = {
       id: 'settings-1',
-      conversionCostVndPerKg: '200.00',
+      importTaxRatePercent: '0.00',
+      processingCostVndPerKg: '200.00',
       updatedById: 'user-1',
       createdAt: '2026-07-28T01:00:00+00:00',
       updatedAt: '2026-07-28T02:00:00+00:00',
@@ -115,21 +120,23 @@ describe('useQuotifySettingsPage', () => {
 
     const updatedSettings = {
       ...mockSettings,
-      conversionCostVndPerKg: '300.00',
+      importTaxRatePercent: '5.00',
+      processingCostVndPerKg: '300.00',
       updatedAt: '2026-07-28T03:00:00+00:00',
     }
-    settingsApiMock.updateConversionCost.mockResolvedValue(updatedSettings)
+    settingsApiMock.updateQuotifySettings.mockResolvedValue(updatedSettings)
 
     const page = useQuotifySettingsPage()
     await page.bootstrap() // Load initial value
 
-    // Simulate inputting a new value in form
-    page.conversionCostVndPerKg.value = 300
+    // Simulate inputting new values in form
+    page.importTaxRatePercent.value = 5
+    page.processingCostVndPerKg.value = 300
 
     await page.submitSettings()
 
-    expect(settingsApiMock.updateConversionCost).toHaveBeenCalledWith(
-      { conversion_cost_vnd_per_kg: '300' },
+    expect(settingsApiMock.updateQuotifySettings).toHaveBeenCalledWith(
+      { import_tax_rate_percent: '5', processing_cost_vnd_per_kg: '300' },
       'mock-access-token',
     )
     expect(page.settings.value).toEqual(updatedSettings)
@@ -148,24 +155,25 @@ describe('useQuotifySettingsPage', () => {
 
     await page.submitSettings()
 
-    expect(settingsApiMock.updateConversionCost).not.toHaveBeenCalled()
+    expect(settingsApiMock.updateQuotifySettings).not.toHaveBeenCalled()
     expect(page.submitError.value).toBe('Bạn không có quyền cập nhật cấu hình quy đổi.')
   })
 
   it('handles update settings server error', async () => {
     settingsApiMock.getQuotifySettings.mockResolvedValue({
       id: 'settings-1',
-      conversionCostVndPerKg: '200.00',
+      importTaxRatePercent: '0.00',
+      processingCostVndPerKg: '200.00',
       updatedById: 'user-1',
       createdAt: '2026-07-28T01:00:00+00:00',
       updatedAt: '2026-07-28T02:00:00+00:00',
     })
-    settingsApiMock.updateConversionCost.mockRejectedValue(new Error('Server error'))
+    settingsApiMock.updateQuotifySettings.mockRejectedValue(new Error('Server error'))
 
     const page = useQuotifySettingsPage()
     await page.bootstrap()
 
-    page.conversionCostVndPerKg.value = 400
+    page.processingCostVndPerKg.value = 400
     await page.submitSettings()
 
     expect(page.submitError.value).toBe('Lỗi hệ thống khi lưu cấu hình quy đổi.')

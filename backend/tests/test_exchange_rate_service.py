@@ -69,14 +69,26 @@ async def test_exchange_rate_service_maps_http_timeout_to_error_contract() -> No
     await http_client.aclose()
 
 
-def test_convert_usd_mt_to_vnd_kg_uses_decimal_and_rounds_once() -> None:
+def test_convert_usd_mt_to_vnd_kg_with_zero_tax_matches_legacy_formula() -> None:
     result = convert_usd_mt_to_vnd_kg(
         original_price_usd_per_mt=Decimal("310.123"),
         exchange_rate=Decimal("26100.00"),
-        conversion_cost_vnd_per_kg=Decimal("200"),
+        import_tax_rate_percent=Decimal("0"),
+        processing_cost_vnd_per_kg=Decimal("200"),
     )
 
     assert result == Decimal("8294.21")
+
+
+def test_convert_usd_mt_to_vnd_kg_applies_import_tax_rate() -> None:
+    result = convert_usd_mt_to_vnd_kg(
+        original_price_usd_per_mt=Decimal("310.123"),
+        exchange_rate=Decimal("26100.00"),
+        import_tax_rate_percent=Decimal("5"),
+        processing_cost_vnd_per_kg=Decimal("200"),
+    )
+
+    assert result == Decimal("8698.92")
 
 
 def test_is_business_today_uses_asia_ho_chi_minh_boundary() -> None:

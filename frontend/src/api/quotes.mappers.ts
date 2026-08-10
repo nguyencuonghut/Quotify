@@ -28,9 +28,13 @@ export function mapQuoteLineDtoToDomain(dto: QuoteLineDto): QuoteLineDomain {
     exchangeRateEnteredAt: dto.exchange_rate_entered_at,
     exchangeRateManualReason: dto.exchange_rate_manual_reason,
     exchangeRateActorId: dto.exchange_rate_actor_id,
-    conversionCostVndPerKg:
-      dto.conversion_cost_vnd_per_kg !== null
-        ? Number(dto.conversion_cost_vnd_per_kg)
+    importTaxRatePercent:
+      dto.import_tax_rate_percent !== null
+        ? Number(dto.import_tax_rate_percent)
+        : null,
+    processingCostVndPerKg:
+      dto.processing_cost_vnd_per_kg !== null
+        ? Number(dto.processing_cost_vnd_per_kg)
         : null,
     priceConvertedVndPerKg: Number(dto.price_converted_vnd_per_kg),
     purchaseMarkedAt: dto.purchase_marked_at,
@@ -120,7 +124,8 @@ export function mapQuoteFlattenedDtoToDomain(dto: QuoteFlattenedDto): QuoteFlatt
     unit: dto.unit,
     exchangeRate: dto.exchange_rate !== null ? Number(dto.exchange_rate) : null,
     exchangeRateSource: dto.exchange_rate_source,
-    conversionCostVndPerKg: dto.conversion_cost_vnd_per_kg !== null ? Number(dto.conversion_cost_vnd_per_kg) : null,
+    importTaxRatePercent: dto.import_tax_rate_percent !== null ? Number(dto.import_tax_rate_percent) : null,
+    processingCostVndPerKg: dto.processing_cost_vnd_per_kg !== null ? Number(dto.processing_cost_vnd_per_kg) : null,
     priceConvertedVndPerKg: Number(dto.price_converted_vnd_per_kg),
     purchased: dto.purchased,
     versionNumber: dto.version_number,

@@ -505,9 +505,11 @@ liệu lịch sử bằng cấu hình hiện tại:
 - Không dùng `float` cho tiền, tỷ giá hoặc giá quy đổi. Backend dùng `Decimal`,
   `ROUND_HALF_UP` và scale 2 chữ số cho `conversion_cost_vnd_per_kg`, tỷ giá và
   `converted_price_vnd_per_kg`.
-- Cặp USD/MT được quy đổi theo công thức `(Giá USD/MT / 1000) * tỷ giá USD bán ra
-  + chi phí quy đổi`; rounding chỉ thực hiện một lần ở backend sau khi cộng chi
-  phí.
+- Cặp USD/MT được quy đổi theo công thức `(Giá USD/MT / 1000) * (1 + Thuế nhập
+  khẩu / 100) * tỷ giá USD bán ra + Chi phí làm hàng` (đã đổi từ ngày
+  10/08/2026, tên cũ của "Chi phí làm hàng" là "Chi phí quy đổi"); rounding
+  chỉ thực hiện một lần ở backend sau khi cộng chi phí làm hàng. Khi
+  `import_tax_rate_percent = 0`, công thức cho kết quả giống công thức cũ.
 - Ngày hiện tại của nghiệp vụ tỷ giá phải tính theo `Asia/Ho_Chi_Minh`, không
   dùng timezone host, UTC date hoặc `date.today()` không timezone.
 - Phase 4 chỉ có helper đọc USD bán ra hôm nay và cấu hình chi phí quy đổi hiện

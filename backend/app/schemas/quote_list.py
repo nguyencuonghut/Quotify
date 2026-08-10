@@ -26,7 +26,8 @@ class QuoteFlattenedResponse(BaseModel):
     unit: str
     exchange_rate: Decimal | None = None
     exchange_rate_source: str | None = None
-    conversion_cost_vnd_per_kg: Decimal | None = None
+    import_tax_rate_percent: Decimal | None = None
+    processing_cost_vnd_per_kg: Decimal | None = None
     price_converted_vnd_per_kg: Decimal
     purchased: bool
     version_number: int

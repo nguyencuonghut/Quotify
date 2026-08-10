@@ -205,6 +205,18 @@
             </template>
           </Column>
 
+          <Column field="import_tax_rate_percent" header="Thuế nhập khẩu">
+            <template #body="{ data }">
+              {{ formatTaxRate(data.importTaxRatePercent) }}
+            </template>
+          </Column>
+
+          <Column field="processing_cost_vnd_per_kg" header="Chi phí làm hàng">
+            <template #body="{ data }">
+              {{ formatVndPerKg(data.processingCostVndPerKg) }}
+            </template>
+          </Column>
+
           <Column field="purchased" header="Chốt mua">
             <template #body="{ data }">
               <span v-if="data.purchased" class="quotes-page__purchased-indicator">
@@ -215,13 +227,6 @@
                   @click.stop.prevent
                 />
               </span>
-            </template>
-          </Column>
-
-          <Column field="version_number" header="Phiên bản" sortable>
-            <template #body="{ data }">
-              <span class="text-xs">Phiên bản #{{ data.versionNumber }}</span>
-              <span class="block text-xs text-gray-400"> bởi {{ data.createdByName || 'Hệ thống' }}</span>
             </template>
           </Column>
 
@@ -277,8 +282,12 @@
                 <dd>{{ formatDeliveryMonth(item.deliveryMonth) }}</dd>
               </div>
               <div>
-                <dt>Phiên bản</dt>
-                <dd>#{{ item.versionNumber }} - {{ item.createdByName || 'Hệ thống' }}</dd>
+                <dt>Thuế nhập khẩu</dt>
+                <dd>{{ formatTaxRate(item.importTaxRatePercent) }}</dd>
+              </div>
+              <div>
+                <dt>Chi phí làm hàng</dt>
+                <dd>{{ formatVndPerKg(item.processingCostVndPerKg) }}</dd>
               </div>
             </dl>
 
@@ -488,13 +497,22 @@ const formatOriginalPrice = (val: number, currency: string, unit: string) => {
   return `${formatted} ${normalizedCurrency}/${normalizedUnit}`
 }
 
-const formatVndPerKg = (val: number) => {
+const formatVndPerKg = (val: number | null) => {
   if (val === null || val === undefined) return ''
   const formatted = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(val)
   return `${formatted} VNĐ/KG`
+}
+
+const formatTaxRate = (val: number | null) => {
+  if (val === null || val === undefined) return ''
+  const formatted = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val)
+  return `${formatted} %`
 }
 
 const formatDate = (val: string) => {

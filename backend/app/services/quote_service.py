@@ -87,14 +87,16 @@ class QuoteService:
                 "exchange_rate_entered_at": None,
                 "exchange_rate_manual_reason": None,
                 "exchange_rate_actor_id": None,
-                "conversion_cost_vnd_per_kg": None,
+                "import_tax_rate_percent": None,
+                "processing_cost_vnd_per_kg": None,
                 "price_converted_vnd_per_kg": quantize_money(price_original),
             }
 
         if c_upper != "USD" or u_upper != "MT" or source_line.exchange_rate is None:
             return None
 
-        conversion_cost = source_line.conversion_cost_vnd_per_kg or Decimal("0")
+        import_tax_rate_percent = source_line.import_tax_rate_percent or Decimal("0")
+        processing_cost = source_line.processing_cost_vnd_per_kg or Decimal("0")
         return {
             "exchange_rate": source_line.exchange_rate,
             "exchange_rate_source": source_line.exchange_rate_source,
@@ -102,11 +104,13 @@ class QuoteService:
             "exchange_rate_entered_at": source_line.exchange_rate_entered_at,
             "exchange_rate_manual_reason": source_line.exchange_rate_manual_reason,
             "exchange_rate_actor_id": source_line.exchange_rate_actor_id,
-            "conversion_cost_vnd_per_kg": conversion_cost,
+            "import_tax_rate_percent": import_tax_rate_percent,
+            "processing_cost_vnd_per_kg": processing_cost,
             "price_converted_vnd_per_kg": convert_usd_mt_to_vnd_kg(
                 original_price_usd_per_mt=price_original,
                 exchange_rate=source_line.exchange_rate,
-                conversion_cost_vnd_per_kg=conversion_cost,
+                import_tax_rate_percent=import_tax_rate_percent,
+                processing_cost_vnd_per_kg=processing_cost,
             ),
         }
 
@@ -259,7 +263,8 @@ class QuoteService:
                 exchange_rate_entered_at=pricing["exchange_rate_entered_at"],
                 exchange_rate_manual_reason=pricing["exchange_rate_manual_reason"],
                 exchange_rate_actor_id=pricing["exchange_rate_actor_id"],
-                conversion_cost_vnd_per_kg=pricing["conversion_cost_vnd_per_kg"],
+                import_tax_rate_percent=pricing["import_tax_rate_percent"],
+                processing_cost_vnd_per_kg=pricing["processing_cost_vnd_per_kg"],
                 price_converted_vnd_per_kg=pricing["price_converted_vnd_per_kg"],
             )
             self.session.add(q_line)
@@ -392,7 +397,8 @@ class QuoteService:
                 exchange_rate_entered_at=pricing["exchange_rate_entered_at"],
                 exchange_rate_manual_reason=pricing["exchange_rate_manual_reason"],
                 exchange_rate_actor_id=pricing["exchange_rate_actor_id"],
-                conversion_cost_vnd_per_kg=pricing["conversion_cost_vnd_per_kg"],
+                import_tax_rate_percent=pricing["import_tax_rate_percent"],
+                processing_cost_vnd_per_kg=pricing["processing_cost_vnd_per_kg"],
                 price_converted_vnd_per_kg=pricing["price_converted_vnd_per_kg"],
             )
             self.session.add(q_line)
@@ -488,7 +494,8 @@ class QuoteService:
                 exchange_rate_entered_at=pricing["exchange_rate_entered_at"],
                 exchange_rate_manual_reason=pricing["exchange_rate_manual_reason"],
                 exchange_rate_actor_id=pricing["exchange_rate_actor_id"],
-                conversion_cost_vnd_per_kg=pricing["conversion_cost_vnd_per_kg"],
+                import_tax_rate_percent=pricing["import_tax_rate_percent"],
+                processing_cost_vnd_per_kg=pricing["processing_cost_vnd_per_kg"],
                 price_converted_vnd_per_kg=pricing["price_converted_vnd_per_kg"],
             )
             self.session.add(q_line)
@@ -579,7 +586,8 @@ class QuoteService:
             line.exchange_rate_entered_at = pricing["exchange_rate_entered_at"]
             line.exchange_rate_manual_reason = pricing["exchange_rate_manual_reason"]
             line.exchange_rate_actor_id = pricing["exchange_rate_actor_id"]
-            line.conversion_cost_vnd_per_kg = pricing["conversion_cost_vnd_per_kg"]
+            line.import_tax_rate_percent = pricing["import_tax_rate_percent"]
+            line.processing_cost_vnd_per_kg = pricing["processing_cost_vnd_per_kg"]
             line.price_converted_vnd_per_kg = pricing["price_converted_vnd_per_kg"]
 
         confirmed_at = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))

@@ -17,6 +17,34 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard:
 - Related files:
 
+### 2026-08-10: PUT /quotify-settings crash MissingGreenlet sau khi commit
+
+- Area: Backend Quotify settings API / SQLAlchemy AsyncSession lifecycle
+- Trigger: Gọi thật `PUT /api/v1/quotify-settings` (hoặc endpoint `PUT
+  /quotify-settings/conversion-cost` cũ) qua HTTP thật với `AsyncSession` thật
+  (không phải `MockSession` trong unit test); request luôn trả `500` với
+  traceback `sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been
+  called`. Bug này tồn tại trước cả refactor công thức giá quy đổi, chỉ bị
+  phát hiện khi verify tích hợp thật cho endpoint mới.
+- Root cause: Route đọc thuộc tính ORM (`setting.updated_at`, ...) để build
+  response SAU khi `await session.commit()`. `AsyncSession.commit()` mặc định
+  expire toàn bộ attribute đã load; đọc attribute đã expire bằng property
+  access đồng bộ (không có `await`) buộc SQLAlchemy tự lazy-load lại bằng
+  `session.execute(...)` đồng bộ, nhưng lệnh này chạy ngoài greenlet do
+  `AsyncSession` quản lý nên crash `MissingGreenlet`. Unit test dùng
+  `MockSession` với `commit()` giả nên không bao giờ tái hiện được lỗi này.
+- Fix: Sau `await session.commit()`, gọi thêm `await session.refresh(setting)`
+  (một lệnh async đúng nghĩa, chạy trong greenlet hợp lệ) trước khi build
+  response, cho cả `GET /quotify-settings` và `PUT /quotify-settings`.
+- Regression guard: Bất kỳ route nào đọc lại thuộc tính ORM sau
+  `session.commit()` với `AsyncSession` thật bắt buộc phải `await
+  session.refresh(...)` trước, không được đọc attribute trực tiếp và tin unit
+  test dùng `MockSession`/fake session để kết luận route đã chạy được. Phải
+  test bằng `curl` thật qua Docker dev (`docker compose exec backend ...` hoặc
+  gọi trực tiếp cổng host) trước khi coi API mutation nào là hoàn chỉnh.
+- Related files: `backend/app/api/v1/quotify_settings.py`,
+  `backend/tests/test_quotify_settings_api.py`
+
 ### 2026-07-30: Role User không lấy được tỷ giá Vietcombank khi nhập báo giá
 
 - Area: Backend RBAC seed / Quotify quote entry workflow

@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { getUsdSellRateToday } from '@/api/exchange-rates.api'
 import {
   getQuotifySettings,
-  updateConversionCost,
+  updateQuotifySettings,
 } from '@/api/quotify-settings.api'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
@@ -15,15 +15,22 @@ import type { QuotifySettingsDomain } from '@/types/quotify-settings'
 
 const appTimezone = import.meta.env.VITE_APP_TIMEZONE ?? 'Asia/Ho_Chi_Minh'
 
-const conversionCostSchema = toTypedSchema(
+const quotifySettingsSchema = toTypedSchema(
   z.object({
-    conversionCostVndPerKg: z
+    importTaxRatePercent: z
       .number({
-        required_error: 'Chi phí quy đổi là bắt buộc.',
-        invalid_type_error: 'Chi phí quy đổi phải là số hợp lệ.',
+        required_error: 'Thuế nhập khẩu là bắt buộc.',
+        invalid_type_error: 'Thuế nhập khẩu phải là số hợp lệ.',
       })
-      .min(0, 'Chi phí quy đổi không được âm.')
-      .max(999999, 'Chi phí quy đổi không được quá 999.999 VNĐ/KG.'),
+      .min(0, 'Thuế nhập khẩu không được âm.')
+      .max(100, 'Thuế nhập khẩu không được vượt quá 100%.'),
+    processingCostVndPerKg: z
+      .number({
+        required_error: 'Chi phí làm hàng là bắt buộc.',
+        invalid_type_error: 'Chi phí làm hàng phải là số hợp lệ.',
+      })
+      .min(0, 'Chi phí làm hàng không được âm.')
+      .max(999999, 'Chi phí làm hàng không được quá 999.999 VNĐ/KG.'),
   }),
 )
 
@@ -85,19 +92,30 @@ export function useQuotifySettingsPage() {
 
   const form = useForm({
     initialValues: {
-      conversionCostVndPerKg: 200,
+      importTaxRatePercent: 0,
+      processingCostVndPerKg: 200,
     },
-    validationSchema: conversionCostSchema,
+    validationSchema: quotifySettingsSchema,
   })
-  const [conversionCostVndPerKg, conversionCostVndPerKgProps] =
-    form.defineField('conversionCostVndPerKg')
+  const [importTaxRatePercent, importTaxRatePercentProps] =
+    form.defineField('importTaxRatePercent')
+  const [processingCostVndPerKg, processingCostVndPerKgProps] =
+    form.defineField('processingCostVndPerKg')
 
-  const formattedConversionCost = computed(() => {
+  const formattedImportTaxRatePercent = computed(() => {
     if (!settings.value) {
       return 'Chưa có dữ liệu'
     }
 
-    return `${formatDecimal(settings.value.conversionCostVndPerKg)} VNĐ/KG`
+    return `${formatDecimal(settings.value.importTaxRatePercent)} %`
+  })
+
+  const formattedProcessingCost = computed(() => {
+    if (!settings.value) {
+      return 'Chưa có dữ liệu'
+    }
+
+    return `${formatDecimal(settings.value.processingCostVndPerKg)} VNĐ/KG`
   })
 
   const formattedRate = computed(() => {
@@ -124,7 +142,8 @@ export function useQuotifySettingsPage() {
       settings.value = result
       form.resetForm({
         values: {
-          conversionCostVndPerKg: toNumber(result.conversionCostVndPerKg),
+          importTaxRatePercent: toNumber(result.importTaxRatePercent),
+          processingCostVndPerKg: toNumber(result.processingCostVndPerKg),
         },
       })
     } catch {
@@ -156,16 +175,18 @@ export function useQuotifySettingsPage() {
     submitError.value = null
     successMessage.value = null
     try {
-      const result = await updateConversionCost(
+      const result = await updateQuotifySettings(
         {
-          conversion_cost_vnd_per_kg: String(values.conversionCostVndPerKg),
+          import_tax_rate_percent: String(values.importTaxRatePercent),
+          processing_cost_vnd_per_kg: String(values.processingCostVndPerKg),
         },
         authStore.accessToken,
       )
       settings.value = result
       form.resetForm({
         values: {
-          conversionCostVndPerKg: toNumber(result.conversionCostVndPerKg),
+          importTaxRatePercent: toNumber(result.importTaxRatePercent),
+          processingCostVndPerKg: toNumber(result.processingCostVndPerKg),
         },
       })
       successMessage.value = 'Đã lưu cấu hình quy đổi.'
@@ -188,11 +209,14 @@ export function useQuotifySettingsPage() {
     submitError,
     successMessage,
     canUpdateSettings,
-    conversionCostVndPerKg,
-    conversionCostVndPerKgProps,
-    conversionCostErrors: form.errors,
-    conversionCostSubmitting: form.isSubmitting,
-    formattedConversionCost,
+    importTaxRatePercent,
+    importTaxRatePercentProps,
+    processingCostVndPerKg,
+    processingCostVndPerKgProps,
+    settingsErrors: form.errors,
+    settingsSubmitting: form.isSubmitting,
+    formattedImportTaxRatePercent,
+    formattedProcessingCost,
     formattedRate,
     formattedRateRetrievedAt,
     formattedSettingsUpdatedAt,

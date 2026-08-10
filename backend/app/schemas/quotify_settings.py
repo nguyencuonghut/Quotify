@@ -9,11 +9,13 @@ from pydantic import BaseModel, Field
 
 class QuotifySettingsResponse(BaseModel):
     id: UUID
-    conversion_cost_vnd_per_kg: Decimal
+    import_tax_rate_percent: Decimal
+    processing_cost_vnd_per_kg: Decimal
     updated_by_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
 
-class ConversionCostUpdateRequest(BaseModel):
-    conversion_cost_vnd_per_kg: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+class QuotifySettingsUpdateRequest(BaseModel):
+    import_tax_rate_percent: Decimal = Field(ge=0, le=100, max_digits=5, decimal_places=2)
+    processing_cost_vnd_per_kg: Decimal = Field(ge=0, max_digits=12, decimal_places=2)

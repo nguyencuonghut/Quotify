@@ -9,7 +9,8 @@ describe('quotify settings mappers', () => {
   it('maps settings dto to frontend domain fields', () => {
     const dto: QuotifySettingsDto = {
       id: 'settings-1',
-      conversion_cost_vnd_per_kg: '200.00',
+      import_tax_rate_percent: '5.00',
+      processing_cost_vnd_per_kg: '200.00',
       updated_by_id: 'user-1',
       created_at: '2026-07-28T01:00:00+00:00',
       updated_at: '2026-07-28T02:00:00+00:00',
@@ -17,7 +18,8 @@ describe('quotify settings mappers', () => {
 
     expect(mapQuotifySettingsDtoToDomain(dto)).toEqual({
       id: 'settings-1',
-      conversionCostVndPerKg: '200.00',
+      importTaxRatePercent: '5.00',
+      processingCostVndPerKg: '200.00',
       updatedById: 'user-1',
       createdAt: '2026-07-28T01:00:00+00:00',
       updatedAt: '2026-07-28T02:00:00+00:00',

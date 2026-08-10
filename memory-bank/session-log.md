@@ -746,3 +746,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tiêu đề: Siết lại memory chạy Playwright
 - Tóm tắt: Người dùng nhắc lại lỗi agent vẫn chạy Playwright sai target dù đã có memory. Đã cập nhật bug pattern Playwright: chỉ dùng `make docker-test-e2e` để kết luận E2E chính thức; nếu target này bị chặn bởi nợ build/typecheck cũ thì phải báo blocked và không chạy thay thế bằng container frontend dev hoặc host, trừ khi task đang điều tra hạ tầng Playwright hoặc người dùng yêu cầu rõ.
+
+## 2026-08-10 02:50:37Z - claude
+
+- Tieu de: Refactor cong thuc gia quy doi: tach thue nhap khau va chi phi lam hang
+- Tom tat: Tach cau hinh 'Chi phi quy doi' thanh 'Thue nhap khau' (%, mac dinh 0) va 'Chi phi lam hang' (VND/KG, mac dinh 200, doi ten tu conversion_cost_vnd_per_kg). Cong thuc moi: (Gia USD/MT / 1000) * (1 + Thue/100) * Ty gia + Chi phi lam hang. Cap nhat migration/model/service/schema/API/audit backend va type/mapper/composable/UI frontend. Sua kem bug MissingGreenlet co san o route GET/PUT quotify-settings bang session.refresh sau commit. Kiem chung: backend pytest full, ruff, frontend test/lint/build, alembic upgrade/downgrade, va goi API thuc qua curl xac nhan cong thuc dung.

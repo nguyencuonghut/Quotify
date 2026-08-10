@@ -244,7 +244,8 @@ class MockExchangeRateClient:
 class MockQuotifySettingsService:
     async def get_or_create_settings(self) -> QuotifySetting:
         return QuotifySetting(
-            conversion_cost_vnd_per_kg=Decimal("150.00")
+            import_tax_rate_percent=Decimal("0.00"),
+            processing_cost_vnd_per_kg=Decimal("150.00"),
         )
 
 
@@ -356,7 +357,51 @@ async def test_create_quote_success_usd_auto(test_setup: Any) -> None:
     assert line.price_converted_vnd_per_kg == Decimal("15750.00")
     assert line.exchange_rate == Decimal("26000.00")
     assert line.exchange_rate_source_mode == "auto"
-    assert line.conversion_cost_vnd_per_kg == Decimal("150.00")
+    assert line.import_tax_rate_percent == Decimal("0.00")
+    assert line.processing_cost_vnd_per_kg == Decimal("150.00")
+
+
+@pytest.mark.asyncio
+async def test_create_quote_success_usd_auto_with_import_tax_rate(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    class TaxedSettingsService:
+        async def get_or_create_settings(self) -> QuotifySetting:
+            return QuotifySetting(
+                import_tax_rate_percent=Decimal("8.00"),
+                processing_cost_vnd_per_kg=Decimal("150.00"),
+            )
+
+    quote_service.pricing_service.settings_service = TaxedSettingsService()  # type: ignore[assignment]
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    lines = [{
+        "material_id": material_id,
+        "price_original": Decimal("600.00"),  # USD/MT
+        "currency": "USD",
+        "unit": "MT",
+        "delivery_month": date(2026, 8, 1),
+    }]
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),  # assumed today
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=lines,
+        created_by_id=user_id,
+    )
+
+    line = quote.versions[0].lines[0]
+
+    # Formulas: (600 / 1000) * (1 + 8%) * 26000 (rate) + 150 (chi phí làm hàng)
+    # = 0.648 * 26000 + 150 = 16848 + 150 = 16998.00
+    assert line.price_converted_vnd_per_kg == Decimal("16998.00")
+    assert line.import_tax_rate_percent == Decimal("8.00")
+    assert line.processing_cost_vnd_per_kg == Decimal("150.00")
 
 
 @pytest.mark.asyncio
@@ -826,7 +871,8 @@ async def test_correction_with_same_received_date_uses_previous_rate_snapshot(
     line = confirmed_version2.lines[0]
     assert line.exchange_rate == Decimal("26000.00")
     assert line.exchange_rate_source_mode == "auto"
-    assert line.conversion_cost_vnd_per_kg == Decimal("150.00")
+    assert line.import_tax_rate_percent == Decimal("0.00")
+    assert line.processing_cost_vnd_per_kg == Decimal("150.00")
     assert line.price_converted_vnd_per_kg == Decimal("18350.00")
 
 

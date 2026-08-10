@@ -51,8 +51,9 @@ class QuoteLine(Base):
         nullable=True,
     )
     
-    # Conversion cost at freeze time
-    conversion_cost_vnd_per_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    # Conversion cost/tax at freeze time
+    import_tax_rate_percent: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    processing_cost_vnd_per_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     
     # Final calculated price
     price_converted_vnd_per_kg: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)

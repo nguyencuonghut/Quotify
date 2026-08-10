@@ -49,7 +49,8 @@ class QuoteLineResponse(BaseModel):
     exchange_rate_entered_at: datetime | None = None
     exchange_rate_manual_reason: str | None = None
     exchange_rate_actor_id: UUID | None = None
-    conversion_cost_vnd_per_kg: Decimal | None = None
+    import_tax_rate_percent: Decimal | None = None
+    processing_cost_vnd_per_kg: Decimal | None = None
     price_converted_vnd_per_kg: Decimal
     purchase_marked_at: datetime | None = None
     purchase_marked_by_id: UUID | None = None

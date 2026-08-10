@@ -57,7 +57,8 @@ describe('useQuoteEditor', () => {
     // Setup Mock settings
     quotifySettingsApiMock.getQuotifySettings.mockResolvedValue({
       id: 'settings-1',
-      conversionCostVndPerKg: '250.00',
+      importTaxRatePercent: '0.00',
+      processingCostVndPerKg: '250.00',
     })
 
     const editor = useQuoteEditor('mock-token')
@@ -93,6 +94,32 @@ describe('useQuoteEditor', () => {
     }
     // Expected: (120 / 1000) * 26000 + 250 = 3120 + 250 = 3370
     expect(editor.getLinePreviewPrice(usdLine)).toBe(3370)
+  })
+
+  it('applies import tax rate to preview price for USD/MT lines', async () => {
+    quotifySettingsApiMock.getQuotifySettings.mockResolvedValue({
+      id: 'settings-1',
+      importTaxRatePercent: '5.00',
+      processingCostVndPerKg: '250.00',
+    })
+
+    const editor = useQuoteEditor('mock-token')
+    await editor.initSettings()
+
+    const usdLine = {
+      materialId: 'mat-2',
+      priceOriginal: 120, // 120 USD/MT
+      currency: 'USD',
+      unit: 'MT',
+      deliveryMonth: '2026-08',
+      exchangeRate: 26000, // 26000 VND/USD
+      exchangeRateManualReason: null,
+      rateSourceMode: 'auto' as const,
+      autoRateFetched: null,
+      isRateLoading: false,
+    }
+    // Expected: (120 / 1000) * (1 + 5%) * 26000 + 250 = 3276 + 250 = 3526
+    expect(editor.getLinePreviewPrice(usdLine)).toBe(3526)
   })
 
   it('detects backfill correctly for past received date', () => {
@@ -168,7 +195,8 @@ describe('useQuoteEditor', () => {
         exchangeRateEnteredAt: '2026-07-30T08:00:00+07:00',
         exchangeRateManualReason: null,
         exchangeRateActorId: null,
-        conversionCostVndPerKg: 150,
+        importTaxRatePercent: 0,
+        processingCostVndPerKg: 150,
         priceConvertedVndPerKg: 18350,
         purchaseMarkedAt: null,
         purchaseMarkedById: null,
@@ -224,7 +252,8 @@ describe('useQuoteEditor', () => {
         exchangeRateEnteredAt: '2026-07-27T08:00:00+07:00',
         exchangeRateManualReason: 'Tỷ giá tại ngày nhận báo giá.',
         exchangeRateActorId: 'user-1',
-        conversionCostVndPerKg: 150,
+        importTaxRatePercent: 0,
+        processingCostVndPerKg: 150,
         priceConvertedVndPerKg: 17650,
         purchaseMarkedAt: null,
         purchaseMarkedById: null,

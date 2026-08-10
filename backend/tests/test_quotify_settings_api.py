@@ -26,6 +26,9 @@ class MockSession:
     async def commit(self) -> None:
         self.committed = True
 
+    async def refresh(self, instance: object) -> None:
+        pass
+
 
 class MockAuditLogService:
     def __init__(self) -> None:
@@ -41,7 +44,8 @@ class MockQuotifySettingsService:
         self.setting = QuotifySetting(
             id=uuid4(),
             singleton_key="default",
-            conversion_cost_vnd_per_kg=Decimal("200.00"),
+            import_tax_rate_percent=Decimal("0.00"),
+            processing_cost_vnd_per_kg=Decimal("200.00"),
             created_at=now,
             updated_at=now,
         )
@@ -49,13 +53,15 @@ class MockQuotifySettingsService:
     async def get_or_create_settings(self) -> QuotifySetting:
         return self.setting
 
-    async def update_conversion_cost(
+    async def update_quotify_settings(
         self,
         *,
-        conversion_cost_vnd_per_kg: Decimal,
+        import_tax_rate_percent: Decimal,
+        processing_cost_vnd_per_kg: Decimal,
         updated_by_id: object,
     ) -> QuotifySetting:
-        self.setting.conversion_cost_vnd_per_kg = conversion_cost_vnd_per_kg
+        self.setting.import_tax_rate_percent = import_tax_rate_percent
+        self.setting.processing_cost_vnd_per_kg = processing_cost_vnd_per_kg
         self.setting.updated_by_id = updated_by_id  # type: ignore[assignment]
         return self.setting
 
@@ -88,7 +94,7 @@ def override_dependencies(
 
 
 @pytest.mark.asyncio
-async def test_get_quotify_settings_returns_conversion_cost(
+async def test_get_quotify_settings_returns_both_parameters(
     client: AsyncClient,
     override_dependencies: tuple[MockQuotifySettingsService, MockAuditLogService, MockSession],
 ) -> None:
@@ -97,26 +103,33 @@ async def test_get_quotify_settings_returns_conversion_cost(
     response = await client.get("/api/v1/quotify-settings")
 
     assert response.status_code == 200
-    assert response.json()["conversion_cost_vnd_per_kg"] == "200.00"
+    body = response.json()
+    assert body["import_tax_rate_percent"] == "0.00"
+    assert body["processing_cost_vnd_per_kg"] == "200.00"
     assert session.committed is True
 
 
 @pytest.mark.asyncio
-async def test_update_conversion_cost_commits_and_logs_audit(
+async def test_update_quotify_settings_commits_and_logs_audit(
     client: AsyncClient,
     override_dependencies: tuple[MockQuotifySettingsService, MockAuditLogService, MockSession],
 ) -> None:
     _, audit_service, session = override_dependencies
 
     response = await client.put(
-        "/api/v1/quotify-settings/conversion-cost",
-        json={"conversion_cost_vnd_per_kg": "250.50"},
+        "/api/v1/quotify-settings",
+        json={"import_tax_rate_percent": "5.00", "processing_cost_vnd_per_kg": "250.50"},
     )
 
     assert response.status_code == 200
-    assert response.json()["conversion_cost_vnd_per_kg"] == "250.50"
+    body = response.json()
+    assert body["import_tax_rate_percent"] == "5.00"
+    assert body["processing_cost_vnd_per_kg"] == "250.50"
     assert session.committed is True
-    assert audit_service.events[0]["action"] == "quotify_settings.conversion_cost_updated"
+    assert audit_service.events[0]["action"] == "quotify_settings.updated"
     metadata = audit_service.events[0]["context"].metadata_json
-    assert metadata["changes"][0]["old_value"] == "200.00"
-    assert metadata["changes"][0]["new_value"] == "250.50"
+    changes = {change["field"]: change for change in metadata["changes"]}
+    assert changes["import_tax_rate_percent"]["old_value"] == "0.00"
+    assert changes["import_tax_rate_percent"]["new_value"] == "5.00"
+    assert changes["processing_cost_vnd_per_kg"]["old_value"] == "200.00"
+    assert changes["processing_cost_vnd_per_kg"]["new_value"] == "250.50"

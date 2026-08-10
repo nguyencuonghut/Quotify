@@ -14,7 +14,8 @@ export interface QuoteLineDto {
   exchange_rate_entered_at: string | null
   exchange_rate_manual_reason: string | null
   exchange_rate_actor_id: string | null
-  conversion_cost_vnd_per_kg: string | null
+  import_tax_rate_percent: string | null
+  processing_cost_vnd_per_kg: string | null
   price_converted_vnd_per_kg: string
   purchase_marked_at: string | null
   purchase_marked_by_id: string | null
@@ -36,7 +37,8 @@ export interface QuoteLineDomain {
   exchangeRateEnteredAt: string | null
   exchangeRateManualReason: string | null
   exchangeRateActorId: string | null
-  conversionCostVndPerKg: number | null
+  importTaxRatePercent: number | null
+  processingCostVndPerKg: number | null
   priceConvertedVndPerKg: number
   purchaseMarkedAt: string | null
   purchaseMarkedById: string | null
@@ -192,7 +194,8 @@ export interface QuoteFlattenedDto {
   unit: string
   exchange_rate: string | null
   exchange_rate_source: string | null
-  conversion_cost_vnd_per_kg: string | null
+  import_tax_rate_percent: string | null
+  processing_cost_vnd_per_kg: string | null
   price_converted_vnd_per_kg: string
   purchased: boolean
   version_number: number
@@ -220,7 +223,8 @@ export interface QuoteFlattenedDomain {
   unit: string
   exchangeRate: number | null
   exchangeRateSource: string | null
-  conversionCostVndPerKg: number | null
+  importTaxRatePercent: number | null
+  processingCostVndPerKg: number | null
   priceConvertedVndPerKg: number
   purchased: boolean
   versionNumber: number

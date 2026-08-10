@@ -1,9 +1,9 @@
 import { apiRequest } from '@/api/http'
 import { mapQuotifySettingsDtoToDomain } from '@/api/quotify-settings.mappers'
 import type {
-  ConversionCostUpdatePayload,
   QuotifySettingsDomain,
   QuotifySettingsDto,
+  QuotifySettingsUpdatePayload,
 } from '@/types/quotify-settings'
 
 export function getQuotifySettings(
@@ -14,16 +14,13 @@ export function getQuotifySettings(
   }).then(mapQuotifySettingsDtoToDomain)
 }
 
-export function updateConversionCost(
-  payload: ConversionCostUpdatePayload,
+export function updateQuotifySettings(
+  payload: QuotifySettingsUpdatePayload,
   accessToken?: string | null,
 ): Promise<QuotifySettingsDomain> {
-  return apiRequest<QuotifySettingsDto>(
-    '/quotify-settings/conversion-cost',
-    {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-      accessToken,
-    },
-  ).then(mapQuotifySettingsDtoToDomain)
+  return apiRequest<QuotifySettingsDto>('/quotify-settings', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    accessToken,
+  }).then(mapQuotifySettingsDtoToDomain)
 }

@@ -24,8 +24,8 @@ from app.schemas.material_type import (
 )
 from app.schemas.permission import PermissionResponse
 from app.schemas.quotify_settings import (
-    ConversionCostUpdateRequest,
     QuotifySettingsResponse,
+    QuotifySettingsUpdateRequest,
 )
 from app.schemas.role import (
     RoleCreateRequest,
@@ -58,7 +58,7 @@ __all__ = [
     "AuditLogListResponse",
     "AuditLogResponse",
     "CurrentUserResponse",
-    "ConversionCostUpdateRequest",
+    "QuotifySettingsUpdateRequest",
     "ExchangeRateResponse",
     "LoginRequest",
     "MaterialCreateRequest",

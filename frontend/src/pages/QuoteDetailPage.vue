@@ -238,7 +238,8 @@
                   {{ formatMoney(slotProps.data.priceConvertedVndPer_kg || slotProps.data.priceConvertedVndPerKg) }}
                 </span>
                 <div v-if="slotProps.data.currency.toUpperCase() === 'USD'" class="text-xs text-gray-500">
-                  (Chi phí: {{ formatMoney(slotProps.data.conversionCostVndPerKg) }} VNĐ/KG)
+                  (Thuế NK: {{ formatMoney(slotProps.data.importTaxRatePercent) }}% · Chi phí làm hàng:
+                  {{ formatMoney(slotProps.data.processingCostVndPerKg) }} VNĐ/KG)
                 </div>
               </template>
             </Column>

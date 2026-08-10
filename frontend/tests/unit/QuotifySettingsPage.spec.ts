@@ -28,11 +28,14 @@ function buildComposableState(overrides: Record<string, unknown> = {}) {
     submitError: ref(null),
     successMessage: ref(null),
     canUpdateSettings: ref(true),
-    conversionCostVndPerKg: ref(200),
-    conversionCostVndPerKgProps: {},
-    conversionCostErrors: ref({}),
-    conversionCostSubmitting: ref(false),
-    formattedConversionCost: ref('200,00 VNĐ/KG'),
+    importTaxRatePercent: ref(0),
+    importTaxRatePercentProps: {},
+    processingCostVndPerKg: ref(200),
+    processingCostVndPerKgProps: {},
+    settingsErrors: ref({}),
+    settingsSubmitting: ref(false),
+    formattedImportTaxRatePercent: ref('0,00 %'),
+    formattedProcessingCost: ref('200,00 VNĐ/KG'),
     formattedRate: ref('26.120,00 VNĐ/USD'),
     formattedRateRetrievedAt: ref('28/07/2026 08:00:00'),
     formattedSettingsUpdatedAt: ref('28/07/2026 02:00:00'),
@@ -75,7 +78,9 @@ describe('QuotifySettingsPage', () => {
     })
 
     // Check if sections are rendered
-    expect(wrapper.text()).toContain('Chi phí quy đổi')
+    expect(wrapper.text()).toContain('Cấu hình quy đổi')
+    expect(wrapper.text()).toContain('Thuế nhập khẩu')
+    expect(wrapper.text()).toContain('Chi phí làm hàng')
     expect(wrapper.text()).toContain('USD bán ra hôm nay')
     expect(wrapper.text()).toContain('Vietcombank USD bán ra')
     expect(wrapper.text()).toContain('28/07/2026 08:00:00')

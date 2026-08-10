@@ -31,12 +31,17 @@ _Tránh_: Ngày giao hàng
 Tỷ giá USD bán ra của Vietcombank; tỷ giá có thể được nhập tay cho báo giá nhận trong quá khứ hoặc khi không lấy được tỷ giá tự động.
 _Tránh_: Tỷ giá hiện tại
 
-**Chi phí quy đổi**:
-Khoản chi phí cố định tính theo VNĐ/KG được cộng vào giá sau khi đổi từ USD/MT.
-_Tránh_: Phí vận chuyển
+**Thuế nhập khẩu**:
+Tỷ lệ phần trăm áp trên giá gốc USD/MT trước khi quy đổi sang VNĐ/KG; cấu hình hệ thống, mặc định `0%`.
+_Tránh_: Chi phí quy đổi
+
+**Chi phí làm hàng**:
+Khoản chi phí cố định tính theo VNĐ/KG được cộng vào giá sau khi đổi từ USD/MT; cấu hình hệ thống, mặc định `200 VNĐ/KG`. Tên cũ là "Chi phí quy đổi" trước khi hệ thống tách riêng thuế nhập khẩu.
+_Tránh_: Phí vận chuyển, Chi phí quy đổi
 
 **Giá quy đổi**:
-Giá VNĐ/KG được tính từ giá gốc USD/MT, tỷ giá quy đổi và chi phí quy đổi.
+Giá VNĐ/KG được tính từ giá gốc USD/MT, tỷ giá quy đổi, thuế nhập khẩu và chi phí làm hàng theo công thức
+`Giá quy đổi = (Giá USD/MT / 1000) * (1 + Thuế nhập khẩu) * Tỷ giá + Chi phí làm hàng`.
 _Tránh_: Giá gốc
 
 **Nhập lại báo giá**:

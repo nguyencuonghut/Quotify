@@ -25,7 +25,8 @@ describe('quotes.mappers', () => {
         exchange_rate_entered_at: '2026-07-28T02:00:00Z',
         exchange_rate_manual_reason: null,
         exchange_rate_actor_id: 'user-1',
-        conversion_cost_vnd_per_kg: '250.00',
+        import_tax_rate_percent: '5.00',
+        processing_cost_vnd_per_kg: '250.00',
         price_converted_vnd_per_kg: '3397.06',
         purchase_marked_at: null,
         purchase_marked_by_id: null,
@@ -37,13 +38,14 @@ describe('quotes.mappers', () => {
       expect(domain.materialId).toBe('mat-1')
       expect(domain.priceOriginal).toBe(120.5)
       expect(domain.exchangeRate).toBe(26120)
-      expect(domain.conversionCostVndPerKg).toBe(250)
+      expect(domain.importTaxRatePercent).toBe(5)
+      expect(domain.processingCostVndPerKg).toBe(250)
       expect(domain.priceConvertedVndPerKg).toBe(3397.06)
       expect(domain.deliveryMonth).toBe('2026-08-01')
       expect(domain.lineOrder).toBe(0)
     })
 
-    it('handles null values for exchange_rate and conversion_cost', () => {
+    it('handles null values for exchange_rate, import_tax_rate_percent and processing_cost', () => {
       const dto: QuoteLineDto = {
         id: 'line-2',
         material_id: 'mat-2',
@@ -60,7 +62,8 @@ describe('quotes.mappers', () => {
         exchange_rate_entered_at: null,
         exchange_rate_manual_reason: null,
         exchange_rate_actor_id: null,
-        conversion_cost_vnd_per_kg: null,
+        import_tax_rate_percent: null,
+        processing_cost_vnd_per_kg: null,
         price_converted_vnd_per_kg: '1000.00',
         purchase_marked_at: null,
         purchase_marked_by_id: null,
@@ -69,7 +72,8 @@ describe('quotes.mappers', () => {
       const domain = mapQuoteLineDtoToDomain(dto)
 
       expect(domain.exchangeRate).toBeNull()
-      expect(domain.conversionCostVndPerKg).toBeNull()
+      expect(domain.importTaxRatePercent).toBeNull()
+      expect(domain.processingCostVndPerKg).toBeNull()
       expect(domain.priceConvertedVndPerKg).toBe(1000)
     })
   })
@@ -107,7 +111,8 @@ describe('quotes.mappers', () => {
             exchange_rate_entered_at: null,
             exchange_rate_manual_reason: null,
             exchange_rate_actor_id: null,
-            conversion_cost_vnd_per_kg: null,
+            import_tax_rate_percent: null,
+            processing_cost_vnd_per_kg: null,
             price_converted_vnd_per_kg: '500',
             purchase_marked_at: null,
             purchase_marked_by_id: null,

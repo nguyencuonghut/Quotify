@@ -76,7 +76,8 @@ export function useQuoteEditor(accessToken: string | null) {
   const lines = ref<QuoteEditorLine[]>([])
   
   const supplierMaterials = ref<SupplierMaterialDomain[]>([])
-  const conversionCost = ref<number>(200) // default fallback 200 VND/KG
+  const importTaxRatePercent = ref<number>(0) // default fallback 0%
+  const processingCost = ref<number>(200) // default fallback 200 VND/KG
   const systemUsdRate = ref<number | null>(null)
   const systemUsdRateError = ref<boolean>(false)
   
@@ -90,9 +91,10 @@ export function useQuoteEditor(accessToken: string | null) {
     isSettingsLoading.value = true
     try {
       const settings = await getQuotifySettings(accessToken)
-      conversionCost.value = settings.conversionCostVndPerKg
+      importTaxRatePercent.value = Number(settings.importTaxRatePercent)
+      processingCost.value = Number(settings.processingCostVndPerKg)
     } catch {
-      // Keep default 200
+      // Keep defaults
     } finally {
       isSettingsLoading.value = false
     }
@@ -317,8 +319,9 @@ export function useQuoteEditor(accessToken: string | null) {
       if (line.exchangeRate === null || isNaN(rate)) {
         return null
       }
-      const cost = Number(conversionCost.value)
-      const rawConverted = (price / 1000) * rate + cost
+      const tax = Number(importTaxRatePercent.value)
+      const cost = Number(processingCost.value)
+      const rawConverted = (price / 1000) * (1 + tax / 100) * rate + cost
       return Number(rawConverted.toFixed(2))
     }
     return null
@@ -431,7 +434,8 @@ export function useQuoteEditor(accessToken: string | null) {
     correctionReason,
     lines,
     supplierMaterials,
-    conversionCost,
+    importTaxRatePercent,
+    processingCost,
     systemUsdRate,
     systemUsdRateError,
     isSupplierLoading,

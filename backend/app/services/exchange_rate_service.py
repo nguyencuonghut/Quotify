@@ -53,10 +53,15 @@ def convert_usd_mt_to_vnd_kg(
     *,
     original_price_usd_per_mt: Decimal,
     exchange_rate: Decimal,
-    conversion_cost_vnd_per_kg: Decimal,
+    import_tax_rate_percent: Decimal,
+    processing_cost_vnd_per_kg: Decimal,
 ) -> Decimal:
-    converted = (original_price_usd_per_mt / Decimal("1000")) * exchange_rate
-    return quantize_money(converted + conversion_cost_vnd_per_kg)
+    price_per_kg_usd = original_price_usd_per_mt / Decimal("1000")
+    taxed_price_per_kg_usd = price_per_kg_usd * (
+        Decimal("1") + import_tax_rate_percent / Decimal("100")
+    )
+    converted = taxed_price_per_kg_usd * exchange_rate
+    return quantize_money(converted + processing_cost_vnd_per_kg)
 
 
 def get_business_today(

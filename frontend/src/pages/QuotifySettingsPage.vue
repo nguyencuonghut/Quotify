@@ -19,28 +19,54 @@
             <div>
               <p class="quotify-settings-page__eyebrow">Cấu hình</p>
               <h3 class="quotify-settings-page__panel-title">
-                Chi phí quy đổi
+                Cấu hình quy đổi
               </h3>
             </div>
             <span class="quotify-settings-page__status">
-              {{ formattedConversionCost }}
+              {{ formattedImportTaxRatePercent }} · {{ formattedProcessingCost }}
             </span>
           </div>
 
           <div class="quotify-settings-page__form-field">
             <label
               class="quotify-settings-page__form-label required"
-              for="conversion-cost"
+              for="import-tax-rate"
             >
-              Chi phí quy đổi VNĐ/KG
+              Thuế nhập khẩu (%)
             </label>
             <InputNumber
-              id="conversion-cost"
-              v-model="conversionCostVndPerKg"
-              v-bind="conversionCostVndPerKgProps"
+              id="import-tax-rate"
+              v-model="importTaxRatePercent"
+              v-bind="importTaxRatePercentProps"
               class="quotify-settings-page__input"
               :disabled="loadingSettings || !canUpdateSettings"
-              :invalid="Boolean(conversionCostErrors.conversionCostVndPerKg)"
+              :invalid="Boolean(settingsErrors.importTaxRatePercent)"
+              locale="vi-VN"
+              :max="100"
+              :max-fraction-digits="2"
+              :min="0"
+              :min-fraction-digits="2"
+              suffix=" %"
+            />
+            <small class="quotify-settings-page__field-error">
+              {{ settingsErrors.importTaxRatePercent }}
+            </small>
+          </div>
+
+          <div class="quotify-settings-page__form-field">
+            <label
+              class="quotify-settings-page__form-label required"
+              for="processing-cost"
+            >
+              Chi phí làm hàng VNĐ/KG
+            </label>
+            <InputNumber
+              id="processing-cost"
+              v-model="processingCostVndPerKg"
+              v-bind="processingCostVndPerKgProps"
+              class="quotify-settings-page__input"
+              :disabled="loadingSettings || !canUpdateSettings"
+              :invalid="Boolean(settingsErrors.processingCostVndPerKg)"
               locale="vi-VN"
               :max="999999"
               :max-fraction-digits="2"
@@ -49,7 +75,7 @@
               suffix=" VNĐ/KG"
             />
             <small class="quotify-settings-page__field-error">
-              {{ conversionCostErrors.conversionCostVndPerKg }}
+              {{ settingsErrors.processingCostVndPerKg }}
             </small>
           </div>
 
@@ -84,7 +110,7 @@
               icon="pi pi-save"
               label="Lưu cấu hình"
               :disabled="loadingSettings || !canUpdateSettings"
-              :loading="conversionCostSubmitting"
+              :loading="settingsSubmitting"
               type="submit"
             />
           </div>
@@ -155,11 +181,14 @@ const {
   submitError,
   successMessage,
   canUpdateSettings,
-  conversionCostVndPerKg,
-  conversionCostVndPerKgProps,
-  conversionCostErrors,
-  conversionCostSubmitting,
-  formattedConversionCost,
+  importTaxRatePercent,
+  importTaxRatePercentProps,
+  processingCostVndPerKg,
+  processingCostVndPerKgProps,
+  settingsErrors,
+  settingsSubmitting,
+  formattedImportTaxRatePercent,
+  formattedProcessingCost,
   formattedRate,
   formattedRateRetrievedAt,
   formattedSettingsUpdatedAt,

@@ -61,18 +61,20 @@ class QuotePricingService:
                 "exchange_rate_entered_at": None,
                 "exchange_rate_manual_reason": None,
                 "exchange_rate_actor_id": None,
-                "conversion_cost_vnd_per_kg": None,
+                "import_tax_rate_percent": None,
+                "processing_cost_vnd_per_kg": None,
                 "price_converted_vnd_per_kg": quantize_money(price_original),
             }
 
         # Handle USD/MT conversion
         today = get_business_today(now=now)
-        
+
         if received_date > today:
             raise ValueError("Ngày nhận báo giá không được ở tương lai.")
 
         settings = await self.settings_service.get_or_create_settings()
-        conversion_cost = settings.conversion_cost_vnd_per_kg
+        import_tax_rate_percent = settings.import_tax_rate_percent
+        processing_cost = settings.processing_cost_vnd_per_kg
 
         rate: Decimal
         source: str
@@ -128,7 +130,8 @@ class QuotePricingService:
         price_converted = convert_usd_mt_to_vnd_kg(
             original_price_usd_per_mt=price_original,
             exchange_rate=rate,
-            conversion_cost_vnd_per_kg=conversion_cost,
+            import_tax_rate_percent=import_tax_rate_percent,
+            processing_cost_vnd_per_kg=processing_cost,
         )
 
         return {
@@ -138,6 +141,7 @@ class QuotePricingService:
             "exchange_rate_entered_at": entered_at,
             "exchange_rate_manual_reason": resolved_reason,
             "exchange_rate_actor_id": resolved_actor_id,
-            "conversion_cost_vnd_per_kg": conversion_cost,
+            "import_tax_rate_percent": import_tax_rate_percent,
+            "processing_cost_vnd_per_kg": processing_cost,
             "price_converted_vnd_per_kg": price_converted,
         }

@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import QuotifySetting
 from app.services.exchange_rate_service import quantize_money
 
-DEFAULT_CONVERSION_COST_VND_PER_KG = Decimal("200.00")
+DEFAULT_IMPORT_TAX_RATE_PERCENT = Decimal("0.00")
+DEFAULT_PROCESSING_COST_VND_PER_KG = Decimal("200.00")
 
 
 class QuotifySettingsService:
@@ -26,28 +27,41 @@ class QuotifySettingsService:
 
         setting = QuotifySetting(
             singleton_key="default",
-            conversion_cost_vnd_per_kg=DEFAULT_CONVERSION_COST_VND_PER_KG,
+            import_tax_rate_percent=DEFAULT_IMPORT_TAX_RATE_PERCENT,
+            processing_cost_vnd_per_kg=DEFAULT_PROCESSING_COST_VND_PER_KG,
         )
         self.session.add(setting)
         await self.session.flush()
         return setting
 
-    async def update_conversion_cost(
+    async def update_quotify_settings(
         self,
         *,
-        conversion_cost_vnd_per_kg: Decimal,
+        import_tax_rate_percent: Decimal,
+        processing_cost_vnd_per_kg: Decimal,
         updated_by_id: UUID,
     ) -> QuotifySetting:
         setting = await self.get_or_create_settings()
-        setting.conversion_cost_vnd_per_kg = validate_conversion_cost(
-            conversion_cost_vnd_per_kg,
+        setting.import_tax_rate_percent = validate_import_tax_rate(
+            import_tax_rate_percent,
+        )
+        setting.processing_cost_vnd_per_kg = validate_processing_cost(
+            processing_cost_vnd_per_kg,
         )
         setting.updated_by_id = updated_by_id
         await self.session.flush()
         return setting
 
 
-def validate_conversion_cost(value: Decimal) -> Decimal:
+def validate_import_tax_rate(value: Decimal) -> Decimal:
     if value < 0:
-        raise ValueError("Chi phí quy đổi không được âm.")
+        raise ValueError("Thuế nhập khẩu không được âm.")
+    if value > 100:
+        raise ValueError("Thuế nhập khẩu không được vượt quá 100%.")
+    return quantize_money(value)
+
+
+def validate_processing_cost(value: Decimal) -> Decimal:
+    if value < 0:
+        raise ValueError("Chi phí làm hàng không được âm.")
     return quantize_money(value)

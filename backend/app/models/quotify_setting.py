@@ -23,8 +23,12 @@ class QuotifySetting(Base):
             name="ck_quotify_settings_singleton_key",
         ),
         CheckConstraint(
-            "conversion_cost_vnd_per_kg >= 0",
-            name="ck_quotify_settings_conversion_cost_non_negative",
+            "processing_cost_vnd_per_kg >= 0",
+            name="ck_quotify_settings_processing_cost_non_negative",
+        ),
+        CheckConstraint(
+            "import_tax_rate_percent >= 0",
+            name="ck_quotify_settings_import_tax_rate_non_negative",
         ),
     )
 
@@ -35,7 +39,12 @@ class QuotifySetting(Base):
         default="default",
         server_default="default",
     )
-    conversion_cost_vnd_per_kg: Mapped[Decimal] = mapped_column(
+    import_tax_rate_percent: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2),
+        default=Decimal("0.00"),
+        server_default="0.00",
+    )
+    processing_cost_vnd_per_kg: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         default=Decimal("200.00"),
         server_default="200.00",
