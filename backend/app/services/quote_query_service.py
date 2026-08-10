@@ -194,9 +194,9 @@ class QuoteQueryService:
 
         sort_col = sort_by_map.get(sort_by, QuoteLine.created_at)
         if sort_order == "desc":
-            stmt = stmt.order_by(desc(sort_col), desc(QuoteLine.id))
+            stmt = stmt.order_by(desc(sort_col), asc(QuoteLine.line_order), desc(QuoteLine.id))
         else:
-            stmt = stmt.order_by(asc(sort_col), asc(QuoteLine.id))
+            stmt = stmt.order_by(asc(sort_col), asc(QuoteLine.line_order), asc(QuoteLine.id))
 
         # Apply pagination
         stmt = stmt.offset(offset).limit(limit)
