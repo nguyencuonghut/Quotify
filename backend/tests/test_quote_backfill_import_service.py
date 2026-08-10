@@ -23,12 +23,12 @@ from app.services.quote_backfill_import import (
 def _usd_row(**overrides: str | None) -> dict[str, str | None]:
     row: dict[str, str | None] = {
         "supplier_name": "  Tập đoàn Tân Long (Tan Long Group)  ",
-        "received_date": "2026-06-15",
+        "received_date": "15/06/2026",
         "material_code": "corn",
         "price_original": "300.00",
         "currency": "USD",
         "unit": "MT",
-        "delivery_month": "2026-07",
+        "delivery_month": "07/2026",
         "exchange_rate": "26100.00",
         "import_tax_rate_percent": "5.00",
         "processing_cost_vnd_per_kg": "200.00",
@@ -41,12 +41,12 @@ def _usd_row(**overrides: str | None) -> dict[str, str | None]:
 def _vnd_row(**overrides: str | None) -> dict[str, str | None]:
     row: dict[str, str | None] = {
         "supplier_name": "Tập đoàn Tân Long (Tan Long Group)",
-        "received_date": "2026-06-15",
+        "received_date": "15/06/2026",
         "material_code": "corn",
         "price_original": "15000.00",
         "currency": "VND",
         "unit": "KG",
-        "delivery_month": "2026-07",
+        "delivery_month": "07/2026",
         "exchange_rate": None,
         "import_tax_rate_percent": None,
         "processing_cost_vnd_per_kg": None,
@@ -123,13 +123,13 @@ class TestParseQuoteBackfillImportRow:
             parse_quote_backfill_import_row(1, row)
 
     def test_rejects_invalid_received_date_format(self) -> None:
-        row = _vnd_row(received_date="15/06/2026")
-        with pytest.raises(ValueError, match="YYYY-MM-DD"):
+        row = _vnd_row(received_date="2026-06-15")
+        with pytest.raises(ValueError, match="DD/MM/YYYY"):
             parse_quote_backfill_import_row(1, row)
 
     def test_rejects_invalid_delivery_month_format(self) -> None:
-        row = _vnd_row(delivery_month="2026-07-01")
-        with pytest.raises(ValueError, match="YYYY-MM"):
+        row = _vnd_row(delivery_month="2026-07")
+        with pytest.raises(ValueError, match="MM/YYYY"):
             parse_quote_backfill_import_row(1, row)
 
     def test_rejects_missing_required_field(self) -> None:
@@ -262,9 +262,9 @@ async def test_import_rows_groups_by_supplier_and_received_date() -> None:
     service = QuoteBackfillImportService(session, quote_service)  # type: ignore[arg-type]
 
     rows = [
-        _usd_row(delivery_month="2026-08"),
-        _usd_row(delivery_month="2026-09"),
-        _usd_row(delivery_month="2026-10"),
+        _usd_row(delivery_month="08/2026"),
+        _usd_row(delivery_month="09/2026"),
+        _usd_row(delivery_month="10/2026"),
     ]
 
     summary = await service.import_rows(
@@ -301,7 +301,7 @@ async def test_import_rows_matches_supplier_name_despite_case_and_whitespace() -
 
     rows = [
         _usd_row(supplier_name="  tập đoàn   tân long (TAN LONG GROUP)  "),
-        _usd_row(supplier_name="Tập đoàn Tân Long (Tan Long Group)", delivery_month="2026-08"),
+        _usd_row(supplier_name="Tập đoàn Tân Long (Tan Long Group)", delivery_month="08/2026"),
     ]
 
     summary = await service.import_rows(
@@ -352,8 +352,8 @@ async def test_import_rows_creates_separate_quotes_for_different_received_dates(
     service = QuoteBackfillImportService(session, quote_service)  # type: ignore[arg-type]
 
     rows = [
-        _usd_row(received_date="2026-06-15"),
-        _usd_row(received_date="2026-07-20"),
+        _usd_row(received_date="15/06/2026"),
+        _usd_row(received_date="20/07/2026"),
     ]
 
     summary = await service.import_rows(
@@ -399,7 +399,7 @@ async def test_import_rows_unknown_material_code_fails_whole_group() -> None:
     quote_service = FakeQuoteService()
     service = QuoteBackfillImportService(session, quote_service)  # type: ignore[arg-type]
 
-    rows = [_usd_row(delivery_month="2026-08"), _usd_row(delivery_month="2026-09")]
+    rows = [_usd_row(delivery_month="08/2026"), _usd_row(delivery_month="09/2026")]
 
     summary = await service.import_rows(
         rows=rows,
@@ -429,7 +429,7 @@ async def test_import_rows_one_failed_group_does_not_affect_other_groups() -> No
 
     rows = [
         _usd_row(supplier_name=TAN_LONG_NAME),
-        _usd_row(supplier_name="Nhà cung cấp lỗi", received_date="2026-06-16"),
+        _usd_row(supplier_name="Nhà cung cấp lỗi", received_date="16/06/2026"),
     ]
 
     summary = await service.import_rows(
@@ -464,9 +464,9 @@ async def test_import_rows_commits_in_batches() -> None:
 
         # 3 distinct received_dates => 3 separate groups/quotes.
         rows = [
-            _usd_row(received_date="2026-06-01"),
-            _usd_row(received_date="2026-06-02"),
-            _usd_row(received_date="2026-06-03"),
+            _usd_row(received_date="01/06/2026"),
+            _usd_row(received_date="02/06/2026"),
+            _usd_row(received_date="03/06/2026"),
         ]
 
         await service.import_rows(

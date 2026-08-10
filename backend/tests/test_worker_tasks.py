@@ -418,7 +418,7 @@ async def test_import_quote_backfill_task_completes_with_summary(
     minio_client = MagicMock()
     minio_client.get_object.return_value = FakeMinioResponse(
         QUOTE_BACKFILL_IMPORT_HEADER_ROW
-        + b"TAN_LONG,2026-06-15,CORN,300.00,USD,MT,2026-07,26100.00,0.00,200.00,\n"
+        + b"TAN_LONG,15/06/2026,CORN,300.00,USD,MT,07/2026,26100.00,0.00,200.00,\n"
     )
     monkeypatch.setattr("app.worker.QuoteBackfillImportService", FakeQuoteBackfillImportService)
 

@@ -163,7 +163,7 @@ async def test_start_quote_backfill_import_creates_job_and_enqueues_after_commit
             b"supplier_name,received_date,material_code,price_original,currency,unit,"
             b"delivery_month,exchange_rate,import_tax_rate_percent,"
             b"processing_cost_vnd_per_kg,note\n"
-            b"TAN_LONG,2026-06-15,CORN,300.00,USD,MT,2026-07,26100.00,0.00,200.00,",
+            b"TAN_LONG,15/06/2026,CORN,300.00,USD,MT,07/2026,26100.00,0.00,200.00,",
             "text/csv",
         ),
     }

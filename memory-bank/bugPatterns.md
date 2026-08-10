@@ -742,6 +742,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Related files: `backend/app/worker.py`, `backend/tests/test_worker_tasks.py`, `frontend/src/pages/MaterialTypesPage.vue`, `frontend/src/pages/MaterialsPage.vue`, `frontend/src/pages/SuppliersPage.vue`, `frontend/src/types/jobs.ts`, `frontend/tests/e2e/catalog-import-invalid-header.spec.ts`
 
 
+### 2026-08-10: Backfill import từ chối toàn bộ dòng vì sai định dạng ngày so với file thực tế
+
+- Area: Backend backfill import báo giá cũ (`quote_backfill_import.py`)
+- Trigger: Người dùng import file CSV thực tế (cột `received_date` ghi `DD/MM/YYYY`, `delivery_month` ghi `MM/YYYY`) — mọi dòng đều bị báo lỗi định dạng ngày, import thất bại toàn bộ.
+- Root cause: Khi thiết kế tính năng, cột `received_date`/`delivery_month` được giả định theo chuẩn ISO `date.fromisoformat` (`YYYY-MM-DD`) và tách chuỗi theo `-` (`YYYY-MM`) — không khớp với định dạng file lịch sử thực tế đang dùng (`DD/MM/YYYY`, `MM/YYYY`). Test lúc đó còn khẳng định ngược: coi `15/06/2026` là input *không hợp lệ*.
+- Fix: Đổi parser sang `datetime.strptime(value, "%d/%m/%Y")` cho `received_date` và `datetime.strptime(value, "%m/%Y")` cho `delivery_month`; cập nhật sample row/template, thông báo lỗi (`DD/MM/YYYY`/`MM/YYYY`), và toàn bộ test fixture theo định dạng mới.
+- Regression guard: Không giả định định dạng ngày trong file lịch sử theo chuẩn ISO chỉ vì đó là chuẩn nội bộ của hệ thống — luôn xác nhận định dạng file thực tế trước khi viết parser cho tính năng import dữ liệu cũ. `test_rejects_invalid_received_date_format`/`test_rejects_invalid_delivery_month_format` phải pass với input mẫu đúng chiều (ISO bị từ chối, `DD/MM/YYYY`/`MM/YYYY` được chấp nhận).
+- Related files: `backend/app/services/quote_backfill_import.py`, `backend/tests/test_quote_backfill_import_service.py`, `backend/tests/test_quote_backfill_imports_api.py`, `backend/tests/test_worker_tasks.py`, `docs/quotify/plan-import-bao-gia-cu.md`
+
 ## Usage Rule
 
 Before changing behavior in an area with prior bugs, read the relevant entries first and explicitly avoid repeating the same failure mode.

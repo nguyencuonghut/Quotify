@@ -781,3 +781,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Deploy guide VPS production
 - Tom tat: Tao docs/runbooks/deploy-vps-production.md cho domain quotify.honghafeed.com.vn, build qua SSH khong CI/CD. Them TLS/certbot vao docker-compose.prod.yml + docker/nginx/prod.conf, sua bug CORS_ORIGINS hard-code localhost de domain thuc te hoat dong.
+
+## 2026-08-10 08:36:45Z - claude
+
+- Tieu de: Fix backfill import date format
+- Tom tat: Sua bug import bao gia cu: parser received_date/delivery_month gia dinh chuan ISO nhung file thuc te dung DD/MM/YYYY va MM/YYYY, khien moi dong import bi tu choi. Doi sang strptime dung format thuc te.

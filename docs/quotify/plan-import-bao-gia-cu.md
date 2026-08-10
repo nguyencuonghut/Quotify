@@ -184,12 +184,12 @@ hiện có):
 | Cột | Bắt buộc | Ghi chú |
 | --- | --- | --- |
 | `supplier_name` | Luôn | Tên NCC — khớp theo `Supplier.name` đã chuẩn hóa (bỏ khoảng trắng dư, không phân biệt hoa/thường), không phải mã NCC. Đã đổi từ `supplier_code` ngày 10/08/2026 vì file lịch sử thực tế ghi tên NCC, không ghi mã. |
-| `received_date` | Luôn | `YYYY-MM-DD`, phải là ngày trong quá khứ. |
+| `received_date` | Luôn | `DD/MM/YYYY` (đổi từ `YYYY-MM-DD` ngày 10/08/2026 vì file lịch sử thực tế ghi theo định dạng này), phải là ngày trong quá khứ. |
 | `material_code` | Luôn | Mã vật tư đã có trong danh mục `Vật tư`. |
 | `price_original` | Luôn | Số, giá gốc theo `currency`/`unit`. |
 | `currency` | Luôn | `VND` hoặc `USD`. |
 | `unit` | Luôn | `KG` hoặc `MT`; chỉ chấp nhận cặp `VND/KG` hoặc `USD/MT`. |
-| `delivery_month` | Luôn | `YYYY-MM`. |
+| `delivery_month` | Luôn | `MM/YYYY` (đổi từ `YYYY-MM` ngày 10/08/2026, cùng lý do với `received_date`). |
 | `exchange_rate` | Bắt buộc nếu `USD/MT`, để trống nếu `VND/KG` | Tỷ giá VNĐ/USD tại thời điểm báo giá. |
 | `import_tax_rate_percent` | Bắt buộc nếu `USD/MT`, để trống nếu `VND/KG` | Thuế nhập khẩu (%) tại thời điểm đó. |
 | `processing_cost_vnd_per_kg` | Bắt buộc nếu `USD/MT`, để trống nếu `VND/KG` | Chi phí làm hàng (VNĐ/KG) tại thời điểm đó. |

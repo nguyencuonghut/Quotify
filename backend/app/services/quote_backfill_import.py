@@ -5,7 +5,7 @@ import io
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
@@ -33,12 +33,12 @@ QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS: tuple[str, ...] = (
 QUOTE_BACKFILL_IMPORT_TEMPLATE_FILENAME = "quote_backfill_import_template.csv"
 QUOTE_BACKFILL_IMPORT_SAMPLE_ROW: tuple[str, ...] = (
     "Tập đoàn Tân Long (Tan Long Group)",
-    "2026-06-15",
+    "15/06/2026",
     "CORN",
     "300.00",
     "USD",
     "MT",
-    "2026-07",
+    "07/2026",
     "26100.00",
     "0.00",
     "200.00",
@@ -154,16 +154,15 @@ def parse_quote_backfill_import_row(row_number: int, row: dict[str, str | None])
 
     received_date_raw = _require_field(row, "received_date", "Ngày nhận báo giá")
     try:
-        received_date = date.fromisoformat(received_date_raw)
+        received_date = datetime.strptime(received_date_raw, "%d/%m/%Y").date()
     except ValueError as exc:
-        raise ValueError("Ngày nhận báo giá phải theo định dạng YYYY-MM-DD.") from exc
+        raise ValueError("Ngày nhận báo giá phải theo định dạng DD/MM/YYYY.") from exc
 
     delivery_month_raw = _require_field(row, "delivery_month", "Kỳ giao hàng")
     try:
-        year_str, month_str = delivery_month_raw.split("-", maxsplit=1)
-        delivery_month = date(int(year_str), int(month_str), 1)
-    except (ValueError, IndexError) as exc:
-        raise ValueError("Kỳ giao hàng phải theo định dạng YYYY-MM.") from exc
+        delivery_month = datetime.strptime(delivery_month_raw, "%m/%Y").date()
+    except ValueError as exc:
+        raise ValueError("Kỳ giao hàng phải theo định dạng MM/YYYY.") from exc
 
     price_original = _parse_decimal(_require_field(row, "price_original", "Giá gốc"), "Giá gốc")
     currency = _require_field(row, "currency", "Tiền tệ").upper()
