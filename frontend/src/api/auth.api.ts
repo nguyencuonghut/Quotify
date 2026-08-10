@@ -21,6 +21,12 @@ export function login(payload: LoginRequestPayload) {
 export function refreshSession(): Promise<AuthSession> {
   return apiRequest<AccessTokenDto>('/auth/refresh', {
     method: 'POST',
+    // `keepalive` lets the browser finish this request (and apply the
+    // rotated refresh-token cookie) even if the page navigates away mid-flight,
+    // e.g. the user hitting Ctrl+R/F5 again before the response returns.
+    // Without it, the response — and its Set-Cookie — can be dropped, leaving
+    // the browser holding an already-rotated (revoked) cookie for the next reload.
+    keepalive: true,
   }).then(mapAccessTokenDtoToSession)
 }
 

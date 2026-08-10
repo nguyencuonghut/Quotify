@@ -88,6 +88,14 @@ Phase 2 auth uses a hybrid browser-first token model.
 3. frontend keeps access token in memory only
 4. refresh token must not be exposed as raw JSON payload or stored raw in the database
 5. auth bootstrap should attempt refresh before treating the user as anonymous
+6. refresh tokens rotate on every use, but reuse of an already-rotated token
+   must tolerate a short grace window (`REFRESH_TOKEN_REUSE_GRACE_SECONDS =
+   30` in `backend/app/auth/service.py`) when that token has a recorded
+   `replaced_by_id` successor; without this tolerance, rapid page
+   reloads race the rotation and force a false logout (đã sửa 10/08/2026,
+   xem `memory-bank/bugPatterns.md`). Reuse outside the grace window, or of a
+   token revoked without a successor (e.g. via logout), must still be
+   rejected.
 
 Auth API contract follows that strategy:
 

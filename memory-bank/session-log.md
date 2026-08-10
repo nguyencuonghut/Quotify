@@ -751,3 +751,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Refactor cong thuc gia quy doi: tach thue nhap khau va chi phi lam hang
 - Tom tat: Tach cau hinh 'Chi phi quy doi' thanh 'Thue nhap khau' (%, mac dinh 0) va 'Chi phi lam hang' (VND/KG, mac dinh 200, doi ten tu conversion_cost_vnd_per_kg). Cong thuc moi: (Gia USD/MT / 1000) * (1 + Thue/100) * Ty gia + Chi phi lam hang. Cap nhat migration/model/service/schema/API/audit backend va type/mapper/composable/UI frontend. Sua kem bug MissingGreenlet co san o route GET/PUT quotify-settings bang session.refresh sau commit. Kiem chung: backend pytest full, ruff, frontend test/lint/build, alembic upgrade/downgrade, va goi API thuc qua curl xac nhan cong thuc dung.
+
+## 2026-08-10 03:50:15Z - claude
+
+- Tieu de: Fix auto-logout khi Ctrl+R lien tuc va cap nhat bang bao gia
+- Tom tat: Sua bug tu dong dang xuat do refresh token rotation race khi bam Ctrl+R/F5 lien tuc: them cot replaced_by_id tu tham chieu tren refresh_tokens, cho phep reuse trong khoang dung sai 30s neu token co successor, van chan token bi revoke thuc su (logout) hoac qua han. Cung cap nhat trang /quotes: bo cot Phien ban, them cot Thue nhap khau va Chi phi lam hang; sua thu tu dong hien thi sai do thieu line_order lam tieu chi sap xep phu trong QuoteQueryService. Kiem chung: backend pytest full 262 passed (1 loi no cu khong lien quan), ruff khong loi moi, alembic upgrade head Docker dev pass, curl thuc xac nhan race truoc/sau fix.
+
+## 2026-08-10 04:02:27Z - claude
+
+- Tieu de: Fix bo sung bug auto-logout khi Ctrl+R lien tuc (root cause thu 2)
+- Tom tat: User test lai van con bug sau fix lan 1. Tim them root cause: authStore.initialize() coi TypeError (fetch bi huy do dieu huong trang) giong het 401/403 thuc va xoa cookie marker quotify_logged_in vinh vien. Da sua: tach nhanh loi trong initialize() chi xoa auth state khi la ApiError 401/403 thuc; them fetch keepalive:true cho /auth/refresh de browser hoan tat request du trang dieu huong di; tang REFRESH_TOKEN_REUSE_GRACE_SECONDS tu 30 len 120s. Verify bang Playwright thuc: reload lien tuc 30 lan (2 dot x 15, cach 150-300ms, khong doi network-idle) - session song sot toan bo, 0 loi 401, 0 loi console. Backend pytest full 262 passed, frontend test/lint/build khong loi moi.

@@ -15,6 +15,7 @@ interface RequestOptions {
   body?: BodyInit | null
   headers?: HeadersInit
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  keepalive?: boolean
 }
 
 function resolveErrorMessage(payload: unknown, fallback: string): string {
@@ -57,6 +58,7 @@ export async function apiRequest<T>(
     body: options.body ?? null,
     headers,
     credentials: 'include',
+    keepalive: options.keepalive ?? false,
   })
 
   const hasNoBody = response.status === 204 || response.status === 205

@@ -60,6 +60,27 @@ describe('auth.store', () => {
     expect(authStore.currentUser).toBeNull()
   })
 
+  it('keeps the login marker cookie on a network-level refresh failure', async () => {
+    // Simulates a fetch aborted by page navigation, e.g. rapid Ctrl+R/F5,
+    // which browsers surface as a TypeError. This must not be treated the
+    // same as an explicit 401/403 rejection, or one aborted request would
+    // permanently sign the user out on every future reload.
+    document.cookie = 'quotify_logged_in=true'
+    authApiMock.refreshSession.mockRejectedValue(new TypeError('Failed to fetch'))
+
+    const authStore = useAuthStore()
+
+    await authStore.initialize()
+
+    expect(authStore.initialized).toBe(true)
+    expect(authStore.isAuthenticated).toBe(false)
+    expect(
+      document.cookie
+        .split(';')
+        .some((item) => item.trim().startsWith('quotify_logged_in=true')),
+    ).toBe(true)
+  })
+
   it('logs in and resolves current user after credential success', async () => {
     authApiMock.login.mockResolvedValue({
       accessToken: 'login-token',

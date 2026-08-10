@@ -28,6 +28,25 @@ class RefreshTokenError(Exception):
     """Raised when refresh token operations fail."""
 
 
+REFRESH_TOKEN_REUSE_GRACE_SECONDS = 120
+"""Tolerance window for reusing an already-rotated refresh token.
+
+Refresh tokens rotate on every use. If the browser fires two refresh
+requests in quick succession from the same stale cookie (e.g. the user
+mashes Ctrl+R and the first response's Set-Cookie never reaches the
+browser because the page navigated away mid-flight), the second request
+would otherwise hit an already-revoked token and force a false logout.
+Within this grace window, reusing a token that has a recorded successor
+is treated as that race rather than token theft.
+
+The frontend also sends the refresh request with `fetch(..., {keepalive:
+true})` so the browser completes it (and applies the rotated cookie) even
+when the page navigates away mid-flight; this grace window is the
+defense-in-depth backstop for whatever `keepalive` doesn't fully cover
+(e.g. browser quirks, very rapid repeated reloads), not the primary fix.
+"""
+
+
 @dataclass(slots=True, frozen=True)
 class AccessTokenResult:
     token: str
@@ -56,7 +75,7 @@ class AuthService:
 
         self._ensure_user_can_authenticate(user)
 
-        bundle = await self._issue_session_for_user(user)
+        bundle, _new_record = await self._issue_session_for_user(user)
         user.last_login_at = datetime.now(UTC)
         await self.session.flush()
         return bundle
@@ -70,6 +89,12 @@ class AuthService:
 
         now = datetime.now(UTC)
         if refresh_token_record.revoked_at is not None:
+            if self._is_reusable_within_grace_period(refresh_token_record, now=now):
+                user = refresh_token_record.user
+                self._ensure_user_can_authenticate(user)
+                bundle, _new_record = await self._issue_session_for_user(user)
+                await self.session.flush()
+                return bundle
             raise RefreshTokenError("Refresh token is revoked.")
         if refresh_token_record.expires_at <= now:
             raise RefreshTokenError("Refresh token expired.")
@@ -80,9 +105,23 @@ class AuthService:
         refresh_token_record.revoked_at = now
         refresh_token_record.last_used_at = now
 
-        bundle = await self._issue_session_for_user(user)
+        bundle, new_record = await self._issue_session_for_user(user)
+        refresh_token_record.replaced_by_id = new_record.id
         await self.session.flush()
         return bundle
+
+    @staticmethod
+    def _is_reusable_within_grace_period(
+        refresh_token_record: RefreshToken,
+        *,
+        now: datetime,
+    ) -> bool:
+        if refresh_token_record.replaced_by_id is None:
+            return False
+        if refresh_token_record.revoked_at is None:
+            return False
+        age_seconds = (now - refresh_token_record.revoked_at).total_seconds()
+        return 0 <= age_seconds <= REFRESH_TOKEN_REUSE_GRACE_SECONDS
 
     async def revoke_refresh_token(self, *, refresh_token: str) -> User | None:
         token_hash = _hash_refresh_token(refresh_token)
@@ -109,7 +148,10 @@ class AuthService:
             return None
         return user
 
-    async def _issue_session_for_user(self, user: User) -> AuthSessionBundle:
+    async def _issue_session_for_user(
+        self,
+        user: User,
+    ) -> tuple[AuthSessionBundle, RefreshToken]:
         now = datetime.now(UTC)
         access_token, access_token_expires_at = issue_access_token(user.id, now=now)
 
@@ -124,13 +166,14 @@ class AuthService:
         self.session.add(refresh_token_record)
         await self.session.flush()
 
-        return AuthSessionBundle(
+        bundle = AuthSessionBundle(
             access_token=access_token,
             access_token_expires_at=access_token_expires_at,
             refresh_token=refresh_token,
             refresh_token_expires_at=refresh_token_expires_at,
             user=user,
         )
+        return bundle, refresh_token_record
 
     async def _get_user_by_email(self, email: str) -> User | None:
         statement = (

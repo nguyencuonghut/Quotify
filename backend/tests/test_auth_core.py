@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import uuid4
 
@@ -9,7 +9,12 @@ import pytest
 
 from app.auth.hashing import hash_password, verify_password
 from app.auth.jwt import AuthTokenError, decode_access_token, issue_access_token
-from app.auth.service import AuthService, InvalidCredentialsError, RefreshTokenError
+from app.auth.service import (
+    REFRESH_TOKEN_REUSE_GRACE_SECONDS,
+    AuthService,
+    InvalidCredentialsError,
+    RefreshTokenError,
+)
 from app.core.config import get_settings
 from app.models import RefreshToken, User, UserStatus
 
@@ -57,6 +62,8 @@ class FakeAsyncSession:
 
     def add(self, instance: object) -> None:
         self.added.append(instance)
+        if getattr(instance, "id", None) is None:
+            instance.id = uuid4()  # type: ignore[attr-defined]
 
     async def flush(self) -> None:
         self.flush_count += 1
@@ -148,6 +155,55 @@ async def test_refresh_session_revokes_old_token_and_issues_new_one() -> None:
 
     assert stored_token.revoked_at is not None
     assert refreshed_bundle.refresh_token != login_bundle.refresh_token
+    assert stored_token.replaced_by_id is not None
+    new_token = session.added[-1]
+    assert isinstance(new_token, RefreshToken)
+    assert stored_token.replaced_by_id == new_token.id
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_tolerates_reuse_within_grace_period() -> None:
+    """A double reload race can replay the pre-rotation cookie moments after
+    it was rotated; this must not force a false logout."""
+    user = build_user()
+    session = FakeAsyncSession(user_by_email={user.email: user})
+    service = AuthService(session)  # type: ignore[arg-type]
+    login_bundle = await service.authenticate(email=user.email, password="Secret123!")
+    stored_token = session.added[0]
+    assert isinstance(stored_token, RefreshToken)
+    session.refresh_by_hash[stored_token.token_hash] = stored_token
+
+    await service.refresh_session(refresh_token=login_bundle.refresh_token)
+    assert stored_token.revoked_at is not None
+
+    # Replay the same (now-rotated) cookie again, simulating a second
+    # in-flight request from a rapid page reload.
+    replayed_bundle = await service.refresh_session(refresh_token=login_bundle.refresh_token)
+
+    assert replayed_bundle.user is user
+    assert replayed_bundle.access_token
+
+
+@pytest.mark.asyncio
+async def test_refresh_session_rejects_reuse_after_grace_period() -> None:
+    user = build_user()
+    raw_token = "revoked-with-successor"
+    token_hash = sha256(raw_token.encode("utf-8")).hexdigest()
+    successor_id = uuid4()
+    revoked_token = RefreshToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+        revoked_at=datetime.now(UTC) - timedelta(seconds=REFRESH_TOKEN_REUSE_GRACE_SECONDS + 5),
+        replaced_by_id=successor_id,
+    )
+    revoked_token.user = user
+
+    session = FakeAsyncSession(refresh_by_hash={token_hash: revoked_token})
+    service = AuthService(session)  # type: ignore[arg-type]
+
+    with pytest.raises(RefreshTokenError):
+        await service.refresh_session(refresh_token=raw_token)
 
 
 @pytest.mark.asyncio

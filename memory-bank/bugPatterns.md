@@ -17,6 +17,73 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard:
 - Related files:
 
+### 2026-08-10: Nhấn Ctrl+R liên tục làm tự động đăng xuất
+
+- Area: Backend refresh-token rotation / Frontend silent-refresh bootstrap
+- Trigger: Đăng nhập thành công, sau đó bấm F5/Ctrl+R liên tục nhiều lần trong
+  thời gian ngắn ở bất kỳ trang nào; hệ thống tự động đăng xuất về trang
+  login mà không có hành động logout rõ ràng nào từ người dùng.
+- Root cause (hai lỗi cộng dồn, phát hiện lần đầu chỉ sửa 1/2 nên bug vẫn còn
+  tái hiện khi test lại):
+  1. `POST /auth/refresh` xoay vòng refresh token trên mỗi lần gọi (revoke
+     token cũ, phát token mới) theo `AuthService.refresh_session(...)`. Mỗi
+     lần reload trang, `authStore.initialize()` gọi `refreshSession()` với
+     cookie refresh token hiện có. Nếu người dùng reload trang lần tiếp theo
+     trước khi response của lần reload trước quay về, browser hủy
+     (`AbortController` ngầm khi unload) request `fetch` đang chạy trước khi
+     `Set-Cookie` mang token mới được áp dụng, nhưng phía server đã revoke
+     token cũ và lưu token mới vào DB rồi. Lần reload kế tiếp gửi lại cookie
+     cũ (đã bị revoke) → `refresh_session(...)` raise `RefreshTokenError` →
+     API trả `401`.
+  2. `authStore.initialize()` (`frontend/src/stores/auth.store.ts`) coi BẤT
+     KỲ `TypeError` (bao gồm lỗi fetch bị hủy do điều hướng trang, không chỉ
+     lỗi mạng thật) giống hoàn toàn với một `401`/`403` thật từ server, và
+     gọi `clearAuthState()` xóa cookie marker `quotify_logged_in`. Vì vậy chỉ
+     cần MỘT request bị hủy do reload (rất dễ xảy ra khi bấm Ctrl+R liên
+     tục, không cần đợi đúng race #1) là đủ để xóa cookie marker; từ đó mọi
+     lần reload sau đều rơi vào nhánh `hasLoggedInCookie=false` và không gọi
+     `/auth/refresh` nữa — nhìn như đã bị đăng xuất vĩnh viễn, dù cookie
+     refresh token `httpOnly` thật ở backend vẫn còn hợp lệ. Đây là nguyên
+     nhân chính khiến bug tái hiện dù đã vá riêng lỗi #1.
+- Fix:
+  1. Backend: thêm cột `replaced_by_id` (tự tham chiếu) trên `refresh_tokens`
+     để ghi lại token kế nhiệm mỗi lần rotate. Khi `refresh_session(...)`
+     nhận một token đã bị revoke NHƯNG có `replaced_by_id` và thời điểm
+     revoke còn trong khoảng dung sai `REFRESH_TOKEN_REUSE_GRACE_SECONDS =
+     120` giây, hệ thống không raise lỗi mà coi đây là race do reload
+     nhanh, phát thêm một access token mới cho đúng user thay vì buộc đăng
+     xuất. Nếu token bị revoke qua logout thật (không có `replaced_by_id`)
+     hoặc đã quá khoảng dung sai, vẫn raise lỗi như cũ, không làm yếu bảo
+     mật với token bị đánh cắp thực sự.
+  2. Frontend `frontend/src/api/auth.api.ts`: gọi `/auth/refresh` bằng
+     `fetch(..., {keepalive: true})` để browser vẫn hoàn tất request (và áp
+     dụng cookie đã rotate) ngay cả khi trang điều hướng đi giữa lúc request
+     đang chạy — xử lý gốc rễ của race #1, thay vì chỉ dựa vào dung sai phía
+     backend.
+  3. Frontend `frontend/src/stores/auth.store.ts`: tách nhánh lỗi trong
+     `initialize()` — chỉ `clearAuthState()` khi lỗi là `ApiError` với status
+     `401`/`403` (server từ chối rõ ràng); lỗi mạng (`TypeError`, ví dụ fetch
+     bị hủy do điều hướng) không còn xóa cookie marker, để lần reload tiếp
+     theo vẫn có cơ hội refresh lại bình thường.
+- Regression guard: `test_refresh_session_tolerates_reuse_within_grace_period`
+  phải pass khi replay cùng một refresh token đã rotate trong vòng dung sai;
+  `test_refresh_session_rejects_reuse_after_grace_period` phải vẫn raise khi
+  token có `replaced_by_id` nhưng đã revoke quá lâu; `test_refresh_session_rejects_revoked_token`
+  (token bị revoke không có `replaced_by_id`, ví dụ do logout) phải vẫn
+  raise. `frontend/tests/unit/auth.store.spec.ts` có test
+  "keeps the login marker cookie on a network-level refresh failure" đảm bảo
+  `TypeError` không xóa cookie marker. Đã verify bằng `curl` thật mô phỏng
+  đúng race (gọi `/auth/refresh` hai lần liên tiếp bằng cùng cookie gốc)
+  trước và sau fix backend để xác nhận hành vi; phần frontend cần verify
+  bằng browser thật reload liên tục (curl không mô phỏng được việc browser
+  tự hủy fetch khi điều hướng).
+- Related files: `backend/app/auth/service.py`,
+  `backend/app/models/refresh_token.py`,
+  `backend/alembic/versions/20260810_1100_add_refresh_token_replaced_by.py`,
+  `backend/tests/test_auth_core.py`, `frontend/src/api/http.ts`,
+  `frontend/src/api/auth.api.ts`, `frontend/src/stores/auth.store.ts`,
+  `frontend/tests/unit/auth.store.spec.ts`
+
 ### 2026-08-10: PUT /quotify-settings crash MissingGreenlet sau khi commit
 
 - Area: Backend Quotify settings API / SQLAlchemy AsyncSession lifecycle

@@ -79,11 +79,19 @@ export const useAuthStore = defineStore('auth', {
           await this.fetchCurrentUser()
         } catch (error) {
           if (
-            error instanceof TypeError ||
-            (error instanceof ApiError &&
-              (error.status === 401 || error.status === 403))
+            error instanceof ApiError &&
+            (error.status === 401 || error.status === 403)
           ) {
+            // Explicit rejection from the backend: the refresh/access token is
+            // genuinely invalid, so treat the user as logged out.
             this.clearAuthState()
+          } else if (error instanceof TypeError) {
+            // Network-level failure (e.g. the request was aborted because the
+            // page navigated away mid-flight during a rapid Ctrl+R/F5). This
+            // says nothing about whether the session is actually still valid,
+            // so do NOT clear the login marker cookie — leave it intact so the
+            // next reload gets a normal chance to refresh instead of being
+            // permanently locked out by a transient network hiccup.
           } else {
             throw error
           }
