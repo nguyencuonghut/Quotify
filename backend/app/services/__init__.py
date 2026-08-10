@@ -47,6 +47,14 @@ from app.services.material_type_admin import (
     MaterialTypeInUseError,
     MaterialTypeNotFoundError,
 )
+from app.services.quote_backfill_import import (
+    QUOTE_BACKFILL_IMPORT_TEMPLATE_FILENAME,
+    QuoteBackfillImportHeaderError,
+    QuoteBackfillImportService,
+    QuoteBackfillImportSummary,
+    build_quote_backfill_import_error_report,
+    build_quote_backfill_import_template,
+)
 from app.services.quote_pricing import QuotePricingService
 from app.services.quote_service import QuoteService
 from app.services.quotify_seed import QuotifySeedService, QuotifySeedSummary
@@ -106,6 +114,10 @@ __all__ = [
     "MaterialTypeNotFoundError",
     "MaterialTypeNotFoundForMaterialError",
     "PermissionNotFoundError",
+    "QUOTE_BACKFILL_IMPORT_TEMPLATE_FILENAME",
+    "QuoteBackfillImportHeaderError",
+    "QuoteBackfillImportService",
+    "QuoteBackfillImportSummary",
     "QuotePricingService",
     "QuoteService",
     "QuotifySeedService",
@@ -125,6 +137,8 @@ __all__ = [
     "UserNotFoundError",
     "build_catalog_import_error_report",
     "build_catalog_import_template",
+    "build_quote_backfill_import_error_report",
+    "build_quote_backfill_import_template",
     "convert_usd_mt_to_vnd_kg",
     "get_business_today",
     "get_catalog_import_config",

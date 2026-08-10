@@ -137,7 +137,7 @@ import danh mục (`Loại vật tư`, `Vật tư`, `Nhà cung cấp`) đã có:
 **Trong phạm vi:**
 
 - Import CSV báo giá cũ, mỗi dòng file = một dòng báo giá
-  (`QuoteLine`), nhóm theo `(mã NCC, ngày nhận báo giá)` thành một
+  (`QuoteLine`), nhóm theo `(tên NCC đã chuẩn hóa, ngày nhận báo giá)` thành một
   `Quote` + một `QuoteVersion` (`status = confirmed` ngay, xem quyết định
   bên dưới), giữ thứ tự dòng trong file làm `line_order`.
 - Với dòng `USD/MT`: bắt buộc nhập tỷ giá, % thuế nhập khẩu, chi phí làm
@@ -183,7 +183,7 @@ hiện có):
 
 | Cột | Bắt buộc | Ghi chú |
 | --- | --- | --- |
-| `supplier_code` | Luôn | Mã NCC đã có trong danh mục `Nhà cung cấp`. |
+| `supplier_name` | Luôn | Tên NCC — khớp theo `Supplier.name` đã chuẩn hóa (bỏ khoảng trắng dư, không phân biệt hoa/thường), không phải mã NCC. Đã đổi từ `supplier_code` ngày 10/08/2026 vì file lịch sử thực tế ghi tên NCC, không ghi mã. |
 | `received_date` | Luôn | `YYYY-MM-DD`, phải là ngày trong quá khứ. |
 | `material_code` | Luôn | Mã vật tư đã có trong danh mục `Vật tư`. |
 | `price_original` | Luôn | Số, giá gốc theo `currency`/`unit`. |
@@ -204,12 +204,13 @@ hiện tại. Thiết kế phải chịu được quy mô này mà không timeou
 query, và không làm phình bảng `import_jobs`/`audit_logs`. Các điểm bắt buộc
 áp dụng, không để mặc định như `CatalogImportService`:
 
-1. **Cache mã → id theo NCC/vật tư trong bộ nhớ, không query theo từng
-   dòng.** Vì chỉ có vài NCC và 3 vật tư liên quan, tải toàn bộ mapping
-   `supplier_code -> supplier_id` và `material_code -> material_id` một lần
-   khi job bắt đầu (1-2 query), giữ trong `dict` dùng lại cho toàn bộ
-   30.000 dòng. Tuyệt đối không query DB theo `material_code`/`supplier_code`
-   lặp lại cho mỗi dòng — đó sẽ là 30.000 round-trip không cần thiết.
+1. **Cache mã/tên → id theo NCC/vật tư trong bộ nhớ, không query theo từng
+   dòng.** Tải toàn bộ `Supplier.name -> Supplier.id` (không lọc, vì so khớp
+   theo tên đã chuẩn hóa không lọc chính xác được bằng SQL `IN(...)`) và
+   `material_code -> material_id` (lọc theo mã xuất hiện trong file) một lần
+   khi job bắt đầu (2 query), giữ trong `dict` dùng lại cho toàn bộ 30.000
+   dòng. Tuyệt đối không query DB theo `material_code`/tên NCC lặp lại cho
+   mỗi dòng — đó sẽ là 30.000 round-trip không cần thiết.
 2. **Không dùng nguyên trạng `QuoteService.create_quote(...)` cho import.**
    Hàm này sau khi insert xong luôn chạy thêm một `SELECT` để reload toàn bộ
    `Quote` cùng `versions -> lines -> material` (phục vụ response đầy đủ cho
@@ -240,7 +241,7 @@ query, và không làm phình bảng `import_jobs`/`audit_logs`. Các điểm b�
    tránh 30.000 lần `UPDATE` vào một dòng `import_jobs` chỉ để phục vụ
    progress bar polling ở frontend.
 6. **Buffer theo nhóm khi đọc CSV vẫn nằm trong giới hạn RAM hợp lý ở quy mô
-   này.** Vì nhóm theo `(supplier_code, received_date)` có thể không liền kề
+   này.** Vì nhóm theo `(supplier_name đã chuẩn hóa, received_date)` có thể không liền kề
    trong file, cần giữ các dòng đã parse (dataclass gọn, không phải dữ liệu
    thô) theo key nhóm cho tới hết file mới biết nhóm nào đầy đủ. Ở quy mô
    30.000 dòng, việc này chỉ tốn vài MB RAM nên chấp nhận được — khác với
@@ -303,7 +304,7 @@ query, và không làm phình bảng `import_jobs`/`audit_logs`. Các điểm b�
    danh mục là các bản ghi độc lập, còn dòng báo giá trong cùng phiếu không
    độc lập với nhau. Job vẫn có thể `completed` với `failed_rows > 0` ở mức
    **nhóm** (nhóm khác trong cùng file vẫn xử lý bình thường).
-6. **Nhóm dòng theo `(supplier_code, received_date)` theo đúng thứ tự xuất
+6. **Nhóm dòng theo `(supplier_name đã chuẩn hóa, received_date)` theo đúng thứ tự xuất
    hiện trong file; `line_order` lấy theo thứ tự dòng trong nhóm.** Không
    yêu cầu các dòng cùng nhóm phải liền kề trong file (cho phép nhóm xen kẽ),
    nhưng thứ tự trong nhóm vẫn theo thứ tự xuất hiện tăng dần trong file.
@@ -324,6 +325,18 @@ query, và không làm phình bảng `import_jobs`/`audit_logs`. Các điểm b�
    "quote_backfill"`, `task_name = "import_quote_backfill_task"`. Worker mới
    không tái sử dụng `CatalogImportService`, chỉ tái sử dụng
    `ImportJob`/`JobAdminService`/pattern streaming CSV.
+10. **Khớp NCC theo tên đã chuẩn hóa (`Supplier.name`), không theo mã, và
+    chấp nhận sai khác khoảng trắng/hoa-thường.** Cập nhật 10/08/2026: dữ
+    liệu lịch sử thực tế ghi tên NCC (ví dụ "Tập đoàn Tân Long"), không ghi
+    mã NCC như giả định ban đầu của kế hoạch. Cột CSV đổi từ `supplier_code`
+    thành `supplier_name`; so khớp bằng cách chuẩn hóa cả tên trong file và
+    `Supplier.name` (gộp khoảng trắng dư, không phân biệt hoa/thường) trước
+    khi so sánh — không yêu cầu khớp chính xác tuyệt đối từng ký tự. Nếu tên
+    đã chuẩn hóa không khớp NCC nào, hoặc khớp nhiều hơn một NCC (hai NCC có
+    tên trùng sau khi chuẩn hóa), nhóm dòng đó bị lỗi rõ ràng theo đúng
+    Quyết Định 5 (không tạo phiếu thiếu dòng). Vật tư vẫn khớp theo
+    `material_code` như cũ (không đổi), vì dữ liệu lịch sử vẫn ghi đúng mã
+    vật tư.
 
 ## Kế Hoạch Commit (Từng Bước Nhỏ, Luôn Chạy Được)
 
@@ -343,9 +356,9 @@ query, và không làm phình bảng `import_jobs`/`audit_logs`. Các điểm b�
 4. **`QuoteBackfillImportService`**: thêm
    `backend/app/services/quote_backfill_import.py` — validate header CSV
    theo `template_headers` cố định, đọc CSV streaming theo chunk, nhóm dòng
-   theo `(supplier_code, received_date)` bằng buffer trong bộ nhớ (chấp nhận
+   theo `(supplier_name đã chuẩn hóa, received_date)` bằng buffer trong bộ nhớ (chấp nhận
    ở quy mô ~30.000 dòng theo mục *Cân Nhắc Hiệu Năng*), tải trước toàn bộ
-   mapping `supplier_code -> supplier_id` và `material_code -> material_id`
+   mapping `supplier_name (đã chuẩn hóa) -> supplier_id` và `material_code -> material_id`
    một lần thành cache dict (không query lại theo từng dòng), gọi
    `QuoteService.create_quote(..., skip_reload=True)` cho mỗi nhóm trong
    `session.begin_nested()` riêng để một nhóm lỗi không kéo sập nhóm khác,
@@ -409,7 +422,7 @@ query, và không làm phình bảng `import_jobs`/`audit_logs`. Các điểm b�
     `None` cho cả ba) vẫn dùng cấu hình hiện hành như cũ (regression cho hành
     vi hiện có).
   - `backend/tests/test_quote_backfill_import_service.py` (mới): nhóm đúng
-    theo `(supplier_code, received_date)`; một nhóm có dòng lỗi thì toàn
+    theo `(supplier_name đã chuẩn hóa, received_date)`; một nhóm có dòng lỗi thì toàn
     nhóm bị loại khỏi kết quả thành công, nhóm khác trong file vẫn xử lý
     được; dòng `USD/MT` thiếu bất kỳ giá trị lịch sử nào bị báo lỗi rõ ràng
     theo số dòng gốc trong file; dòng `VND/KG` có giá trị dư (đáng lẽ để
@@ -461,7 +474,7 @@ query, và không làm phình bảng `import_jobs`/`audit_logs`. Các điểm b�
   chỉnh" đã có cho phiếu `confirmed` (không cần tính năng sửa riêng cho dữ
   liệu import).
 - Cần thống nhất với người dùng nghiệp vụ: nếu hai dòng trong cùng file có
-  cùng `(supplier_code, received_date, material_code, delivery_month,
+  cùng `(supplier_name, received_date, material_code, delivery_month,
   currency, unit)` (trùng hoàn toàn), có coi là lỗi hay cho phép (ví dụ NCC
   báo hai lần cho cùng kỳ hàng)? Kế hoạch hiện tại **cho phép** trùng (không
   validate) vì đây là dữ liệu lịch sử tái nhập, có thể có nhiều dòng hợp lệ

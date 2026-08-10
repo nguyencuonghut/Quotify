@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -58,6 +58,9 @@ class QuoteLine(Base):
     # Final calculated price
     price_converted_vnd_per_kg: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     
+    # Free-text note for this line (e.g. from historical backfill import)
+    note: Mapped[str | None] = mapped_column(Text(), nullable=True)
+
     # Purchase decision fields
     purchase_marked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     purchase_marked_by_id: Mapped[UUID | None] = mapped_column(

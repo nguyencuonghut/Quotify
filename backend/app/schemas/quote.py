@@ -52,6 +52,7 @@ class QuoteLineResponse(BaseModel):
     import_tax_rate_percent: Decimal | None = None
     processing_cost_vnd_per_kg: Decimal | None = None
     price_converted_vnd_per_kg: Decimal
+    note: str | None = None
     purchase_marked_at: datetime | None = None
     purchase_marked_by_id: UUID | None = None
 

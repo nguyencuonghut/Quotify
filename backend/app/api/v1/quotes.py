@@ -101,6 +101,7 @@ def _build_line_response(line: QuoteLine) -> QuoteLineResponse:
         import_tax_rate_percent=line.import_tax_rate_percent,
         processing_cost_vnd_per_kg=line.processing_cost_vnd_per_kg,
         price_converted_vnd_per_kg=line.price_converted_vnd_per_kg,
+        note=line.note,
         purchase_marked_at=line.purchase_marked_at,
         purchase_marked_by_id=line.purchase_marked_by_id,
     )

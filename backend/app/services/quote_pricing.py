@@ -46,14 +46,30 @@ class QuotePricingService:
         manual_reason: str | None = None,
         actor_id: UUID | None = None,
         now: datetime | None = None,
+        manual_import_tax_rate_percent: Decimal | None = None,
+        manual_processing_cost_vnd_per_kg: Decimal | None = None,
     ) -> dict[str, object]:
-        """Calculates exchange rate and conversion cost for a quote line."""
+        """Calculates exchange rate and conversion cost for a quote line.
+
+        `manual_import_tax_rate_percent`/`manual_processing_cost_vnd_per_kg` let
+        the historical backfill-import flow freeze tax/processing-cost values
+        as they were at the time of the quote, instead of the current
+        `quotify_settings`. Regular quote entry never passes these — it always
+        prices against current settings.
+        """
         self.validate_currency_unit(currency, unit)
-        
+
         c_upper = currency.upper()
         u_upper = unit.upper()
 
+        has_manual_tax = manual_import_tax_rate_percent is not None
+        has_manual_cost = manual_processing_cost_vnd_per_kg is not None
+
         if c_upper == "VND" and u_upper == "KG":
+            if has_manual_tax or has_manual_cost:
+                raise ValueError(
+                    "Dòng VND/KG không có thuế nhập khẩu hoặc chi phí làm hàng."
+                )
             return {
                 "exchange_rate": None,
                 "exchange_rate_source": None,
@@ -72,9 +88,21 @@ class QuotePricingService:
         if received_date > today:
             raise ValueError("Ngày nhận báo giá không được ở tương lai.")
 
-        settings = await self.settings_service.get_or_create_settings()
-        import_tax_rate_percent = settings.import_tax_rate_percent
-        processing_cost = settings.processing_cost_vnd_per_kg
+        if has_manual_tax != has_manual_cost:
+            raise ValueError(
+                "Phải nhập đủ cả thuế nhập khẩu và chi phí làm hàng lịch sử, "
+                "hoặc để trống cả hai để dùng cấu hình hiện hành."
+            )
+
+        if has_manual_tax and has_manual_cost:
+            assert manual_import_tax_rate_percent is not None
+            assert manual_processing_cost_vnd_per_kg is not None
+            import_tax_rate_percent = quantize_money(manual_import_tax_rate_percent)
+            processing_cost = quantize_money(manual_processing_cost_vnd_per_kg)
+        else:
+            settings = await self.settings_service.get_or_create_settings()
+            import_tax_rate_percent = settings.import_tax_rate_percent
+            processing_cost = settings.processing_cost_vnd_per_kg
 
         rate: Decimal
         source: str

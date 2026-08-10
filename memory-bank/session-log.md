@@ -761,3 +761,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Fix bo sung bug auto-logout khi Ctrl+R lien tuc (root cause thu 2)
 - Tom tat: User test lai van con bug sau fix lan 1. Tim them root cause: authStore.initialize() coi TypeError (fetch bi huy do dieu huong trang) giong het 401/403 thuc va xoa cookie marker quotify_logged_in vinh vien. Da sua: tach nhanh loi trong initialize() chi xoa auth state khi la ApiError 401/403 thuc; them fetch keepalive:true cho /auth/refresh de browser hoan tat request du trang dieu huong di; tang REFRESH_TOKEN_REUSE_GRACE_SECONDS tu 30 len 120s. Verify bang Playwright thuc: reload lien tuc 30 lan (2 dot x 15, cach 150-300ms, khong doi network-idle) - session song sot toan bo, 0 loi 401, 0 loi console. Backend pytest full 262 passed, frontend test/lint/build khong loi moi.
+
+## 2026-08-10 05:07:18Z - claude
+
+- Tieu de: Trien khai tinh nang import lai bao gia cu (backfill import)
+- Tom tat: Trien khai backfill import theo docs/quotify/plan-import-bao-gia-cu.md: migration them cot note tren quote_lines; QuotePricingService nhan override thue/chi phi lich su; QuoteService.create_quote them confirm_immediately/skip_reload/note; service moi QuoteBackfillImportService nhom dong theo (supplier_code, received_date), cache ma->id 2 query, commit theo lo, cach ly loi tung nhom; route /quote-backfill-imports voi permission rieng quotes.backfill_import (chi admin); worker task import_quote_backfill_task timeout 1800s, 1 audit event/job. Frontend: useQuoteBackfillImport composable, nut+dialog Import bao gia cu tren /quotes, hien thi note tren trang chi tiet. Kiem chung: backend pytest full 296 passed (1 loi no cu), ruff/frontend lint/typecheck/build khong loi moi, test thuc Docker dev voi file 30000 dong xu ly xong ~15s khong loi, EXPLAIN ANALYZE xac nhan van dung index co san, va browser E2E thuc qua Playwright pass toan bo (upload/poll/hien thi ghi chu/gia quy doi dung cong thuc).
+
+## 2026-08-10 06:16:40Z - claude
+
+- Tieu de: Sua cot NCC trong import bao gia cu: dung ten thay vi ma
+- Tom tat: User cho biet file lich su thuc te ghi ten NCC, khong ghi ma nhu gia dinh ban dau. Doi cot CSV supplier_code -> supplier_name, so khop bang normalize_supplier_name_for_matching (gop khoang trang du, khong phan biet hoa/thuong) truoc khi tra Supplier.name; khong khop hoac khop nhieu hon 1 NCC thi nhom dong loi ro. Vat tu van khop theo material_code (khong doi). Cache NCC doi tu tai theo danh sach ma can dung sang tai toan bo Supplier.name->id mot lan. Kiem chung: backend pytest full 300 passed, ruff khong loi moi, verify thuc qua Docker dev (phai restart worker vi khong tu reload code) - ten NCC du khoang trang/khac hoa thuong van khop dung, ten khong ton tai bao loi ro.

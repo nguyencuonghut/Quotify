@@ -28,6 +28,7 @@ describe('quotes.mappers', () => {
         import_tax_rate_percent: '5.00',
         processing_cost_vnd_per_kg: '250.00',
         price_converted_vnd_per_kg: '3397.06',
+        note: 'Nhập lại từ báo giá cũ.',
         purchase_marked_at: null,
         purchase_marked_by_id: null,
       }
@@ -43,6 +44,7 @@ describe('quotes.mappers', () => {
       expect(domain.priceConvertedVndPerKg).toBe(3397.06)
       expect(domain.deliveryMonth).toBe('2026-08-01')
       expect(domain.lineOrder).toBe(0)
+      expect(domain.note).toBe('Nhập lại từ báo giá cũ.')
     })
 
     it('handles null values for exchange_rate, import_tax_rate_percent and processing_cost', () => {
@@ -65,6 +67,7 @@ describe('quotes.mappers', () => {
         import_tax_rate_percent: null,
         processing_cost_vnd_per_kg: null,
         price_converted_vnd_per_kg: '1000.00',
+        note: null,
         purchase_marked_at: null,
         purchase_marked_by_id: null,
       }
@@ -114,6 +117,7 @@ describe('quotes.mappers', () => {
             import_tax_rate_percent: null,
             processing_cost_vnd_per_kg: null,
             price_converted_vnd_per_kg: '500',
+            note: null,
             purchase_marked_at: null,
             purchase_marked_by_id: null,
           },

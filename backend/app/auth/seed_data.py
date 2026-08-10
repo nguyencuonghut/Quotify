@@ -34,6 +34,7 @@ BASE_PERMISSION_CODES = [
     "quotes.create",
     "quotes.update",
     "quotes.mark_purchased",
+    "quotes.backfill_import",
     "quote_notes.read",
     "quote_notes.create",
     "quote_notes.update",

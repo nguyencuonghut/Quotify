@@ -405,6 +405,89 @@ async def test_create_quote_success_usd_auto_with_import_tax_rate(test_setup: An
 
 
 @pytest.mark.asyncio
+async def test_create_quote_backfill_import_uses_historical_override_and_note(
+    test_setup: Any,
+) -> None:
+    """Simulates the historical backfill-import flow: manual rate/tax/cost
+    override, a per-line note, immediate confirmation, and skip_reload."""
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    lines = [{
+        "material_id": material_id,
+        "price_original": Decimal("300.00"),
+        "currency": "USD",
+        "unit": "MT",
+        "delivery_month": date(2026, 8, 1),
+        "exchange_rate": Decimal("25000.00"),
+        "import_tax_rate_percent": Decimal("3.00"),
+        "processing_cost_vnd_per_kg": Decimal("180.00"),
+        "note": "Nhập lại từ báo giá cũ.",
+    }]
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 6, 1),  # past date relative to business_today
+        is_backfilled=True,
+        backfill_reason=None,
+        lines_data=lines,
+        created_by_id=user_id,
+        confirm_immediately=True,
+        skip_reload=True,
+    )
+
+    version = quote.versions[0]
+    line = version.lines[0]
+
+    assert version.status == "confirmed"
+    assert version.confirmed_at is not None
+    assert version.confirmed_by_id == user_id
+    assert line.note == "Nhập lại từ báo giá cũ."
+    assert line.exchange_rate == Decimal("25000.00")
+    assert line.import_tax_rate_percent == Decimal("3.00")
+    assert line.processing_cost_vnd_per_kg == Decimal("180.00")
+    # Formula: (300 / 1000) * (1 + 3%) * 25000 + 180 = 7725 + 180 = 7905.00
+    assert line.price_converted_vnd_per_kg == Decimal("7905.00")
+
+
+@pytest.mark.asyncio
+async def test_create_quote_defaults_to_draft_without_confirm_immediately(
+    test_setup: Any,
+) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    lines = [{
+        "material_id": material_id,
+        "price_original": Decimal("15000.00"),
+        "currency": "VND",
+        "unit": "KG",
+        "delivery_month": date(2026, 8, 1),
+    }]
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=lines,
+        created_by_id=user_id,
+    )
+
+    version = quote.versions[0]
+    assert version.status == "draft"
+    assert version.confirmed_at is None
+    assert version.confirmed_by_id is None
+    assert version.lines[0].note is None
+
+
+@pytest.mark.asyncio
 async def test_create_quote_preserves_input_line_order(test_setup: Any) -> None:
     session, quote_service, _ = test_setup
 

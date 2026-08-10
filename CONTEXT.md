@@ -52,6 +52,22 @@ _Tránh_: Sửa ngày báo giá
 Nhận định có lịch sử riêng do người dùng bổ sung cho báo giá.
 _Tránh_: Audit log
 
+**Ghi chú dòng báo giá**:
+Ghi chú ngắn gắn với một dòng báo giá cụ thể, hiện tại chỉ lưu tối đa một ghi
+chú/dòng và không có lịch sử chỉnh sửa; khác với "Ghi chú thị trường" (gắn với
+cả phiếu báo giá, có lịch sử chỉnh sửa riêng). Chủ yếu dùng khi import lại báo
+giá cũ.
+_Tránh_: Ghi chú thị trường
+
+**Import báo giá cũ (Backfill Import)**:
+Việc nhập lại nhiều báo giá lịch sử cùng lúc bằng file CSV, mỗi dòng file là
+một dòng báo giá; các dòng cùng nhà cung cấp và cùng ngày nhận báo giá được
+gộp vào một phiếu. Với dòng USD/MT, tỷ giá, thuế nhập khẩu và chi phí làm
+hàng đều phải nhập tay theo giá trị tại đúng thời điểm đó, không dùng cấu
+hình hiện hành. Phiếu tạo ra từ import có hiệu lực ngay (`confirmed`), không
+qua bước xác nhận thủ công.
+_Tránh_: Nhập lại báo giá (khái niệm chung, không nhất thiết qua file)
+
 **Đã chốt mua**:
 Dấu xác nhận công ty đã mua theo dòng báo giá tương ứng; Quotify ghi nhận thời điểm người dùng đánh dấu trong hệ thống.
 _Tránh_: Quyết định mua

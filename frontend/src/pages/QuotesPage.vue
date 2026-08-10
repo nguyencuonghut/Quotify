@@ -68,6 +68,13 @@
 
         <div class="quotes-page__actions">
           <Button
+            v-if="hasBackfillImportPermission"
+            icon="pi pi-upload"
+            label="Import báo giá cũ"
+            severity="secondary"
+            @click="openImportDialog"
+          />
+          <Button
             v-if="hasCreatePermission"
             label="Nhập báo giá"
             icon="pi pi-plus"
@@ -240,6 +247,63 @@
         </DataTable>
       </section>
 
+      <Dialog
+        v-model:visible="importDialogVisible"
+        class="quotes-page__dialog"
+        header="Import báo giá cũ"
+        modal
+      >
+        <div class="quotes-page__form">
+          <div v-if="importError" class="quotes-page__submit-error">
+            {{ importError }}
+          </div>
+          <div class="quotes-page__dialog-actions">
+            <Button
+              icon="pi pi-download"
+              label="Tải template CSV"
+              severity="secondary"
+              text
+              @click="downloadTemplate"
+            />
+          </div>
+          <FileUpload
+            accept=".csv,text/csv"
+            choose-label="Chọn file CSV"
+            custom-upload
+            mode="basic"
+            name="file"
+            :auto="true"
+            :disabled="uploadingImport"
+            @uploader="handleImportUpload"
+          />
+          <div
+            v-if="importJob"
+            class="quotes-page__import-status"
+            :class="{
+              'quotes-page__import-status--failed': importJob.status === 'failed',
+            }"
+          >
+            <strong>{{ formatImportStatus(importJob.status) }}</strong>
+            <span v-if="importJob.errorSummary">
+              {{ importJob.errorSummary }}
+            </span>
+            <span>
+              {{ importJob.processedRows }} thành công,
+              {{ importJob.failedRows }} lỗi trên {{ importJob.totalRows }} dòng
+            </span>
+            <ProgressBar :value="getImportProgress()" />
+            <Button
+              v-if="importJob.failedRows > 0"
+              icon="pi pi-download"
+              label="Tải file lỗi"
+              severity="secondary"
+              text
+              @click="downloadErrorFile"
+            />
+          </div>
+        </div>
+      </Dialog>
+
       <section class="quotes-page__mobile-list" aria-label="Danh sách báo giá trên mobile">
         <div v-if="isLoading" class="quotes-page__mobile-state">
           Đang tải danh sách báo giá...
@@ -353,13 +417,17 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
 import { useQuotesPage } from '@/composables/useQuotesPage'
+import { useQuoteBackfillImport } from '@/composables/useQuoteBackfillImport'
 import { listSuppliers } from '@/api/suppliers.api'
 import { listMaterials, listMaterialTypesLookup } from '@/api/materials.api'
 import type { SupplierDomain } from '@/types/suppliers'
 import type { MaterialDomain, MaterialTypeDomain } from '@/types/materials'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
+import Dialog from 'primevue/dialog'
+import FileUpload from 'primevue/fileupload'
 import InputText from 'primevue/inputtext'
+import ProgressBar from 'primevue/progressbar'
 import Select from 'primevue/select'
 import DatePicker from 'primevue/datepicker'
 import DataTable from 'primevue/datatable'
@@ -398,6 +466,17 @@ const {
   resetFilters,
 } = useQuotesPage(authStore.accessToken)
 
+const {
+  importDialogVisible,
+  importJob,
+  importError,
+  uploadingImport,
+  openImportDialog,
+  handleImportUpload,
+  downloadTemplate,
+  downloadErrorFile,
+} = useQuoteBackfillImport(loadQuotesData)
+
 // Dropdowns lookups data
 const suppliersList = ref<SupplierDomain[]>([])
 const materialsList = ref<MaterialDomain[]>([])
@@ -433,6 +512,29 @@ onMounted(() => {
 const hasCreatePermission = computed(() => {
   return permissionStore.can('quotes.create')
 })
+
+const hasBackfillImportPermission = computed(() => {
+  return permissionStore.can('quotes.backfill_import')
+})
+
+function formatImportStatus(status: string) {
+  if (status === 'completed') return 'Hoàn tất'
+  if (status === 'failed') return 'Thất bại'
+  if (status === 'processing') return 'Đang xử lý'
+  return 'Đang chờ'
+}
+
+function getImportProgress() {
+  if (!importJob.value?.totalRows) return 0
+  return Math.min(
+    100,
+    Math.round(
+      ((importJob.value.processedRows + importJob.value.failedRows) /
+        importJob.value.totalRows) *
+        100,
+    ),
+  )
+}
 
 const goToNewQuote = () => {
   router.push('/quotes/new')

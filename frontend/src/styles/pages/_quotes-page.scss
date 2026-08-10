@@ -89,6 +89,59 @@
     width: 100%;
   }
 
+  .quotes-page__dialog {
+    width: 90%;
+    max-width: 30rem;
+  }
+
+  .quotes-page__form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding-top: 0.5rem;
+  }
+
+  .quotes-page__submit-error {
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.85rem;
+    color: var(--app-text-danger);
+    background-color: color-mix(in srgb, var(--app-text-danger) 10%, transparent);
+    border: 1px solid var(--app-border-soft);
+  }
+
+  .quotes-page__dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .quotes-page__import-status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    color: var(--app-text-secondary);
+    background: var(--app-surface-muted);
+    border: 1px solid var(--app-border-soft);
+    border-radius: 0.75rem;
+
+    strong {
+      color: var(--app-text-primary);
+    }
+
+    &.quotes-page__import-status--failed {
+      color: var(--app-text-danger);
+      background: color-mix(in srgb, var(--app-danger) 12%, var(--app-surface-panel));
+      border-color: color-mix(in srgb, var(--app-danger) 42%, var(--app-border-soft));
+
+      strong {
+        color: var(--app-text-danger);
+      }
+    }
+  }
+
   .quotes-page__row-clickable {
     cursor: pointer;
     transition: background-color 0.15s ease;

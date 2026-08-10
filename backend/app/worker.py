@@ -20,12 +20,13 @@ except ImportError:
 
 from datetime import UTC, datetime
 
-from arq import cron
+from arq import cron, func
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.db.session import get_sessionmaker
+from app.integrations.vietcombank import VietcombankExchangeRateClient
 from app.models import ExportJob, ImportJob, User, UserStatus
 from app.models.backup_log import BackupLog
 from app.models.backup_schedule import BackupSchedule
@@ -37,7 +38,15 @@ from app.services.catalog_import import (
     get_catalog_import_config,
 )
 from app.services.email import EmailService
+from app.services.exchange_rate_service import ExchangeRateService
 from app.services.file_admin import FileAdminService
+from app.services.quote_backfill_import import (
+    QuoteBackfillImportHeaderError,
+    QuoteBackfillImportService,
+)
+from app.services.quote_pricing import QuotePricingService
+from app.services.quote_service import QuoteService
+from app.services.quotify_settings_service import QuotifySettingsService
 from app.services.user_admin import RoleNotFoundError, UserAdminService
 from app.storage.minio import build_minio_client
 
@@ -432,6 +441,154 @@ async def import_catalog_task(ctx: dict[str, Any], job_id: UUID) -> None:
         await session.commit()
 
 
+async def import_quote_backfill_task(ctx: dict[str, Any], job_id: UUID) -> None:
+    session_factory = ctx["session_factory"]
+    minio_client = ctx["minio_client"]
+
+    async with session_factory() as session:
+        stmt = select(ImportJob).where(ImportJob.id == job_id).options(selectinload(ImportJob.file))
+        result = await session.execute(stmt)
+        job = result.scalar_one_or_none()
+
+        if not job:
+            logger.error(f"Quote backfill import job {job_id} not found.")
+            return
+
+        if job.status in TERMINAL_STATUSES:
+            logger.warning(f"Quote backfill import job {job_id} is already in state {job.status}.")
+            return
+
+        if job.status == "pending":
+            job.status = "processing"
+            await session.commit()
+
+        settings = get_settings()
+        exchange_rate_service = ExchangeRateService(
+            VietcombankExchangeRateClient(
+                url=settings.vietcombank_exchange_rate_url,
+                timeout_seconds=settings.vietcombank_exchange_rate_timeout_seconds,
+                retry_count=settings.vietcombank_exchange_rate_retry_count,
+            ),
+        )
+        pricing_service = QuotePricingService(
+            exchange_rate_service=exchange_rate_service,
+            settings_service=QuotifySettingsService(session),
+        )
+        quote_service = QuoteService(session, pricing_service)
+        backfill_service = QuoteBackfillImportService(session, quote_service)
+
+        try:
+            minio_response = minio_client.get_object(
+                bucket_name=job.file.bucket,
+                object_name=job.file.storage_path,
+            )
+            try:
+                reader = csv.DictReader(_iter_decoded_csv_lines(minio_response))
+                summary = await backfill_service.import_rows(
+                    rows=reader,
+                    fieldnames=reader.fieldnames,
+                    created_by_id=job.created_by_id,
+                )
+            finally:
+                minio_response.close()
+                minio_response.release_conn()
+        except QuoteBackfillImportHeaderError as exc:
+            logger.warning("Quote backfill import job %s has invalid CSV header.", job_id)
+            job.status = "failed"
+            job.total_rows = 1
+            job.processed_rows = 0
+            job.failed_rows = 1
+            job.error_summary = "Header CSV không hợp lệ."
+            job.errors_json = [{"row": 1, "errors": [str(exc)]}]
+            await _log_worker_audit_event(
+                session,
+                action="quotes.backfill_import_failed",
+                entity_type="import_job",
+                entity_id=job.id,
+                actor_user_id=job.created_by_id,
+                metadata_json={
+                    "import_job_id": str(job.id),
+                    "file_id": str(job.file_id),
+                    "import_entity_type": job.entity_type,
+                    "status": job.status,
+                    "outcome": "failed",
+                    "error_category": "invalid_csv_header",
+                    "error_summary": "Header CSV không hợp lệ.",
+                },
+            )
+            await session.commit()
+            return
+        except Exception:
+            logger.exception(f"Failed to read/parse quote backfill CSV file for job {job_id}")
+            job.status = "failed"
+            job.error_summary = "Không thể đọc hoặc xử lý file CSV import báo giá cũ."
+            await _log_worker_audit_event(
+                session,
+                action="quotes.backfill_import_failed",
+                entity_type="import_job",
+                entity_id=job.id,
+                actor_user_id=job.created_by_id,
+                metadata_json={
+                    "import_job_id": str(job.id),
+                    "file_id": str(job.file_id),
+                    "import_entity_type": job.entity_type,
+                    "status": job.status,
+                    "outcome": "failed",
+                    "error_category": "csv_read_parse_failed",
+                    "error_summary": "Không thể đọc hoặc xử lý file CSV import báo giá cũ.",
+                },
+            )
+            await session.commit()
+            return
+
+        job.status = (
+            "completed"
+            if summary.total_rows > 0 and summary.processed_rows > 0
+            else "failed"
+        )
+        if summary.total_rows == 0:
+            job.error_summary = "File import không có dòng dữ liệu."
+        elif summary.processed_rows == 0:
+            job.error_summary = "Tất cả dòng import đều lỗi."
+        job.total_rows = summary.total_rows
+        job.processed_rows = summary.processed_rows
+        job.failed_rows = summary.failed_rows
+        job.errors_json = summary.errors or []
+        await _log_worker_audit_event(
+            session,
+            action=(
+                "quotes.backfill_import_completed"
+                if job.status == "completed"
+                else "quotes.backfill_import_failed"
+            ),
+            entity_type="import_job",
+            entity_id=job.id,
+            actor_user_id=job.created_by_id,
+            metadata_json={
+                "import_job_id": str(job.id),
+                "file_id": str(job.file_id),
+                "import_entity_type": job.entity_type,
+                "status": job.status,
+                "outcome": "completed" if job.status == "completed" else "failed",
+                "total_rows": job.total_rows,
+                "processed_rows": job.processed_rows,
+                "failed_rows": job.failed_rows,
+                "created_quote_count": summary.created_quote_count,
+                "created_line_count": summary.created_line_count,
+                "failed_group_count": summary.failed_group_count,
+                **(
+                    {
+                        "error_category": "all_rows_failed",
+                        "error_summary": "Tất cả dòng import đều lỗi.",
+                    }
+                    if job.status == "failed"
+                    else {}
+                ),
+            },
+        )
+        await session.commit()
+
+
 async def export_users_task(ctx: dict[str, Any], job_id: UUID) -> None:
     session_factory = ctx["session_factory"]
     minio_client = ctx["minio_client"]
@@ -776,6 +933,10 @@ class WorkerSettings:
     functions = [
         import_users_task,
         import_catalog_task,
+        # Backfill import can process tens of thousands of historical quote
+        # lines in one job; the default arq job timeout (5 minutes) is not
+        # enough headroom for that scale.
+        func(import_quote_backfill_task, timeout=1800),
         export_users_task,
         run_backup_task,
         poll_and_run_scheduled_backups,

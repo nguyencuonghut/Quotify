@@ -243,6 +243,12 @@
                 </div>
               </template>
             </Column>
+            <Column header="Ghi chú" style="width: 200px">
+              <template #body="slotProps">
+                <span v-if="slotProps.data.note" class="text-xs">{{ slotProps.data.note }}</span>
+                <span v-else class="text-xs text-gray-400">-</span>
+              </template>
+            </Column>
             <Column header="Chốt mua" style="width: 160px; text-align: left">
               <template #body="slotProps">
                 <div style="display: flex; align-items: center; padding-left: 0.75rem; gap: 0.25rem; white-space: nowrap; width: 100%; min-height: 24px;">

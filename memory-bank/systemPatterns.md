@@ -505,6 +505,59 @@ hardcode toàn bộ logic quanh user import:
   và người dùng có permission import tương ứng. Không dùng `files.read_all` để
   tải lỗi import catalog.
 
+## Quotify Backfill Import Pattern
+
+Import báo giá cũ (`quote_backfill`, thêm ngày 10/08/2026) là một luồng import
+riêng, không tái sử dụng `CatalogImportService` (service đó hard-code logic
+upsert cho 3 loại danh mục), chỉ tái sử dụng substrate chung
+(`ImportJob`/`JobAdminService`/pattern route/worker streaming CSV):
+
+- Route riêng `/quote-backfill-imports`, permission riêng
+  `quotes.backfill_import` (không tự cấp cho role `user`, admin cấp thủ công
+  qua Roles), tách khỏi `quotes.create` vì đây là đường ghi dữ liệu lịch sử
+  quy mô lớn.
+- Mỗi dòng CSV là một `QuoteLine`; các dòng cùng `(tên NCC đã chuẩn hóa,
+  received_date)` gộp thành một `Quote` + một `QuoteVersion`, giữ đúng thứ tự
+  xuất hiện trong file làm `line_order`. Không yêu cầu các dòng cùng nhóm phải
+  liền kề trong file. Cột CSV là `supplier_name` (tên NCC), không phải mã NCC
+  — dữ liệu lịch sử thực tế ghi tên, không ghi mã. So khớp tên NCC dùng
+  `normalize_supplier_name_for_matching(...)` (gộp khoảng trắng dư, không
+  phân biệt hoa/thường) trước khi tra `Supplier.name`; nếu không khớp hoặc
+  khớp nhiều hơn một NCC, nhóm dòng đó lỗi rõ ràng theo tên đã nhập. Vật tư
+  vẫn khớp theo `material_code` (không đổi).
+- Version tạo ra từ import có `status="confirmed"` ngay (không qua `draft`),
+  vì đây là dữ liệu lịch sử đã có sẵn trong thực tế, không phải quy trình
+  duyệt báo giá mới. `QuoteService.create_quote(...)` nhận thêm
+  `confirm_immediately=True` cho luồng này; luồng nhập tay qua
+  `POST /api/v1/quotes` không dùng tham số này.
+- Với dòng `USD/MT`, thuế nhập khẩu và chi phí làm hàng **phải nhập tay theo
+  giá trị lịch sử**, không lấy từ `quotify_settings` hiện hành —
+  `QuotePricingService.resolve_pricing_provenance(...)` nhận thêm
+  `manual_import_tax_rate_percent`/`manual_processing_cost_vnd_per_kg`; hai
+  tham số này chỉ được truyền từ luồng import, không mở cho luồng nhập tay
+  thường. Nếu chỉ truyền một trong hai, service raise lỗi (bắt buộc đủ cả hai
+  hoặc để trống cả hai).
+- Một nhóm (một `Quote`) thất bại toàn bộ nếu bất kỳ dòng nào trong nhóm lỗi
+  — khác `CatalogImportService` (cho phép `completed` dù có dòng lỗi ở cấp
+  bản ghi độc lập) vì các dòng trong cùng phiếu không độc lập với nhau về
+  nghiệp vụ.
+- Ghi chú theo dòng (`QuoteLine.note`, cột `Text` nullable, không có bảng
+  riêng, không có lịch sử revision) khác với `QuoteNote`/`quote_notes.*`
+  (ghi chú thị trường theo cả phiếu, có lịch sử). Không lẫn hai khái niệm.
+- Hiệu năng ở quy mô hàng chục nghìn dòng/lần (dữ liệu cũ thực tế ~30.000
+  dòng cho 3 loại nguyên liệu): cache mã NCC/vật tư → id bằng 2 query duy
+  nhất trước khi xử lý (không query theo từng dòng); gọi
+  `create_quote(..., skip_reload=True)` để bỏ qua `SELECT` reload
+  quote/version/lines thừa sau insert (chỉ cần cho response API tương tác
+  đơn lẻ, không cần cho job); commit theo lô (`COMMIT_BATCH_SIZE` nhóm/lần,
+  không commit ngay sau mỗi nhóm); chỉ ghi **một** audit event tổng kết cho
+  cả job (`created_quote_count`, `created_line_count`, `failed_group_count`),
+  không audit theo từng phiếu tạo ra. Job hàng đợi dùng timeout riêng dài hơn
+  mặc định (`arq.func(..., timeout=1800)`), không dùng timeout mặc định của
+  các job import nhỏ khác. Đã verify thực tế: 30.000 dòng xử lý trong ~15
+  giây, `EXPLAIN ANALYZE` cho truy vấn `Bảng báo giá` sau import vẫn dùng
+  index có sẵn (`ix_quote_lines_created_id`), không quét toàn bảng.
+
 ## Quotify Pricing And Exchange Rate Pattern
 
 Luồng quy đổi giá của Quotify phải giữ provenance ổn định và không tính lại dữ

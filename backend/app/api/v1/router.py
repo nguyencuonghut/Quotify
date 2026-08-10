@@ -11,6 +11,7 @@ from app.api.v1.jobs import router as jobs_router
 from app.api.v1.material_types import router as material_types_router
 from app.api.v1.materials import router as materials_router
 from app.api.v1.permissions import router as permissions_router
+from app.api.v1.quote_backfill_imports import router as quote_backfill_imports_router
 from app.api.v1.quotes import router as quotes_router
 from app.api.v1.quotify_dashboard import router as quotify_dashboard_router
 from app.api.v1.quotify_settings import router as quotify_settings_router
@@ -31,6 +32,7 @@ router.include_router(material_types_router)
 router.include_router(materials_router)
 router.include_router(suppliers_router)
 router.include_router(quotes_router)
+router.include_router(quote_backfill_imports_router)
 router.include_router(quotify_dashboard_router)
 router.include_router(permissions_router)
 router.include_router(quotify_settings_router)

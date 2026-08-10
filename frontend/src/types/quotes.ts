@@ -17,6 +17,7 @@ export interface QuoteLineDto {
   import_tax_rate_percent: string | null
   processing_cost_vnd_per_kg: string | null
   price_converted_vnd_per_kg: string
+  note: string | null
   purchase_marked_at: string | null
   purchase_marked_by_id: string | null
 }
@@ -40,6 +41,7 @@ export interface QuoteLineDomain {
   importTaxRatePercent: number | null
   processingCostVndPerKg: number | null
   priceConvertedVndPerKg: number
+  note: string | null
   purchaseMarkedAt: string | null
   purchaseMarkedById: string | null
 }

@@ -189,6 +189,8 @@ class QuoteService:
         backfill_reason: str | None,
         lines_data: list[dict[str, object]],
         created_by_id: UUID,
+        confirm_immediately: bool = False,
+        skip_reload: bool = False,
     ) -> Quote:
         # Check supplier existence
         supplier = await self.session.get(Supplier, supplier_id)
@@ -215,15 +217,18 @@ class QuoteService:
         self.session.add(quote)
         await self.session.flush()
 
-        # Create Version 1 (Draft)
+        # Create Version 1 (Draft, unless confirmed immediately e.g. backfill import)
+        confirmed_at = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")) if confirm_immediately else None
         version = QuoteVersion(
             quote_id=quote.id,
             version_number=1,
             received_date=received_date,
-            status="draft",
+            status="confirmed" if confirm_immediately else "draft",
             is_backfilled=is_backfilled,
             backfill_reason=backfill_reason.strip() if backfill_reason else None,
             created_by_id=created_by_id,
+            confirmed_at=confirmed_at,
+            confirmed_by_id=created_by_id if confirm_immediately else None,
         )
         self.session.add(version)
         await self.session.flush()
@@ -235,9 +240,20 @@ class QuoteService:
             currency = str(line["currency"])
             unit = str(line["unit"])
             delivery_month = self._parse_date_value(line["delivery_month"])
-            
+
             manual_rate = Decimal(str(line["exchange_rate"])) if line.get("exchange_rate") is not None else None
             manual_reason = str(line["exchange_rate_manual_reason"]) if line.get("exchange_rate_manual_reason") else None
+            manual_import_tax_rate_percent = (
+                Decimal(str(line["import_tax_rate_percent"]))
+                if line.get("import_tax_rate_percent") is not None
+                else None
+            )
+            manual_processing_cost_vnd_per_kg = (
+                Decimal(str(line["processing_cost_vnd_per_kg"]))
+                if line.get("processing_cost_vnd_per_kg") is not None
+                else None
+            )
+            note = str(line["note"]) if line.get("note") else None
 
             pricing = await self.pricing_service.resolve_pricing_provenance(
                 currency=currency,
@@ -247,6 +263,8 @@ class QuoteService:
                 manual_rate=manual_rate,
                 manual_reason=manual_reason,
                 actor_id=created_by_id,
+                manual_import_tax_rate_percent=manual_import_tax_rate_percent,
+                manual_processing_cost_vnd_per_kg=manual_processing_cost_vnd_per_kg,
             )
 
             q_line = QuoteLine(
@@ -257,6 +275,7 @@ class QuoteService:
                 unit=unit,
                 delivery_month=delivery_month,
                 line_order=line_order,
+                note=note,
                 exchange_rate=pricing["exchange_rate"],
                 exchange_rate_source=pricing["exchange_rate_source"],
                 exchange_rate_source_mode=pricing["exchange_rate_source_mode"],
@@ -270,7 +289,10 @@ class QuoteService:
             self.session.add(q_line)
 
         await self.session.flush()
-        
+
+        if skip_reload:
+            return quote
+
         # Reload to load relationships
         stmt = select(Quote).options(
             selectinload(Quote.versions).selectinload(QuoteVersion.lines).selectinload(QuoteLine.material),

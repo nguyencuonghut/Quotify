@@ -11,7 +11,17 @@ import pytest
 from app.models import AuditLog, ExportJob, File, ImportJob, Role, User, UserStatus
 from app.models.backup_log import BackupLog
 from app.services.catalog_import import CatalogImportSummary
-from app.worker import export_users_task, import_catalog_task, import_users_task, run_backup_task
+from app.services.quote_backfill_import import (
+    QuoteBackfillImportSummary,
+    validate_quote_backfill_import_headers,
+)
+from app.worker import (
+    export_users_task,
+    import_catalog_task,
+    import_quote_backfill_task,
+    import_users_task,
+    run_backup_task,
+)
 
 
 class FakeMinioResponse:
@@ -150,6 +160,35 @@ class FakeCatalogImportService:
         fieldnames: list[str] | None,
     ) -> CatalogImportSummary:
         self.received_fieldnames = fieldnames
+        return self.next_summary
+
+
+class FakeQuoteBackfillImportService:
+    next_summary = QuoteBackfillImportSummary(
+        total_rows=6,
+        processed_rows=5,
+        failed_rows=1,
+        created_quote_count=2,
+        created_line_count=5,
+        failed_group_count=1,
+        errors=[{"row": 6, "errors": ["Nhóm dòng 6: Nhà cung cấp 'BAD' không tồn tại."]}],
+    )
+
+    def __init__(self, session: FakeAsyncSession, quote_service: object) -> None:
+        self.session = session
+        self.quote_service = quote_service
+
+    async def import_rows(
+        self,
+        *,
+        rows: object,
+        fieldnames: list[str] | None,
+        created_by_id: object,
+    ) -> QuoteBackfillImportSummary:
+        # Reuse the real header check so header-error behavior of the worker
+        # task is exercised faithfully; only the DB-heavy grouping/creation
+        # logic is stubbed out here.
+        validate_quote_backfill_import_headers(fieldnames)
         return self.next_summary
 
 
@@ -338,6 +377,142 @@ async def test_import_catalog_task_invalid_header_counts_as_failed_row() -> None
         "total_rows": 1,
         "processed_rows": 0,
         "failed_rows": 1,
+        "error_category": "invalid_csv_header",
+        "error_summary": "Header CSV không hợp lệ.",
+    }
+
+
+QUOTE_BACKFILL_IMPORT_HEADER_ROW = (
+    b"supplier_name,received_date,material_code,price_original,currency,unit,"
+    b"delivery_month,exchange_rate,import_tax_rate_percent,processing_cost_vnd_per_kg,note\n"
+)
+
+
+@pytest.mark.asyncio
+async def test_import_quote_backfill_task_completes_with_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_id = uuid4()
+    db_file = File(
+        id=uuid4(),
+        filename="quote_backfill.csv",
+        bucket="bucket",
+        storage_path="x/quote_backfill.csv",
+        content_type="text/csv",
+        size_bytes=100,
+    )
+    job = ImportJob(
+        id=job_id,
+        file_id=db_file.id,
+        entity_type="quote_backfill",
+        task_name="import_quote_backfill_task",
+        status="pending",
+        created_by_id=uuid4(),
+    )
+    job.file = db_file
+
+    session = FakeAsyncSession(import_job=job)
+    session_factory = MagicMock()
+    session_factory.return_value = session
+
+    minio_client = MagicMock()
+    minio_client.get_object.return_value = FakeMinioResponse(
+        QUOTE_BACKFILL_IMPORT_HEADER_ROW
+        + b"TAN_LONG,2026-06-15,CORN,300.00,USD,MT,2026-07,26100.00,0.00,200.00,\n"
+    )
+    monkeypatch.setattr("app.worker.QuoteBackfillImportService", FakeQuoteBackfillImportService)
+
+    await import_quote_backfill_task(
+        {
+            "session_factory": session_factory,
+            "minio_client": minio_client,
+        },
+        job_id,
+    )
+
+    assert job.status == "completed"
+    assert job.total_rows == 6
+    assert job.processed_rows == 5
+    assert job.failed_rows == 1
+    assert job.errors_json == [
+        {"row": 6, "errors": ["Nhóm dòng 6: Nhà cung cấp 'BAD' không tồn tại."]},
+    ]
+    audit_logs = [item for item in session.added if isinstance(item, AuditLog)]
+    assert len(audit_logs) == 1
+    assert audit_logs[0].action == "quotes.backfill_import_completed"
+    assert audit_logs[0].metadata_json == {
+        "import_job_id": str(job_id),
+        "file_id": str(db_file.id),
+        "import_entity_type": "quote_backfill",
+        "status": "completed",
+        "outcome": "completed",
+        "total_rows": 6,
+        "processed_rows": 5,
+        "failed_rows": 1,
+        "created_quote_count": 2,
+        "created_line_count": 5,
+        "failed_group_count": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_import_quote_backfill_task_invalid_header_counts_as_failed_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_id = uuid4()
+    db_file = File(
+        id=uuid4(),
+        filename="quote_backfill.csv",
+        bucket="bucket",
+        storage_path="x/quote_backfill.csv",
+        content_type="text/csv",
+        size_bytes=100,
+    )
+    job = ImportJob(
+        id=job_id,
+        file_id=db_file.id,
+        entity_type="quote_backfill",
+        task_name="import_quote_backfill_task",
+        status="pending",
+        created_by_id=uuid4(),
+    )
+    job.file = db_file
+
+    session = FakeAsyncSession(import_job=job)
+    session_factory = MagicMock()
+    session_factory.return_value = session
+
+    minio_client = MagicMock()
+    minio_client.get_object.return_value = FakeMinioResponse(
+        b"ma_ncc,ngay_nhan\nTAN_LONG,2026-06-15\n",
+    )
+    monkeypatch.setattr("app.worker.QuoteBackfillImportService", FakeQuoteBackfillImportService)
+
+    await import_quote_backfill_task(
+        {
+            "session_factory": session_factory,
+            "minio_client": minio_client,
+        },
+        job_id,
+    )
+
+    assert job.status == "failed"
+    assert job.error_summary == "Header CSV không hợp lệ."
+    assert job.total_rows == 1
+    assert job.processed_rows == 0
+    assert job.failed_rows == 1
+    assert job.errors_json is not None
+    assert job.errors_json[0]["row"] == 1
+    assert "Header CSV không hợp lệ" in job.errors_json[0]["errors"][0]
+    audit_logs = [item for item in session.added if isinstance(item, AuditLog)]
+    assert len(audit_logs) == 1
+    assert audit_logs[0].action == "quotes.backfill_import_failed"
+    assert audit_logs[0].metadata_json == {
+        "import_job_id": str(job_id),
+        "file_id": str(db_file.id),
+        "import_entity_type": "quote_backfill",
+        "status": "failed",
+        "outcome": "failed",
         "error_category": "invalid_csv_header",
         "error_summary": "Header CSV không hợp lệ.",
     }

@@ -37,6 +37,7 @@ export function mapQuoteLineDtoToDomain(dto: QuoteLineDto): QuoteLineDomain {
         ? Number(dto.processing_cost_vnd_per_kg)
         : null,
     priceConvertedVndPerKg: Number(dto.price_converted_vnd_per_kg),
+    note: dto.note,
     purchaseMarkedAt: dto.purchase_marked_at,
     purchaseMarkedById: dto.purchase_marked_by_id,
   }
