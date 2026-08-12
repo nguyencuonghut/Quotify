@@ -806,3 +806,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Add duplicate detection to backfill import
 - Tom tat: Them chan trung lap hoan toan du lieu dong (NCC+ngay+vat tu+gia+ky giao+ty gia+thue+chi phi) cho backfill import, khong chan theo NCC+ngay don thuan de van cho phep bao gia 2 lan/ngay hop le. Phat hien va xoa 1 ban trung thuc te trong DB dev sau khi xac nhan voi nguoi dung.
+
+## 2026-08-12 06:31:49Z - claude
+
+- Tieu de: Add ENERFO/GRAINLAND/ABC suppliers to seed data
+- Tom tat: Tao 3 NCC thuc (ENERFO, GRAINLAND quoc te, ABC noi dia) qua API thuc cho CORN. Theo yeu cau nguoi dung, them vao cuoi SUPPLIER_SEEDS trong seed_data.py de khong mat khi migrate-refresh+seed lai o dev. Production van khong chay seed_quotify.py nen 3 NCC nay van phai tao thu cong tren production.

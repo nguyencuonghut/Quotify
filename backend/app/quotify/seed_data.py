@@ -333,6 +333,30 @@ SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
         ),
         material_codes=["DL_METHIONINE", "L_THREONINE", "L_TRYPTOPHAN"],
     ),
+    SupplierSeed(
+        code="ENERFO",
+        name="Enerfo",
+        supplier_type="international",
+        status="active",
+        note="Nhà cung cấp ngô hạt.",
+        material_codes=["CORN"],
+    ),
+    SupplierSeed(
+        code="GRAINLAND",
+        name="Grainland",
+        supplier_type="international",
+        status="active",
+        note="Nhà cung cấp ngô hạt.",
+        material_codes=["CORN"],
+    ),
+    SupplierSeed(
+        code="ABC",
+        name="ABC",
+        supplier_type="domestic",
+        status="active",
+        note="Nhà cung cấp ngô hạt.",
+        material_codes=["CORN"],
+    ),
 )
 
 

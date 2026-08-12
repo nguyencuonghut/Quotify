@@ -88,7 +88,13 @@ thật sẽ có 7 tài khoản thật với mật khẩu ai cũng biết trướ
 **Đã xác nhận với nghiệp vụ (2026-08-10):**
 
 - Danh sách nhà cung cấp trong `SUPPLIER_SEEDS` **không phải dữ liệu thật** —
-  chỉ là dữ liệu mẫu, không seed lên production.
+  chỉ là dữ liệu mẫu, không seed lên production. **Cập nhật 12/08/2026**: đã
+  thêm 3 NCC thật (ENERFO, GRAINLAND, ABC — cung cấp Ngô hạt) vào cuối
+  `SUPPLIER_SEEDS` để tiện tái tạo khi dev chạy `migrate-refresh` + `seed`
+  local; các NCC này LÀ dữ liệu thật, nhưng do toàn bộ `seed_quotify.py`
+  (gồm cả `SUPPLIER_SEEDS`) vẫn không chạy trên production (xem quyết định
+  dưới), 3 NCC thật này vẫn phải tạo thủ công trên production như các NCC
+  thật khác — việc thêm vào seed chỉ phục vụ tiện lợi cho môi trường dev.
 - 7 tài khoản Thu Mua thật trong `QUOTIFY_USER_SEEDS` **tạo thủ công** (qua
   UI/API tạo user với mật khẩu riêng từng người), **không đưa vào seeder của
   production**.
