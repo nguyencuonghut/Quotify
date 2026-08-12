@@ -816,3 +816,28 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Enforce integer exchange_rate, decimal price_original
 - Tom tat: Sua _parse_decimal bo dau phay ngan hang nghin truoc khi parse. Them require_integer cho exchange_rate (bat loi neu co phan le), giu price_original la thap phan. Verify bang API thuc, don dung bang ID chinh xac.
+
+## 2026-08-12 07:44:05Z - claude
+
+- Tieu de: Improve delivery-month chart tooltip sampling
+- Tom tat: Tooltip chuyen tu 5 dong dau ngau nhien sang chon 5 bao gia tieu bieu (min/max/moi nhat/gan trung binh, da dang NCC) + dong 'va N bao gia khac'. Them click vao diem chart de dieu huong sang /quotes?deliveryMonth=... voi filter da dien san. Verify bang Playwright thuc trong container frontend.
+
+## 2026-08-12 07:52:58Z - claude
+
+- Tieu de: Label tooltip roles for min/max/latest price
+- Tom tat: Bao gia thap nhat da dung la dong duoc chon trong tooltip nhung khong co nhan de nguoi dung nhan biet. Them prefix [Gia thap nhat]/[Gia cao nhat]/[Moi nhat]/[Gan gia trung binh] vao dau moi dong. Verify bang Playwright thuc.
+
+## 2026-08-12 08:02:13Z - claude
+
+- Tieu de: Switch tooltip role labels to color swatches
+- Tom tat: Bo prefix text, chuyen sang external tooltip (HTML/CSS thuc) de moi dong co o mau khop dung mau series tren chart. Sua luon bug swatch mau trang do dung sai borderColor thay vi backgroundColor tu tooltip.labelColors. Verify bang Playwright thuc.
+
+## 2026-08-12 08:09:05Z - claude
+
+- Tieu de: Fix chart tooltip width and edge clipping
+- Tom tat: Tang max-width + white-space:nowrap de moi bao gia 1 dong. Sua vi tri tooltip: thay transform center co dinh bang tinh left/top qua JS sau khi do kich thuoc thuc, kep trong pham vi canvas de khong bi cat o 2 dau chart. Verify bang Playwright thuc o 3 vi tri.
+
+## 2026-08-12 08:19:09Z - claude
+
+- Tieu de: Fix tooltip text overflow and dark mode contrast
+- Tom tat: Them overflow:hidden + ellipsis lam luoi an toan, tang max-width len 50rem de dong dai nhat khong bi cat tren desktop. Doi nen tooltip tu mau toi cung sang token theo theme (surface-panel-alt/border-strong) de tuong phan tot ca 2 theme. Verify bang Playwright thuc ca light va dark mode.

@@ -415,7 +415,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
 import { useQuotesPage } from '@/composables/useQuotesPage'
@@ -439,6 +439,7 @@ import AdminLayout from '@/layouts/AdminLayout.vue'
 const authStore = useAuthStore()
 const permissionStore = usePermissionStore()
 const router = useRouter()
+const route = useRoute()
 
 const getVersionStatusLabel = (status: string): string => {
   if (status === 'draft') return 'Bản nháp'
@@ -507,6 +508,15 @@ const fetchLookups = async () => {
 }
 
 onMounted(() => {
+  const deliveryMonthQuery = route.query.deliveryMonth
+  if (typeof deliveryMonthQuery === 'string') {
+    const parsedDeliveryMonth = new Date(deliveryMonthQuery)
+    if (!Number.isNaN(parsedDeliveryMonth.getTime())) {
+      deliveryMonth.value = parsedDeliveryMonth
+      showAdvancedFilters.value = true
+    }
+  }
+
   fetchLookups()
   loadQuotesData()
 })

@@ -275,13 +275,83 @@
 .dashboard-page__chart-frame {
   position: relative;
   min-height: 22rem;
-  overflow: hidden;
+  // overflow: visible (không dùng hidden) để tooltip tùy biến của chart
+  // "Giá theo kỳ hàng về" không bị cắt khi hiện gần rìa khung.
+  overflow: visible;
 }
 
 .dashboard-page__chart {
   display: block;
   width: 100%;
   height: 22rem;
+}
+
+.quotify-chart-tooltip {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  // Vị trí (left/top) được tính và kẹp trong phạm vi canvas bằng JS (xem
+  // useDashboardPage.ts) — không dùng transform căn giữa theo caretX nữa vì
+  // sẽ làm tooltip ở gần 2 đầu chart bị lồi ra ngoài viewport và bị cắt.
+  transition: opacity 0.1s ease;
+  width: max-content;
+  // 50rem đủ cho dòng dài nhất thực tế (tên NCC dài nhất + đủ 5 trường) không
+  // bị cắt trên màn hình desktop; ellipsis ở dòng vẫn giữ làm lưới an toàn
+  // cho màn hình hẹp/mobile.
+  max-width: min(50rem, calc(100vw - 2rem));
+  overflow: hidden;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  // Dùng token theo theme (không hard-code nền tối cố định) — ở dark mode
+  // nền tối cố định trùng gần như y hệt màu nền trang (--app-surface-ground),
+  // khiến tooltip gần như vô hình; --app-surface-panel-alt sáng hơn nền dark
+  // mode rõ rệt, còn ở light mode vẫn tách biệt được nhờ viền + box-shadow.
+  background: var(--app-surface-panel-alt);
+  color: var(--app-text-primary);
+  border: 1px solid var(--app-border-strong);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.quotify-chart-tooltip__title {
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.quotify-chart-tooltip__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.15rem;
+  max-width: 100%;
+}
+
+.quotify-chart-tooltip__row span:last-child {
+  overflow: hidden;
+  min-width: 0;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.quotify-chart-tooltip__swatch {
+  flex: 0 0 auto;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 0.15rem;
+}
+
+.quotify-chart-tooltip__count {
+  margin: 0.35rem 0 0.15rem;
+  font-weight: 600;
+}
+
+.quotify-chart-tooltip__more,
+.quotify-chart-tooltip__hint {
+  margin-top: 0.15rem;
+  color: var(--app-text-muted);
+  font-style: italic;
 }
 
 .dashboard-page__empty {
