@@ -265,7 +265,7 @@ SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
         supplier_type="international",
         status="active",
         note="Tập đoàn Hàn Quốc chuyên cung cấp axit amin và thức ăn dinh dưỡng.",
-        material_codes=["LYSINE_HCL", "DL_METHIONINE", "L_THREONINE", "L_TRYPTOPHAN", "CORN"],
+        material_codes=["LYSINE_HCL", "DL_METHIONINE", "L_THREONINE", "L_TRYPTOPHAN", "CORN" "SOYBEAN_MEAL"],
     ),
     SupplierSeed(
         code="TIEN_THANH",
@@ -339,7 +339,7 @@ SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
         supplier_type="international",
         status="active",
         note="Nhà cung cấp ngô hạt.",
-        material_codes=["CORN"],
+        material_codes=["CORN", "SOYBEAN_MEAL"],
     ),
     SupplierSeed(
         code="GRAINLAND",
@@ -347,7 +347,7 @@ SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
         supplier_type="international",
         status="active",
         note="Nhà cung cấp ngô hạt.",
-        material_codes=["CORN"],
+        material_codes=["CORN", "SOYBEAN_MEAL"],
     ),
     SupplierSeed(
         code="ABC",
@@ -355,7 +355,7 @@ SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
         supplier_type="domestic",
         status="active",
         note="Nhà cung cấp ngô hạt.",
-        material_codes=["CORN"],
+        material_codes=["CORN", "SOYBEAN_MEAL"],
     ),
 )
 
