@@ -13,7 +13,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Material, Supplier
+from app.models import Material, Quote, QuoteLine, QuoteVersion, Supplier
 from app.services.material_type_admin import normalize_catalog_code, normalize_optional_text
 from app.services.quote_service import QuoteService
 
@@ -52,6 +52,71 @@ def normalize_supplier_name_for_matching(value: str) -> str:
     even with minor spacing/casing differences. Used both for grouping rows
     into quotes and for resolving the name against `Supplier.name`."""
     return re.sub(r"\s+", " ", value.strip()).casefold()
+
+
+@dataclass(slots=True, frozen=True)
+class _SupplierMatchCandidate:
+    id: UUID
+    normalized_name: str
+    normalized_code: str
+
+
+# (supplier_id, received_date, material_id, delivery_month, currency, unit,
+# price_original, exchange_rate, import_tax_rate_percent, processing_cost_vnd_per_kg)
+_LineDedupKey = tuple[
+    UUID,
+    date,
+    UUID,
+    date,
+    str,
+    str,
+    Decimal,
+    Decimal | None,
+    Decimal | None,
+    Decimal | None,
+]
+
+
+def _resolve_supplier_id(
+    candidates: Sequence[_SupplierMatchCandidate],
+    supplier_name: str,
+) -> UUID:
+    """Resolves a historical file's `supplier_name` (often an abbreviation
+    like "ADM" or "CJ", not the full `Supplier.name`) against the catalog.
+    Tries exact name/code match first, then falls back to substring
+    containment against name or code. Raises with a specific message when
+    the match isn't confident (no candidate, or more than one) instead of
+    guessing — see docs/quotify/plan-import-bao-gia-cu.md Decision #10."""
+    normalized_input = normalize_supplier_name_for_matching(supplier_name)
+
+    exact_matches = {
+        candidate.id
+        for candidate in candidates
+        if normalized_input in (candidate.normalized_name, candidate.normalized_code)
+    }
+    if len(exact_matches) == 1:
+        return next(iter(exact_matches))
+    if len(exact_matches) > 1:
+        raise ValueError(
+            f"Tên nhà cung cấp '{supplier_name}' khớp nhiều hơn một nhà cung cấp trong hệ "
+            "thống, vui lòng kiểm tra lại dữ liệu.",
+        )
+
+    contains_matches = {
+        candidate.id
+        for candidate in candidates
+        if normalized_input in candidate.normalized_name
+        or normalized_input in candidate.normalized_code
+    }
+    if len(contains_matches) == 1:
+        return next(iter(contains_matches))
+    if len(contains_matches) > 1:
+        raise ValueError(
+            f"Tên nhà cung cấp '{supplier_name}' khớp gần đúng với nhiều hơn một nhà cung cấp "
+            "trong hệ thống, vui lòng kiểm tra lại dữ liệu.",
+        )
+
+    raise ValueError(f"Nhà cung cấp '{supplier_name}' không tồn tại.")
 
 # Commit theo lô thay vì mỗi nhóm, để giảm round-trip ở quy mô hàng chục
 # nghìn dòng — xem docs/quotify/plan-import-bao-gia-cu.md#Cân Nhắc Hiệu Năng.
@@ -253,21 +318,54 @@ class QuoteBackfillImportService:
         # đã chuẩn hóa (bỏ khoảng trắng dư, không phân biệt hoa/thường) không
         # thể lọc chính xác bằng SQL; số lượng NCC trong hệ thống nhỏ nên tải
         # hết vẫn rẻ hơn nhiều so với query theo từng dòng.
-        supplier_ids_by_normalized_name = await self._load_supplier_ids_by_normalized_name()
+        supplier_candidates = await self._load_supplier_candidates()
         material_ids_by_code = await self._load_material_ids(
             {row.material_code for rows_in_group in groups.values() for row in rows_in_group},
         )
 
+        # Phân giải NCC trước cho toàn bộ nhóm (không tốn DB, chỉ so khớp
+        # trong bộ nhớ) để biết trước tập (supplier_id, received_date) cần
+        # kiểm tra trùng lặp, rồi tải 1 lần duy nhất — tránh query theo từng
+        # nhóm ở quy mô hàng chục nghìn dòng.
+        resolved_supplier_id_by_key: dict[tuple[str, date], UUID] = {}
+        for key in group_order:
+            group_rows = groups[key]
+            try:
+                resolved_supplier_id_by_key[key] = _resolve_supplier_id(
+                    supplier_candidates,
+                    group_rows[0].supplier_name,
+                )
+            except ValueError as exc:
+                summary.failed_rows += len(group_rows)
+                summary.failed_group_count += 1
+                row_numbers = ", ".join(str(row.row_number) for row in group_rows)
+                summary.errors.append(
+                    {
+                        "row": group_rows[0].row_number,
+                        "errors": [f"Nhóm dòng {row_numbers}: {exc}"],
+                    },
+                )
+
+        existing_line_keys = await self._load_existing_line_keys(
+            supplier_ids={supplier_id for supplier_id in resolved_supplier_id_by_key.values()},
+            received_dates={key[1] for key in resolved_supplier_id_by_key},
+        )
+
         groups_since_commit = 0
         for key in group_order:
+            supplier_id = resolved_supplier_id_by_key.get(key)
+            if supplier_id is None:
+                continue
+
             group_rows = groups[key]
             try:
                 async with self.session.begin_nested():
                     line_count = await self._create_quote_from_group(
                         group_rows,
                         created_by_id=created_by_id,
-                        supplier_ids_by_normalized_name=supplier_ids_by_normalized_name,
+                        supplier_id=supplier_id,
                         material_ids_by_code=material_ids_by_code,
+                        existing_line_keys=existing_line_keys,
                     )
             except Exception as exc:  # noqa: BLE001
                 summary.failed_rows += len(group_rows)
@@ -294,13 +392,16 @@ class QuoteBackfillImportService:
 
         return summary
 
-    async def _load_supplier_ids_by_normalized_name(self) -> dict[str, list[UUID]]:
-        result = await self.session.execute(select(Supplier.name, Supplier.id))
-        supplier_ids_by_normalized_name: dict[str, list[UUID]] = {}
-        for name, supplier_id in result.all():
-            key = normalize_supplier_name_for_matching(name)
-            supplier_ids_by_normalized_name.setdefault(key, []).append(supplier_id)
-        return supplier_ids_by_normalized_name
+    async def _load_supplier_candidates(self) -> list[_SupplierMatchCandidate]:
+        result = await self.session.execute(select(Supplier.name, Supplier.code, Supplier.id))
+        return [
+            _SupplierMatchCandidate(
+                id=supplier_id,
+                normalized_name=normalize_supplier_name_for_matching(name),
+                normalized_code=normalize_supplier_name_for_matching(code),
+            )
+            for name, code, supplier_id in result.all()
+        ]
 
     async def _load_material_ids(self, codes: set[str]) -> dict[str, UUID]:
         if not codes:
@@ -310,34 +411,77 @@ class QuoteBackfillImportService:
         )
         return {code: material_id for code, material_id in result.all()}
 
+    async def _load_existing_line_keys(
+        self,
+        *,
+        supplier_ids: set[UUID],
+        received_dates: set[date],
+    ) -> set[_LineDedupKey]:
+        """Loads a lookup of every existing line's full business data (NCC +
+        ngày + vật tư + giá + kỳ giao...) restricted to the suppliers/dates
+        touched by this import, so duplicate detection is O(1) per row
+        instead of one query per row — see docs/quotify/plan-import-bao-gia-cu.md
+        (quyết định "trùng hoàn toàn dữ liệu" ngày 12/08/2026)."""
+        if not supplier_ids or not received_dates:
+            return set()
+
+        result = await self.session.execute(
+            select(
+                Quote.supplier_id,
+                QuoteVersion.received_date,
+                QuoteLine.material_id,
+                QuoteLine.delivery_month,
+                QuoteLine.currency,
+                QuoteLine.unit,
+                QuoteLine.price_original,
+                QuoteLine.exchange_rate,
+                QuoteLine.import_tax_rate_percent,
+                QuoteLine.processing_cost_vnd_per_kg,
+            )
+            .join(QuoteVersion, QuoteVersion.id == QuoteLine.quote_version_id)
+            .join(Quote, Quote.id == QuoteVersion.quote_id)
+            .where(
+                Quote.supplier_id.in_(supplier_ids),
+                QuoteVersion.received_date.in_(received_dates),
+            ),
+        )
+        return {tuple(row) for row in result.all()}  # type: ignore[misc]
+
     async def _create_quote_from_group(
         self,
         group_rows: list[_ParsedRow],
         *,
         created_by_id: UUID,
-        supplier_ids_by_normalized_name: dict[str, list[UUID]],
+        supplier_id: UUID,
         material_ids_by_code: dict[str, UUID],
+        existing_line_keys: set[_LineDedupKey],
     ) -> int:
-        supplier_name = group_rows[0].supplier_name
         received_date = group_rows[0].received_date
-        matching_supplier_ids = supplier_ids_by_normalized_name.get(
-            normalize_supplier_name_for_matching(supplier_name),
-            [],
-        )
-        if not matching_supplier_ids:
-            raise ValueError(f"Nhà cung cấp '{supplier_name}' không tồn tại.")
-        if len(matching_supplier_ids) > 1:
-            raise ValueError(
-                f"Tên nhà cung cấp '{supplier_name}' khớp nhiều hơn một nhà cung cấp trong hệ "
-                "thống, vui lòng kiểm tra lại dữ liệu.",
-            )
-        supplier_id = matching_supplier_ids[0]
 
         lines_data: list[dict[str, object]] = []
         for row in group_rows:
             material_id = material_ids_by_code.get(row.material_code)
             if material_id is None:
                 raise ValueError(f"Vật tư '{row.material_code}' không tồn tại.")
+
+            dedup_key = (
+                supplier_id,
+                received_date,
+                material_id,
+                row.delivery_month,
+                row.currency,
+                row.unit,
+                row.price_original,
+                row.exchange_rate,
+                row.import_tax_rate_percent,
+                row.processing_cost_vnd_per_kg,
+            )
+            if dedup_key in existing_line_keys:
+                raise ValueError(
+                    f"Dòng {row.row_number}: báo giá này đã tồn tại trong hệ thống "
+                    "(trùng lặp hoàn toàn dữ liệu NCC/ngày/vật tư/giá/kỳ giao hàng).",
+                )
+
             lines_data.append(
                 {
                     "material_id": material_id,

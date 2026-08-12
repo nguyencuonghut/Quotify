@@ -54,6 +54,22 @@ logger = logging.getLogger("arq.worker")
 TERMINAL_STATUSES = {"completed", "failed"}
 CSV_STREAM_CHUNK_SIZE = 64 * 1024
 
+# `utf-8-sig` chỉ bóc được BOM thật (byte EF BB BF). Một số file người dùng
+# xuất ra đã bị mã hoá BOM đó 2 lần (ví dụ mở lại file UTF-8-BOM bằng công cụ
+# hiểu sai encoding rồi lưu lại) — lúc đó BOM xuất hiện dưới dạng 3 ký tự
+# "ï»¿" thay vì 1 ký tự U+FEFF, khiến `utf-8-sig` không nhận ra và để lẫn vào
+# tên cột đầu tiên, làm mọi lần import bị báo sai header. Bóc thêm trường hợp
+# mojibake này ở đầu dòng đầu tiên.
+_MOJIBAKE_BOM_PREFIX = "ï»¿"
+
+
+def _strip_leading_bom_artifact(text: str) -> str:
+    if text.startswith("﻿"):
+        return text[1:]
+    if text.startswith(_MOJIBAKE_BOM_PREFIX):
+        return text[len(_MOJIBAKE_BOM_PREFIX) :]
+    return text
+
 
 def _iter_decoded_csv_lines(
     binary_stream: BinaryIO,
@@ -62,6 +78,7 @@ def _iter_decoded_csv_lines(
 ) -> Iterator[str]:
     decoder = codecs.getincrementaldecoder("utf-8-sig")()
     pending = ""
+    first_line_stripped = False
 
     while True:
         chunk = binary_stream.read(chunk_size)
@@ -74,10 +91,15 @@ def _iter_decoded_csv_lines(
             pending = lines.pop()
         else:
             pending = ""
+        if lines and not first_line_stripped:
+            lines[0] = _strip_leading_bom_artifact(lines[0])
+            first_line_stripped = True
         yield from lines
 
     pending += decoder.decode(b"", final=True)
     if pending:
+        if not first_line_stripped:
+            pending = _strip_leading_bom_artifact(pending)
         yield pending
 
 

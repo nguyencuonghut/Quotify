@@ -12,6 +12,8 @@ from app.services.quote_backfill_import import (
     QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS,
     QuoteBackfillImportHeaderError,
     QuoteBackfillImportService,
+    _resolve_supplier_id,
+    _SupplierMatchCandidate,
     build_quote_backfill_import_error_report,
     build_quote_backfill_import_template,
     normalize_supplier_name_for_matching,
@@ -62,6 +64,54 @@ class TestNormalizeSupplierNameForMatching:
         normalized_upper = normalize_supplier_name_for_matching("TÂN LONG")
         normalized_lower = normalize_supplier_name_for_matching("tân long")
         assert normalized_upper == normalized_lower
+
+
+def _candidate(name: str, code: str) -> _SupplierMatchCandidate:
+    return _SupplierMatchCandidate(
+        id=uuid4(),
+        normalized_name=normalize_supplier_name_for_matching(name),
+        normalized_code=normalize_supplier_name_for_matching(code),
+    )
+
+
+class TestResolveSupplierId:
+    """Real historical files often record a short/abbreviated supplier name
+    (e.g. "ADM", "CJ") instead of the full `Supplier.name` — see
+    docs/quotify/plan-import-bao-gia-cu.md Decision #10."""
+
+    def test_matches_exact_code_when_input_is_the_code(self) -> None:
+        adm = _candidate("Archer Daniels Midland (ADM Asia)", "ADM")
+
+        assert _resolve_supplier_id([adm], "ADM") == adm.id
+
+    def test_matches_by_substring_of_name(self) -> None:
+        tan_long = _candidate(TAN_LONG_NAME, "TAN_LONG")
+
+        assert _resolve_supplier_id([tan_long], "Tân Long") == tan_long.id
+
+    def test_matches_by_substring_of_code(self) -> None:
+        cj = _candidate("CJ Vina Agri (CJ CheilJedang)", "CJ_VINA")
+
+        assert _resolve_supplier_id([cj], "CJ") == cj.id
+
+    def test_prefers_exact_match_over_ambiguous_substring(self) -> None:
+        exact = _candidate("ADM", "ADM_ALT")
+        substring_only = _candidate("Archer Daniels Midland (ADM Asia)", "ADM_ASIA")
+
+        assert _resolve_supplier_id([exact, substring_only], "ADM") == exact.id
+
+    def test_raises_when_no_candidate_matches(self) -> None:
+        tan_long = _candidate(TAN_LONG_NAME, "TAN_LONG")
+
+        with pytest.raises(ValueError, match="không tồn tại"):
+            _resolve_supplier_id([tan_long], "Unknown Corp")
+
+    def test_raises_when_substring_match_is_ambiguous(self) -> None:
+        cargill = _candidate("Cargill Việt Nam (Cargill Vietnam)", "CARGILL_VN")
+        cargill_asia = _candidate("Cargill Asia Holdings", "CARGILL_ASIA")
+
+        with pytest.raises(ValueError, match="khớp gần đúng"):
+            _resolve_supplier_id([cargill, cargill_asia], "Cargill")
 
 
 class TestParseQuoteBackfillImportRow:
@@ -175,10 +225,10 @@ class FakeNestedTransaction:
 
 
 class FakeResult:
-    def __init__(self, rows: list[tuple[str, UUID]]) -> None:
+    def __init__(self, rows: list[tuple[Any, ...]]) -> None:
         self._rows = rows
 
-    def all(self) -> list[tuple[str, UUID]]:
+    def all(self) -> list[tuple[Any, ...]]:
         return self._rows
 
 
@@ -186,11 +236,13 @@ class FakeSession:
     def __init__(
         self,
         *,
-        suppliers: list[tuple[str, UUID]],
+        suppliers: list[tuple[str, str, UUID]],
         material_ids_by_code: dict[str, UUID],
+        existing_lines: list[tuple[Any, ...]] | None = None,
     ) -> None:
         self.suppliers = suppliers
         self.material_ids_by_code = material_ids_by_code
+        self.existing_lines = existing_lines or []
         self.commit_count = 0
 
     async def execute(self, statement: object) -> FakeResult:
@@ -199,6 +251,8 @@ class FakeSession:
             return FakeResult(self.suppliers)
         if "FROM materials" in compiled:
             return FakeResult(list(self.material_ids_by_code.items()))
+        if "FROM quote_lines" in compiled:
+            return FakeResult(self.existing_lines)
         raise AssertionError(f"Unexpected statement: {compiled}")
 
     def begin_nested(self) -> FakeNestedTransaction:
@@ -255,7 +309,7 @@ async def test_import_rows_groups_by_supplier_and_received_date() -> None:
     supplier_id = uuid4()
     material_id = uuid4()
     session = FakeSession(
-        suppliers=[(TAN_LONG_NAME, supplier_id)],
+        suppliers=[(TAN_LONG_NAME, "TAN_LONG", supplier_id)],
         material_ids_by_code={"CORN": material_id},
     )
     quote_service = FakeQuoteService()
@@ -293,7 +347,7 @@ async def test_import_rows_matches_supplier_name_despite_case_and_whitespace() -
     supplier_id = uuid4()
     material_id = uuid4()
     session = FakeSession(
-        suppliers=[(TAN_LONG_NAME, supplier_id)],
+        suppliers=[(TAN_LONG_NAME, "TAN_LONG", supplier_id)],
         material_ids_by_code={"CORN": material_id},
     )
     quote_service = FakeQuoteService()
@@ -322,7 +376,10 @@ async def test_import_rows_ambiguous_supplier_name_fails_group() -> None:
     supplier_id_b = uuid4()
     material_id = uuid4()
     session = FakeSession(
-        suppliers=[(TAN_LONG_NAME, supplier_id_a), (TAN_LONG_NAME, supplier_id_b)],
+        suppliers=[
+            (TAN_LONG_NAME, "TAN_LONG", supplier_id_a),
+            (TAN_LONG_NAME, "TAN_LONG", supplier_id_b),
+        ],
         material_ids_by_code={"CORN": material_id},
     )
     quote_service = FakeQuoteService()
@@ -345,7 +402,7 @@ async def test_import_rows_creates_separate_quotes_for_different_received_dates(
     supplier_id = uuid4()
     material_id = uuid4()
     session = FakeSession(
-        suppliers=[(TAN_LONG_NAME, supplier_id)],
+        suppliers=[(TAN_LONG_NAME, "TAN_LONG", supplier_id)],
         material_ids_by_code={"CORN": material_id},
     )
     quote_service = FakeQuoteService()
@@ -365,6 +422,86 @@ async def test_import_rows_creates_separate_quotes_for_different_received_dates(
     assert summary.created_quote_count == 2
     assert summary.created_line_count == 2
     assert len(quote_service.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_import_rows_rejects_exact_duplicate_of_existing_line() -> None:
+    """Re-importing a file whose row is byte-for-byte identical (NCC + ngày +
+    vật tư + giá + kỳ giao...) to a line already in the system must be
+    rejected with a clear error, not silently create a second quote — see
+    docs/quotify/plan-import-bao-gia-cu.md quyết định "trùng hoàn toàn dữ
+    liệu" ngày 12/08/2026."""
+    supplier_id = uuid4()
+    material_id = uuid4()
+    existing_line = (
+        supplier_id,
+        date(2026, 6, 15),
+        material_id,
+        date(2026, 7, 1),
+        "USD",
+        "MT",
+        Decimal("300.00"),
+        Decimal("26100.00"),
+        Decimal("5.00"),
+        Decimal("200.00"),
+    )
+    session = FakeSession(
+        suppliers=[(TAN_LONG_NAME, "TAN_LONG", supplier_id)],
+        material_ids_by_code={"CORN": material_id},
+        existing_lines=[existing_line],
+    )
+    quote_service = FakeQuoteService()
+    service = QuoteBackfillImportService(session, quote_service)  # type: ignore[arg-type]
+
+    summary = await service.import_rows(
+        rows=[_usd_row()],
+        fieldnames=QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS,
+        created_by_id=uuid4(),
+    )
+
+    assert summary.created_quote_count == 0
+    assert summary.failed_group_count == 1
+    assert quote_service.calls == []
+    assert "đã tồn tại trong hệ thống" in summary.errors[0]["errors"][0]
+
+
+@pytest.mark.asyncio
+async def test_import_rows_allows_second_quote_same_supplier_and_date_with_different_price() -> (
+    None
+):
+    """Không chặn NCC báo giá 2 lần trong cùng ngày nếu dữ liệu dòng khác
+    nhau (ví dụ giá khác) — chỉ chặn khi trùng hoàn toàn."""
+    supplier_id = uuid4()
+    material_id = uuid4()
+    existing_line = (
+        supplier_id,
+        date(2026, 6, 15),
+        material_id,
+        date(2026, 7, 1),
+        "USD",
+        "MT",
+        Decimal("310.00"),
+        Decimal("26100.00"),
+        Decimal("5.00"),
+        Decimal("200.00"),
+    )
+    session = FakeSession(
+        suppliers=[(TAN_LONG_NAME, "TAN_LONG", supplier_id)],
+        material_ids_by_code={"CORN": material_id},
+        existing_lines=[existing_line],
+    )
+    quote_service = FakeQuoteService()
+    service = QuoteBackfillImportService(session, quote_service)  # type: ignore[arg-type]
+
+    summary = await service.import_rows(
+        rows=[_usd_row()],
+        fieldnames=QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS,
+        created_by_id=uuid4(),
+    )
+
+    assert summary.created_quote_count == 1
+    assert summary.failed_group_count == 0
+    assert len(quote_service.calls) == 1
 
 
 @pytest.mark.asyncio
@@ -393,7 +530,7 @@ async def test_import_rows_row_level_parse_failure_does_not_touch_db() -> None:
 async def test_import_rows_unknown_material_code_fails_whole_group() -> None:
     supplier_id = uuid4()
     session = FakeSession(
-        suppliers=[(TAN_LONG_NAME, supplier_id)],
+        suppliers=[(TAN_LONG_NAME, "TAN_LONG", supplier_id)],
         material_ids_by_code={},  # CORN unresolved
     )
     quote_service = FakeQuoteService()
@@ -421,7 +558,10 @@ async def test_import_rows_one_failed_group_does_not_affect_other_groups() -> No
     bad_supplier_id = uuid4()
     material_id = uuid4()
     session = FakeSession(
-        suppliers=[(TAN_LONG_NAME, good_supplier_id), ("Nhà cung cấp lỗi", bad_supplier_id)],
+        suppliers=[
+            (TAN_LONG_NAME, "TAN_LONG", good_supplier_id),
+            ("Nhà cung cấp lỗi", "BAD_SUPPLIER", bad_supplier_id),
+        ],
         material_ids_by_code={"CORN": material_id},
     )
     quote_service = FakeQuoteService(fail_for_supplier_ids={bad_supplier_id})
@@ -456,7 +596,7 @@ async def test_import_rows_commits_in_batches() -> None:
         supplier_id = uuid4()
         material_id = uuid4()
         session = FakeSession(
-            suppliers=[(TAN_LONG_NAME, supplier_id)],
+            suppliers=[(TAN_LONG_NAME, "TAN_LONG", supplier_id)],
             material_ids_by_code={"CORN": material_id},
         )
         quote_service = FakeQuoteService()

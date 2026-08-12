@@ -751,6 +751,33 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Không giả định định dạng ngày trong file lịch sử theo chuẩn ISO chỉ vì đó là chuẩn nội bộ của hệ thống — luôn xác nhận định dạng file thực tế trước khi viết parser cho tính năng import dữ liệu cũ. `test_rejects_invalid_received_date_format`/`test_rejects_invalid_delivery_month_format` phải pass với input mẫu đúng chiều (ISO bị từ chối, `DD/MM/YYYY`/`MM/YYYY` được chấp nhận).
 - Related files: `backend/app/services/quote_backfill_import.py`, `backend/tests/test_quote_backfill_import_service.py`, `backend/tests/test_quote_backfill_imports_api.py`, `backend/tests/test_worker_tasks.py`, `docs/quotify/plan-import-bao-gia-cu.md`
 
+### 2026-08-10: Import CSV báo lỗi header dù dùng đúng file mẫu — BOM bị mã hoá 2 lần
+
+- Area: Backend worker import CSV (dùng chung `_iter_decoded_csv_lines` cho cả backfill import báo giá cũ và import danh mục)
+- Trigger: Người dùng upload file CSV thực tế (đã sửa đúng định dạng ngày `DD/MM/YYYY`/`MM/YYYY`) nhưng vẫn báo `Thất bại. Tất cả dòng import đều lỗi. 0 thành công, 1 lỗi trên 1 dòng` — dù dữ liệu hợp lệ.
+- Root cause: File có byte BOM UTF-8 thật (`EF BB BF`) bị mã hoá lại một lần nữa (ví dụ mở file UTF-8-BOM bằng công cụ hiểu sai encoding rồi lưu lại), nên byte đầu file không còn là `EF BB BF` mà là chuỗi mojibake 6-byte tương ứng 3 ký tự `"ï»¿"`. `codecs.getincrementaldecoder("utf-8-sig")` chỉ nhận diện đúng 1 BOM byte-sequence thật, không nhận ra dạng mojibake này, nên `"ï»¿"` bị lẫn vào tên cột đầu tiên (`"ï»¿supplier_name"`), khiến validate header luôn thất bại cho toàn bộ file.
+- Fix: `_iter_decoded_csv_lines` trong `backend/app/worker.py` bóc thêm tiền tố mojibake `"ï»¿"` (và `"﻿"` cho chắc) ở dòng đầu tiên sau khi decode, áp dụng chung cho mọi import CSV (backfill import + import danh mục) vì cùng dùng hàm này.
+- Regression guard: Không giả định `utf-8-sig` xử lý được mọi biến thể BOM trong file người dùng thực tế tải lên — file càng qua nhiều lần mở/lưu bằng công cụ khác nhau càng dễ bị mã hoá lại. `TestIterDecodedCsvLines` trong `test_worker_tasks.py` phải pass cho cả 3 case: BOM thật, BOM mojibake, không có BOM.
+- Related files: `backend/app/worker.py`, `backend/tests/test_worker_tasks.py`
+
+### 2026-08-12: Backfill import báo "nhà cung cấp không tồn tại" dù NCC có trong hệ thống
+
+- Area: Backend backfill import báo giá cũ (`quote_backfill_import.py`)
+- Trigger: File thực tế ghi tên NCC dạng viết tắt (`ADM`, `CJ`, `Cargill`...) — khớp với `Supplier.code` hoặc là một phần của `Supplier.name`, không khớp chính xác toàn bộ `Supplier.name` đã chuẩn hóa. Import báo `Nhà cung cấp 'ADM' không tồn tại.` dù NCC có sẵn trong danh mục (code `ADM`, tên đầy đủ `Archer Daniels Midland (ADM Asia)`).
+- Root cause: `_load_supplier_ids_by_normalized_name`/matching cũ chỉ so khớp bằng chuỗi bằng nhau tuyệt đối với `Supplier.name` đã chuẩn hóa — không xét `Supplier.code` và không xét trường hợp tên trong file chỉ là một phần/viết tắt của tên đầy đủ trong hệ thống.
+- Fix: Thêm `_resolve_supplier_id` với 2 tầng: (1) khớp chính xác theo `Supplier.name` HOẶC `Supplier.code` đã chuẩn hóa; (2) nếu không có khớp chính xác duy nhất, fallback sang khớp theo containment (tên trong file là substring của tên hoặc mã NCC trong hệ thống). Nếu ở bất kỳ tầng nào có nhiều hơn 1 khớp (ambiguous) hoặc không có khớp nào, báo lỗi cụ thể theo dòng thay vì đoán — theo đúng yêu cầu người dùng: "tìm NCC khớp nhất, cái nào không chắc thì show lỗi chi tiết".
+- Regression guard: Không giả định file lịch sử luôn ghi đúng `Supplier.name` đầy đủ — luôn xét cả khả năng viết tắt/mã NCC. `TestResolveSupplierId` trong `test_quote_backfill_import_service.py` phải pass, bao gồm case khớp theo mã, khớp theo substring tên/mã, ưu tiên khớp chính xác trước substring, và báo lỗi rõ khi ambiguous hoặc không tìm thấy.
+- Related files: `backend/app/services/quote_backfill_import.py`, `backend/tests/test_quote_backfill_import_service.py`, `docs/quotify/plan-import-bao-gia-cu.md`
+
+### 2026-08-12: Style panel trạng thái import trong Dialog không áp dụng — nested selector bị Dialog teleport ra ngoài
+
+- Area: Frontend `QuotesPage.vue` + `_quotes-page.scss` (import báo giá cũ)
+- Trigger: Panel "Hoàn tất/Thất bại" sau khi import hiển thị không có màu phân biệt, và chữ trạng thái dính liền với số dòng thành công/lỗi (`Hoàn tất1 thành công, 0 lỗi trên 1 dòng`) dù template có tách bằng `<strong>`/`<span>` riêng và CSS khai báo `display:flex; flex-direction:column; gap`.
+- Root cause: Toàn bộ `_quotes-page.scss` khai báo các class dùng bên trong `<Dialog>` (`.quotes-page__dialog`, `__form`, `__import-status`...) như **nested selector** dưới `.quotes-page { ... }`. PrimeVue `Dialog` mặc định `teleport` nội dung ra `<body>` (không có `append-to` khác) — nên trong DOM thật, các element này không còn là descendant của `.quotes-page`, khiến toàn bộ nested selector không match gì cả (`getComputedStyle` xác nhận `display: block`, không phải `flex`). Bug này ẩn vì trông giống lỗi thiếu khoảng trắng ở template, nhưng thực chất CSS chưa từng áp dụng.
+- Fix: Chuyển các class dùng trong Dialog (`__dialog`, `__form`, `__submit-error`, `__dialog-actions`, `__import-status`) ra khai báo top-level (không nested), giống cách `_materials-page.scss`/`_suppliers-page.scss`/`_material-types-page.scss` đã làm đúng từ đầu. Đồng thời thêm modifier `--success` (xanh, dùng `--app-success`/`--app-text-success`) cho cả 4 trang import (Quotes/Materials/Suppliers/MaterialTypes), và đổi điều kiện `--failed` từ `status === 'failed'` sang `failedRows > 0` để cả trường hợp thành công một phần (partial failure, status vẫn `completed`) cũng được tô đỏ — khớp với điều kiện hiện có của nút "Tải file lỗi".
+- Regression guard: Khi thêm `<Dialog>` mới, KHÔNG nested CSS class dùng bên trong Dialog dưới class của trang cha — luôn khai báo top-level, hoặc dùng `append-to="self"`/kiểm tra bằng `getComputedStyle` thật (không chỉ đọc code) trước khi tin style đã áp dụng. Đã verify bằng Playwright thật (không phải chỉ đọc SCSS): chụp ảnh cả 2 trạng thái thành công (xanh) và thất bại (đỏ), xác nhận `display:flex` và class modifier đúng.
+- Related files: `frontend/src/styles/pages/_quotes-page.scss`, `_materials-page.scss`, `_suppliers-page.scss`, `_material-types-page.scss`, `frontend/src/pages/QuotesPage.vue`, `MaterialsPage.vue`, `SuppliersPage.vue`, `MaterialTypesPage.vue`
+
 ## Usage Rule
 
 Before changing behavior in an area with prior bugs, read the relevant entries first and explicitly avoid repeating the same failure mode.

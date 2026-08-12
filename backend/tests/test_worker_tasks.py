@@ -16,6 +16,7 @@ from app.services.quote_backfill_import import (
     validate_quote_backfill_import_headers,
 )
 from app.worker import (
+    _iter_decoded_csv_lines,
     export_users_task,
     import_catalog_task,
     import_quote_backfill_task,
@@ -43,6 +44,31 @@ class FakeMinioResponse:
 
     def release_conn(self) -> None:
         pass
+
+
+class TestIterDecodedCsvLines:
+    def _decode(self, data: bytes) -> list[str]:
+        return list(_iter_decoded_csv_lines(FakeMinioResponse(data)))  # type: ignore[arg-type]
+
+    def test_strips_real_utf8_bom(self) -> None:
+        lines = self._decode("﻿header1,header2\nrow1,row2\n".encode())
+
+        assert lines[0] == "header1,header2\n"
+
+    def test_strips_double_encoded_bom_mojibake(self) -> None:
+        """Một số file người dùng thực tế bị mã hoá BOM 2 lần (mở lại file
+        UTF-8-BOM bằng công cụ hiểu sai encoding rồi lưu lại), nên byte BOM
+        thật EF BB BF không còn xuất hiện nữa mà bị thay bằng 3 ký tự mojibake
+        "ï»¿" ở đầu file. `utf-8-sig` không tự nhận ra dạng này."""
+        mojibake_prefix = "ï»¿".encode()
+        lines = self._decode(mojibake_prefix + b"header1,header2\nrow1,row2\n")
+
+        assert lines[0] == "header1,header2\n"
+
+    def test_no_bom_is_unaffected(self) -> None:
+        lines = self._decode(b"header1,header2\nrow1,row2\n")
+
+        assert lines[0] == "header1,header2\n"
 
 
 class FakeCompletedProcess:

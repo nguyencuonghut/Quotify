@@ -165,8 +165,9 @@
             v-if="importJob"
             class="suppliers-page__import-status"
             :class="{
-              'suppliers-page__import-status--failed':
-                importJob.status === 'failed',
+              'suppliers-page__import-status--success':
+                importJob.status === 'completed' && importJob.failedRows === 0,
+              'suppliers-page__import-status--failed': importJob.failedRows > 0,
             }"
           >
             <strong>{{ formatImportStatus(importJob.status) }}</strong>

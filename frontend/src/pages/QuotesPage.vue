@@ -280,7 +280,9 @@
             v-if="importJob"
             class="quotes-page__import-status"
             :class="{
-              'quotes-page__import-status--failed': importJob.status === 'failed',
+              'quotes-page__import-status--success':
+                importJob.status === 'completed' && importJob.failedRows === 0,
+              'quotes-page__import-status--failed': importJob.failedRows > 0,
             }"
           >
             <strong>{{ formatImportStatus(importJob.status) }}</strong>

@@ -786,3 +786,23 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Fix backfill import date format
 - Tom tat: Sua bug import bao gia cu: parser received_date/delivery_month gia dinh chuan ISO nhung file thuc te dung DD/MM/YYYY va MM/YYYY, khien moi dong import bi tu choi. Doi sang strptime dung format thuc te.
+
+## 2026-08-12 02:51:09Z - claude
+
+- Tieu de: Fix BOM mojibake header bug in CSV import
+- Tom tat: File CSV nguoi dung upload bi ma hoa BOM 2 lan (mojibake i-bang-nga thay vi byte BOM thuc), utf-8-sig khong nhan dien, lam sai header toan bo file. Sua _iter_decoded_csv_lines trong worker.py, ap dung chung cho backfill import va import danh muc. Restart worker container.
+
+## 2026-08-12 03:05:50Z - claude
+
+- Tieu de: Fix backfill supplier fuzzy matching
+- Tom tat: File thuc te dung ten viet tat NCC (ADM, CJ...) khop Supplier.code hoac mot phan Supplier.name, khong khop tuyet doi. Them _resolve_supplier_id 2 tang: khop chinh xac ten/ma truoc, fallback containment, bao loi ro khi ambiguous/khong tim thay. Verify end-to-end bang file thuc cua nguoi dung qua API thuc.
+
+## 2026-08-12 03:48:04Z - claude
+
+- Tieu de: Fix import status panel color and glued text
+- Tom tat: Root cause thuc te khong phai thieu khoang trang: _quotes-page.scss nested class dung trong Dialog nhung PrimeVue Dialog teleport ra body nen CSS khong bao gio match (display:block thay vi flex). Chuyen thanh top-level selector giong 3 trang khac, them --success (xanh) cho ca 4 trang import, doi --failed sang failedRows>0. Verify bang Playwright thuc trong container.
+
+## 2026-08-12 04:00:18Z - claude
+
+- Tieu de: Add duplicate detection to backfill import
+- Tom tat: Them chan trung lap hoan toan du lieu dong (NCC+ngay+vat tu+gia+ky giao+ty gia+thue+chi phi) cho backfill import, khong chan theo NCC+ngay don thuan de van cho phep bao gia 2 lan/ngay hop le. Phat hien va xoa 1 ban trung thuc te trong DB dev sau khi xac nhan voi nguoi dung.

@@ -167,9 +167,12 @@ import danh mục (`Loại vật tư`, `Vật tư`, `Nhà cung cấp`) đã có:
   chú theo dòng, đó là một tính năng riêng, không mở rộng ở đây.
 - Không cho ghi đè thuế/chi phí làm hàng lịch sử qua màn hình nhập báo giá
   thủ công (`POST /api/v1/quotes` giữ nguyên hành vi hiện tại).
-- Không tự động dò trùng lặp giữa dữ liệu import và dữ liệu đã có trong hệ
-  thống (không có logic "đã tồn tại báo giá này rồi, bỏ qua"); người dùng
-  chịu trách nhiệm không import trùng.
+- ~~Không tự động dò trùng lặp...~~ **Đã đổi quyết định ngày 12/08/2026** sau khi
+  người dùng test thực tế bị tạo trùng dữ liệu 2 lần: có dò trùng lặp, nhưng
+  chỉ chặn khi **trùng hoàn toàn** dữ liệu dòng (NCC + ngày + vật tư + giá +
+  kỳ giao + tỷ giá + thuế + chi phí làm hàng), vẫn cho phép NCC báo giá khác
+  trong cùng ngày. Xem `_resolve_supplier_id`/`_load_existing_line_keys`
+  trong `quote_backfill_import.py`.
 - Không hỗ trợ Excel (`.xlsx`); chỉ CSV, đúng theo pattern import danh mục
   hiện tại của Quotify.
 - Không đổi công thức giá quy đổi hay bảng `quotify_settings` — tính năng
@@ -183,7 +186,7 @@ hiện có):
 
 | Cột | Bắt buộc | Ghi chú |
 | --- | --- | --- |
-| `supplier_name` | Luôn | Tên NCC — khớp theo `Supplier.name` đã chuẩn hóa (bỏ khoảng trắng dư, không phân biệt hoa/thường), không phải mã NCC. Đã đổi từ `supplier_code` ngày 10/08/2026 vì file lịch sử thực tế ghi tên NCC, không ghi mã. |
+| `supplier_name` | Luôn | Tên NCC — khớp theo `Supplier.name` HOẶC `Supplier.code` đã chuẩn hóa (bỏ khoảng trắng dư, không phân biệt hoa/thường); nếu không khớp chính xác, fallback sang khớp gần đúng (containment) với tên/mã NCC trong hệ thống. Đã đổi từ `supplier_code` ngày 10/08/2026 vì file lịch sử thực tế ghi tên NCC, không ghi mã; đến ngày 12/08/2026 mở rộng thêm khớp theo mã/containment vì file thực tế hay ghi tên viết tắt (`ADM`, `CJ`...) không khớp tuyệt đối `Supplier.name` đầy đủ. |
 | `received_date` | Luôn | `DD/MM/YYYY` (đổi từ `YYYY-MM-DD` ngày 10/08/2026 vì file lịch sử thực tế ghi theo định dạng này), phải là ngày trong quá khứ. |
 | `material_code` | Luôn | Mã vật tư đã có trong danh mục `Vật tư`. |
 | `price_original` | Luôn | Số, giá gốc theo `currency`/`unit`. |
@@ -463,7 +466,7 @@ query, và không làm phình bảng `import_jobs`/`audit_logs`. Các điểm b�
 
 - Không hỗ trợ sửa/xóa ghi chú dòng sau khi import (chỉ tạo lúc import).
 - Không hỗ trợ Excel, chỉ CSV.
-- Không dò trùng lặp dữ liệu.
+- ~~Không dò trùng lặp dữ liệu~~ — đã đổi ngày 12/08/2026, xem quyết định ở trên.
 - Không đổi hành vi `POST /api/v1/quotes` hiện có.
 - Không thêm lịch sử revision cho ghi chú dòng.
 
