@@ -195,18 +195,34 @@ def _require_field(row: dict[str, str | None], key: str, label: str) -> str:
     return value
 
 
-def _parse_decimal(value: str, label: str) -> Decimal:
+def _parse_decimal(value: str, label: str, *, require_integer: bool = False) -> Decimal:
+    # File thực tế xuất từ Excel hay định dạng số lớn kèm dấu phẩy ngăn hàng
+    # nghìn (ví dụ "26,466"), trong khi dấu chấm luôn dùng cho phần thập phân
+    # trong toàn bộ file — bỏ dấu phẩy ngăn hàng nghìn trước khi parse.
     try:
-        return Decimal(value)
+        parsed = Decimal(value.replace(",", ""))
     except InvalidOperation as exc:
         raise ValueError(f"{label} không phải là số hợp lệ.") from exc
 
+    # Tỷ giá VNĐ/USD luôn là số nguyên trên thực tế (không có phần lẻ đồng),
+    # khác với giá gốc USD/MT vốn có thể có phần thập phân (cent).
+    if require_integer and parsed != parsed.to_integral_value():
+        raise ValueError(f"{label} phải là số nguyên.")
 
-def _parse_optional_decimal(row: dict[str, str | None], key: str, label: str) -> Decimal | None:
+    return parsed
+
+
+def _parse_optional_decimal(
+    row: dict[str, str | None],
+    key: str,
+    label: str,
+    *,
+    require_integer: bool = False,
+) -> Decimal | None:
     raw = normalize_optional_text(row.get(key))
     if raw is None:
         return None
-    return _parse_decimal(raw, label)
+    return _parse_decimal(raw, label, require_integer=require_integer)
 
 
 def parse_quote_backfill_import_row(row_number: int, row: dict[str, str | None]) -> _ParsedRow:
@@ -233,7 +249,9 @@ def parse_quote_backfill_import_row(row_number: int, row: dict[str, str | None])
     currency = _require_field(row, "currency", "Tiền tệ").upper()
     unit = _require_field(row, "unit", "Đơn vị").upper()
 
-    exchange_rate = _parse_optional_decimal(row, "exchange_rate", "Tỷ giá")
+    exchange_rate = _parse_optional_decimal(
+        row, "exchange_rate", "Tỷ giá", require_integer=True,
+    )
     import_tax_rate_percent = _parse_optional_decimal(
         row, "import_tax_rate_percent", "Thuế nhập khẩu",
     )

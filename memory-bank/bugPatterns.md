@@ -778,6 +778,24 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Khi thêm `<Dialog>` mới, KHÔNG nested CSS class dùng bên trong Dialog dưới class của trang cha — luôn khai báo top-level, hoặc dùng `append-to="self"`/kiểm tra bằng `getComputedStyle` thật (không chỉ đọc code) trước khi tin style đã áp dụng. Đã verify bằng Playwright thật (không phải chỉ đọc SCSS): chụp ảnh cả 2 trạng thái thành công (xanh) và thất bại (đỏ), xác nhận `display:flex` và class modifier đúng.
 - Related files: `frontend/src/styles/pages/_quotes-page.scss`, `_materials-page.scss`, `_suppliers-page.scss`, `_material-types-page.scss`, `frontend/src/pages/QuotesPage.vue`, `MaterialsPage.vue`, `SuppliersPage.vue`, `MaterialTypesPage.vue`
 
+### 2026-08-12: Tỷ giá "không phải là số hợp lệ" do dấu phẩy ngăn hàng nghìn + thiếu ràng buộc số nguyên
+
+- Area: Backend backfill import báo giá cũ (`quote_backfill_import.py`)
+- Trigger: File thực tế xuất từ Excel ghi số lớn kèm dấu phẩy ngăn hàng nghìn (`26,466`) cho `exchange_rate` — `Decimal("26,466")` raise `InvalidOperation`, báo lỗi chung "Tỷ giá không phải là số hợp lệ." dù giá trị hợp lệ về nghiệp vụ.
+- Root cause: `_parse_decimal` gọi `Decimal(value)` trực tiếp, không xử lý dấu phẩy ngăn hàng nghìn (khác dấu phẩy thập phân — file luôn dùng dấu chấm cho phần thập phân).
+- Fix: `_parse_decimal` bỏ dấu phẩy trước khi parse. Đồng thời thêm tham số `require_integer` — `exchange_rate` phải là số nguyên (tỷ giá VNĐ/USD không có phần lẻ đồng trên thực tế), còn `price_original` giữ thập phân (giá USD có thể có cent).
+- Regression guard: Không giả định `Decimal(raw_string)` luôn parse đúng dữ liệu Excel thực tế — luôn cân nhắc dấu phân cách hàng nghìn. `TestParseQuoteBackfillImportRow` (`test_parses_numeric_fields_with_thousands_separator_comma`, `test_rejects_non_integer_exchange_rate`, `test_allows_decimal_price_original`) phải pass.
+- Related files: `backend/app/services/quote_backfill_import.py`, `backend/tests/test_quote_backfill_import_service.py`
+
+### 2026-08-12: Câu lệnh SQL dọn dữ liệu test quá rộng đã xóa nhầm dữ liệu thật của người dùng
+
+- Area: Quy trình vận hành khi verify bằng DB dev thật (không phải lỗi code)
+- Trigger: Khi dọn dữ liệu test backfill import (sau khi verify sửa lỗi tỷ giá/mã hóa BOM), dùng `DELETE FROM quote_versions WHERE id NOT IN (...) AND quote_id IN (chọn theo mã NCC)` rồi `DELETE FROM quotes WHERE id NOT IN (SELECT quote_id FROM quote_versions)` — câu lệnh thứ 2 không giới hạn phạm vi, xóa nhầm 1 báo giá thật của người dùng (đã được yêu cầu giữ lại trước đó) mà không qua audit log của ứng dụng.
+- Root cause: DB dev đang được người dùng dùng để test thật đồng thời (import file 483 dòng thật) trong lúc agent cũng đang verify bằng API trên cùng DB — điều kiện `WHERE id NOT IN (subquery)` tưởng đã giới hạn đúng nhưng không đủ chặt khi kết hợp nhiều câu lệnh liên tiếp, không có cách nào chắc chắn ngoại trừ dùng ID chính xác.
+- Fix: Không còn cách "sửa code" — đã tạo lại đúng dữ liệu gốc qua API (không phải SQL) và báo minh bạch với người dùng.
+- Regression guard: **Chỉ xóa dữ liệu test trên DB dev bằng ID chính xác agent vừa tạo ra** (lấy ID ngay sau khi tạo, không dùng điều kiện lọc theo thời gian/nhà cung cấp/tên khi DB đang được người dùng dùng thật đồng thời). Nếu không chắc ID nào an toàn để xóa, hỏi người dùng trước khi chạy DELETE.
+- Related files: (không có file code liên quan — bài học vận hành)
+
 ## Usage Rule
 
 Before changing behavior in an area with prior bugs, read the relevant entries first and explicitly avoid repeating the same failure mode.

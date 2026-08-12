@@ -128,6 +128,34 @@ class TestParseQuoteBackfillImportRow:
         assert parsed.processing_cost_vnd_per_kg == Decimal("200.00")
         assert parsed.note == "Ghi chú"
 
+    def test_parses_numeric_fields_with_thousands_separator_comma(self) -> None:
+        """File thực tế xuất từ Excel định dạng số lớn kèm dấu phẩy ngăn hàng
+        nghìn (ví dụ tỷ giá "26,466") — không phải dấu thập phân."""
+        parsed = parse_quote_backfill_import_row(
+            1,
+            _usd_row(exchange_rate="26,466", price_original="1,259.00"),
+        )
+
+        assert parsed.exchange_rate == Decimal("26466")
+        assert parsed.price_original == Decimal("1259.00")
+
+    def test_allows_decimal_price_original(self) -> None:
+        """Giá gốc USD/MT có thể có phần thập phân (cent)."""
+        parsed = parse_quote_backfill_import_row(1, _usd_row(price_original="259.75"))
+
+        assert parsed.price_original == Decimal("259.75")
+
+    def test_rejects_non_integer_exchange_rate(self) -> None:
+        """Tỷ giá VNĐ/USD luôn là số nguyên trên thực tế, khác với giá gốc."""
+        row = _usd_row(exchange_rate="26466.50")
+        with pytest.raises(ValueError, match="Tỷ giá phải là số nguyên"):
+            parse_quote_backfill_import_row(1, row)
+
+    def test_accepts_whole_number_exchange_rate_with_zero_decimal(self) -> None:
+        parsed = parse_quote_backfill_import_row(1, _usd_row(exchange_rate="26466.00"))
+
+        assert parsed.exchange_rate == Decimal("26466.00")
+
     def test_collapses_internal_double_spaces_in_supplier_name(self) -> None:
         parsed = parse_quote_backfill_import_row(
             1,

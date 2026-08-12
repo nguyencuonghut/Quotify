@@ -811,3 +811,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Add ENERFO/GRAINLAND/ABC suppliers to seed data
 - Tom tat: Tao 3 NCC thuc (ENERFO, GRAINLAND quoc te, ABC noi dia) qua API thuc cho CORN. Theo yeu cau nguoi dung, them vao cuoi SUPPLIER_SEEDS trong seed_data.py de khong mat khi migrate-refresh+seed lai o dev. Production van khong chay seed_quotify.py nen 3 NCC nay van phai tao thu cong tren production.
+
+## 2026-08-12 07:03:56Z - claude
+
+- Tieu de: Enforce integer exchange_rate, decimal price_original
+- Tom tat: Sua _parse_decimal bo dau phay ngan hang nghin truoc khi parse. Them require_integer cho exchange_rate (bat loi neu co phan le), giu price_original la thap phan. Verify bang API thuc, don dung bang ID chinh xac.
