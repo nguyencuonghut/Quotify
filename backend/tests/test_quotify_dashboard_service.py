@@ -183,6 +183,76 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
     assert "LIKE" in str(fake_db.queries[0])
 
 
+def _price_trend_point_row(*, received_date: date, line_id: object) -> FakeResultRow:
+    return FakeResultRow(
+        {
+            "received_date": received_date,
+            "delivery_month": date(2026, 8, 1),
+            "converted_price_vnd_per_kg": Decimal("6500.00"),
+            "supplier_id": uuid4(),
+            "supplier_name": "Supplier ABC",
+            "supplier_code": "ABC",
+            "supplier_type": "international",
+            "material_id": uuid4(),
+            "material_name": "Bắp hạt",
+            "material_code": "CORN",
+            "quote_id": uuid4(),
+            "quote_version_id": uuid4(),
+            "line_id": line_id,
+            "purchased": False,
+            "purchase_marked_at": None,
+            "confirmed_at": datetime(2026, 7, 20, 8, 0, tzinfo=UTC),
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_price_trends_prefers_most_recent_points_when_over_the_limit() -> None:
+    """Khi tổng số dòng lịch sử vượt point_limit, chart phải ưu tiên giữ lại
+    các báo giá GẦN NHẤT (không phải cũ nhất) — bug thật đã gặp: dashboard mặc
+    định không lọc received_date, DB có >16k dòng từ 2023, nên trước khi sửa,
+    LIMIT luôn lấy đúng 500 dòng cũ nhất và chart không bao giờ hiện dữ liệu
+    gần hiện tại."""
+    newest_line_id = uuid4()
+    oldest_line_id = uuid4()
+
+    # DB thật với ORDER BY received_date DESC + LIMIT sẽ trả về dòng mới nhất
+    # trước — FakeResult mô phỏng đúng thứ tự đó để kiểm tra _get_points có
+    # đảo lại đúng thành tăng dần (cũ -> mới) hay không.
+    newest_row = _price_trend_point_row(received_date=date(2026, 8, 1), line_id=newest_line_id)
+    oldest_row = _price_trend_point_row(received_date=date(2023, 10, 10), line_id=oldest_line_id)
+
+    fake_db = FakeDbSession(
+        [
+            FakeResult(
+                [
+                    FakeResultRow(
+                        {
+                            "min_price": Decimal("6500.00"),
+                            "max_price": Decimal("6500.00"),
+                            "avg_price": Decimal("6500.00"),
+                            "total_lines": 2,
+                            "total_quotes": 2,
+                            "purchased_lines": 0,
+                        }
+                    )
+                ]
+            ),
+            FakeResult([newest_row, oldest_row]),
+        ]
+    )
+
+    service = QuotifyDashboardService(fake_db)  # type: ignore[arg-type]
+    response = await service.get_price_trends(point_limit=1)
+
+    points_query = str(fake_db.queries[1])
+    assert "received_date DESC" in points_query
+
+    # Kết quả trả về vẫn phải theo thứ tự tăng dần (cũ -> mới) để không phá
+    # giả định của phần build chart ở tầng trên, dù DB đã trả về DESC.
+    assert [point["line_id"] for point in response["points"]] == [oldest_line_id, newest_line_id]
+
+
 @pytest.mark.asyncio
 async def test_get_weekly_entry_activity_includes_active_users_without_quotes() -> None:
     user_with_quotes_id = uuid4()

@@ -286,8 +286,8 @@ class QuotifyDashboardService:
             .join(Material, QuoteLine.material_id == Material.id)
             .where(*filters)
             .order_by(
-                QuoteVersion.received_date.asc(),
-                QuoteLine.delivery_month.asc(),
+                QuoteVersion.received_date.desc(),
+                QuoteLine.delivery_month.desc(),
                 Material.name.asc(),
                 Supplier.name.asc(),
                 QuoteLine.id.asc(),
@@ -295,7 +295,13 @@ class QuotifyDashboardService:
             .limit(safe_limit)
         )
         result = await self.db.execute(stmt)
-        return [self._point_from_row(row) for row in result.all()]
+        # Lấy `safe_limit` dòng có received_date GẦN NHẤT trước (không phải cũ
+        # nhất) — nếu không, khi tổng số dòng lịch sử vượt quá limit, dòng
+        # cũ nhất sẽ luôn lấp đầy limit và chart không bao giờ hiện được dữ
+        # liệu gần hiện tại. Đảo lại danh sách để trả về theo thứ tự tăng dần
+        # như trước (điểm cũ -> mới), giữ đúng giả định của phần build chart.
+        rows = list(reversed(result.all()))
+        return [self._point_from_row(row) for row in rows]
 
     async def _build_purchase_context(
         self,

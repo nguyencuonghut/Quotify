@@ -881,3 +881,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Add 18 domestic suppliers to seed data
 - Tom tat: Them 18 NCC noi dia moi vao SUPPLIER_SEEDS (Anh Khoa, APEX, B&T Viet Nam, Bao Lam, Cao Thang, COFCO, HANOFEED, Ha Thi, Minh Hien, Ngoc Long, Nhat Thanh, Quang Dung, TACN Ha Noi, Thuan An, Thinh Vuong, Tan Long, Tan Long (Cao Thang), Viet Anh), tat ca gan CORN+SOYBEAN_MEAL. Tan Long/Tan Long (Cao Thang) la NCC moi khac voi Tap doan Tan Long da co, dung code rieng tranh trung. Da chay seed_quotify.py 2 lan tren DB dev de xac nhan idempotent, 317 backend test pass.
+
+## 2026-08-13 08:00:23Z - claude
+
+- Tieu de: Fix dashboard chart defaulting to oldest data instead of recent
+- Tom tat: quotify_dashboard_service.py _get_points sap tang dan theo received_date roi LIMIT 500, nen khi khong loc gi (mac dinh luc load Dashboard) va DB co 16k+ dong tu 2023, chart luon ket dinh o du lieu cu nhat, khong bao gio chay toi hien tai. Doi order_by thanh DESC (uu tien du lieu moi nhat) roi reversed() lai de giu dung thu tu tang dan cho tang tren. Them test regression, verify qua API that: received_date range sau sua la 2026-07-14..2026-08-04 thay vi bat dau 2023.
