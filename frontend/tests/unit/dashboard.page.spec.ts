@@ -8,6 +8,7 @@ const dashboardPageMock = vi.hoisted(() => ({
   resetFilters: vi.fn(),
   applyWeeklyEntryFilters: vi.fn(),
   resetWeeklyEntryFilters: vi.fn(),
+  loadMaterialComparison: vi.fn(),
 }))
 
 vi.mock('@/composables/useDashboardPage', async () => {
@@ -36,6 +37,12 @@ vi.mock('@/composables/useDashboardPage', async () => {
       receivedDateEnd: ref(null),
       selectedWeek: ref(null),
       selectedWeeklyUserId: ref(null),
+      comparisonMaterialIds: ref([]),
+      comparisonBuckets: computed(() => []),
+      comparisonBandVisibility: ref({}),
+      comparisonTrendResults: computed(() => []),
+      comparisonChartData: computed(() => ({ labels: [], datasets: [] })),
+      comparisonChartOptions: computed(() => ({})),
       weeklyUserOptions: [
         {
           label: 'Người mua hàng',
@@ -121,6 +128,7 @@ vi.mock('@/composables/useDashboardPage', async () => {
       resetFilters: dashboardPageMock.resetFilters,
       applyWeeklyEntryFilters: dashboardPageMock.applyWeeklyEntryFilters,
       resetWeeklyEntryFilters: dashboardPageMock.resetWeeklyEntryFilters,
+      loadMaterialComparison: dashboardPageMock.loadMaterialComparison,
       getWeeklyEntryRowClass: (row: { hasWarning: boolean }) =>
         row.hasWarning ? 'dashboard-page__weekly-row--warning' : '',
       formatMoney: (value: number | null) =>
@@ -146,9 +154,11 @@ describe('DashboardPage', () => {
           AdminLayout: passthroughStub,
           Button: true,
           Chart: true,
+          Checkbox: true,
           Column: true,
           DataTable: passthroughStub,
           DatePicker: true,
+          MultiSelect: true,
           Select: true,
           Tag: true,
         },
@@ -165,6 +175,7 @@ describe('DashboardPage', () => {
     expect(wrapper.text()).toContain('Giá thấp nhất')
     expect(wrapper.text()).toContain('Tổng báo giá')
     expect(wrapper.text()).toContain('Giá theo kỳ hàng về')
+    expect(wrapper.text()).toContain('So sánh giá nguyên liệu theo kỳ hàng về')
     expect(wrapper.text()).toContain('Số phiếu báo giá')
     expect(wrapper.text()).toContain('Góc nhìn tại và sau thời điểm đánh dấu')
   })

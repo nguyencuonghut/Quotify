@@ -517,6 +517,11 @@ onMounted(() => {
     }
   }
 
+  const materialIdQuery = route.query.materialId
+  if (typeof materialIdQuery === 'string') {
+    materialId.value = materialIdQuery
+  }
+
   fetchLookups()
   loadQuotesData()
 })

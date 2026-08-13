@@ -1,5 +1,14 @@
 # Kế Hoạch: Chart So Sánh Giá Nhiều Mặt Hàng Theo Kỳ Hàng Về
 
+> **V1 đã triển khai xong ngày 12/08/2026** bằng TDD (skill `tdd`), theo đúng
+> thiết kế dưới đây — không sửa backend. Xem `frontend/src/composables/useDashboardPage.ts`
+> (`buildMaterialComparisonBuckets`, `buildPriceDifferenceLines`, `loadMaterialComparison`,
+> `comparisonChartData`/`comparisonChartOptions`), `frontend/src/pages/DashboardPage.vue`
+> (panel mới "So sánh giá nguyên liệu theo kỳ hàng về"), và fix kèm theo ở
+> `frontend/src/pages/QuotesPage.vue` (đọc thêm `route.query.materialId` lúc
+> mount — trước đó chỉ đọc `deliveryMonth`, khiến click từ chart mới chỉ lọc
+> đúng kỳ mà không lọc đúng mặt hàng).
+
 ## 1. Bài Toán
 
 Bộ phận Thu Mua cần so sánh nhanh xu hướng giá theo kỳ giao hàng giữa 2-3

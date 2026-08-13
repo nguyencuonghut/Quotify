@@ -68,6 +68,22 @@
   min-width: 0;
 }
 
+.dashboard-page__comparison-bands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.dashboard-page__comparison-band-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--app-text-secondary);
+  cursor: pointer;
+}
+
 .dashboard-page__filter-label,
 .dashboard-page__metric-label,
 .dashboard-page__metric-detail,

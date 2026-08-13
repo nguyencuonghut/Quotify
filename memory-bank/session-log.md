@@ -841,3 +841,18 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Fix tooltip text overflow and dark mode contrast
 - Tom tat: Them overflow:hidden + ellipsis lam luoi an toan, tang max-width len 50rem de dong dai nhat khong bi cat tren desktop. Doi nen tooltip tu mau toi cung sang token theo theme (surface-panel-alt/border-strong) de tuong phan tot ca 2 theme. Verify bang Playwright thuc ca light va dark mode.
+
+## 2026-08-12 10:04:32Z - claude
+
+- Tieu de: Implement multi-material price comparison chart (V1, TDD)
+- Tom tat: Trien khai chart so sanh gia 2-3 mat hang theo ky hang ve bang TDD, khong sua backend (goi lai endpoint hien co N lan song song, merge o frontend). Them panel moi tren Dashboard, tai dung external-tooltip da xay. Phat hien va sua gap thuc: QuotesPage.vue chua doc materialId tu query string khi click-to-navigate.
+
+## 2026-08-13 01:36:46Z - claude
+
+- Tieu de: Add per-material min-max band toggle to comparison chart
+- Tom tat: Them dai gia thap-cao cho tung mat hang trong chart so sanh, mac dinh hien het, checkbox rieng de untick an dai cua 1 mat hang (khong an duong trung binh). TDD: mo rong series them minPrice/maxPrice, chart dung band bang 2 dataset an voi fill, an khoi legend. Verify bang Playwright thuc.
+
+## 2026-08-13 01:44:51Z - claude
+
+- Tieu de: Fix band contrast in dark mode and add min-max to tooltip
+- Tom tat: Tang alpha nen dai gia rieng cho dark mode (mau xanh Ngo hat qua gan tong nen). Tooltip them TB/Thap/Cao thay vi chi hien gia trung binh. Verify bang Playwright thuc o dark mode.

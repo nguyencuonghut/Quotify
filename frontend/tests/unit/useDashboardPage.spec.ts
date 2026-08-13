@@ -315,4 +315,300 @@ describe('useDashboardPage', () => {
       'mock-access-token',
     )
   })
+
+  describe('material price comparison', () => {
+    it('does not fetch or build comparison buckets with fewer than 2 selected materials', async () => {
+      const page = useDashboardPage()
+      page.comparisonMaterialIds.value = ['material-1']
+
+      await page.loadMaterialComparison()
+
+      expect(dashboardApiMock.getQuotifyPriceTrends).not.toHaveBeenCalled()
+      expect(page.comparisonBuckets.value).toEqual([])
+    })
+
+    it('fetches trends for each selected material in parallel with shared filters', async () => {
+      const page = useDashboardPage()
+      page.selectedSupplierType.value = 'international'
+      page.comparisonMaterialIds.value = ['material-1', 'material-2']
+
+      await page.loadMaterialComparison()
+
+      expect(dashboardApiMock.getQuotifyPriceTrends).toHaveBeenCalledTimes(2)
+      expect(dashboardApiMock.getQuotifyPriceTrends).toHaveBeenCalledWith(
+        {
+          materialId: 'material-1',
+          deliveryMonth: null,
+          receivedDateStart: null,
+          receivedDateEnd: null,
+          supplierType: 'international',
+        },
+        'mock-access-token',
+      )
+      expect(dashboardApiMock.getQuotifyPriceTrends).toHaveBeenCalledWith(
+        {
+          materialId: 'material-2',
+          deliveryMonth: null,
+          receivedDateStart: null,
+          receivedDateEnd: null,
+          supplierType: 'international',
+        },
+        'mock-access-token',
+      )
+    })
+
+    it('merges per-material trends into buckets with average price and quote count per month', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => {
+        if (query.materialId === 'material-1') {
+          return {
+            ...priceTrends,
+            points: [
+              { ...priceTrends.points[0], deliveryMonth: '2026-08-01', convertedPriceVndPerKg: 10000 },
+              { ...priceTrends.points[0], deliveryMonth: '2026-08-01', convertedPriceVndPerKg: 11000 },
+              { ...priceTrends.points[0], deliveryMonth: '2026-09-01', convertedPriceVndPerKg: 12000 },
+            ],
+          }
+        }
+        return {
+          ...priceTrends,
+          points: [
+            { ...priceTrends.points[0], deliveryMonth: '2026-08-01', convertedPriceVndPerKg: 9000 },
+          ],
+        }
+      })
+
+      const page = useDashboardPage()
+      page.materials.value = [
+        { ...page.materials.value[0], id: 'material-1', name: 'Ngô hạt' },
+        { ...page.materials.value[0], id: 'material-2', name: 'Khô đậu nành' },
+      ]
+      page.comparisonMaterialIds.value = ['material-1', 'material-2']
+
+      await page.loadMaterialComparison()
+
+      expect(page.comparisonBuckets.value.map((bucket) => bucket.label)).toEqual([
+        '08/2026',
+        '09/2026',
+      ])
+      expect(page.comparisonBuckets.value[0].series).toEqual([
+        {
+          materialId: 'material-1',
+          materialName: 'Ngô hạt',
+          avgPrice: 10500,
+          minPrice: 10000,
+          maxPrice: 11000,
+          pointCount: 2,
+        },
+        {
+          materialId: 'material-2',
+          materialName: 'Khô đậu nành',
+          avgPrice: 9000,
+          minPrice: 9000,
+          maxPrice: 9000,
+          pointCount: 1,
+        },
+      ])
+      expect(page.comparisonBuckets.value[1].series).toEqual([
+        {
+          materialId: 'material-1',
+          materialName: 'Ngô hạt',
+          avgPrice: 12000,
+          minPrice: 12000,
+          maxPrice: 12000,
+          pointCount: 1,
+        },
+        {
+          materialId: 'material-2',
+          materialName: 'Khô đậu nành',
+          avgPrice: null,
+          minPrice: null,
+          maxPrice: null,
+          pointCount: 0,
+        },
+      ])
+    })
+
+    it('builds a price-difference callout comparing the two selected materials directly', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points: [
+          {
+            ...priceTrends.points[0],
+            deliveryMonth: '2026-08-01',
+            convertedPriceVndPerKg: query.materialId === 'material-1' ? 7200 : 9450,
+          },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.materials.value = [
+        { ...page.materials.value[0], id: 'material-1', name: 'Ngô hạt' },
+        { ...page.materials.value[0], id: 'material-2', name: 'Khô đậu nành' },
+      ]
+      page.comparisonMaterialIds.value = ['material-1', 'material-2']
+
+      await page.loadMaterialComparison()
+
+      expect(page.comparisonBuckets.value[0].differenceLines).toEqual([
+        'Khô đậu nành cao hơn Ngô hạt: +2,250.00 VNĐ/KG (+31.25%)',
+      ])
+    })
+
+    it('builds a price-difference callout comparing each material against the cheapest one, for 3 materials', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => {
+        const priceByMaterial: Record<string, number> = {
+          'material-1': 7200,
+          'material-2': 9450,
+          'material-3': 7500,
+        }
+        return {
+          ...priceTrends,
+          points: [
+            {
+              ...priceTrends.points[0],
+              deliveryMonth: '2026-08-01',
+              convertedPriceVndPerKg: priceByMaterial[query.materialId],
+            },
+          ],
+        }
+      })
+
+      const page = useDashboardPage()
+      page.materials.value = [
+        { ...page.materials.value[0], id: 'material-1', name: 'Ngô hạt' },
+        { ...page.materials.value[0], id: 'material-2', name: 'Khô đậu nành' },
+        { ...page.materials.value[0], id: 'material-3', name: 'Lúa mì' },
+      ]
+      page.comparisonMaterialIds.value = ['material-1', 'material-2', 'material-3']
+
+      await page.loadMaterialComparison()
+
+      expect(page.comparisonBuckets.value[0].differenceLines).toEqual([
+        'Khô đậu nành cao hơn Ngô hạt: +2,250.00 VNĐ/KG (+31.25%)',
+        'Lúa mì cao hơn Ngô hạt: +300.00 VNĐ/KG (+4.17%)',
+      ])
+    })
+
+    it('skips the price-difference callout for a month with fewer than 2 materials priced', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points:
+          query.materialId === 'material-1'
+            ? [{ ...priceTrends.points[0], deliveryMonth: '2026-08-01', convertedPriceVndPerKg: 7200 }]
+            : [],
+      }))
+
+      const page = useDashboardPage()
+      page.materials.value = [
+        { ...page.materials.value[0], id: 'material-1', name: 'Ngô hạt' },
+        { ...page.materials.value[0], id: 'material-2', name: 'Khô đậu nành' },
+      ]
+      page.comparisonMaterialIds.value = ['material-1', 'material-2']
+
+      await page.loadMaterialComparison()
+
+      expect(page.comparisonBuckets.value[0].differenceLines).toEqual([])
+    })
+
+    it('only fetches the first 3 materials if more are somehow selected', async () => {
+      const page = useDashboardPage()
+      page.comparisonMaterialIds.value = ['material-1', 'material-2', 'material-3', 'material-4']
+
+      await page.loadMaterialComparison()
+
+      expect(dashboardApiMock.getQuotifyPriceTrends).toHaveBeenCalledTimes(3)
+      expect(dashboardApiMock.getQuotifyPriceTrends).not.toHaveBeenCalledWith(
+        expect.objectContaining({ materialId: 'material-4' }),
+        expect.anything(),
+      )
+    })
+
+    it('builds one chart dataset per loaded material with distinct colors and gaps as null', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points:
+          query.materialId === 'material-1'
+            ? [
+                { ...priceTrends.points[0], deliveryMonth: '2026-08-01', convertedPriceVndPerKg: 7200 },
+                { ...priceTrends.points[0], deliveryMonth: '2026-09-01', convertedPriceVndPerKg: 7300 },
+              ]
+            : [{ ...priceTrends.points[0], deliveryMonth: '2026-08-01', convertedPriceVndPerKg: 9450 }],
+      }))
+
+      const page = useDashboardPage()
+      page.materials.value = [
+        { ...page.materials.value[0], id: 'material-1', name: 'Ngô hạt' },
+        { ...page.materials.value[0], id: 'material-2', name: 'Khô đậu nành' },
+      ]
+      page.comparisonMaterialIds.value = ['material-1', 'material-2']
+
+      await page.loadMaterialComparison()
+      // Tắt dải giá thấp-cao để cô lập test này vào đúng hành vi của đường
+      // trung bình (dải giá thấp-cao có test riêng bên dưới).
+      page.comparisonBandVisibility.value['material-1'] = false
+      page.comparisonBandVisibility.value['material-2'] = false
+
+      expect(page.comparisonChartData.value.labels).toEqual(['08/2026', '09/2026'])
+      expect(page.comparisonChartData.value.datasets).toHaveLength(2)
+      expect(page.comparisonChartData.value.datasets[0]).toMatchObject({
+        label: 'Ngô hạt',
+        data: [7200, 7300],
+        spanGaps: false,
+      })
+      expect(page.comparisonChartData.value.datasets[1]).toMatchObject({
+        label: 'Khô đậu nành',
+        data: [9450, null],
+        spanGaps: false,
+      })
+      expect(page.comparisonChartData.value.datasets[0].borderColor).not.toBe(
+        page.comparisonChartData.value.datasets[1].borderColor,
+      )
+    })
+
+    it('defaults to showing the min-max band for every newly loaded material', async () => {
+      const page = useDashboardPage()
+      page.comparisonMaterialIds.value = ['material-1', 'material-2']
+
+      await page.loadMaterialComparison()
+
+      expect(page.comparisonBandVisibility.value['material-1']).toBe(true)
+      expect(page.comparisonBandVisibility.value['material-2']).toBe(true)
+    })
+
+    it('adds min-max band datasets for a material by default, and removes them once toggled off', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points:
+          query.materialId === 'material-1'
+            ? [
+                { ...priceTrends.points[0], deliveryMonth: '2026-08-01', convertedPriceVndPerKg: 7000 },
+                { ...priceTrends.points[0], deliveryMonth: '2026-08-01', convertedPriceVndPerKg: 7400 },
+              ]
+            : [{ ...priceTrends.points[0], deliveryMonth: '2026-08-01', convertedPriceVndPerKg: 9450 }],
+      }))
+
+      const page = useDashboardPage()
+      page.materials.value = [
+        { ...page.materials.value[0], id: 'material-1', name: 'Ngô hạt' },
+        { ...page.materials.value[0], id: 'material-2', name: 'Khô đậu nành' },
+      ]
+      page.comparisonMaterialIds.value = ['material-1', 'material-2']
+      await page.loadMaterialComparison()
+
+      // Mặc định: 1 dataset avg + 2 dataset band (min/max) cho mỗi mặt hàng = 6.
+      expect(page.comparisonChartData.value.datasets).toHaveLength(6)
+      const bandDatasetLabels = page.comparisonChartData.value.datasets.map(
+        (dataset: { label?: string }) => dataset.label,
+      )
+      expect(bandDatasetLabels).toContain('Ngô hạt (cao nhất)')
+      expect(bandDatasetLabels).toContain('Ngô hạt (thấp nhất)')
+
+      page.comparisonBandVisibility.value['material-1'] = false
+
+      expect(page.comparisonChartData.value.datasets).toHaveLength(4)
+      expect(
+        page.comparisonChartData.value.datasets.map((dataset: { label?: string }) => dataset.label),
+      ).toEqual(['Ngô hạt', 'Khô đậu nành (cao nhất)', 'Khô đậu nành (thấp nhất)', 'Khô đậu nành'])
+    })
+  })
 })

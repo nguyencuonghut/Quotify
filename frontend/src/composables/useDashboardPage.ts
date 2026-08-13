@@ -52,6 +52,7 @@ interface DeliveryMonthBucket {
   points: QuotifyPriceTrendPoint[]
 }
 
+const MAX_COMPARISON_MATERIALS = 3
 const preferredMaterialCodes = ['CORN']
 const preferredMaterialNames = ['ngô hạt', 'ngo hat', 'bắp hạt', 'bap hat']
 const supplierTypeOptions: DashboardSupplierTypeOption[] = [
@@ -77,6 +78,13 @@ function formatMoney(value: number | null): string {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   }).format(value)} VNĐ/KG`
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  }).format(value)
 }
 
 function formatInteger(value: number): string {
@@ -323,6 +331,99 @@ function buildDeliveryMonthBuckets(
     })
 }
 
+export interface MaterialTrendResult {
+  materialId: string
+  materialName: string
+  points: QuotifyPriceTrendPoint[]
+}
+
+interface MaterialComparisonSeriesPoint {
+  materialId: string
+  materialName: string
+  avgPrice: number | null
+  minPrice: number | null
+  maxPrice: number | null
+  pointCount: number
+}
+
+interface MaterialComparisonBucket {
+  deliveryMonth: string
+  label: string
+  series: MaterialComparisonSeriesPoint[]
+  differenceLines: string[]
+}
+
+function formatPercent(value: number): string {
+  return `${value.toFixed(2)}%`
+}
+
+/** So chênh lệch giá giữa các mặt hàng được chọn tại 1 kỳ giao hàng — bỏ
+ * qua mặt hàng chưa có báo giá tháng đó (avgPrice null). Lấy mặt hàng rẻ
+ * nhất làm mốc so sánh cho các mặt hàng còn lại — hữu ích cho quyết định
+ * thay thế nguyên liệu, không chỉ đơn thuần liệt kê giá. */
+function buildPriceDifferenceLines(series: MaterialComparisonSeriesPoint[]): string[] {
+  const priced = series.filter(
+    (entry): entry is MaterialComparisonSeriesPoint & { avgPrice: number } =>
+      entry.avgPrice !== null,
+  )
+  if (priced.length < 2) {
+    return []
+  }
+
+  const cheapest = priced.reduce((lowest, entry) =>
+    entry.avgPrice < lowest.avgPrice ? entry : lowest,
+  )
+
+  return priced
+    .filter((entry) => entry.materialId !== cheapest.materialId)
+    .map((entry) => {
+      const diff = entry.avgPrice - cheapest.avgPrice
+      const percent = (diff / cheapest.avgPrice) * 100
+      return `${entry.materialName} cao hơn ${cheapest.materialName}: +${formatMoney(diff)} (+${formatPercent(percent)})`
+    })
+}
+
+function buildMaterialComparisonBuckets(
+  materialResults: MaterialTrendResult[],
+): MaterialComparisonBucket[] {
+  const deliveryMonths = new Set<string>()
+  for (const result of materialResults) {
+    for (const point of result.points) {
+      deliveryMonths.add(point.deliveryMonth)
+    }
+  }
+
+  return Array.from(deliveryMonths)
+    .sort((left, right) => left.localeCompare(right))
+    .map((deliveryMonth) => {
+      const series = materialResults.map((result) => {
+        const pointsInMonth = result.points.filter(
+          (point) => point.deliveryMonth === deliveryMonth,
+        )
+        const pointCount = pointsInMonth.length
+        const prices = pointsInMonth.map((point) => point.convertedPriceVndPerKg)
+        const avgPrice =
+          pointCount === 0 ? null : prices.reduce((total, price) => total + price, 0) / pointCount
+
+        return {
+          materialId: result.materialId,
+          materialName: result.materialName,
+          avgPrice,
+          minPrice: pointCount === 0 ? null : Math.min(...prices),
+          maxPrice: pointCount === 0 ? null : Math.max(...prices),
+          pointCount,
+        }
+      })
+
+      return {
+        deliveryMonth,
+        label: formatMonthLabel(deliveryMonth),
+        series,
+        differenceLines: buildPriceDifferenceLines(series),
+      }
+    })
+}
+
 export function useDashboardPage() {
   const authStore = useAuthStore()
   const themeStore = useThemeStore()
@@ -345,6 +446,46 @@ export function useDashboardPage() {
   const receivedDateEnd = ref<Date | null>(null)
   const selectedWeek = ref<Date | null>(getWeekStartDate(new Date()))
   const selectedWeeklyUserId = ref<string | null>(null)
+
+  const comparisonMaterialIds = ref<string[]>([])
+  const comparisonTrendResults = ref<MaterialTrendResult[]>([])
+  // Hiện dải giá thấp-cao theo từng mặt hàng — mặc định hiện hết, người dùng
+  // untick để ẩn dải của 1 mặt hàng cụ thể (không ẩn cả đường trung bình).
+  const comparisonBandVisibility = ref<Record<string, boolean>>({})
+
+  const comparisonBuckets = computed(() =>
+    buildMaterialComparisonBuckets(comparisonTrendResults.value),
+  )
+
+  async function loadMaterialComparison() {
+    const materialIds = comparisonMaterialIds.value.slice(0, MAX_COMPARISON_MATERIALS)
+    if (materialIds.length < 2) {
+      comparisonTrendResults.value = []
+      return
+    }
+
+    const responses = await Promise.all(
+      materialIds.map((materialId) =>
+        getQuotifyPriceTrends(
+          { ...queryParams.value, materialId },
+          authStore.accessToken,
+        ),
+      ),
+    )
+
+    comparisonTrendResults.value = materialIds.map((materialId, index) => ({
+      materialId,
+      materialName:
+        materials.value.find((material) => material.id === materialId)?.name ?? materialId,
+      points: responses[index].points,
+    }))
+
+    for (const materialId of materialIds) {
+      if (!(materialId in comparisonBandVisibility.value)) {
+        comparisonBandVisibility.value[materialId] = true
+      }
+    }
+  }
 
   const queryParams = computed<QuotifyDashboardQuery>(() => ({
     materialId: selectedMaterialId.value,
@@ -449,6 +590,82 @@ export function useDashboardPage() {
   const chartLabels = computed(() =>
     deliveryMonthBuckets.value.map((bucket) => bucket.label),
   )
+
+  // Màu đại diện MẶT HÀNG (không phải vai trò thống kê như chart đơn 1 mặt
+  // hàng), nên không tái dùng accent/success/warning/danger đã có ý nghĩa
+  // riêng ở chart đó — dùng 3 màu riêng biệt cho tối đa 3 mặt hàng so sánh.
+  const MATERIAL_COMPARISON_COLORS = ['#2563eb', '#db2777', '#0d9488']
+
+  const comparisonChartData = computed(() => {
+    const panel = cssVar('--app-surface-panel', '#ffffff')
+    const datasets: Record<string, unknown>[] = []
+
+    const seriesValues = (
+      materialId: string,
+      key: keyof Pick<MaterialComparisonSeriesPoint, 'avgPrice' | 'minPrice' | 'maxPrice'>,
+    ): (number | null)[] =>
+      comparisonBuckets.value.map((bucket: MaterialComparisonBucket) => {
+        const entry = bucket.series.find(
+          (candidate: MaterialComparisonSeriesPoint) => candidate.materialId === materialId,
+        )
+        return entry ? entry[key] : null
+      })
+
+    comparisonTrendResults.value.forEach((result, index) => {
+      const color = MATERIAL_COMPARISON_COLORS[index % MATERIAL_COMPARISON_COLORS.length]
+
+      // Dải giá thấp-cao: vẽ bằng 2 dataset vô hình (max, min) tô màu vùng
+      // giữa chúng (`fill` trỏ vào index dataset max) — Chart.js không hỗ
+      // trợ "band" trực tiếp, đây là cách chuẩn để mô phỏng. Mặc định hiện,
+      // người dùng untick để ẩn riêng từng mặt hàng (không ẩn đường trung
+      // bình) — theo phản hồi người dùng ngày 12/08/2026.
+      if (comparisonBandVisibility.value[result.materialId]) {
+        const maxDatasetIndex = datasets.length
+        datasets.push({
+          label: `${result.materialName} (cao nhất)`,
+          data: seriesValues(result.materialId, 'maxPrice'),
+          borderColor: 'transparent',
+          backgroundColor: 'transparent',
+          pointRadius: 0,
+          borderWidth: 0,
+          tension: 0.28,
+          spanGaps: false,
+          fill: false,
+        })
+        datasets.push({
+          label: `${result.materialName} (thấp nhất)`,
+          data: seriesValues(result.materialId, 'minPrice'),
+          borderColor: 'transparent',
+          // Nền tối làm màu dải bị "chìm" nếu dùng chung 1 mức alpha thấp
+          // cho cả 2 theme (đặc biệt màu gần tông nền tối) — tăng alpha ở
+          // dark mode để dải vẫn rõ, theo phản hồi người dùng ngày 13/08/2026.
+          backgroundColor: `${color}${themeStore.mode === 'dark' ? '4d' : '26'}`,
+          pointRadius: 0,
+          borderWidth: 0,
+          tension: 0.28,
+          spanGaps: false,
+          fill: maxDatasetIndex,
+        })
+      }
+
+      datasets.push({
+        label: result.materialName,
+        data: seriesValues(result.materialId, 'avgPrice'),
+        borderColor: color,
+        backgroundColor: 'transparent',
+        pointBackgroundColor: color,
+        pointBorderColor: panel,
+        pointRadius: 4,
+        tension: 0.28,
+        spanGaps: false,
+      })
+    })
+
+    return {
+      labels: comparisonBuckets.value.map((bucket) => bucket.label),
+      datasets,
+    }
+  })
 
   const chartData = computed(() => {
     const panel = cssVar('--app-surface-panel', '#ffffff')
@@ -682,6 +899,145 @@ export function useDashboardPage() {
     }
   })
 
+  const comparisonChartOptions = computed(() => {
+    const grid =
+      themeStore.mode === 'dark'
+        ? cssVar('--app-border-strong', '#334155')
+        : cssVar('--app-border-soft', '#e2e8f0')
+    const textColor = cssVar('--app-text-secondary', '#64748b')
+
+    return {
+      maintainAspectRatio: false,
+      responsive: true,
+      interaction: {
+        intersect: false,
+        mode: 'index',
+      },
+      onClick(_event: unknown, elements: { index: number; datasetIndex: number }[]) {
+        const element = elements[0]
+        const bucket = comparisonBuckets.value[element?.index ?? -1]
+        const result = comparisonTrendResults.value[element?.datasetIndex ?? -1]
+        if (!bucket || !result) {
+          return
+        }
+        router.push({
+          path: '/quotes',
+          query: { materialId: result.materialId, deliveryMonth: bucket.deliveryMonth },
+        })
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: textColor,
+            boxWidth: 12,
+            boxHeight: 12,
+            // Dataset dải giá thấp-cao (`(cao nhất)`/`(thấp nhất)`) chỉ là
+            // helper để tô vùng giữa 2 đường ẩn, không phải series riêng có
+            // ý nghĩa để bật/tắt qua legend — ẩn khỏi legend cho đỡ rối.
+            filter: (legendItem: { text?: string }) =>
+              !legendItem.text?.endsWith('nhất)'),
+          },
+        },
+        tooltip: {
+          enabled: false,
+          external(context: {
+            chart: { canvas: HTMLCanvasElement }
+            tooltip: {
+              opacity: number
+              title?: string[]
+              dataPoints: { dataIndex: number }[]
+              caretX: number
+              caretY: number
+            }
+          }) {
+            const { chart, tooltip } = context
+            const tooltipEl = getOrCreateChartTooltipElement(chart.canvas)
+
+            if (tooltip.opacity === 0) {
+              tooltipEl.style.opacity = '0'
+              return
+            }
+
+            tooltipEl.replaceChildren()
+
+            const bucket = comparisonBuckets.value[tooltip.dataPoints[0]?.dataIndex ?? -1]
+            if (!bucket) {
+              tooltipEl.style.opacity = '0'
+              return
+            }
+
+            const titleEl = document.createElement('div')
+            titleEl.className = 'quotify-chart-tooltip__title'
+            titleEl.textContent = tooltip.title?.[0] ?? bucket.label
+            tooltipEl.appendChild(titleEl)
+
+            bucket.series.forEach((entry, index) => {
+              const color =
+                MATERIAL_COMPARISON_COLORS[index % MATERIAL_COMPARISON_COLORS.length]
+              const priceLabel =
+                entry.avgPrice === null || entry.minPrice === null || entry.maxPrice === null
+                  ? 'Chưa có báo giá'
+                  : `TB ${formatNumber(entry.avgPrice)} (Thấp ${formatNumber(entry.minPrice)} – Cao ${formatNumber(entry.maxPrice)}) VNĐ/KG (${entry.pointCount} báo giá)`
+              tooltipEl.appendChild(
+                buildTooltipRowElement(`${entry.materialName}: ${priceLabel}`, color),
+              )
+            })
+
+            if (bucket.differenceLines.length > 0) {
+              const spacerEl = document.createElement('div')
+              spacerEl.className = 'quotify-chart-tooltip__count'
+              spacerEl.textContent = bucket.differenceLines[0]
+              tooltipEl.appendChild(spacerEl)
+              for (const line of bucket.differenceLines.slice(1)) {
+                const lineEl = document.createElement('div')
+                lineEl.className = 'quotify-chart-tooltip__count'
+                lineEl.textContent = line
+                tooltipEl.appendChild(lineEl)
+              }
+            }
+
+            const hintEl = document.createElement('div')
+            hintEl.className = 'quotify-chart-tooltip__hint'
+            hintEl.textContent = 'Nhấp vào 1 đường để xem báo giá tương ứng trong Bảng báo giá'
+            tooltipEl.appendChild(hintEl)
+
+            const { offsetLeft, offsetTop, offsetWidth: canvasWidth } = chart.canvas
+            tooltipEl.style.opacity = '1'
+            tooltipEl.style.left = '0px'
+            tooltipEl.style.top = '0px'
+            const tooltipWidth = tooltipEl.offsetWidth
+            const tooltipHeight = tooltipEl.offsetHeight
+            const idealLeft = offsetLeft + tooltip.caretX - tooltipWidth / 2
+            const minLeft = offsetLeft
+            const maxLeft = offsetLeft + canvasWidth - tooltipWidth
+            const clampedLeft = Math.max(minLeft, Math.min(idealLeft, maxLeft))
+            tooltipEl.style.left = `${clampedLeft}px`
+            tooltipEl.style.top = `${offsetTop + tooltip.caretY - tooltipHeight - 12}px`
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: textColor,
+            maxRotation: 0,
+          },
+          grid: {
+            color: grid,
+          },
+        },
+        y: {
+          ticks: {
+            color: textColor,
+          },
+          grid: {
+            color: grid,
+          },
+        },
+      },
+    }
+  })
+
   const weeklyEntryChartData = computed(() => {
     const accent = cssVar('--app-accent', '#7c3aed')
     const warning = cssVar('--app-warning', '#f59e0b')
@@ -862,6 +1218,13 @@ export function useDashboardPage() {
     receivedDateEnd,
     selectedWeek,
     selectedWeeklyUserId,
+    comparisonMaterialIds,
+    comparisonBuckets,
+    comparisonBandVisibility,
+    comparisonTrendResults,
+    comparisonChartData,
+    comparisonChartOptions,
+    loadMaterialComparison,
     metricCards,
     userKpis,
     weeklyUserActivities,
