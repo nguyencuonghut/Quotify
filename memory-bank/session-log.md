@@ -896,3 +896,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Fix duplicate colors in seasonal comparison chart
 - Tom tat: MATERIAL_COMPARISON_COLORS chi co 3 mau nhung chart mua vu cho chon toi 5 nam, nen index % length khien nam thu 4 trung mau nam thu 1. Mo rong palette len 5 mau, them test regression, verify bang Playwright that voi 4 nam 2023-2026.
+
+## 2026-08-13 09:34:55Z - claude
+
+- Tieu de: Split seasonal chart X-axis into 3 periods per month
+- Tom tat: Chia truc X chart mua vu thanh 3 ky/thang (1-10, 11-20, 21-cuoi thang). Khoa nhom gop = monthOffset*3+third (van sort so hoc dung), decomposeThirdOffset tach nguoc bang Math.floor. Cap nhat click-through/tooltip de tinh dung khoang ~10 ngay thay vi ca thang. 30 test pass, verify Playwright thuc voi du lieu 2024-2026.
+
+## 2026-08-13 09:42:00Z - claude
+
+- Tieu de: Fix misleading repeated period label on seasonal chart X-axis
+- Tom tat: Khong phai loi du lieu - Chart.js autoSkip buoc nhay ~3 khop dung so bucket/thang nen moi tick con hien vo tinh roi vao cung 1 ky tuong doi (luon kỳ 2). Sua bang cach bo '(ky N)' khoi bucket.label (truc X), giu nguyen trong tooltip qua formatSeriesRowLabel. Cap nhat 3 test theo dung thay doi hanh vi, verify Playwright thuc dung kich ban user bao.

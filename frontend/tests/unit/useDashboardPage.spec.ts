@@ -867,17 +867,13 @@ describe('useDashboardPage', () => {
       )
     })
 
-    it('groups points by months-before-delivery (not calendar month), sorted numerically across double-digit offsets', async () => {
-      // Kỳ hàng về 10/2024 nhận báo giá từ 11/2023 (T-11) đến 10/2024 (T0) —
-      // đúng ví dụ người dùng đưa ra khi duyệt phương án. Nếu sắp theo
-      // localeCompare (chuỗi) thay vì số học, "-10" > "-11" (so ký tự '1'>'0'
-      // ở vị trí thứ 2), cho thứ tự SAI — đây là bug đã lường trước và phải
-      // tránh khi tổng quát hóa buildGroupedComparisonBuckets.
+    it('splits each month into 3 finer buckets (kỳ 1: ngày 1-10, kỳ 2: 11-20, kỳ 3: 21-cuối tháng)', async () => {
       dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async () => ({
         ...priceTrends,
         points: [
-          { ...priceTrends.points[0], receivedDate: '2023-12-15', deliveryMonth: '2024-10-01', convertedPriceVndPerKg: 7000 },
-          { ...priceTrends.points[0], receivedDate: '2023-11-20', deliveryMonth: '2024-10-01', convertedPriceVndPerKg: 6800 },
+          { ...priceTrends.points[0], receivedDate: '2023-11-05', deliveryMonth: '2024-10-01', convertedPriceVndPerKg: 6800 },
+          { ...priceTrends.points[0], receivedDate: '2023-11-25', deliveryMonth: '2024-10-01', convertedPriceVndPerKg: 7000 },
+          { ...priceTrends.points[0], receivedDate: '2023-11-15', deliveryMonth: '2024-10-01', convertedPriceVndPerKg: 6900 },
         ],
       }))
 
@@ -888,7 +884,38 @@ describe('useDashboardPage', () => {
 
       await page.loadSeasonalComparison()
 
-      expect(page.seasonalBuckets.value.map((bucket) => bucket.groupKey)).toEqual(['-11', '-10'])
+      // Nhãn trục X (bucket.label) chỉ hiện tháng tương đối, không hiện kỳ —
+      // nếu hiện, Chart.js autoSkip (bước nhảy ~3, khớp đúng 3 bucket/tháng)
+      // sẽ khiến MỌI tick còn hiển thị vô tình rơi vào cùng 1 kỳ, trông như
+      // lỗi (đã gặp thật, user báo "nhãn trục X toàn ghi kỳ 2" ngày
+      // 13/08/2026). Kỳ cụ thể vẫn phân biệt được qua `groupKey` (dùng ở
+      // tooltip qua formatSeriesRowLabel, xem test tooltip bên dưới).
+      expect(page.seasonalBuckets.value.map((bucket) => bucket.label)).toEqual(['T-11', 'T-11', 'T-11'])
+      expect(page.seasonalBuckets.value.map((bucket) => bucket.groupKey)).toEqual(['-33', '-32', '-31'])
+      expect(page.seasonalBuckets.value.map((bucket) => bucket.series[0].avgPrice)).toEqual([6800, 6900, 7000])
+    })
+
+    it('groups months-before-delivery buckets sorted numerically, not lexically, across double-digit offsets', async () => {
+      // Kỳ hàng về 10/2024: điểm nhận ngày 25/11/2023 (T-11, kỳ 3, khóa nhóm
+      // số học "-31") phải xếp TRƯỚC điểm nhận ngày 05/12/2023 (T-10, kỳ 1,
+      // khóa "-30") — nếu sắp theo localeCompare (chuỗi) thay vì số học,
+      // "-30" < "-31" (so ký tự '0'<'1' ở vị trí thứ 3), cho thứ tự SAI.
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async () => ({
+        ...priceTrends,
+        points: [
+          { ...priceTrends.points[0], receivedDate: '2023-12-05', deliveryMonth: '2024-10-01', convertedPriceVndPerKg: 7000 },
+          { ...priceTrends.points[0], receivedDate: '2023-11-25', deliveryMonth: '2024-10-01', convertedPriceVndPerKg: 6800 },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      page.seasonalYears.value = [2024, 2025]
+
+      await page.loadSeasonalComparison()
+
+      expect(page.seasonalBuckets.value.map((bucket) => bucket.groupKey)).toEqual(['-31', '-30'])
       expect(page.seasonalBuckets.value.map((bucket) => bucket.label)).toEqual(['T-11', 'T-10'])
     })
 
@@ -1001,8 +1028,8 @@ describe('useDashboardPage', () => {
       })
 
       const tooltipText = canvas.parentElement?.querySelector('.quotify-chart-tooltip')?.textContent
-      expect(tooltipText).toContain('2025 (09/2025)')
-      expect(tooltipText).toContain('2026 (09/2026)')
+      expect(tooltipText).toContain('2025 (09/2025, kỳ 1)')
+      expect(tooltipText).toContain('2026 (09/2026, kỳ 1)')
     })
 
     it('clicking a point navigates to /quotes with the fixed material, that year\'s delivery month, and the real received-date range for that offset', async () => {
@@ -1032,7 +1059,7 @@ describe('useDashboardPage', () => {
           materialId: 'material-1',
           deliveryMonth: '2026-10-01',
           receivedDateStart: '2026-09-01',
-          receivedDateEnd: '2026-09-30',
+          receivedDateEnd: '2026-09-10',
         },
       })
     })

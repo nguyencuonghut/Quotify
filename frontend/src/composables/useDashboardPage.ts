@@ -131,9 +131,61 @@ function computeMonthsBeforeDelivery(receivedDate: string, deliveryMonth: string
   return (receivedYear * 12 + receivedMonth) - (deliveryYear * 12 + deliveryMonthNumber)
 }
 
-function formatMonthOffsetLabel(offsetKey: string): string {
-  const offset = Number(offsetKey)
-  return offset === 0 ? 'T0 (giao hàng)' : `T${offset}`
+/** Chia 1 tháng thành 3 "kỳ" theo quy ước phổ biến trong báo cáo kinh doanh
+ * VN: kỳ 1 = ngày 1-10, kỳ 2 = ngày 11-20, kỳ 3 = ngày 21-cuối tháng. */
+function computeThirdOfMonth(day: number): number {
+  if (day <= 10) return 0
+  if (day <= 20) return 1
+  return 2
+}
+
+/** Khóa nhóm mịn hơn cho chart mùa vụ: số tháng trước kỳ giao hàng
+ * (`computeMonthsBeforeDelivery`) nhân 3 rồi cộng thêm kỳ trong tháng (0-2)
+ * — vẫn là 1 số nguyên tuyến tính theo thời gian (mỗi lần tăng 1 đơn vị là
+ * qua 1 kỳ ~10 ngày), nên vẫn sắp đúng bằng so sánh số học thông thường. */
+function computeThirdsBeforeDelivery(receivedDate: string, deliveryMonth: string): number {
+  const monthOffset = computeMonthsBeforeDelivery(receivedDate, deliveryMonth)
+  const day = Number(receivedDate.slice(8, 10))
+  return monthOffset * 3 + computeThirdOfMonth(day)
+}
+
+/** Ngược lại `computeThirdsBeforeDelivery`: tách khóa nhóm gộp thành số
+ * tháng trước kỳ giao hàng + kỳ trong tháng (0-2), dùng cho label và
+ * click-through. Dùng `Math.floor` (không phải chia nguyên thông thường) để
+ * ra đúng kết quả cho `combinedOffset` âm. */
+function decomposeThirdOffset(combinedOffset: number): { monthOffset: number; third: number } {
+  const monthOffset = Math.floor(combinedOffset / 3)
+  const third = combinedOffset - monthOffset * 3
+  return { monthOffset, third }
+}
+
+/** Nhãn trục X CHỈ hiện tháng tương đối (`T-11`, `T0 (giao hàng)`), KHÔNG hiện
+ * kỳ trong tháng — dù mỗi tháng có 3 bucket (`computeThirdsBeforeDelivery`),
+ * ghi thêm "(kỳ N)" vào label khiến tick nào cũng hiện thông tin kỳ, và vì
+ * Chart.js tự bỏ bớt tick để tránh chật (autoSkip), bước nhảy ~3 khớp đúng số
+ * bucket/tháng nên MỌI tick còn hiện ra vô tình rơi vào cùng 1 kỳ tương đối
+ * (luôn "kỳ 2") — trông như lỗi dù dữ liệu bên dưới vẫn đúng (mỗi điểm trên
+ * đường vẫn đúng vị trí, tooltip hover từng điểm vẫn đúng kỳ của điểm đó).
+ * Kỳ cụ thể vẫn hiện đầy đủ trong tooltip qua `formatSeriesRowLabel`. */
+function formatThirdOffsetLabel(offsetKey: string): string {
+  const { monthOffset } = decomposeThirdOffset(Number(offsetKey))
+  return monthOffset === 0 ? 'T0 (giao hàng)' : `T${monthOffset}`
+}
+
+/** Khoảng ngày nhận báo giá thực tế của 1 kỳ (0-2) trong tháng `monthStart`
+ * ("YYYY-MM-01") — dùng để lọc `/quotes` đúng khoảng ~10 ngày đã click, thay
+ * vì cả tháng, vì trục X giờ đã mịn hơn theo kỳ. */
+function getThirdOfMonthDateRange(monthStart: string, third: number): { start: string; end: string } {
+  const [year, month] = monthStart.slice(0, 7).split('-').map(Number)
+  const monthPrefix = `${year}-${String(month).padStart(2, '0')}`
+  if (third === 0) {
+    return { start: `${monthPrefix}-01`, end: `${monthPrefix}-10` }
+  }
+  if (third === 1) {
+    return { start: `${monthPrefix}-11`, end: `${monthPrefix}-20` }
+  }
+  const lastDay = new Date(year, month, 0).getDate()
+  return { start: `${monthPrefix}-21`, end: `${monthPrefix}-${String(lastDay).padStart(2, '0')}` }
 }
 
 /** Cộng `months` (có thể âm) vào `monthStart` (dạng "YYYY-MM-01" hoặc
@@ -612,10 +664,10 @@ export function useDashboardPage() {
   const seasonalBuckets = computed<MaterialComparisonBucket[]>(() =>
     buildGroupedComparisonBuckets(
       seasonalTrendResults.value,
-      (point) => String(computeMonthsBeforeDelivery(point.receivedDate, point.deliveryMonth)),
+      (point) => String(computeThirdsBeforeDelivery(point.receivedDate, point.deliveryMonth)),
       {
         compareKeys: (left, right) => Number(left) - Number(right),
-        formatLabel: formatMonthOffsetLabel,
+        formatLabel: formatThirdOffsetLabel,
       },
     ),
   )
@@ -1288,24 +1340,33 @@ export function useDashboardPage() {
     const paddedMonth = String(seasonalMonth.value ?? 1).padStart(2, '0')
 
     const deliveryMonthForYear = (year: string) => `${year}-${paddedMonth}-01`
-    const actualMonthForBucket = (year: string, bucket: MaterialComparisonBucket) =>
-      addMonthsToMonthStart(deliveryMonthForYear(year), Number(bucket.groupKey))
+    // `bucket.groupKey` giờ là khóa gộp (tháng*3 + kỳ, xem
+    // computeThirdsBeforeDelivery) — phải tách lại thành tháng thực tế + kỳ
+    // trong tháng đó để suy ra đúng khoảng ngày nhận báo giá ~10 ngày (thay
+    // vì cả tháng) cho click-through và nhãn tooltip.
+    const resolveBucketDateInfo = (year: string, bucket: MaterialComparisonBucket) => {
+      const { monthOffset, third } = decomposeThirdOffset(Number(bucket.groupKey))
+      const actualMonth = addMonthsToMonthStart(deliveryMonthForYear(year), monthOffset)
+      return { actualMonth, third, range: getThirdOfMonthDateRange(actualMonth, third) }
+    }
 
     return buildComparisonChartOptions(
       seasonalBuckets.value,
       seasonalTrendResults.value,
       (bucket, result) => {
         const year = result.materialId
-        const receivedDateStart = actualMonthForBucket(year, bucket)
+        const { range } = resolveBucketDateInfo(year, bucket)
         return {
           materialId: fixedMaterialId,
           deliveryMonth: deliveryMonthForYear(year),
-          receivedDateStart,
-          receivedDateEnd: getReceivedDateMonthEnd(receivedDateStart),
+          receivedDateStart: range.start,
+          receivedDateEnd: range.end,
         }
       },
-      (entry, bucket) =>
-        `${entry.materialName} (${formatMonthLabel(actualMonthForBucket(entry.materialId, bucket))})`,
+      (entry, bucket) => {
+        const { actualMonth, third } = resolveBucketDateInfo(entry.materialId, bucket)
+        return `${entry.materialName} (${formatMonthLabel(actualMonth)}, kỳ ${third + 1})`
+      },
     )
   })
 
