@@ -109,6 +109,15 @@ function formatMonthLabel(value: string): string {
   return month && year ? `${month}/${year}` : value
 }
 
+/** `monthStart` dạng "YYYY-MM-01" (khóa nhóm theo tháng nhận báo giá) → trả
+ * về ngày cuối cùng của tháng đó, dạng "YYYY-MM-DD", để lọc `/quotes` theo
+ * đúng khoảng ngày nhận báo giá của tháng được click trên chart. */
+function getReceivedDateMonthEnd(monthStart: string): string {
+  const [year, month] = monthStart.split('-').map(Number)
+  const lastDay = new Date(year, month, 0).getDate()
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+}
+
 function toDateInputValue(value: Date | null): string | null {
   if (!value) {
     return null
@@ -347,7 +356,10 @@ interface MaterialComparisonSeriesPoint {
 }
 
 interface MaterialComparisonBucket {
-  deliveryMonth: string
+  // Khóa nhóm dùng chung cho cả 2 chart: chart "theo kỳ hàng về" nhóm theo
+  // deliveryMonth, chart "diễn biến theo ngày báo giá" nhóm theo tháng của
+  // receivedDate — tên trung tính để 1 hàm build dùng được cho cả hai.
+  groupKey: string
   label: string
   series: MaterialComparisonSeriesPoint[]
   differenceLines: string[]
@@ -383,25 +395,28 @@ function buildPriceDifferenceLines(series: MaterialComparisonSeriesPoint[]): str
     })
 }
 
-function buildMaterialComparisonBuckets(
+/** Nhóm điểm dữ liệu của nhiều mặt hàng theo 1 khóa bất kỳ (kỳ giao hàng
+ * hoặc tháng nhận báo giá — do `getGroupKey` quyết định), tính avg/min/max/
+ * số báo giá + callout chênh lệch mỗi nhóm. Dùng chung cho cả chart "so
+ * sánh theo kỳ hàng về" và chart "diễn biến theo ngày báo giá". */
+function buildGroupedComparisonBuckets(
   materialResults: MaterialTrendResult[],
+  getGroupKey: (point: QuotifyPriceTrendPoint) => string,
 ): MaterialComparisonBucket[] {
-  const deliveryMonths = new Set<string>()
+  const groupKeys = new Set<string>()
   for (const result of materialResults) {
     for (const point of result.points) {
-      deliveryMonths.add(point.deliveryMonth)
+      groupKeys.add(getGroupKey(point))
     }
   }
 
-  return Array.from(deliveryMonths)
+  return Array.from(groupKeys)
     .sort((left, right) => left.localeCompare(right))
-    .map((deliveryMonth) => {
+    .map((groupKey) => {
       const series = materialResults.map((result) => {
-        const pointsInMonth = result.points.filter(
-          (point) => point.deliveryMonth === deliveryMonth,
-        )
-        const pointCount = pointsInMonth.length
-        const prices = pointsInMonth.map((point) => point.convertedPriceVndPerKg)
+        const pointsInGroup = result.points.filter((point) => getGroupKey(point) === groupKey)
+        const pointCount = pointsInGroup.length
+        const prices = pointsInGroup.map((point) => point.convertedPriceVndPerKg)
         const avgPrice =
           pointCount === 0 ? null : prices.reduce((total, price) => total + price, 0) / pointCount
 
@@ -416,12 +431,18 @@ function buildMaterialComparisonBuckets(
       })
 
       return {
-        deliveryMonth,
-        label: formatMonthLabel(deliveryMonth),
+        groupKey,
+        label: formatMonthLabel(groupKey),
         series,
         differenceLines: buildPriceDifferenceLines(series),
       }
     })
+}
+
+function buildMaterialComparisonBuckets(
+  materialResults: MaterialTrendResult[],
+): MaterialComparisonBucket[] {
+  return buildGroupedComparisonBuckets(materialResults, (point) => point.deliveryMonth)
 }
 
 export function useDashboardPage() {
@@ -483,6 +504,51 @@ export function useDashboardPage() {
     for (const materialId of materialIds) {
       if (!(materialId in comparisonBandVisibility.value)) {
         comparisonBandVisibility.value[materialId] = true
+      }
+    }
+  }
+
+  // Chart "diễn biến giá theo ngày báo giá cho 1 kỳ giao hàng cố định" —
+  // bộ lọc độc lập với bộ lọc chung của Dashboard (kỳ giao hàng ở đây luôn
+  // là 1 giá trị cố định người dùng chọn, không phải trục biến thiên).
+  const historyDeliveryMonth = ref<Date | null>(null)
+  const historyMaterialIds = ref<string[]>([])
+  const historyTrendResults = ref<MaterialTrendResult[]>([])
+  const historyBandVisibility = ref<Record<string, boolean>>({})
+
+  const historyBuckets = computed(() =>
+    buildGroupedComparisonBuckets(historyTrendResults.value, (point) =>
+      `${point.receivedDate.slice(0, 7)}-01`,
+    ),
+  )
+
+  async function loadPriceHistory() {
+    const materialIds = historyMaterialIds.value.slice(0, MAX_COMPARISON_MATERIALS)
+    if (materialIds.length < 2 || !historyDeliveryMonth.value) {
+      historyTrendResults.value = []
+      return
+    }
+
+    const fixedDeliveryMonth = toDateInputValue(historyDeliveryMonth.value)
+    const responses = await Promise.all(
+      materialIds.map((materialId) =>
+        getQuotifyPriceTrends(
+          { materialId, deliveryMonth: fixedDeliveryMonth },
+          authStore.accessToken,
+        ),
+      ),
+    )
+
+    historyTrendResults.value = materialIds.map((materialId, index) => ({
+      materialId,
+      materialName:
+        materials.value.find((material) => material.id === materialId)?.name ?? materialId,
+      points: responses[index].points,
+    }))
+
+    for (const materialId of materialIds) {
+      if (!(materialId in historyBandVisibility.value)) {
+        historyBandVisibility.value[materialId] = true
       }
     }
   }
@@ -596,7 +662,14 @@ export function useDashboardPage() {
   // riêng ở chart đó — dùng 3 màu riêng biệt cho tối đa 3 mặt hàng so sánh.
   const MATERIAL_COMPARISON_COLORS = ['#2563eb', '#db2777', '#0d9488']
 
-  const comparisonChartData = computed(() => {
+  // Dùng chung cho cả 2 chart so sánh nhiều mặt hàng (theo kỳ hàng về, và
+  // theo ngày báo giá cho 1 kỳ hàng về cố định) — chỉ khác nguồn buckets/
+  // trend-results/band-visibility truyền vào.
+  function buildComparisonChartData(
+    buckets: MaterialComparisonBucket[],
+    trendResults: MaterialTrendResult[],
+    bandVisibility: Record<string, boolean>,
+  ) {
     const panel = cssVar('--app-surface-panel', '#ffffff')
     const datasets: Record<string, unknown>[] = []
 
@@ -604,14 +677,14 @@ export function useDashboardPage() {
       materialId: string,
       key: keyof Pick<MaterialComparisonSeriesPoint, 'avgPrice' | 'minPrice' | 'maxPrice'>,
     ): (number | null)[] =>
-      comparisonBuckets.value.map((bucket: MaterialComparisonBucket) => {
+      buckets.map((bucket: MaterialComparisonBucket) => {
         const entry = bucket.series.find(
           (candidate: MaterialComparisonSeriesPoint) => candidate.materialId === materialId,
         )
         return entry ? entry[key] : null
       })
 
-    comparisonTrendResults.value.forEach((result, index) => {
+    trendResults.forEach((result, index) => {
       const color = MATERIAL_COMPARISON_COLORS[index % MATERIAL_COMPARISON_COLORS.length]
 
       // Dải giá thấp-cao: vẽ bằng 2 dataset vô hình (max, min) tô màu vùng
@@ -619,7 +692,7 @@ export function useDashboardPage() {
       // trợ "band" trực tiếp, đây là cách chuẩn để mô phỏng. Mặc định hiện,
       // người dùng untick để ẩn riêng từng mặt hàng (không ẩn đường trung
       // bình) — theo phản hồi người dùng ngày 12/08/2026.
-      if (comparisonBandVisibility.value[result.materialId]) {
+      if (bandVisibility[result.materialId]) {
         const maxDatasetIndex = datasets.length
         datasets.push({
           label: `${result.materialName} (cao nhất)`,
@@ -662,10 +735,26 @@ export function useDashboardPage() {
     })
 
     return {
-      labels: comparisonBuckets.value.map((bucket) => bucket.label),
+      labels: buckets.map((bucket) => bucket.label),
       datasets,
     }
-  })
+  }
+
+  const comparisonChartData = computed(() =>
+    buildComparisonChartData(
+      comparisonBuckets.value,
+      comparisonTrendResults.value,
+      comparisonBandVisibility.value,
+    ),
+  )
+
+  const historyChartData = computed(() =>
+    buildComparisonChartData(
+      historyBuckets.value,
+      historyTrendResults.value,
+      historyBandVisibility.value,
+    ),
+  )
 
   const chartData = computed(() => {
     const panel = cssVar('--app-surface-panel', '#ffffff')
@@ -899,7 +988,17 @@ export function useDashboardPage() {
     }
   })
 
-  const comparisonChartOptions = computed(() => {
+  // Dùng chung cho cả 2 chart — chỉ khác nhau ở query điều hướng khi click
+  // vào 1 điểm (chart theo kỳ hàng về vs chart theo ngày báo giá của 1 kỳ
+  // hàng về cố định), phần tooltip/legend/scale giữ nguyên.
+  function buildComparisonChartOptions(
+    buckets: MaterialComparisonBucket[],
+    trendResults: MaterialTrendResult[],
+    buildNavigationQuery: (
+      bucket: MaterialComparisonBucket,
+      result: MaterialTrendResult,
+    ) => Record<string, string>,
+  ) {
     const grid =
       themeStore.mode === 'dark'
         ? cssVar('--app-border-strong', '#334155')
@@ -915,14 +1014,14 @@ export function useDashboardPage() {
       },
       onClick(_event: unknown, elements: { index: number; datasetIndex: number }[]) {
         const element = elements[0]
-        const bucket = comparisonBuckets.value[element?.index ?? -1]
-        const result = comparisonTrendResults.value[element?.datasetIndex ?? -1]
+        const bucket = buckets[element?.index ?? -1]
+        const result = trendResults[element?.datasetIndex ?? -1]
         if (!bucket || !result) {
           return
         }
         router.push({
           path: '/quotes',
-          query: { materialId: result.materialId, deliveryMonth: bucket.deliveryMonth },
+          query: buildNavigationQuery(bucket, result),
         })
       },
       plugins: {
@@ -960,7 +1059,7 @@ export function useDashboardPage() {
 
             tooltipEl.replaceChildren()
 
-            const bucket = comparisonBuckets.value[tooltip.dataPoints[0]?.dataIndex ?? -1]
+            const bucket = buckets[tooltip.dataPoints[0]?.dataIndex ?? -1]
             if (!bucket) {
               tooltipEl.style.opacity = '0'
               return
@@ -1036,6 +1135,28 @@ export function useDashboardPage() {
         },
       },
     }
+  }
+
+  const comparisonChartOptions = computed(() =>
+    buildComparisonChartOptions(
+      comparisonBuckets.value,
+      comparisonTrendResults.value,
+      (bucket, result) => ({ materialId: result.materialId, deliveryMonth: bucket.groupKey }),
+    ),
+  )
+
+  const historyChartOptions = computed(() => {
+    const fixedDeliveryMonth = toDateInputValue(historyDeliveryMonth.value) ?? ''
+    return buildComparisonChartOptions(
+      historyBuckets.value,
+      historyTrendResults.value,
+      (bucket, result) => ({
+        materialId: result.materialId,
+        deliveryMonth: fixedDeliveryMonth,
+        receivedDateStart: bucket.groupKey,
+        receivedDateEnd: getReceivedDateMonthEnd(bucket.groupKey),
+      }),
+    )
   })
 
   const weeklyEntryChartData = computed(() => {
@@ -1222,6 +1343,14 @@ export function useDashboardPage() {
     comparisonBuckets,
     comparisonBandVisibility,
     comparisonTrendResults,
+    historyDeliveryMonth,
+    historyMaterialIds,
+    historyBuckets,
+    historyTrendResults,
+    historyBandVisibility,
+    historyChartData,
+    historyChartOptions,
+    loadPriceHistory,
     comparisonChartData,
     comparisonChartOptions,
     loadMaterialComparison,

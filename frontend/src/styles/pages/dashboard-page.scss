@@ -75,6 +75,14 @@
   margin-top: 0.75rem;
 }
 
+.dashboard-page__history-filters {
+  display: grid;
+  grid-template-columns: minmax(11rem, 0.8fr) minmax(14rem, 1fr);
+  gap: 0.75rem;
+  align-items: end;
+  min-width: min(100%, 44rem);
+}
+
 .dashboard-page__comparison-band-toggle {
   display: flex;
   align-items: center;
@@ -432,7 +440,8 @@
   .dashboard-page__metrics,
   .dashboard-page__weekly-filters,
   .dashboard-page__weekly-stats,
-  .dashboard-page__weekly-grid {
+  .dashboard-page__weekly-grid,
+  .dashboard-page__history-filters {
     grid-template-columns: 1fr;
   }
 

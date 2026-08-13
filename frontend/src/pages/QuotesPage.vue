@@ -522,6 +522,24 @@ onMounted(() => {
     materialId.value = materialIdQuery
   }
 
+  const receivedDateStartQuery = route.query.receivedDateStart
+  if (typeof receivedDateStartQuery === 'string') {
+    const parsedReceivedDateStart = new Date(receivedDateStartQuery)
+    if (!Number.isNaN(parsedReceivedDateStart.getTime())) {
+      receivedDateStart.value = parsedReceivedDateStart
+      showAdvancedFilters.value = true
+    }
+  }
+
+  const receivedDateEndQuery = route.query.receivedDateEnd
+  if (typeof receivedDateEndQuery === 'string') {
+    const parsedReceivedDateEnd = new Date(receivedDateEndQuery)
+    if (!Number.isNaN(parsedReceivedDateEnd.getTime())) {
+      receivedDateEnd.value = parsedReceivedDateEnd
+      showAdvancedFilters.value = true
+    }
+  }
+
   fetchLookups()
   loadQuotesData()
 })

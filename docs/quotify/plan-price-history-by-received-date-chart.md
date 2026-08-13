@@ -1,5 +1,14 @@
 # Kế Hoạch: Chart So Sánh Giá Lịch Sử Theo Ngày Báo Giá (Cho 1 Kỳ Giao Hàng Cố Định)
 
+> **V1 đã triển khai xong** (13/08/2026). Panel thứ 3 "Diễn biến giá theo thời
+> gian chào giá" đã lên Dashboard, triển khai theo TDD, tái dùng hạ tầng band
+> MIN-MAX/tooltip/callout chênh lệch từ chart so sánh trước. Đã vá gap
+> `receivedDateStart`/`receivedDateEnd` chưa đọc từ query string ở
+> `QuotesPage.vue`. Đã kiểm chứng bằng Playwright thật với dữ liệu Ngô hạt /
+> Khô dầu đậu nành cho kỳ giao hàng 12/2026 (dữ liệu thật có khoảng trống
+> nhận báo giá khác nhau giữa 2 mặt hàng, đúng như thiết kế), click-through
+> điều hướng `/quotes` với đủ 3 filter đúng giá trị.
+
 ## 1. Bài Toán
 
 Người dùng muốn xem **diễn biến giá theo thời gian chào giá** (không phải

@@ -856,3 +856,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Fix band contrast in dark mode and add min-max to tooltip
 - Tom tat: Tang alpha nen dai gia rieng cho dark mode (mau xanh Ngo hat qua gan tong nen). Tooltip them TB/Thap/Cao thay vi chi hien gia trung binh. Verify bang Playwright thuc o dark mode.
+
+## 2026-08-13 03:12:54Z - claude
+
+- Tieu de: Implement price history by received-date chart (V1, TDD)
+- Tom tat: Trien khai panel thu 3 Dashboard 'Dien bien gia theo thoi gian chao gia': truc X la thang nhan bao gia, ky giao hang la filter co dinh bat buoc chon. Tong quat hoa buildMaterialComparisonBuckets/comparisonChartData/comparisonChartOptions dung chung 2 chart. Va gap QuotesPage.vue chua doc receivedDateStart/receivedDateEnd tu query string. Verify bang Playwright that voi du lieu Ngo hat/Kho dau dau nanh cho ky 12/2026, click-through dung du 3 filter.
+
+## 2026-08-13 03:19:02Z - claude
+
+- Tieu de: Fix missing tooltip on new price-history chart
+- Tom tat: Refactor DRY truoc do sot 1 cho: buildComparisonChartOptions tham so hoa dung onClick nhung tooltip external van doc cung comparisonBuckets.value thay vi tham so buckets, khien chart moi khong bao gio hien tooltip. Sua 1 dong, them test goi thang tooltip.external de chan tai phat, verify lai bang Playwright that.

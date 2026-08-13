@@ -324,6 +324,77 @@
         </div>
       </section>
 
+      <section class="dashboard-page__panel dashboard-page__panel--chart">
+        <div class="dashboard-page__panel-header">
+          <div>
+            <p class="dashboard-page__eyebrow">Diễn biến giá</p>
+            <h3 class="dashboard-page__panel-title">Diễn biến giá theo thời gian chào giá</h3>
+          </div>
+        </div>
+
+        <div class="dashboard-page__history-filters">
+          <label class="dashboard-page__filter-field">
+            <span class="dashboard-page__filter-label">Kỳ giao hàng (bắt buộc chọn)</span>
+            <DatePicker
+              v-model="historyDeliveryMonth"
+              date-format="mm/yy"
+              placeholder="mm/yyyy"
+              show-icon
+              view="month"
+              @update:model-value="loadPriceHistory"
+            />
+          </label>
+
+          <label class="dashboard-page__filter-field">
+            <span class="dashboard-page__filter-label">Chọn 2-3 mặt hàng để so sánh</span>
+            <MultiSelect
+              v-model="historyMaterialIds"
+              display="chip"
+              filter
+              filter-placeholder="Tìm vật tư..."
+              :loading="isLoadingLookups"
+              :options="materials"
+              option-label="name"
+              option-value="id"
+              placeholder="Chọn vật tư"
+              :selection-limit="3"
+              @update:model-value="loadPriceHistory"
+            >
+              <template #option="{ option }">{{ option.name }} ({{ option.code }})</template>
+            </MultiSelect>
+          </label>
+        </div>
+
+        <div v-if="historyTrendResults.length > 0" class="dashboard-page__comparison-bands">
+          <label
+            v-for="result in historyTrendResults"
+            :key="result.materialId"
+            class="dashboard-page__comparison-band-toggle"
+          >
+            <Checkbox v-model="historyBandVisibility[result.materialId]" binary />
+            <span>Hiện khoảng giá thấp-cao: {{ result.materialName }}</span>
+          </label>
+        </div>
+
+        <div v-if="historyBuckets.length > 0" class="dashboard-page__chart-frame">
+          <Chart
+            class="dashboard-page__chart"
+            type="line"
+            :data="historyChartData"
+            :options="historyChartOptions"
+          />
+        </div>
+        <div v-else class="dashboard-page__empty">
+          <i class="pi pi-chart-line" aria-hidden="true" />
+          <span v-if="!historyDeliveryMonth || historyMaterialIds.length < 2">
+            Chọn kỳ giao hàng và ít nhất 2 mặt hàng để xem diễn biến giá.
+          </span>
+          <span v-else>
+            Không có dữ liệu báo giá cho các mặt hàng đã chọn ở kỳ giao hàng này.
+          </span>
+        </div>
+      </section>
+
       <section class="dashboard-page__panel">
         <div class="dashboard-page__panel-header">
           <div>
@@ -404,6 +475,14 @@ const {
   comparisonTrendResults,
   comparisonChartData,
   comparisonChartOptions,
+  historyDeliveryMonth,
+  historyMaterialIds,
+  historyBuckets,
+  historyBandVisibility,
+  historyTrendResults,
+  historyChartData,
+  historyChartOptions,
+  loadPriceHistory,
   loadMaterialComparison,
   metricCards,
   weeklyUserOptions,
