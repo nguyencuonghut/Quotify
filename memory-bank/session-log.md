@@ -871,3 +871,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Add exchange rate column to quotes table
 - Tom tat: Them cot Ty gia vao bang /quotes giua Gia goc va Ky giao hang, dung field exchangeRate co san tren QuoteFlattenedDomain. Them formatExchangeRate va dong tuong ung o mobile card. Verify bang Playwright that.
+
+## 2026-08-13 03:59:07Z - claude
+
+- Tieu de: Allow historical exchange rate on VND/KG backfill import rows
+- Tom tat: Truoc day quote_backfill_import.py chan ca 3 field (ty gia, thue, chi phi lam hang) cho dong VND/KG. Nguoi dung can nhap duoc ty gia tham khao cho dong VND/KG de tra cuu boi canh lich su. Sua quote_backfill_import.py chi con chan thue/chi phi lam hang, va quote_pricing.py resolve_pricing_provenance nhan manual_rate tuy chon cho VND/KG (luu voi source_mode moi manual_reference, khong anh huong price_converted_vnd_per_kg). Them test parser + test tich hop qua create_quote that. 317 backend test pass, ruff/mypy sach.
+
+## 2026-08-13 07:23:51Z - claude
+
+- Tieu de: Add 18 domestic suppliers to seed data
+- Tom tat: Them 18 NCC noi dia moi vao SUPPLIER_SEEDS (Anh Khoa, APEX, B&T Viet Nam, Bao Lam, Cao Thang, COFCO, HANOFEED, Ha Thi, Minh Hien, Ngoc Long, Nhat Thanh, Quang Dung, TACN Ha Noi, Thuan An, Thinh Vuong, Tan Long, Tan Long (Cao Thang), Viet Anh), tat ca gan CORN+SOYBEAN_MEAL. Tan Long/Tan Long (Cao Thang) la NCC moi khac voi Tap doan Tan Long da co, dung code rieng tranh trung. Da chay seed_quotify.py 2 lan tren DB dev de xac nhan idempotent, 317 backend test pass.

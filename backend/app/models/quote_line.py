@@ -39,10 +39,11 @@ class QuoteLine(Base):
     delivery_month: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     line_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     
-    # Provenance fields for USD/MT
+    # Provenance fields for USD/MT (quy đổi giá); cũng cho phép lưu tỷ giá tham
+    # khảo (không dùng để quy đổi) trên dòng VND/KG, xem QuotePricingService.
     exchange_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     exchange_rate_source: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    exchange_rate_source_mode: Mapped[str | None] = mapped_column(String(30), nullable=True)  # 'auto' | 'manual_past' | 'manual_fallback'
+    exchange_rate_source_mode: Mapped[str | None] = mapped_column(String(30), nullable=True)  # 'auto' | 'manual_past' | 'manual_fallback' | 'manual_reference'
     exchange_rate_entered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     exchange_rate_manual_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     exchange_rate_actor_id: Mapped[UUID | None] = mapped_column(

@@ -70,6 +70,22 @@ class QuotePricingService:
                 raise ValueError(
                     "Dòng VND/KG không có thuế nhập khẩu hoặc chi phí làm hàng."
                 )
+            # Tỷ giá không dùng để quy đổi giá (VND/KG không cần quy đổi), nhưng
+            # cho phép nhập để nhân viên thu mua tra cứu lại bối cảnh tỷ giá tại
+            # thời điểm báo giá — hoàn toàn tham khảo, không ảnh hưởng
+            # price_converted_vnd_per_kg.
+            if manual_rate is not None:
+                return {
+                    "exchange_rate": quantize_money(manual_rate),
+                    "exchange_rate_source": "Nhập tay (chỉ tham khảo, không quy đổi giá)",
+                    "exchange_rate_source_mode": "manual_reference",
+                    "exchange_rate_entered_at": now or datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")),
+                    "exchange_rate_manual_reason": manual_reason.strip() if manual_reason else None,
+                    "exchange_rate_actor_id": actor_id,
+                    "import_tax_rate_percent": None,
+                    "processing_cost_vnd_per_kg": None,
+                    "price_converted_vnd_per_kg": quantize_money(price_original),
+                }
             return {
                 "exchange_rate": None,
                 "exchange_rate_source": None,

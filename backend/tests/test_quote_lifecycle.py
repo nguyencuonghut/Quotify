@@ -326,6 +326,48 @@ async def test_create_quote_success_vnd(test_setup: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_quote_vnd_kg_allows_optional_historical_exchange_rate_for_reference(
+    test_setup: Any,
+) -> None:
+    """VND/KG không cần tỷ giá để quy đổi giá, nhưng nhân viên thu mua có thể
+    nhập tỷ giá tại thời điểm báo giá để tra cứu bối cảnh lịch sử (vì sao giá
+    cao/thấp) — giá trị này chỉ mang tính tham khảo, không ảnh hưởng
+    price_converted_vnd_per_kg."""
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    lines = [{
+        "material_id": material_id,
+        "price_original": Decimal("15000.00"),
+        "currency": "VND",
+        "unit": "KG",
+        "delivery_month": date(2026, 8, 1),
+        "exchange_rate": Decimal("26100.00"),
+        "exchange_rate_manual_reason": "Tỷ giá tham khảo tại thời điểm báo giá",
+    }]
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=lines,
+        created_by_id=user_id,
+    )
+
+    line = quote.versions[0].lines[0]
+    assert line.price_converted_vnd_per_kg == Decimal("15000.00")  # không bị ảnh hưởng bởi tỷ giá
+    assert line.exchange_rate == Decimal("26100.00")
+    assert line.exchange_rate_source_mode == "manual_reference"
+    assert line.exchange_rate_manual_reason == "Tỷ giá tham khảo tại thời điểm báo giá"
+    assert line.import_tax_rate_percent is None
+    assert line.processing_cost_vnd_per_kg is None
+
+
+@pytest.mark.asyncio
 async def test_create_quote_success_usd_auto(test_setup: Any) -> None:
     session, quote_service, _ = test_setup
     

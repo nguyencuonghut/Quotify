@@ -262,9 +262,12 @@ def parse_quote_backfill_import_row(row_number: int, row: dict[str, str | None])
 
     historical_values = (exchange_rate, import_tax_rate_percent, processing_cost_vnd_per_kg)
     if currency == "VND" and unit == "KG":
-        if any(value is not None for value in historical_values):
+        # Tỷ giá được phép nhập cho dòng VND/KG (chỉ để tra cứu bối cảnh lịch
+        # sử, không dùng để quy đổi giá — VND/KG không cần quy đổi). Thuế nhập
+        # khẩu và chi phí làm hàng thì không áp dụng nên vẫn phải để trống.
+        if import_tax_rate_percent is not None or processing_cost_vnd_per_kg is not None:
             raise ValueError(
-                "Dòng VND/KG không được nhập tỷ giá, thuế nhập khẩu hoặc chi phí làm hàng.",
+                "Dòng VND/KG không được nhập thuế nhập khẩu hoặc chi phí làm hàng.",
             )
     elif currency == "USD" and unit == "MT":
         if any(value is None for value in historical_values):

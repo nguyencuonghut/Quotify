@@ -188,12 +188,21 @@ class TestParseQuoteBackfillImportRow:
 
     @pytest.mark.parametrize(
         "extra_field",
-        ["exchange_rate", "import_tax_rate_percent", "processing_cost_vnd_per_kg"],
+        ["import_tax_rate_percent", "processing_cost_vnd_per_kg"],
     )
-    def test_vnd_kg_row_rejects_historical_values(self, extra_field: str) -> None:
+    def test_vnd_kg_row_rejects_tax_and_processing_cost(self, extra_field: str) -> None:
         row = _vnd_row(**{extra_field: "1.00"})
         with pytest.raises(ValueError, match="không được nhập"):
             parse_quote_backfill_import_row(1, row)
+
+    def test_vnd_kg_row_allows_optional_historical_exchange_rate(self) -> None:
+        parsed = parse_quote_backfill_import_row(1, _vnd_row(exchange_rate="26100"))
+
+        assert parsed.currency == "VND"
+        assert parsed.unit == "KG"
+        assert parsed.exchange_rate == Decimal("26100")
+        assert parsed.import_tax_rate_percent is None
+        assert parsed.processing_cost_vnd_per_kg is None
 
     def test_rejects_unsupported_currency_unit_pair(self) -> None:
         row = _usd_row(currency="USD", unit="KG")
