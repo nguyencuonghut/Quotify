@@ -3,6 +3,9 @@
 
 # Local environment and secrets.
 .env
+
+# Personal Claude Code permission overrides (not a team policy).
+.claude/settings.local.json
 .env.*
 !.env.example
 !.env.production.example
