@@ -200,6 +200,12 @@
             </template>
           </Column>
 
+          <Column field="exchange_rate" header="Tỷ giá">
+            <template #body="{ data }">
+              {{ formatExchangeRate(data.exchangeRate) }}
+            </template>
+          </Column>
+
           <Column field="delivery_month" header="Kỳ giao hàng" sortable>
             <template #body="{ data }">
               {{ formatDeliveryMonth(data.deliveryMonth) }}
@@ -342,6 +348,10 @@
               <div>
                 <dt>Giá gốc</dt>
                 <dd>{{ formatOriginalPrice(item.priceOriginal, item.currency, item.unit) }}</dd>
+              </div>
+              <div>
+                <dt>Tỷ giá</dt>
+                <dd>{{ formatExchangeRate(item.exchangeRate) }}</dd>
               </div>
               <div>
                 <dt>Kỳ giao hàng</dt>
@@ -641,6 +651,14 @@ const formatVndPerKg = (val: number | null) => {
     maximumFractionDigits: 2,
   }).format(val)
   return `${formatted} VNĐ/KG`
+}
+
+const formatExchangeRate = (val: number | null) => {
+  if (val === null || val === undefined) return ''
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val)
 }
 
 const formatTaxRate = (val: number | null) => {

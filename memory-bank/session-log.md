@@ -866,3 +866,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Fix missing tooltip on new price-history chart
 - Tom tat: Refactor DRY truoc do sot 1 cho: buildComparisonChartOptions tham so hoa dung onClick nhung tooltip external van doc cung comparisonBuckets.value thay vi tham so buckets, khien chart moi khong bao gio hien tooltip. Sua 1 dong, them test goi thang tooltip.external de chan tai phat, verify lai bang Playwright that.
+
+## 2026-08-13 03:34:23Z - claude
+
+- Tieu de: Add exchange rate column to quotes table
+- Tom tat: Them cot Ty gia vao bang /quotes giua Gia goc va Ky giao hang, dung field exchangeRate co san tren QuoteFlattenedDomain. Them formatExchangeRate va dong tuong ung o mobile card. Verify bang Playwright that.
