@@ -77,10 +77,14 @@
 
 .dashboard-page__history-filters {
   display: grid;
-  grid-template-columns: minmax(11rem, 0.8fr) minmax(14rem, 1fr);
+  // `repeat(auto-fit, ...)` (không cố định số cột) vì class này dùng chung
+  // cho cả panel 2 bộ lọc (kỳ giao hàng + mặt hàng) và panel 3 bộ lọc
+  // (nguyên liệu + tháng hàng về + năm so sánh) — cố định 2 cột sẽ làm bộ
+  // lọc thứ 3 rơi xuống dòng riêng, lệch hẳn sang trái.
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   gap: 0.75rem;
   align-items: end;
-  min-width: min(100%, 44rem);
+  min-width: min(100%, 60rem);
 }
 
 .dashboard-page__comparison-band-toggle {

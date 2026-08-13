@@ -1,5 +1,15 @@
 # Kế Hoạch: Chart So Sánh Giá Theo Mùa Vụ Qua Các Năm (1 Mặt Hàng, 1 Tháng Hàng Về, Nhiều Năm)
 
+> **V1 đã triển khai xong** (13/08/2026). Panel thứ 4 "So sánh giá theo mùa
+> vụ qua các năm" đã lên Dashboard, triển khai theo TDD. Trục X tương đối
+> ("T-11".."T0 (giao hàng)") đúng như thiết kế mục 2. Tổng quát hóa thêm
+> `buildGroupedComparisonBuckets` (compareKeys/formatLabel tùy chỉnh) và
+> `buildComparisonChartOptions` (formatSeriesRowLabel tùy chỉnh) — cả 2 chart
+> cũ không đổi hành vi. Đã kiểm chứng bằng Playwright thật: Ngô hạt, tháng
+> hàng về 10, năm 2024/2025/2026 — tooltip hiện đúng "2024 (04/2024): TB...",
+> callout chênh lệch đúng, click-through điều hướng đúng
+> `deliveryMonth`/`receivedDateStart`/`receivedDateEnd` riêng theo từng năm.
+
 ## 1. Bài Toán
 
 Người dùng muốn so sánh **giá chào cho cùng 1 tháng hàng về (ví dụ tháng 10),

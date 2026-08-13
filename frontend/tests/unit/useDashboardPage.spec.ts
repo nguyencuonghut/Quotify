@@ -14,8 +14,13 @@ const materialsApiMock = vi.hoisted(() => ({
   listMaterialsLookup: vi.fn(),
 }))
 
+const pushMock = vi.hoisted(() => vi.fn())
+
 vi.mock('@/api/quotify-dashboard.api', () => dashboardApiMock)
 vi.mock('@/api/materials.api', () => materialsApiMock)
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: pushMock }),
+}))
 
 const entryKpis = {
   totalQuoteCount: 7,
@@ -818,6 +823,229 @@ describe('useDashboardPage', () => {
       const tooltipEl = canvas.parentElement?.querySelector('.quotify-chart-tooltip')
       expect(tooltipEl?.textContent).toContain('Ngô hạt')
       expect(tooltipEl?.textContent).toContain('Khô đậu nành')
+    })
+  })
+
+  describe('seasonal comparison across years for a fixed material and month', () => {
+    it('does not fetch without a material, a month, and at least 2 years selected', async () => {
+      const page = useDashboardPage()
+
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      page.seasonalYears.value = [2026]
+      await page.loadSeasonalComparison()
+      expect(dashboardApiMock.getQuotifyPriceTrends).not.toHaveBeenCalled()
+      expect(page.seasonalBuckets.value).toEqual([])
+
+      page.seasonalYears.value = [2025, 2026]
+      page.seasonalMonth.value = null
+      await page.loadSeasonalComparison()
+      expect(dashboardApiMock.getQuotifyPriceTrends).not.toHaveBeenCalled()
+
+      page.seasonalMonth.value = 10
+      page.seasonalMaterialId.value = null
+      await page.loadSeasonalComparison()
+      expect(dashboardApiMock.getQuotifyPriceTrends).not.toHaveBeenCalled()
+    })
+
+    it('fetches each selected year with the fixed material and month, in parallel', async () => {
+      const page = useDashboardPage()
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      page.seasonalYears.value = [2025, 2026]
+
+      await page.loadSeasonalComparison()
+
+      expect(dashboardApiMock.getQuotifyPriceTrends).toHaveBeenCalledTimes(2)
+      expect(dashboardApiMock.getQuotifyPriceTrends).toHaveBeenCalledWith(
+        { materialId: 'material-1', deliveryMonth: '2025-10-01' },
+        'mock-access-token',
+      )
+      expect(dashboardApiMock.getQuotifyPriceTrends).toHaveBeenCalledWith(
+        { materialId: 'material-1', deliveryMonth: '2026-10-01' },
+        'mock-access-token',
+      )
+    })
+
+    it('groups points by months-before-delivery (not calendar month), sorted numerically across double-digit offsets', async () => {
+      // Kỳ hàng về 10/2024 nhận báo giá từ 11/2023 (T-11) đến 10/2024 (T0) —
+      // đúng ví dụ người dùng đưa ra khi duyệt phương án. Nếu sắp theo
+      // localeCompare (chuỗi) thay vì số học, "-10" > "-11" (so ký tự '1'>'0'
+      // ở vị trí thứ 2), cho thứ tự SAI — đây là bug đã lường trước và phải
+      // tránh khi tổng quát hóa buildGroupedComparisonBuckets.
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async () => ({
+        ...priceTrends,
+        points: [
+          { ...priceTrends.points[0], receivedDate: '2023-12-15', deliveryMonth: '2024-10-01', convertedPriceVndPerKg: 7000 },
+          { ...priceTrends.points[0], receivedDate: '2023-11-20', deliveryMonth: '2024-10-01', convertedPriceVndPerKg: 6800 },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      page.seasonalYears.value = [2024, 2025]
+
+      await page.loadSeasonalComparison()
+
+      expect(page.seasonalBuckets.value.map((bucket) => bucket.groupKey)).toEqual(['-11', '-10'])
+      expect(page.seasonalBuckets.value.map((bucket) => bucket.label)).toEqual(['T-11', 'T-10'])
+    })
+
+    it('reuses the price-difference callout to compare years at the same offset', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points: [
+          {
+            ...priceTrends.points[0],
+            receivedDate: '2026-09-05',
+            deliveryMonth: '2026-10-01',
+            convertedPriceVndPerKg: query.deliveryMonth === '2026-10-01' ? 7200 : 6800,
+          },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      page.seasonalYears.value = [2025, 2026]
+
+      await page.loadSeasonalComparison()
+
+      expect(page.seasonalBuckets.value[0].differenceLines).toEqual(['2026 cao hơn 2025: +400.00 VNĐ/KG (+5.88%)'])
+    })
+
+    it('builds one chart dataset per selected year, labeled by year', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points: [
+          {
+            ...priceTrends.points[0],
+            receivedDate: '2026-09-05',
+            deliveryMonth: '2026-10-01',
+            convertedPriceVndPerKg: query.deliveryMonth === '2026-10-01' ? 7200 : 6800,
+          },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      page.seasonalYears.value = [2025, 2026]
+      await page.loadSeasonalComparison()
+      page.seasonalBandVisibility.value['2025'] = false
+      page.seasonalBandVisibility.value['2026'] = false
+
+      expect(page.seasonalChartData.value.labels).toEqual(['T-1'])
+      expect(page.seasonalChartData.value.datasets).toHaveLength(2)
+      expect(page.seasonalChartData.value.datasets[0]).toMatchObject({ label: '2025', data: [6800] })
+      expect(page.seasonalChartData.value.datasets[1]).toMatchObject({ label: '2026', data: [7200] })
+    })
+
+    it('gives every year a distinct line color, even at the max of 5 selected years', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockResolvedValue({
+        ...priceTrends,
+        points: [{ ...priceTrends.points[0], receivedDate: '2026-09-05', deliveryMonth: '2026-10-01' }],
+      })
+
+      const page = useDashboardPage()
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      page.seasonalYears.value = [2022, 2023, 2024, 2025, 2026]
+      await page.loadSeasonalComparison()
+      for (const year of page.seasonalYears.value) {
+        page.seasonalBandVisibility.value[String(year)] = false
+      }
+
+      const colors = page.seasonalChartData.value.datasets.map((dataset) => dataset.borderColor)
+      expect(colors).toHaveLength(5)
+      expect(new Set(colors).size).toBe(5)
+    })
+
+    it('renders the tooltip from its own seasonal buckets, showing each year with its real calendar month', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points: [
+          {
+            ...priceTrends.points[0],
+            receivedDate: query.deliveryMonth === '2026-10-01' ? '2026-09-05' : '2025-09-05',
+            deliveryMonth: query.deliveryMonth,
+            convertedPriceVndPerKg: query.deliveryMonth === '2026-10-01' ? 7200 : 6800,
+          },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      page.seasonalYears.value = [2025, 2026]
+      await page.loadSeasonalComparison()
+
+      // comparisonBuckets/historyBuckets (2 chart khác) phải rỗng — tooltip
+      // phải đọc từ seasonalBuckets của chính chart này, không rơi vào bẫy
+      // đã gặp thật (đọc nhầm state chart khác sau khi tổng quát hóa).
+      expect(page.comparisonBuckets.value).toEqual([])
+      expect(page.historyBuckets.value).toEqual([])
+
+      const canvas = document.createElement('canvas')
+      document.createElement('div').appendChild(canvas)
+      page.seasonalChartOptions.value.plugins.tooltip.external({
+        chart: { canvas },
+        tooltip: {
+          opacity: 1,
+          title: ['T-1'],
+          dataPoints: [{ dataIndex: 0 }],
+          caretX: 10,
+          caretY: 10,
+        },
+      })
+
+      const tooltipText = canvas.parentElement?.querySelector('.quotify-chart-tooltip')?.textContent
+      expect(tooltipText).toContain('2025 (09/2025)')
+      expect(tooltipText).toContain('2026 (09/2026)')
+    })
+
+    it('clicking a point navigates to /quotes with the fixed material, that year\'s delivery month, and the real received-date range for that offset', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points: [
+          {
+            ...priceTrends.points[0],
+            receivedDate: '2026-09-05',
+            deliveryMonth: query.deliveryMonth,
+            convertedPriceVndPerKg: 7200,
+          },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      page.seasonalYears.value = [2025, 2026]
+      await page.loadSeasonalComparison()
+
+      page.seasonalChartOptions.value.onClick(null, [{ index: 0, datasetIndex: 1 }])
+
+      expect(pushMock).toHaveBeenCalledWith({
+        path: '/quotes',
+        query: {
+          materialId: 'material-1',
+          deliveryMonth: '2026-10-01',
+          receivedDateStart: '2026-09-01',
+          receivedDateEnd: '2026-09-30',
+        },
+      })
+    })
+
+    it('offers the 5 most recent years, including the current one, as selectable options', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2026, 7, 13))
+
+      const page = useDashboardPage()
+
+      expect(page.seasonalAvailableYears.value).toEqual([2026, 2025, 2024, 2023, 2022])
+
+      vi.useRealTimers()
     })
   })
 })

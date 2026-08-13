@@ -53,6 +53,7 @@ interface DeliveryMonthBucket {
 }
 
 const MAX_COMPARISON_MATERIALS = 3
+const MAX_COMPARISON_YEARS = 5
 const preferredMaterialCodes = ['CORN']
 const preferredMaterialNames = ['ngô hạt', 'ngo hat', 'bắp hạt', 'bap hat']
 const supplierTypeOptions: DashboardSupplierTypeOption[] = [
@@ -116,6 +117,34 @@ function getReceivedDateMonthEnd(monthStart: string): string {
   const [year, month] = monthStart.split('-').map(Number)
   const lastDay = new Date(year, month, 0).getDate()
   return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+}
+
+/** Số tháng `receivedDate` cách kỳ hàng về `deliveryMonth` — dùng làm trục X
+ * "tương đối" cho chart mùa vụ (xem docs/quotify/plan-year-over-year-seasonal-comparison-chart.md
+ * mục 2): mỗi năm có khoảng ngày nhận báo giá nằm ở vị trí lịch khác nhau
+ * hoàn toàn, quy về số tháng trước kỳ giao hàng thì mới so sánh được. Luôn
+ * ≤ 0 trong trường hợp bình thường (nhận báo giá trước hoặc đúng tháng hàng
+ * về). */
+function computeMonthsBeforeDelivery(receivedDate: string, deliveryMonth: string): number {
+  const [receivedYear, receivedMonth] = receivedDate.slice(0, 7).split('-').map(Number)
+  const [deliveryYear, deliveryMonthNumber] = deliveryMonth.slice(0, 7).split('-').map(Number)
+  return (receivedYear * 12 + receivedMonth) - (deliveryYear * 12 + deliveryMonthNumber)
+}
+
+function formatMonthOffsetLabel(offsetKey: string): string {
+  const offset = Number(offsetKey)
+  return offset === 0 ? 'T0 (giao hàng)' : `T${offset}`
+}
+
+/** Cộng `months` (có thể âm) vào `monthStart` (dạng "YYYY-MM-01" hoặc
+ * "YYYY-MM-DD", chỉ dùng phần năm-tháng), trả về "YYYY-MM-01" của tháng kết
+ * quả — dùng để suy ra tháng lịch thực tế từ 1 offset tương đối. */
+function addMonthsToMonthStart(monthStart: string, months: number): string {
+  const [year, month] = monthStart.slice(0, 7).split('-').map(Number)
+  const totalMonths = year * 12 + (month - 1) + months
+  const resultYear = Math.floor(totalMonths / 12)
+  const resultMonth = totalMonths - resultYear * 12 + 1
+  return `${resultYear}-${String(resultMonth).padStart(2, '0')}-01`
 }
 
 function toDateInputValue(value: Date | null): string | null {
@@ -395,14 +424,27 @@ function buildPriceDifferenceLines(series: MaterialComparisonSeriesPoint[]): str
     })
 }
 
-/** Nhóm điểm dữ liệu của nhiều mặt hàng theo 1 khóa bất kỳ (kỳ giao hàng
- * hoặc tháng nhận báo giá — do `getGroupKey` quyết định), tính avg/min/max/
- * số báo giá + callout chênh lệch mỗi nhóm. Dùng chung cho cả chart "so
- * sánh theo kỳ hàng về" và chart "diễn biến theo ngày báo giá". */
+/** Nhóm điểm dữ liệu của nhiều mặt hàng (hoặc nhiều năm, xem chart mùa vụ)
+ * theo 1 khóa bất kỳ (kỳ giao hàng, tháng nhận báo giá, hoặc số tháng trước
+ * kỳ giao hàng — do `getGroupKey` quyết định), tính avg/min/max/số báo giá +
+ * callout chênh lệch mỗi nhóm. Dùng chung cho 3 chart so sánh trên Dashboard.
+ *
+ * `compareKeys`/`formatLabel` mặc định đúng cho khóa là chuỗi ngày lịch ISO
+ * (`"2026-07-01"` sắp đúng thứ tự thời gian bằng `localeCompare`) — nhưng
+ * SAI cho khóa là số nguyên có dấu dạng chuỗi (ví dụ chart mùa vụ dùng
+ * "-11"/"-10": so ký tự cho "-10" > "-11", ngược thứ tự số học đúng là
+ * -11 < -10) — truyền tham số tùy chỉnh cho các trường hợp đó. */
 function buildGroupedComparisonBuckets(
   materialResults: MaterialTrendResult[],
   getGroupKey: (point: QuotifyPriceTrendPoint) => string,
+  options?: {
+    compareKeys?: (left: string, right: string) => number
+    formatLabel?: (groupKey: string) => string
+  },
 ): MaterialComparisonBucket[] {
+  const compareKeys = options?.compareKeys ?? ((left, right) => left.localeCompare(right))
+  const formatLabel = options?.formatLabel ?? formatMonthLabel
+
   const groupKeys = new Set<string>()
   for (const result of materialResults) {
     for (const point of result.points) {
@@ -411,7 +453,7 @@ function buildGroupedComparisonBuckets(
   }
 
   return Array.from(groupKeys)
-    .sort((left, right) => left.localeCompare(right))
+    .sort(compareKeys)
     .map((groupKey) => {
       const series = materialResults.map((result) => {
         const pointsInGroup = result.points.filter((point) => getGroupKey(point) === groupKey)
@@ -432,7 +474,7 @@ function buildGroupedComparisonBuckets(
 
       return {
         groupKey,
-        label: formatMonthLabel(groupKey),
+        label: formatLabel(groupKey),
         series,
         differenceLines: buildPriceDifferenceLines(series),
       }
@@ -553,6 +595,63 @@ export function useDashboardPage() {
     }
   }
 
+  // Chart "so sánh giá theo mùa vụ qua các năm" — 1 mặt hàng cố định, 1 tháng
+  // hàng về cố định (chỉ tháng, không năm), so sánh nhiều NĂM cho cùng tháng
+  // đó. Bộ lọc độc lập với bộ lọc chung của Dashboard và 3 panel kia.
+  const seasonalMaterialId = ref<string | null>(null)
+  const seasonalMonth = ref<number | null>(null)
+  const seasonalYears = ref<number[]>([])
+  const seasonalTrendResults = ref<MaterialTrendResult[]>([])
+  const seasonalBandVisibility = ref<Record<string, boolean>>({})
+
+  const seasonalAvailableYears = computed<number[]>(() => {
+    const currentYear = new Date().getFullYear()
+    return Array.from({ length: MAX_COMPARISON_YEARS }, (_, index) => currentYear - index)
+  })
+
+  const seasonalBuckets = computed<MaterialComparisonBucket[]>(() =>
+    buildGroupedComparisonBuckets(
+      seasonalTrendResults.value,
+      (point) => String(computeMonthsBeforeDelivery(point.receivedDate, point.deliveryMonth)),
+      {
+        compareKeys: (left, right) => Number(left) - Number(right),
+        formatLabel: formatMonthOffsetLabel,
+      },
+    ),
+  )
+
+  async function loadSeasonalComparison() {
+    const years = seasonalYears.value.slice(0, MAX_COMPARISON_YEARS)
+    if (years.length < 2 || !seasonalMaterialId.value || !seasonalMonth.value) {
+      seasonalTrendResults.value = []
+      return
+    }
+
+    const materialId = seasonalMaterialId.value
+    const paddedMonth = String(seasonalMonth.value).padStart(2, '0')
+    const responses = await Promise.all(
+      years.map((year) =>
+        getQuotifyPriceTrends(
+          { materialId, deliveryMonth: `${year}-${paddedMonth}-01` },
+          authStore.accessToken,
+        ),
+      ),
+    )
+
+    seasonalTrendResults.value = years.map((year, index) => ({
+      materialId: String(year),
+      materialName: String(year),
+      points: responses[index].points,
+    }))
+
+    for (const year of years) {
+      const key = String(year)
+      if (!(key in seasonalBandVisibility.value)) {
+        seasonalBandVisibility.value[key] = true
+      }
+    }
+  }
+
   const queryParams = computed<QuotifyDashboardQuery>(() => ({
     materialId: selectedMaterialId.value,
     deliveryMonth: toDateInputValue(deliveryMonth.value),
@@ -657,10 +756,15 @@ export function useDashboardPage() {
     deliveryMonthBuckets.value.map((bucket) => bucket.label),
   )
 
-  // Màu đại diện MẶT HÀNG (không phải vai trò thống kê như chart đơn 1 mặt
-  // hàng), nên không tái dùng accent/success/warning/danger đã có ý nghĩa
-  // riêng ở chart đó — dùng 3 màu riêng biệt cho tối đa 3 mặt hàng so sánh.
-  const MATERIAL_COMPARISON_COLORS = ['#2563eb', '#db2777', '#0d9488']
+  // Màu đại diện MẶT HÀNG (hoặc NĂM, ở chart mùa vụ) — không phải vai trò
+  // thống kê như chart đơn 1 mặt hàng, nên không tái dùng accent/success/
+  // warning/danger đã có ý nghĩa riêng ở chart đó. Cần đủ MAX_COMPARISON_YEARS
+  // (5) màu riêng biệt — dùng chung mảng này cho cả 3 chart so sánh, kể cả
+  // khi chỉ 2-3 mặt hàng, để không phải theo dõi 2 palette khác nhau. Thiếu
+  // màu sẽ khiến 2 series trùng màu khi chọn đủ 4-5 năm (bug thật đã gặp
+  // ngày 13/08/2026 khi mảng này chỉ có 3 màu nhưng chart mùa vụ cho chọn
+  // tới 5 năm).
+  const MATERIAL_COMPARISON_COLORS = ['#2563eb', '#db2777', '#0d9488', '#d97706', '#7c3aed']
 
   // Dùng chung cho cả 2 chart so sánh nhiều mặt hàng (theo kỳ hàng về, và
   // theo ngày báo giá cho 1 kỳ hàng về cố định) — chỉ khác nguồn buckets/
@@ -753,6 +857,14 @@ export function useDashboardPage() {
       historyBuckets.value,
       historyTrendResults.value,
       historyBandVisibility.value,
+    ),
+  )
+
+  const seasonalChartData = computed(() =>
+    buildComparisonChartData(
+      seasonalBuckets.value,
+      seasonalTrendResults.value,
+      seasonalBandVisibility.value,
     ),
   )
 
@@ -998,6 +1110,14 @@ export function useDashboardPage() {
       bucket: MaterialComparisonBucket,
       result: MaterialTrendResult,
     ) => Record<string, string>,
+    // Chart mùa vụ (series = năm) cần hiện thêm tháng lịch thực tế bên cạnh
+    // tên series trong tooltip (ví dụ "2026 (07/2026)") vì trục X là offset
+    // trừu tượng — 2 chart so sánh cũ giữ nguyên hành vi cũ (mặc định chỉ
+    // hiện materialName) nên không cần đổi gì ở lời gọi của chúng.
+    formatSeriesRowLabel: (
+      entry: MaterialComparisonSeriesPoint,
+      bucket: MaterialComparisonBucket,
+    ) => string = (entry) => entry.materialName,
   ) {
     const grid =
       themeStore.mode === 'dark'
@@ -1078,7 +1198,7 @@ export function useDashboardPage() {
                   ? 'Chưa có báo giá'
                   : `TB ${formatNumber(entry.avgPrice)} (Thấp ${formatNumber(entry.minPrice)} – Cao ${formatNumber(entry.maxPrice)}) VNĐ/KG (${entry.pointCount} báo giá)`
               tooltipEl.appendChild(
-                buildTooltipRowElement(`${entry.materialName}: ${priceLabel}`, color),
+                buildTooltipRowElement(`${formatSeriesRowLabel(entry, bucket)}: ${priceLabel}`, color),
               )
             })
 
@@ -1156,6 +1276,36 @@ export function useDashboardPage() {
         receivedDateStart: bucket.groupKey,
         receivedDateEnd: getReceivedDateMonthEnd(bucket.groupKey),
       }),
+    )
+  })
+
+  const seasonalChartOptions = computed(() => {
+    // `result.materialId` chứa năm (chuỗi, xem loadSeasonalComparison) —
+    // materialId THẬT dùng cho điều hướng phải lấy từ ref riêng, không phải
+    // từ result (khác quy ước 2 chart trước vì series ở đây là NĂM chứ
+    // không phải mặt hàng).
+    const fixedMaterialId = seasonalMaterialId.value ?? ''
+    const paddedMonth = String(seasonalMonth.value ?? 1).padStart(2, '0')
+
+    const deliveryMonthForYear = (year: string) => `${year}-${paddedMonth}-01`
+    const actualMonthForBucket = (year: string, bucket: MaterialComparisonBucket) =>
+      addMonthsToMonthStart(deliveryMonthForYear(year), Number(bucket.groupKey))
+
+    return buildComparisonChartOptions(
+      seasonalBuckets.value,
+      seasonalTrendResults.value,
+      (bucket, result) => {
+        const year = result.materialId
+        const receivedDateStart = actualMonthForBucket(year, bucket)
+        return {
+          materialId: fixedMaterialId,
+          deliveryMonth: deliveryMonthForYear(year),
+          receivedDateStart,
+          receivedDateEnd: getReceivedDateMonthEnd(receivedDateStart),
+        }
+      },
+      (entry, bucket) =>
+        `${entry.materialName} (${formatMonthLabel(actualMonthForBucket(entry.materialId, bucket))})`,
     )
   })
 
@@ -1351,6 +1501,16 @@ export function useDashboardPage() {
     historyChartData,
     historyChartOptions,
     loadPriceHistory,
+    seasonalMaterialId,
+    seasonalMonth,
+    seasonalYears,
+    seasonalAvailableYears,
+    seasonalBuckets,
+    seasonalTrendResults,
+    seasonalBandVisibility,
+    seasonalChartData,
+    seasonalChartOptions,
+    loadSeasonalComparison,
     comparisonChartData,
     comparisonChartOptions,
     loadMaterialComparison,

@@ -886,3 +886,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Fix dashboard chart defaulting to oldest data instead of recent
 - Tom tat: quotify_dashboard_service.py _get_points sap tang dan theo received_date roi LIMIT 500, nen khi khong loc gi (mac dinh luc load Dashboard) va DB co 16k+ dong tu 2023, chart luon ket dinh o du lieu cu nhat, khong bao gio chay toi hien tai. Doi order_by thanh DESC (uu tien du lieu moi nhat) roi reversed() lai de giu dung thu tu tang dan cho tang tren. Them test regression, verify qua API that: received_date range sau sua la 2026-07-14..2026-08-04 thay vi bat dau 2023.
+
+## 2026-08-13 09:16:56Z - claude
+
+- Tieu de: Implement year-over-year seasonal comparison chart (V1, TDD)
+- Tom tat: Trien khai chart thu 4 tren Dashboard: so sanh gia cung 1 thang hang ve qua nhieu nam cho 1 mat hang. Truc X tuong doi (thang truoc giao hang) thay vi lich tuyet doi - quyet dinh thiet ke mau chot vi moi nam co khoang ngay nhan bao gia khac nhau hoan toan. Tong quat hoa buildGroupedComparisonBuckets (compareKeys/formatLabel tuy chon) va buildComparisonChartOptions (formatSeriesRowLabel tuy chon) de tai dung 100% ha tang 2 chart truoc, khong doi hanh vi cu. Tai su dung cau truc MaterialTrendResult cho chieu nam (materialId=String(year)). 28 test moi/tong pass, verify Playwright thuc voi Ngo hat thang 10 nam 2024/2025/2026.
+
+## 2026-08-13 09:25:04Z - claude
+
+- Tieu de: Fix duplicate colors in seasonal comparison chart
+- Tom tat: MATERIAL_COMPARISON_COLORS chi co 3 mau nhung chart mua vu cho chon toi 5 nam, nen index % length khien nam thu 4 trung mau nam thu 1. Mo rong palette len 5 mau, them test regression, verify bang Playwright that voi 4 nam 2023-2026.

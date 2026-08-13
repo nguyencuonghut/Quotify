@@ -395,6 +395,90 @@
         </div>
       </section>
 
+      <section class="dashboard-page__panel dashboard-page__panel--chart">
+        <div class="dashboard-page__panel-header">
+          <div>
+            <p class="dashboard-page__eyebrow">So sánh mùa vụ</p>
+            <h3 class="dashboard-page__panel-title">So sánh giá theo mùa vụ qua các năm</h3>
+          </div>
+        </div>
+
+        <div class="dashboard-page__history-filters">
+          <label class="dashboard-page__filter-field">
+            <span class="dashboard-page__filter-label">Nguyên liệu (bắt buộc chọn)</span>
+            <Select
+              v-model="seasonalMaterialId"
+              filter
+              filter-placeholder="Tìm vật tư..."
+              :loading="isLoadingLookups"
+              :options="materials"
+              option-label="name"
+              option-value="id"
+              placeholder="Chọn vật tư"
+              show-clear
+              @update:model-value="loadSeasonalComparison"
+            >
+              <template #option="{ option }">{{ option.name }} ({{ option.code }})</template>
+            </Select>
+          </label>
+
+          <label class="dashboard-page__filter-field">
+            <span class="dashboard-page__filter-label">Tháng hàng về (bắt buộc chọn)</span>
+            <Select
+              v-model="seasonalMonth"
+              :options="seasonalMonthOptions"
+              placeholder="Chọn tháng"
+              show-clear
+              @update:model-value="loadSeasonalComparison"
+            >
+              <template #option="{ option }">Tháng {{ option }}</template>
+              <template #value="{ value }">{{ value ? `Tháng ${value}` : 'Chọn tháng' }}</template>
+            </Select>
+          </label>
+
+          <label class="dashboard-page__filter-field">
+            <span class="dashboard-page__filter-label">Chọn 2-5 năm để so sánh</span>
+            <MultiSelect
+              v-model="seasonalYears"
+              display="chip"
+              :options="seasonalAvailableYears"
+              placeholder="Chọn năm"
+              :selection-limit="5"
+              @update:model-value="loadSeasonalComparison"
+            />
+          </label>
+        </div>
+
+        <div v-if="seasonalTrendResults.length > 0" class="dashboard-page__comparison-bands">
+          <label
+            v-for="result in seasonalTrendResults"
+            :key="result.materialId"
+            class="dashboard-page__comparison-band-toggle"
+          >
+            <Checkbox v-model="seasonalBandVisibility[result.materialId]" binary />
+            <span>Hiện khoảng giá thấp-cao: {{ result.materialName }}</span>
+          </label>
+        </div>
+
+        <div v-if="seasonalBuckets.length > 0" class="dashboard-page__chart-frame">
+          <Chart
+            class="dashboard-page__chart"
+            type="line"
+            :data="seasonalChartData"
+            :options="seasonalChartOptions"
+          />
+        </div>
+        <div v-else class="dashboard-page__empty">
+          <i class="pi pi-chart-line" aria-hidden="true" />
+          <span v-if="!seasonalMaterialId || !seasonalMonth || seasonalYears.length < 2">
+            Chọn nguyên liệu, tháng hàng về và ít nhất 2 năm để so sánh.
+          </span>
+          <span v-else>
+            Không có dữ liệu báo giá cho nguyên liệu này ở tháng hàng về đã chọn.
+          </span>
+        </div>
+      </section>
+
       <section class="dashboard-page__panel">
         <div class="dashboard-page__panel-header">
           <div>
@@ -483,6 +567,16 @@ const {
   historyChartData,
   historyChartOptions,
   loadPriceHistory,
+  seasonalMaterialId,
+  seasonalMonth,
+  seasonalYears,
+  seasonalAvailableYears,
+  seasonalBuckets,
+  seasonalBandVisibility,
+  seasonalTrendResults,
+  seasonalChartData,
+  seasonalChartOptions,
+  loadSeasonalComparison,
   loadMaterialComparison,
   metricCards,
   weeklyUserOptions,
@@ -508,6 +602,8 @@ const {
   formatDateTimeLabel,
   formatMonthLabel,
 } = useDashboardPage()
+
+const seasonalMonthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
 
 onMounted(() => {
   bootstrap()

@@ -10,6 +10,7 @@ const dashboardPageMock = vi.hoisted(() => ({
   resetWeeklyEntryFilters: vi.fn(),
   loadMaterialComparison: vi.fn(),
   loadPriceHistory: vi.fn(),
+  loadSeasonalComparison: vi.fn(),
 }))
 
 vi.mock('@/composables/useDashboardPage', async () => {
@@ -51,6 +52,15 @@ vi.mock('@/composables/useDashboardPage', async () => {
       historyTrendResults: computed(() => []),
       historyChartData: computed(() => ({ labels: [], datasets: [] })),
       historyChartOptions: computed(() => ({})),
+      seasonalMaterialId: ref(null),
+      seasonalMonth: ref(null),
+      seasonalYears: ref([]),
+      seasonalAvailableYears: computed(() => []),
+      seasonalBuckets: computed(() => []),
+      seasonalBandVisibility: ref({}),
+      seasonalTrendResults: computed(() => []),
+      seasonalChartData: computed(() => ({ labels: [], datasets: [] })),
+      seasonalChartOptions: computed(() => ({})),
       weeklyUserOptions: [
         {
           label: 'Người mua hàng',
@@ -138,6 +148,7 @@ vi.mock('@/composables/useDashboardPage', async () => {
       resetWeeklyEntryFilters: dashboardPageMock.resetWeeklyEntryFilters,
       loadMaterialComparison: dashboardPageMock.loadMaterialComparison,
       loadPriceHistory: dashboardPageMock.loadPriceHistory,
+      loadSeasonalComparison: dashboardPageMock.loadSeasonalComparison,
       getWeeklyEntryRowClass: (row: { hasWarning: boolean }) =>
         row.hasWarning ? 'dashboard-page__weekly-row--warning' : '',
       formatMoney: (value: number | null) =>
