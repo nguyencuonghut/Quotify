@@ -265,7 +265,7 @@ SUPPLIER_SEEDS: tuple[SupplierSeed, ...] = (
         supplier_type="international",
         status="active",
         note="Tập đoàn Hàn Quốc chuyên cung cấp axit amin và thức ăn dinh dưỡng.",
-        material_codes=["LYSINE_HCL", "DL_METHIONINE", "L_THREONINE", "L_TRYPTOPHAN", "CORN" "SOYBEAN_MEAL"],
+        material_codes=["LYSINE_HCL", "DL_METHIONINE", "L_THREONINE", "L_TRYPTOPHAN", "CORN", "SOYBEAN_MEAL"],
     ),
     SupplierSeed(
         code="TIEN_THANH",
