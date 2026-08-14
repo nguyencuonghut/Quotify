@@ -906,3 +906,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Fix misleading repeated period label on seasonal chart X-axis
 - Tom tat: Khong phai loi du lieu - Chart.js autoSkip buoc nhay ~3 khop dung so bucket/thang nen moi tick con hien vo tinh roi vao cung 1 ky tuong doi (luon kỳ 2). Sua bang cach bo '(ky N)' khoi bucket.label (truc X), giu nguyen trong tooltip qua formatSeriesRowLabel. Cap nhat 3 test theo dung thay doi hanh vi, verify Playwright thuc dung kich ban user bao.
+
+## 2026-08-13 10:03:32Z - claude
+
+- Tieu de: Split history chart X-axis into 3 periods per month
+- Tom tat: Tuong tu chart mua vu: chia truc X thanh 3 ky/thang (1-10/11-20/21-cuoi thang). Khac biet: truc nay la ngay lich tuyet doi nen khoa nhom la ISO date string, sort mac dinh localeCompare van dung, khong can compareKeys tuy chinh. Label doi sang formatDateLabel (DD/MM/YYYY) - khong co rui ro lap nhan nhu chart mua vu vi ngay lich luon khac nhau. Them getThirdPeriodEnd cho click-through, xoa ham cu khong dung. 32 test pass, verify Playwright thuc.

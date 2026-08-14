@@ -110,15 +110,6 @@ function formatMonthLabel(value: string): string {
   return month && year ? `${month}/${year}` : value
 }
 
-/** `monthStart` dạng "YYYY-MM-01" (khóa nhóm theo tháng nhận báo giá) → trả
- * về ngày cuối cùng của tháng đó, dạng "YYYY-MM-DD", để lọc `/quotes` theo
- * đúng khoảng ngày nhận báo giá của tháng được click trên chart. */
-function getReceivedDateMonthEnd(monthStart: string): string {
-  const [year, month] = monthStart.split('-').map(Number)
-  const lastDay = new Date(year, month, 0).getDate()
-  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-}
-
 /** Số tháng `receivedDate` cách kỳ hàng về `deliveryMonth` — dùng làm trục X
  * "tương đối" cho chart mùa vụ (xem docs/quotify/plan-year-over-year-seasonal-comparison-chart.md
  * mục 2): mỗi năm có khoảng ngày nhận báo giá nằm ở vị trí lịch khác nhau
@@ -186,6 +177,29 @@ function getThirdOfMonthDateRange(monthStart: string, third: number): { start: s
   }
   const lastDay = new Date(year, month, 0).getDate()
   return { start: `${monthPrefix}-21`, end: `${monthPrefix}-${String(lastDay).padStart(2, '0')}` }
+}
+
+/** Khóa nhóm mịn hơn cho chart "diễn biến theo ngày báo giá": ngày bắt đầu
+ * của kỳ (0-2, xem `computeThirdOfMonth`) chứa `date` — "YYYY-MM-01"/"-11"/
+ * "-21". Vẫn là chuỗi ISO nên `localeCompare` mặc định của
+ * `buildGroupedComparisonBuckets` sắp đúng thứ tự thời gian, không cần
+ * `compareKeys` tùy chỉnh như chart mùa vụ (khóa ở đó là số âm dạng chuỗi). */
+function computeThirdPeriodStart(date: string): string {
+  const [year, month] = date.slice(0, 7).split('-')
+  const day = Number(date.slice(8, 10))
+  const third = computeThirdOfMonth(day)
+  const startDay = third === 0 ? '01' : third === 1 ? '11' : '21'
+  return `${year}-${month}-${startDay}`
+}
+
+/** Ngày cuối của kỳ mà `periodStart` (kết quả của `computeThirdPeriodStart`)
+ * đại diện — dùng cho `receivedDateEnd` khi click-through, để lọc `/quotes`
+ * đúng khoảng ~10 ngày đã click thay vì cả tháng. */
+function getThirdPeriodEnd(periodStart: string): string {
+  const [year, month] = periodStart.slice(0, 7).split('-')
+  const day = Number(periodStart.slice(8, 10))
+  const third = computeThirdOfMonth(day)
+  return getThirdOfMonthDateRange(`${year}-${month}-01`, third).end
 }
 
 /** Cộng `months` (có thể âm) vào `monthStart` (dạng "YYYY-MM-01" hoặc
@@ -611,8 +625,10 @@ export function useDashboardPage() {
   const historyBandVisibility = ref<Record<string, boolean>>({})
 
   const historyBuckets = computed(() =>
-    buildGroupedComparisonBuckets(historyTrendResults.value, (point) =>
-      `${point.receivedDate.slice(0, 7)}-01`,
+    buildGroupedComparisonBuckets(
+      historyTrendResults.value,
+      (point) => computeThirdPeriodStart(point.receivedDate),
+      { formatLabel: formatDateLabel },
     ),
   )
 
@@ -1326,7 +1342,7 @@ export function useDashboardPage() {
         materialId: result.materialId,
         deliveryMonth: fixedDeliveryMonth,
         receivedDateStart: bucket.groupKey,
-        receivedDateEnd: getReceivedDateMonthEnd(bucket.groupKey),
+        receivedDateEnd: getThirdPeriodEnd(bucket.groupKey),
       }),
     )
   })

@@ -647,14 +647,14 @@ describe('useDashboardPage', () => {
       )
     })
 
-    it('merges points into buckets by the month quotes were received, with gaps where a material has none', async () => {
+    it('splits each received month into 3 finer buckets (kỳ 1: 1-10, kỳ 2: 11-20, kỳ 3: 21-cuối tháng), with gaps where a material has none', async () => {
       dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => {
         if (query.materialId === 'material-1') {
           return {
             ...priceTrends,
             points: [
               { ...priceTrends.points[0], receivedDate: '2026-01-05', convertedPriceVndPerKg: 7000 },
-              { ...priceTrends.points[0], receivedDate: '2026-01-20', convertedPriceVndPerKg: 7200 },
+              { ...priceTrends.points[0], receivedDate: '2026-01-15', convertedPriceVndPerKg: 7200 },
               { ...priceTrends.points[0], receivedDate: '2026-02-10', convertedPriceVndPerKg: 7400 },
             ],
           }
@@ -677,18 +677,39 @@ describe('useDashboardPage', () => {
 
       await page.loadPriceHistory()
 
+      // Ngày 05/01 (kỳ 1) và 15/01 (kỳ 2) giờ phải rơi vào 2 bucket KHÁC nhau
+      // trong cùng tháng 1, không còn gộp chung 1 bucket "01/2026" như trước.
       expect(page.historyBuckets.value.map((bucket) => bucket.label)).toEqual([
-        '01/2026',
-        '02/2026',
+        '01/01/2026',
+        '11/01/2026',
+        '01/02/2026',
       ])
       expect(page.historyBuckets.value[0].series).toEqual([
         {
           materialId: 'material-1',
           materialName: 'Ngô hạt',
-          avgPrice: 7100,
+          avgPrice: 7000,
           minPrice: 7000,
+          maxPrice: 7000,
+          pointCount: 1,
+        },
+        {
+          materialId: 'material-2',
+          materialName: 'Khô đậu nành',
+          avgPrice: null,
+          minPrice: null,
+          maxPrice: null,
+          pointCount: 0,
+        },
+      ])
+      expect(page.historyBuckets.value[1].series).toEqual([
+        {
+          materialId: 'material-1',
+          materialName: 'Ngô hạt',
+          avgPrice: 7200,
+          minPrice: 7200,
           maxPrice: 7200,
-          pointCount: 2,
+          pointCount: 1,
         },
         {
           materialId: 'material-2',
@@ -699,7 +720,7 @@ describe('useDashboardPage', () => {
           pointCount: 1,
         },
       ])
-      expect(page.historyBuckets.value[1].series).toEqual([
+      expect(page.historyBuckets.value[2].series).toEqual([
         {
           materialId: 'material-1',
           materialName: 'Ngô hạt',
@@ -769,7 +790,7 @@ describe('useDashboardPage', () => {
       page.historyBandVisibility.value['material-1'] = false
       page.historyBandVisibility.value['material-2'] = false
 
-      expect(page.historyChartData.value.labels).toEqual(['01/2026'])
+      expect(page.historyChartData.value.labels).toEqual(['01/01/2026'])
       expect(page.historyChartData.value.datasets).toHaveLength(2)
       expect(page.historyChartData.value.datasets[0]).toMatchObject({
         label: 'Ngô hạt',
@@ -823,6 +844,40 @@ describe('useDashboardPage', () => {
       const tooltipEl = canvas.parentElement?.querySelector('.quotify-chart-tooltip')
       expect(tooltipEl?.textContent).toContain('Ngô hạt')
       expect(tooltipEl?.textContent).toContain('Khô đậu nành')
+    })
+
+    it('clicking a point navigates to /quotes with the ~10-day received-date range of that kỳ, not the whole month', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points: [
+          {
+            ...priceTrends.points[0],
+            receivedDate: '2026-01-15',
+            convertedPriceVndPerKg: query.materialId === 'material-1' ? 7200 : 9450,
+          },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.materials.value = [
+        { ...page.materials.value[0], id: 'material-1', name: 'Ngô hạt' },
+        { ...page.materials.value[0], id: 'material-2', name: 'Khô đậu nành' },
+      ]
+      page.historyMaterialIds.value = ['material-1', 'material-2']
+      page.historyDeliveryMonth.value = new Date(2026, 11, 1)
+      await page.loadPriceHistory()
+
+      page.historyChartOptions.value.onClick(null, [{ index: 0, datasetIndex: 0 }])
+
+      expect(pushMock).toHaveBeenCalledWith({
+        path: '/quotes',
+        query: {
+          materialId: 'material-1',
+          deliveryMonth: '2026-12-01',
+          receivedDateStart: '2026-01-11',
+          receivedDateEnd: '2026-01-20',
+        },
+      })
     })
   })
 
