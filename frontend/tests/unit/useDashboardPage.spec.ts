@@ -165,6 +165,9 @@ describe('useDashboardPage', () => {
   })
 
   it('bootstraps lookups, KPI data, trend data and metric cards', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 13))
+
     const page = useDashboardPage()
 
     await page.bootstrap()
@@ -175,13 +178,17 @@ describe('useDashboardPage', () => {
     expect(dashboardApiMock.getQuotifyEntryKpis).toHaveBeenCalledWith(
       {
         materialId: 'material-1',
-        deliveryMonth: null,
+        // Mặc định "kỳ giao hàng" = tháng hiện tại + 2 (hôm nay 08/2026 →
+        // 10/2026) — chart này giờ luôn cần 1 kỳ giao hàng cố định.
+        deliveryMonth: '2026-10-01',
         receivedDateStart: null,
         receivedDateEnd: null,
         supplierType: null,
       },
       'mock-access-token',
     )
+
+    vi.useRealTimers()
     expect(dashboardApiMock.getQuotifyWeeklyEntryActivity).toHaveBeenCalledWith(
       {
         weekStart: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
@@ -192,29 +199,21 @@ describe('useDashboardPage', () => {
     expect(page.materials.value).toHaveLength(1)
     expect(page.selectedMaterialId.value).toBe('material-1')
     expect(page.userKpis.value[0].quoteCount).toBe(7)
-    expect(page.metricCards.value.map((card) => card.label)).toEqual([
-      'Giá thấp nhất',
-      'Giá cao nhất',
-      'Giá trung bình',
-      'Tổng báo giá',
-    ])
-    expect(page.metricCards.value.slice(0, 3).map((card) => card.value)).toEqual([
-      '10,200.00 VNĐ/KG',
-      '11,800.00 VNĐ/KG',
-      '11,000.00 VNĐ/KG',
-    ])
     expect(page.hasTrendData.value).toBe(true)
+    // Trục X giờ là THÁNG NHẬN BÁO GIÁ (không phải kỳ giao hàng) cho 1 kỳ
+    // giao hàng cố định — cả 3 điểm mẫu đều nhận trong 07/2026 (dù thuộc 2
+    // kỳ giao hàng 08/2026 và 09/2026 khác nhau) nên gộp chung 1 bucket.
     expect(page.deliveryMonthBuckets.value.map((bucket) => bucket.label)).toEqual(
-      ['08/2026', '09/2026'],
+      ['07/2026'],
     )
     expect(page.deliveryMonthBuckets.value[0]).toMatchObject({
       minPrice: 10500,
-      maxPrice: 11500,
-      avgPrice: 11000,
-      pointCount: 2,
+      maxPrice: 12000,
+      avgPrice: 34000 / 3,
+      pointCount: 3,
       purchasedPrice: 10500,
     })
-    expect(page.chartData.value.labels).toEqual(['08/2026', '09/2026'])
+    expect(page.chartData.value.labels).toEqual(['07/2026'])
     expect(page.chartData.value.datasets.map((dataset) => dataset.label)).toEqual(
       ['Giá trung bình', 'Giá thấp nhất', 'Giá cao nhất', 'Đã chốt mua'],
     )
@@ -236,6 +235,26 @@ describe('useDashboardPage', () => {
       'Người chưa nhập',
     ])
     expect(page.weeklyEntryChartData.value.datasets[0].data).toEqual([7, 0])
+  })
+
+  it('clicking a point on the "Giá theo kỳ hàng về" chart navigates to /quotes with the fixed delivery month and the clicked received-date month range', async () => {
+    const page = useDashboardPage()
+    page.selectedMaterialId.value = 'material-1'
+    page.deliveryMonth.value = new Date(2026, 9, 1)
+
+    await page.bootstrap()
+
+    page.chartOptions.value.onClick(null, [{ index: 0 }])
+
+    expect(pushMock).toHaveBeenCalledWith({
+      path: '/quotes',
+      query: {
+        materialId: 'material-1',
+        deliveryMonth: '2026-10-01',
+        receivedDateStart: '2026-07-01',
+        receivedDateEnd: '2026-07-31',
+      },
+    })
   })
 
   it('sends selected material, month and received date filters to dashboard APIs', async () => {
@@ -268,10 +287,13 @@ describe('useDashboardPage', () => {
   })
 
   it('clears filters and reloads dashboard data', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 13))
+
     const page = useDashboardPage()
     page.selectedMaterialId.value = 'another-material'
     page.selectedSupplierType.value = 'domestic'
-    page.deliveryMonth.value = new Date(2026, 7, 1)
+    page.deliveryMonth.value = new Date(2027, 2, 1)
     page.materials.value = [
       {
         id: 'material-1',
@@ -291,17 +313,21 @@ describe('useDashboardPage', () => {
 
     expect(page.selectedMaterialId.value).toBe('material-1')
     expect(page.selectedSupplierType.value).toBeNull()
-    expect(page.deliveryMonth.value).toBeNull()
+    // "Xóa lọc" đưa kỳ giao hàng về lại mặc định (tháng hiện tại + 2), không
+    // phải rỗng — chart này luôn cần 1 kỳ giao hàng cố định.
+    expect(page.deliveryMonth.value).toEqual(new Date(2026, 9, 1))
     expect(dashboardApiMock.getQuotifyEntryKpis).toHaveBeenCalledWith(
       {
         materialId: 'material-1',
-        deliveryMonth: null,
+        deliveryMonth: '2026-10-01',
         receivedDateStart: null,
         receivedDateEnd: null,
         supplierType: null,
       },
       'mock-access-token',
     )
+
+    vi.useRealTimers()
   })
 
   it('loads weekly entry activity with selected week and user filters', async () => {
@@ -332,9 +358,14 @@ describe('useDashboardPage', () => {
       expect(page.comparisonBuckets.value).toEqual([])
     })
 
-    it('fetches trends for each selected material in parallel with shared filters', async () => {
+    it('fetches trends for each selected material in parallel with shared filters, ignoring the fixed delivery month of the sibling chart', async () => {
       const page = useDashboardPage()
       page.selectedSupplierType.value = 'international'
+      // Chart này so sánh giá GIỮA CÁC kỳ hàng về, nên phải không bị ảnh
+      // hưởng bởi kỳ giao hàng cố định của chart "Giá theo kỳ hàng về" cạnh
+      // nó (dùng chung 1 bộ lọc "Kỳ giao hàng" ở panel trên) — nếu không,
+      // trục X của chart này sẽ luôn chỉ còn 1 kỳ do bị lọc trùng.
+      page.deliveryMonth.value = new Date(2026, 9, 1)
       page.comparisonMaterialIds.value = ['material-1', 'material-2']
 
       await page.loadMaterialComparison()
@@ -343,7 +374,6 @@ describe('useDashboardPage', () => {
       expect(dashboardApiMock.getQuotifyPriceTrends).toHaveBeenCalledWith(
         {
           materialId: 'material-1',
-          deliveryMonth: null,
           receivedDateStart: null,
           receivedDateEnd: null,
           supplierType: 'international',
@@ -353,7 +383,6 @@ describe('useDashboardPage', () => {
       expect(dashboardApiMock.getQuotifyPriceTrends).toHaveBeenCalledWith(
         {
           materialId: 'material-2',
-          deliveryMonth: null,
           receivedDateStart: null,
           receivedDateEnd: null,
           supplierType: 'international',

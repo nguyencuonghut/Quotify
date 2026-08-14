@@ -911,3 +911,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Split history chart X-axis into 3 periods per month
 - Tom tat: Tuong tu chart mua vu: chia truc X thanh 3 ky/thang (1-10/11-20/21-cuoi thang). Khac biet: truc nay la ngay lich tuyet doi nen khoa nhom la ISO date string, sort mac dinh localeCompare van dung, khong can compareKeys tuy chinh. Label doi sang formatDateLabel (DD/MM/YYYY) - khong co rui ro lap nhan nhu chart mua vu vi ngay lich luon khac nhau. Them getThirdPeriodEnd cho click-through, xoa ham cu khong dung. 32 test pass, verify Playwright thuc.
+
+## 2026-08-14 09:39:06Z - claude
+
+- Tieu de: Fix Gia theo ky hang ve chart: fixed delivery month + received-date X-axis
+- Tom tat: Ky giao hang mac dinh = thang hien tai+2. Truc X doi tu ky giao hang sang thang nhan bao gia cho ky giao hang co dinh. Phat hien va sua side-effect nghiem trong: chart so sanh (loadMaterialComparison) truoc do spread queryParams.deliveryMonth, se bi vo tinh khoa vao 1 ky theo mac dinh moi - da tach rieng, verify Playwright xac nhan chart do khong bi anh huong. Cap nhat click-through gom materialId+deliveryMonth+receivedDateStart/End. 32 test pass, verify Playwright thuc.
+
+## 2026-08-14 09:55:34Z - claude
+
+- Tieu de: Remove KPI cards and move filters into chart panel
+- Tom tat: Xoa 4 KPI card dau trang. Chuyen toan bo bo loc chung (Vat tu/Ky giao hang/Loai NCC/Tu-Den ngay nhan + nut Loc/Xoa loc) vao trong panel 'Gia theo ky hang ve'. Xoa dead code metricCards/summary/emptySummary o composable va CSS lien quan. Verify Playwright thuc xac nhan layout dung, khong con KPI card.

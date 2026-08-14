@@ -67,22 +67,6 @@ vi.mock('@/composables/useDashboardPage', async () => {
           value: 'user-1',
         },
       ],
-      metricCards: computed(() => [
-        {
-          label: 'Giá thấp nhất',
-          value: '10,200.00 VNĐ/KG',
-          detail: 'MIN theo bộ lọc hiện tại',
-          icon: 'pi pi-arrow-down-right',
-          tone: 'success',
-        },
-        {
-          label: 'Tổng báo giá',
-          value: '7',
-          detail: '9 dòng, 2 đã chốt',
-          icon: 'pi pi-file-check',
-          tone: 'primary',
-        },
-      ]),
       userKpis: computed(() => [
         {
           userLabel: 'Người mua hàng',
@@ -192,9 +176,8 @@ describe('DashboardPage', () => {
     expect(wrapper.text()).toContain('Tình hình nhập báo giá theo tuần')
     expect(wrapper.text()).toContain('Người nhập')
     expect(wrapper.text()).toContain('User chưa nhập')
-    expect(wrapper.text()).toContain('Giá thấp nhất')
-    expect(wrapper.text()).toContain('Tổng báo giá')
     expect(wrapper.text()).toContain('Giá theo kỳ hàng về')
+    expect(wrapper.text()).toContain('Kỳ giao hàng (bắt buộc chọn)')
     expect(wrapper.text()).toContain('So sánh giá nguyên liệu theo kỳ hàng về')
     expect(wrapper.text()).toContain('Số phiếu báo giá')
     expect(wrapper.text()).toContain('Góc nhìn tại và sau thời điểm đánh dấu')

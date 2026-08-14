@@ -15,7 +15,6 @@ import type {
   QuotifyDashboardSupplierType,
   QuotifyDashboardSupplierTypeFilter,
   QuotifyEntryKpis,
-  QuotifyPriceSummary,
   QuotifyPriceTrendPoint,
   QuotifyPriceTrends,
   QuotifyWeeklyEntryActivity,
@@ -42,7 +41,10 @@ interface DashboardUserOption {
 }
 
 interface DeliveryMonthBucket {
-  deliveryMonth: string
+  // Tháng NHẬN báo giá (không phải kỳ giao hàng — kỳ giao hàng giờ luôn cố
+  // định qua bộ lọc "Kỳ giao hàng", xem `getDefaultDeliveryMonth`), dạng
+  // "YYYY-MM-01".
+  receivedMonth: string
   label: string
   minPrice: number
   maxPrice: number
@@ -60,15 +62,6 @@ const supplierTypeOptions: DashboardSupplierTypeOption[] = [
   { label: 'Nội địa', value: 'domestic' },
   { label: 'Quốc tế', value: 'international' },
 ]
-
-const emptySummary: QuotifyPriceSummary = {
-  minPrice: null,
-  maxPrice: null,
-  avgPrice: null,
-  totalLines: 0,
-  totalQuotes: 0,
-  purchasedLines: 0,
-}
 
 function formatMoney(value: number | null): string {
   if (value === null || Number.isNaN(value)) {
@@ -108,6 +101,15 @@ function formatMonthLabel(value: string): string {
 
   const [year, month] = value.split('-')
   return month && year ? `${month}/${year}` : value
+}
+
+/** Ngày cuối cùng của tháng `monthStart` ("YYYY-MM-01"), dạng "YYYY-MM-DD" —
+ * dùng cho `receivedDateEnd` khi click-through từ chart "Giá theo kỳ hàng
+ * về" (trục X giờ là tháng nhận báo giá, xem `buildDeliveryMonthBuckets`). */
+function getMonthEnd(monthStart: string): string {
+  const [year, month] = monthStart.split('-').map(Number)
+  const lastDay = new Date(year, month, 0).getDate()
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 }
 
 /** Số tháng `receivedDate` cách kỳ hàng về `deliveryMonth` — dùng làm trục X
@@ -222,6 +224,14 @@ function toDateInputValue(value: Date | null): string | null {
   const month = String(value.getMonth() + 1).padStart(2, '0')
   const day = String(value.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+/** Mặc định "kỳ giao hàng" cho chart "Giá theo kỳ hàng về" = tháng hiện tại
+ * + 2 (ví dụ hôm nay tháng 8 → mặc định tháng 10) — chart này giờ luôn cần 1
+ * kỳ giao hàng cố định để làm trục X thành tháng nhận báo giá. */
+function getDefaultDeliveryMonth(): Date {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth() + 2, 1)
 }
 
 function getWeekStartDate(value: Date): Date {
@@ -409,21 +419,22 @@ function buildDeliveryMonthBuckets(
 ): DeliveryMonthBucket[] {
   const bucketMap = new Map<string, QuotifyPriceTrendPoint[]>()
   for (const point of points) {
-    bucketMap.set(point.deliveryMonth, [
-      ...(bucketMap.get(point.deliveryMonth) ?? []),
+    const receivedMonthKey = `${point.receivedDate.slice(0, 7)}-01`
+    bucketMap.set(receivedMonthKey, [
+      ...(bucketMap.get(receivedMonthKey) ?? []),
       point,
     ])
   }
 
   return Array.from(bucketMap.entries())
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([deliveryMonthKey, bucketPoints]) => {
+    .map(([receivedMonthKey, bucketPoints]) => {
       const prices = bucketPoints.map((point) => point.convertedPriceVndPerKg)
       const purchasedPoint = bucketPoints.find((point) => point.purchased)
 
       return {
-        deliveryMonth: deliveryMonthKey,
-        label: formatMonthLabel(deliveryMonthKey),
+        receivedMonth: receivedMonthKey,
+        label: formatMonthLabel(receivedMonthKey),
         minPrice: Math.min(...prices),
         maxPrice: Math.max(...prices),
         avgPrice:
@@ -570,7 +581,7 @@ export function useDashboardPage() {
 
   const selectedMaterialId = ref<string | null>(null)
   const selectedSupplierType = ref<QuotifyDashboardSupplierTypeFilter | null>(null)
-  const deliveryMonth = ref<Date | null>(null)
+  const deliveryMonth = ref<Date | null>(getDefaultDeliveryMonth())
   const receivedDateStart = ref<Date | null>(null)
   const receivedDateEnd = ref<Date | null>(null)
   const selectedWeek = ref<Date | null>(getWeekStartDate(new Date()))
@@ -593,10 +604,20 @@ export function useDashboardPage() {
       return
     }
 
+    // KHÔNG lấy `deliveryMonth` từ bộ lọc chung — chart này tồn tại để so
+    // sánh giá GIỮA CÁC kỳ hàng về (trục X), nên không được cố định 1 kỳ.
+    // Điều này khác với chart "Giá theo kỳ hàng về" cạnh nó, nơi kỳ giao
+    // hàng giờ luôn cố định (mặc định tháng hiện tại + 2) để trục X chuyển
+    // thành tháng nhận báo giá — xem `getDefaultDeliveryMonth`.
     const responses = await Promise.all(
       materialIds.map((materialId) =>
         getQuotifyPriceTrends(
-          { ...queryParams.value, materialId },
+          {
+            materialId,
+            receivedDateStart: queryParams.value.receivedDateStart,
+            receivedDateEnd: queryParams.value.receivedDateEnd,
+            supplierType: queryParams.value.supplierType,
+          },
           authStore.accessToken,
         ),
       ),
@@ -734,39 +755,6 @@ export function useDashboardPage() {
       : null,
     userId: selectedWeeklyUserId.value,
   }))
-
-  const summary = computed(() => priceTrends.value?.summary ?? emptySummary)
-
-  const metricCards = computed<DashboardMetricCard[]>(() => [
-    {
-      label: 'Giá thấp nhất',
-      value: formatMoney(summary.value.minPrice),
-      detail: 'MIN theo bộ lọc hiện tại',
-      icon: 'pi pi-arrow-down-right',
-      tone: 'success',
-    },
-    {
-      label: 'Giá cao nhất',
-      value: formatMoney(summary.value.maxPrice),
-      detail: 'MAX theo bộ lọc hiện tại',
-      icon: 'pi pi-arrow-up-right',
-      tone: 'warn',
-    },
-    {
-      label: 'Giá trung bình',
-      value: formatMoney(summary.value.avgPrice),
-      detail: 'TRUNG BÌNH giá quy đổi',
-      icon: 'pi pi-chart-line',
-      tone: 'info',
-    },
-    {
-      label: 'Tổng báo giá',
-      value: formatInteger(summary.value.totalQuotes),
-      detail: `${formatInteger(summary.value.totalLines)} dòng, ${formatInteger(summary.value.purchasedLines)} đã chốt mua`,
-      icon: 'pi pi-file-check',
-      tone: 'primary',
-    },
-  ])
 
   const userKpis = computed(() => entryKpis.value?.userKpis ?? [])
   const weeklyUserActivities = computed<QuotifyWeeklyEntryUserActivity[]>(
@@ -1016,10 +1004,19 @@ export function useDashboardPage() {
       },
       onClick(_event: unknown, elements: { index: number }[]) {
         const bucket = deliveryMonthBuckets.value[elements[0]?.index ?? -1]
-        if (!bucket) {
+        const fixedDeliveryMonth = toDateInputValue(deliveryMonth.value)
+        if (!bucket || !fixedDeliveryMonth) {
           return
         }
-        router.push({ path: '/quotes', query: { deliveryMonth: bucket.deliveryMonth } })
+        const query: Record<string, string> = {
+          deliveryMonth: fixedDeliveryMonth,
+          receivedDateStart: bucket.receivedMonth,
+          receivedDateEnd: getMonthEnd(bucket.receivedMonth),
+        }
+        if (selectedMaterialId.value) {
+          query.materialId = selectedMaterialId.value
+        }
+        router.push({ path: '/quotes', query })
       },
       plugins: {
         legend: {
@@ -1102,7 +1099,7 @@ export function useDashboardPage() {
             if (bucket) {
               const countEl = document.createElement('div')
               countEl.className = 'quotify-chart-tooltip__count'
-              countEl.textContent = `${bucket.pointCount} báo giá cho kỳ ${bucket.label}`
+              countEl.textContent = `${bucket.pointCount} báo giá nhận trong tháng ${bucket.label}`
               tooltipEl.appendChild(countEl)
 
               const sample = pickRepresentativeTooltipPoints(bucket.points, bucket.avgPrice)
@@ -1528,7 +1525,7 @@ export function useDashboardPage() {
   async function resetFilters() {
     selectedMaterialId.value = findDefaultMaterialId(materials.value)
     selectedSupplierType.value = null
-    deliveryMonth.value = null
+    deliveryMonth.value = getDefaultDeliveryMonth()
     receivedDateStart.value = null
     receivedDateEnd.value = null
     await loadDashboard()
@@ -1591,7 +1588,6 @@ export function useDashboardPage() {
     comparisonChartData,
     comparisonChartOptions,
     loadMaterialComparison,
-    metricCards,
     userKpis,
     weeklyUserActivities,
     weeklyWarningUsers,

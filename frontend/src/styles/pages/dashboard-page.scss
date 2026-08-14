@@ -9,7 +9,6 @@
 .dashboard-page__hero,
 .dashboard-page__filters,
 .dashboard-page__panel,
-.dashboard-page__metric-card,
 .dashboard-page__message {
   min-width: 0;
   width: 100%;
@@ -97,14 +96,11 @@
 }
 
 .dashboard-page__filter-label,
-.dashboard-page__metric-label,
-.dashboard-page__metric-detail,
 .dashboard-page__table-empty {
   color: var(--app-text-secondary);
 }
 
-.dashboard-page__filter-label,
-.dashboard-page__metric-label {
+.dashboard-page__filter-label {
   font-size: 0.82rem;
   font-weight: 700;
 }
@@ -122,61 +118,6 @@
   padding: 0.9rem 1rem;
   border-radius: 0.9rem;
   color: var(--app-danger);
-}
-
-.dashboard-page__metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  min-width: 0;
-}
-
-.dashboard-page__metric-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.85rem;
-  align-items: center;
-  padding: 1rem;
-  border-radius: 0.9rem;
-}
-
-.dashboard-page__metric-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.45rem;
-  height: 2.45rem;
-  border-radius: 0.8rem;
-  color: var(--app-accent);
-  background: color-mix(in srgb, var(--app-accent) 14%, transparent);
-}
-
-.dashboard-page__metric-card--success .dashboard-page__metric-icon {
-  color: var(--app-success);
-  background: color-mix(in srgb, var(--app-success) 14%, transparent);
-}
-
-.dashboard-page__metric-card--info .dashboard-page__metric-icon {
-  color: var(--app-info);
-  background: color-mix(in srgb, var(--app-info) 14%, transparent);
-}
-
-.dashboard-page__metric-card--warn .dashboard-page__metric-icon {
-  color: var(--app-warning);
-  background: color-mix(in srgb, var(--app-warning) 14%, transparent);
-}
-
-.dashboard-page__metric-value {
-  display: block;
-  margin: 0.2rem 0;
-  overflow-wrap: anywhere;
-  font-size: 1.15rem;
-  line-height: 1.25;
-}
-
-.dashboard-page__metric-detail {
-  display: block;
-  font-size: 0.84rem;
 }
 
 .dashboard-page__panel {
@@ -403,7 +344,6 @@
     justify-content: flex-start;
   }
 
-  .dashboard-page__metrics,
   .dashboard-page__weekly-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -435,13 +375,11 @@
 
   .dashboard-page__hero,
   .dashboard-page__filters,
-  .dashboard-page__panel,
-  .dashboard-page__metric-card {
+  .dashboard-page__panel {
     padding: 1rem;
   }
 
   .dashboard-page__filters,
-  .dashboard-page__metrics,
   .dashboard-page__weekly-filters,
   .dashboard-page__weekly-stats,
   .dashboard-page__weekly-grid,

@@ -14,107 +14,6 @@
         </div>
       </section>
 
-      <section class="dashboard-page__filters">
-        <label class="dashboard-page__filter-field">
-          <span class="dashboard-page__filter-label">Vật tư</span>
-          <Select
-            v-model="selectedMaterialId"
-            filter
-            filter-placeholder="Tìm vật tư..."
-            :loading="isLoadingLookups"
-            :options="materials"
-            option-label="name"
-            option-value="id"
-            placeholder="Tất cả vật tư"
-            show-clear
-          />
-        </label>
-
-        <label class="dashboard-page__filter-field">
-          <span class="dashboard-page__filter-label">Kỳ giao hàng</span>
-          <DatePicker
-            v-model="deliveryMonth"
-            date-format="mm/yy"
-            placeholder="mm/yyyy"
-            show-icon
-            view="month"
-          />
-        </label>
-
-        <label class="dashboard-page__filter-field">
-          <span class="dashboard-page__filter-label">Loại NCC</span>
-          <Select
-            v-model="selectedSupplierType"
-            :options="supplierTypeOptions"
-            option-label="label"
-            option-value="value"
-            placeholder="Tất cả loại NCC"
-            show-clear
-          />
-        </label>
-
-        <label class="dashboard-page__filter-field">
-          <span class="dashboard-page__filter-label">Từ ngày nhận</span>
-          <DatePicker
-            v-model="receivedDateStart"
-            date-format="dd/mm/yy"
-            placeholder="dd/mm/yyyy"
-            show-icon
-          />
-        </label>
-
-        <label class="dashboard-page__filter-field">
-          <span class="dashboard-page__filter-label">Đến ngày nhận</span>
-          <DatePicker
-            v-model="receivedDateEnd"
-            date-format="dd/mm/yy"
-            placeholder="dd/mm/yyyy"
-            show-icon
-          />
-        </label>
-
-        <div class="dashboard-page__filter-actions">
-          <Button
-            icon="pi pi-filter"
-            label="Lọc"
-            :loading="isLoading"
-            @click="applyFilters"
-          />
-          <Button
-            icon="pi pi-refresh"
-            label="Xóa lọc"
-            outlined
-            severity="secondary"
-            @click="resetFilters"
-          />
-        </div>
-      </section>
-
-      <div v-if="errorMessage" class="dashboard-page__message" role="alert">
-        <i class="pi pi-exclamation-triangle" aria-hidden="true" />
-        <span>{{ errorMessage }}</span>
-      </div>
-
-      <section class="dashboard-page__metrics" aria-label="Chỉ số giá">
-        <article
-          v-for="card in metricCards"
-          :key="card.label"
-          :class="[
-            'dashboard-page__metric-card',
-            `dashboard-page__metric-card--${card.tone}`,
-          ]"
-        >
-          <div class="dashboard-page__metric-icon">
-            <i :class="card.icon" aria-hidden="true" />
-          </div>
-          <div>
-            <span class="dashboard-page__metric-label">{{ card.label }}</span>
-            <strong class="dashboard-page__metric-value">{{ card.value }}</strong>
-            <span class="dashboard-page__metric-detail">{{ card.detail }}</span>
-          </div>
-        </article>
-      </section>
-
       <section class="dashboard-page__panel dashboard-page__weekly-panel">
         <div class="dashboard-page__panel-header dashboard-page__weekly-header">
           <div>
@@ -249,8 +148,89 @@
           </div>
           <Tag
             :severity="hasTrendData ? 'success' : 'secondary'"
-            :value="hasTrendData ? `${deliveryMonthBuckets.length} kỳ` : 'Chưa có dữ liệu'"
+            :value="hasTrendData ? `${deliveryMonthBuckets.length} tháng` : 'Chưa có dữ liệu'"
           />
+        </div>
+
+        <div class="dashboard-page__filters">
+          <label class="dashboard-page__filter-field">
+            <span class="dashboard-page__filter-label">Vật tư</span>
+            <Select
+              v-model="selectedMaterialId"
+              filter
+              filter-placeholder="Tìm vật tư..."
+              :loading="isLoadingLookups"
+              :options="materials"
+              option-label="name"
+              option-value="id"
+              placeholder="Tất cả vật tư"
+              show-clear
+            />
+          </label>
+
+          <label class="dashboard-page__filter-field">
+            <span class="dashboard-page__filter-label">Kỳ giao hàng (bắt buộc chọn)</span>
+            <DatePicker
+              v-model="deliveryMonth"
+              date-format="mm/yy"
+              placeholder="mm/yyyy"
+              show-icon
+              view="month"
+            />
+          </label>
+
+          <label class="dashboard-page__filter-field">
+            <span class="dashboard-page__filter-label">Loại NCC</span>
+            <Select
+              v-model="selectedSupplierType"
+              :options="supplierTypeOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="Tất cả loại NCC"
+              show-clear
+            />
+          </label>
+
+          <label class="dashboard-page__filter-field">
+            <span class="dashboard-page__filter-label">Từ ngày nhận</span>
+            <DatePicker
+              v-model="receivedDateStart"
+              date-format="dd/mm/yy"
+              placeholder="dd/mm/yyyy"
+              show-icon
+            />
+          </label>
+
+          <label class="dashboard-page__filter-field">
+            <span class="dashboard-page__filter-label">Đến ngày nhận</span>
+            <DatePicker
+              v-model="receivedDateEnd"
+              date-format="dd/mm/yy"
+              placeholder="dd/mm/yyyy"
+              show-icon
+            />
+          </label>
+
+          <div class="dashboard-page__filter-actions">
+            <Button
+              icon="pi pi-filter"
+              label="Lọc"
+              :loading="isLoading"
+              @click="applyFilters"
+            />
+            <Button
+              icon="pi pi-refresh"
+              label="Xóa lọc"
+              outlined
+              severity="secondary"
+              @click="resetFilters"
+            />
+          </div>
+        </div>
+
+        <div v-if="errorMessage" class="dashboard-page__message" role="alert">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true" />
+          <span>{{ errorMessage }}</span>
         </div>
 
         <div v-if="hasTrendData" class="dashboard-page__chart-frame">
@@ -578,7 +558,6 @@ const {
   seasonalChartOptions,
   loadSeasonalComparison,
   loadMaterialComparison,
-  metricCards,
   weeklyUserOptions,
   weeklyUserActivities,
   weeklyWarningUsers,
