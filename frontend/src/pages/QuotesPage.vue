@@ -23,6 +23,8 @@
               option-value="id"
               placeholder="Tất cả"
               class="quotes-page__supplier-filter"
+              filter
+              filter-placeholder="Tìm nhà cung cấp..."
               show-clear
               @change="loadQuotesData"
             />
@@ -37,6 +39,8 @@
               option-value="id"
               placeholder="Tất cả"
               class="quotes-page__material-filter"
+              filter
+              filter-placeholder="Tìm vật tư..."
               show-clear
               @change="loadQuotesData"
             />

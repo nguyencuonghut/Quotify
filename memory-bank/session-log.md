@@ -936,3 +936,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Them chu thich ky hieu T- cho chart mua vu, dieu tra bao cao T-14/T0
 - Tom tat: Dieu tra 2 bao cao nghi ngo loi tren chart So sanh gia theo mua vu (T-14, thieu T0) - xac nhan ca 2 deu la du lieu/hanh vi dung (T-14 la bao gia that nhan som 14 thang; T0 bi loc do checkbox Gia CNF dang bat, bao gia T0 that su la VND/KG). Them dong chu thich giai thich ky hieu T- duoi tieu de panel de tranh hieu nham la thang lich.
+
+## 2026-08-15 02:26:13Z - claude
+
+- Tieu de: Bat tim kiem cho filter Nha cung cap va Vat tu o trang Quotes
+- Tom tat: Them prop filter/filter-placeholder cho 2 Select Nha cung cap va Vat tu tren trang /quotes, cung convention da dung o Dashboard. Verify Playwright thuc te loc dung, lint/typecheck/build sach, test:unit ve dung baseline.
