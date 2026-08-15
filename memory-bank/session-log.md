@@ -931,3 +931,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Them checkbox Gia CNF cho 2 chart con lai + tang spacing checkbox chart goc
 - Tom tat: Tang spacing checkbox Gia CNF (chart Gia theo ky hang ve) qua class rieng khong dung chung. Them checkbox Gia CNF cho chart Dien bien gia theo thoi gian chao gia va So sanh gia theo mua vu qua cac nam, moi chart 1 toggle doc lap; tong quat hoa buildGroupedComparisonBuckets/buildPriceDifferenceLines/buildComparisonChartOptions qua getPrice/formatPrice/formatPriceTriplet; phat hien va sua loi hien thi that (callout chenh lech gia hardcode VND/KG du tooltip da doi sang USD); 37/37 test composable pass, verify Playwright thuc te sach.
+
+## 2026-08-15 02:20:20Z - claude
+
+- Tieu de: Them chu thich ky hieu T- cho chart mua vu, dieu tra bao cao T-14/T0
+- Tom tat: Dieu tra 2 bao cao nghi ngo loi tren chart So sanh gia theo mua vu (T-14, thieu T0) - xac nhan ca 2 deu la du lieu/hanh vi dung (T-14 la bao gia that nhan som 14 thang; T0 bi loc do checkbox Gia CNF dang bat, bao gia T0 that su la VND/KG). Them dong chu thich giai thich ky hieu T- duoi tieu de panel de tranh hieu nham la thang lich.

@@ -100,8 +100,14 @@
 }
 
 .dashboard-page__filter-label,
-.dashboard-page__table-empty {
+.dashboard-page__table-empty,
+.dashboard-page__panel-note {
   color: var(--app-text-secondary);
+}
+
+.dashboard-page__panel-note {
+  font-size: 0.82rem;
+  margin: 0;
 }
 
 .dashboard-page__filter-label {

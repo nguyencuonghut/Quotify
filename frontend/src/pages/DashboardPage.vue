@@ -383,6 +383,11 @@
           </div>
         </div>
 
+        <p class="dashboard-page__panel-note">
+          Trục X ghi theo "T-" = số tháng trước kỳ giao hàng (không phải tháng lịch): T0 là đúng
+          kỳ giao hàng, T-1 là 1 tháng trước, T-11 là 11 tháng trước, v.v.
+        </p>
+
         <div class="dashboard-page__history-filters">
           <label class="dashboard-page__filter-field">
             <span class="dashboard-page__filter-label">Nguyên liệu (bắt buộc chọn)</span>
