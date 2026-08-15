@@ -481,7 +481,7 @@ const {
   handlePageChange,
   handleSortChange,
   resetFilters,
-} = useQuotesPage(authStore.accessToken)
+} = useQuotesPage(() => authStore.accessToken)
 
 const {
   importDialogVisible,

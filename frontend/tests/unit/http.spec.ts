@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { apiRequest, ApiError } from '@/api/http'
+import { apiRequest, ApiError, setUnauthorizedHandler } from '@/api/http'
 
 describe('http client (apiRequest)', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    setUnauthorizedHandler(null)
   })
 
   it('parses standard JSON response with 200 OK', async () => {
@@ -96,5 +97,81 @@ describe('http client (apiRequest)', () => {
     const requestOptions = lastCall[1] as RequestInit
     const headers = requestOptions.headers as Headers
     expect(headers.get('Authorization')).toBe('Bearer secret-token')
+  })
+
+  it('retries once with a refreshed token after the unauthorized handler resolves a 401', async () => {
+    const unauthorizedResponse = {
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ detail: 'Invalid authentication credentials.' }),
+    }
+    const successResponse = {
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ data: 'ok' }),
+    }
+    const fetchSpy = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(unauthorizedResponse as Response)
+      .mockResolvedValueOnce(successResponse as Response)
+
+    const unauthorizedHandler = vi.fn().mockResolvedValue('fresh-token')
+    setUnauthorizedHandler(unauthorizedHandler)
+
+    const result = await apiRequest<{ data: string }>('/quotes', {
+      accessToken: 'stale-token',
+    })
+
+    expect(result).toEqual({ data: 'ok' })
+    expect(unauthorizedHandler).toHaveBeenCalledTimes(1)
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    const retryOptions = fetchSpy.mock.calls[1][1] as RequestInit
+    const retryHeaders = retryOptions.headers as Headers
+    expect(retryHeaders.get('Authorization')).toBe('Bearer fresh-token')
+  })
+
+  it('throws the original 401 error when the unauthorized handler cannot refresh the token', async () => {
+    const unauthorizedResponse = {
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ detail: 'Invalid authentication credentials.' }),
+    }
+    vi.spyOn(global, 'fetch').mockResolvedValue(unauthorizedResponse as Response)
+
+    const unauthorizedHandler = vi.fn().mockResolvedValue(null)
+    setUnauthorizedHandler(unauthorizedHandler)
+
+    await expect(apiRequest('/quotes', { accessToken: 'stale-token' })).rejects.toThrow(
+      'Invalid authentication credentials.',
+    )
+    expect(unauthorizedHandler).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not invoke the unauthorized handler when skipAuthRetry is set', async () => {
+    const unauthorizedResponse = {
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ detail: 'Invalid authentication credentials.' }),
+    }
+    const fetchSpy = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(unauthorizedResponse as Response)
+
+    const unauthorizedHandler = vi.fn().mockResolvedValue('fresh-token')
+    setUnauthorizedHandler(unauthorizedHandler)
+
+    await expect(
+      apiRequest('/auth/refresh', { method: 'POST', skipAuthRetry: true }),
+    ).rejects.toThrow(ApiError)
+
+    expect(unauthorizedHandler).not.toHaveBeenCalled()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 })

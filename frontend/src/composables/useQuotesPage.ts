@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { ApiError } from '@/api/http'
 import { getQuotesList } from '@/api/quotes.api'
 import type { QuoteFlattenedDomain } from '@/types/quotes'
 
@@ -25,7 +26,7 @@ function toDateInputValue(value: Date | null): string | null {
   return `${year}-${month}-${day}`
 }
 
-export function useQuotesPage(accessToken: string | null) {
+export function useQuotesPage(getAccessToken: () => string | null) {
   const items = ref<QuoteFlattenedDomain[]>([])
   const total = ref<number>(0)
   const isLoading = ref<boolean>(false)
@@ -91,12 +92,20 @@ export function useQuotesPage(accessToken: string | null) {
     isLoading.value = true
     errorMsg.value = null
     try {
-      const res = await getQuotesList(queryParams.value, accessToken)
+      const res = await getQuotesList(queryParams.value, getAccessToken())
       items.value = res.items
       total.value = res.total
     } catch (err: unknown) {
-      errorMsg.value =
-        err instanceof Error ? err.message : 'Lỗi khi tải danh sách báo giá.'
+      if (err instanceof ApiError && err.status === 401) {
+        // Chỉ tới đây khi cơ chế tự refresh token ở tầng http.ts (xem
+        // `setUnauthorizedHandler` trong main.ts) cũng đã thất bại thật sự
+        // (refresh token cũng hết hạn/không hợp lệ) — không nên hiện nguyên
+        // văn message tiếng Anh từ backend lên UI.
+        errorMsg.value = 'Phiên đăng nhập đã hết hạn, vui lòng tải lại trang.'
+      } else {
+        errorMsg.value =
+          err instanceof Error ? err.message : 'Lỗi khi tải danh sách báo giá.'
+      }
     } finally {
       isLoading.value = false
     }

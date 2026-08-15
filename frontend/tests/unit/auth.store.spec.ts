@@ -110,4 +110,61 @@ describe('auth.store', () => {
       password: 'Password@123',
     })
   })
+
+  it('ensureFreshAccessToken refreshes the session and returns the new access token', async () => {
+    authApiMock.refreshSession.mockResolvedValue({
+      accessToken: 'renewed-token',
+      tokenType: 'bearer',
+      expiresInSeconds: 900,
+    })
+
+    const authStore = useAuthStore()
+    authStore.accessToken = 'expired-token'
+
+    const token = await authStore.ensureFreshAccessToken()
+
+    expect(token).toBe('renewed-token')
+    expect(authStore.accessToken).toBe('renewed-token')
+  })
+
+  it('ensureFreshAccessToken dedupes concurrent calls into a single refresh request', async () => {
+    let resolveRefresh: (value: unknown) => void = () => {}
+    authApiMock.refreshSession.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve
+      }),
+    )
+
+    const authStore = useAuthStore()
+
+    const firstCall = authStore.ensureFreshAccessToken()
+    const secondCall = authStore.ensureFreshAccessToken()
+
+    resolveRefresh({
+      accessToken: 'renewed-token',
+      tokenType: 'bearer',
+      expiresInSeconds: 900,
+    })
+
+    const [firstToken, secondToken] = await Promise.all([firstCall, secondCall])
+
+    expect(authApiMock.refreshSession).toHaveBeenCalledTimes(1)
+    expect(firstToken).toBe('renewed-token')
+    expect(secondToken).toBe('renewed-token')
+  })
+
+  it('ensureFreshAccessToken clears auth state and returns null when the refresh token is rejected', async () => {
+    authApiMock.refreshSession.mockRejectedValue(
+      new ApiError('Refresh token is invalid.', 401),
+    )
+
+    const authStore = useAuthStore()
+    authStore.accessToken = 'expired-token'
+
+    const token = await authStore.ensureFreshAccessToken()
+
+    expect(token).toBeNull()
+    expect(authStore.isAuthenticated).toBe(false)
+    expect(authStore.accessToken).toBeNull()
+  })
 })

@@ -10,6 +10,11 @@ import {
 import type { CurrentUser, LoginFormValues } from '@/types/auth'
 
 let initializePromise: Promise<void> | null = null
+// Nhiều request có thể đồng thời gặp 401 (access token JWT hết hạn) và cùng
+// gọi `ensureFreshAccessToken` — dùng chung 1 promise refresh đang chạy thay
+// vì bắn nhiều request `/auth/refresh` song song, tránh rotate refresh-token
+// cookie nhiều lần cùng lúc (rủi ro tương tự race đã gặp với Ctrl+R nhanh).
+let refreshPromise: Promise<string | null> | null = null
 
 const LOGGED_IN_COOKIE_NAME =
   import.meta.env.VITE_AUTH_LOGGED_IN_COOKIE_NAME || 'quotify_logged_in'
@@ -106,6 +111,37 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         initializePromise = null
       }
+    },
+    // Gọi bởi `setUnauthorizedHandler` (đăng ký trong main.ts) mỗi khi 1
+    // request bất kỳ nhận lỗi 401 do access token JWT đã hết hạn (mặc định
+    // 30 phút, xem `ACCESS_TOKEN_EXPIRE_MINUTES`) — refresh lại session bằng
+    // refresh-token cookie hiện có, KHÔNG cần người dùng tải lại trang.
+    async ensureFreshAccessToken(): Promise<string | null> {
+      if (refreshPromise) {
+        return refreshPromise
+      }
+
+      refreshPromise = (async () => {
+        try {
+          const session = await refreshSession()
+          this.setAccessToken(session.accessToken)
+          return session.accessToken
+        } catch (error) {
+          if (
+            error instanceof ApiError &&
+            (error.status === 401 || error.status === 403)
+          ) {
+            // Refresh-token cũng đã hết hạn/không hợp lệ — phiên đăng nhập
+            // thực sự đã kết thúc, không chỉ access token tạm thời hết hạn.
+            this.clearAuthState()
+          }
+          return null
+        } finally {
+          refreshPromise = null
+        }
+      })()
+
+      return refreshPromise
     },
     async login(payload: LoginFormValues) {
       this.loginPending = true

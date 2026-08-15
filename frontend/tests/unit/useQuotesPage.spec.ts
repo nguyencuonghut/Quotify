@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useQuotesPage } from '@/composables/useQuotesPage'
 import { useAuthStore } from '@/stores/auth.store'
+import { ApiError } from '@/api/http'
 
 const quotesApiMock = vi.hoisted(() => ({
   getQuotesList: vi.fn(),
@@ -24,7 +25,7 @@ describe('useQuotesPage', () => {
   })
 
   it('initializes filter and state variables correctly', () => {
-    const page = useQuotesPage('mock-token')
+    const page = useQuotesPage(() => 'mock-token')
 
     expect(page.items.value).toEqual([])
     expect(page.total.value).toBe(0)
@@ -73,7 +74,7 @@ describe('useQuotesPage', () => {
 
     quotesApiMock.getQuotesList.mockResolvedValue(mockRes)
 
-    const page = useQuotesPage('mock-token')
+    const page = useQuotesPage(() => 'mock-token')
     page.globalSearch.value = 'Supp A'
     page.supplierId.value = 'supp-1'
     page.purchased.value = true
@@ -100,7 +101,7 @@ describe('useQuotesPage', () => {
   it('can reset filters and reload list', async () => {
     quotesApiMock.getQuotesList.mockResolvedValue({ items: [], total: 0 })
 
-    const page = useQuotesPage('mock-token')
+    const page = useQuotesPage(() => 'mock-token')
     page.globalSearch.value = 'Text'
     page.purchased.value = true
 
@@ -116,6 +117,36 @@ describe('useQuotesPage', () => {
         sortOrder: 'desc',
       }),
       'mock-token',
+    )
+  })
+
+  it('reads the access token live on every call, instead of a stale snapshot from creation', async () => {
+    quotesApiMock.getQuotesList.mockResolvedValue({ items: [], total: 0 })
+
+    const authStore = useAuthStore()
+    const page = useQuotesPage(() => authStore.accessToken)
+
+    // Token rotates (e.g. after a silent refresh) sau khi composable đã tạo —
+    // request tiếp theo phải dùng token MỚI, không phải token chụp lúc tạo.
+    authStore.accessToken = 'renewed-token'
+    await page.loadQuotesData()
+
+    expect(quotesApiMock.getQuotesList).toHaveBeenCalledWith(
+      expect.any(Object),
+      'renewed-token',
+    )
+  })
+
+  it('shows a friendly session-expired message instead of the raw backend 401 detail', async () => {
+    quotesApiMock.getQuotesList.mockRejectedValue(
+      new ApiError('Invalid authentication credentials.', 401),
+    )
+
+    const page = useQuotesPage(() => 'mock-token')
+    await page.loadQuotesData()
+
+    expect(page.errorMsg.value).toBe(
+      'Phiên đăng nhập đã hết hạn, vui lòng tải lại trang.',
     )
   })
 })

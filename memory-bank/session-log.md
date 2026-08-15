@@ -941,3 +941,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Bat tim kiem cho filter Nha cung cap va Vat tu o trang Quotes
 - Tom tat: Them prop filter/filter-placeholder cho 2 Select Nha cung cap va Vat tu tren trang /quotes, cung convention da dung o Dashboard. Verify Playwright thuc te loc dung, lint/typecheck/build sach, test:unit ve dung baseline.
+
+## 2026-08-15 02:40:24Z - claude
+
+- Tieu de: Sua loi Invalid authentication credentials thi thoang o trang Quotes
+- Tom tat: Dieu tra va sua loi thi thoang hien Invalid authentication credentials o /quotes - nguyen nhan la access token JWT het han sau 30 phut nhung SPA khong co co che tu refresh-on-401. Them setUnauthorizedHandler/retry o http.ts, ensureFreshAccessToken dedupe o auth.store.ts, dang ky handler o main.ts (redirect /login khi refresh that bai that), sua useQuotesPage doc token song thay vi chup tinh, dich message loi 401 con sot sang tieng Viet. TDD day du 8 test moi, verify Playwright thuc te ca 2 nhanh (phuc hoi im lang / redirect login sach).
