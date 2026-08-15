@@ -50,6 +50,9 @@ export interface QuotifyPriceTrendPointDto {
   received_date: string
   delivery_month: string
   converted_price_vnd_per_kg: string
+  price_original: string
+  currency: string
+  unit: string
   supplier_id: string
   supplier_name: string
   supplier_code: string
@@ -128,6 +131,9 @@ export interface QuotifyPriceTrendPoint {
   receivedDate: string
   deliveryMonth: string
   convertedPriceVndPerKg: number
+  priceOriginal: number
+  currency: string
+  unit: string
   supplierId: string
   supplierName: string
   supplierCode: string

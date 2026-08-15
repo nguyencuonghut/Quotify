@@ -99,6 +99,9 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
             "received_date": date(2026, 7, 20),
             "delivery_month": delivery_month,
             "converted_price_vnd_per_kg": Decimal("6500.00"),
+            "price_original": Decimal("250.00"),
+            "currency": "USD",
+            "unit": "MT",
             "supplier_id": uuid4(),
             "supplier_name": "Supplier ABC",
             "supplier_code": "ABC",
@@ -174,6 +177,9 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
     assert response["points"][0]["line_id"] == purchased_line_id
     assert response["points"][0]["supplier_type"] == "international"
     assert response["points"][0]["purchased"] is True
+    assert response["points"][0]["price_original"] == Decimal("250.00")
+    assert response["points"][0]["currency"] == "USD"
+    assert response["points"][0]["unit"] == "MT"
     assert response["purchase_contexts"][0]["purchased_line_id"] == purchased_line_id
     assert response["purchase_contexts"][0]["at_purchase"]["total_lines"] == 1
     assert response["purchase_contexts"][0]["after_purchase"]["min_price"] == Decimal("6700.00")
@@ -189,6 +195,9 @@ def _price_trend_point_row(*, received_date: date, line_id: object) -> FakeResul
             "received_date": received_date,
             "delivery_month": date(2026, 8, 1),
             "converted_price_vnd_per_kg": Decimal("6500.00"),
+            "price_original": Decimal("250.00"),
+            "currency": "USD",
+            "unit": "MT",
             "supplier_id": uuid4(),
             "supplier_name": "Supplier ABC",
             "supplier_code": "ABC",

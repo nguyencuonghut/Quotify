@@ -180,18 +180,6 @@
           </label>
 
           <label class="dashboard-page__filter-field">
-            <span class="dashboard-page__filter-label">Loại NCC</span>
-            <Select
-              v-model="selectedSupplierType"
-              :options="supplierTypeOptions"
-              option-label="label"
-              option-value="value"
-              placeholder="Tất cả loại NCC"
-              show-clear
-            />
-          </label>
-
-          <label class="dashboard-page__filter-field">
             <span class="dashboard-page__filter-label">Từ ngày nhận</span>
             <DatePicker
               v-model="receivedDateStart"
@@ -227,6 +215,13 @@
             />
           </div>
         </div>
+
+        <label
+          class="dashboard-page__comparison-band-toggle dashboard-page__cnf-toggle"
+        >
+          <Checkbox v-model="showCnfOnly" binary />
+          <span>Giá CNF (chỉ tính báo giá USD/MT, trục Y hiện giá USD)</span>
+        </label>
 
         <div v-if="errorMessage" class="dashboard-page__message" role="alert">
           <i class="pi pi-exclamation-triangle" aria-hidden="true" />
@@ -521,16 +516,15 @@ import AdminLayout from '@/layouts/AdminLayout.vue'
 
 const {
   materials,
-  supplierTypeOptions,
   isLoading,
   isLoadingWeeklyEntry,
   isLoadingLookups,
   errorMessage,
   selectedMaterialId,
-  selectedSupplierType,
   deliveryMonth,
   receivedDateStart,
   receivedDateEnd,
+  showCnfOnly,
   selectedWeek,
   selectedWeeklyUserId,
   comparisonMaterialIds,

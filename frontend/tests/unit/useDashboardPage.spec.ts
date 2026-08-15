@@ -49,6 +49,9 @@ const priceTrends = {
       receivedDate: '2026-07-20',
       deliveryMonth: '2026-08-01',
       convertedPriceVndPerKg: 10500,
+      priceOriginal: 10500,
+      currency: 'VND',
+      unit: 'KG',
       supplierId: 'supplier-1',
       supplierName: 'Nhà cung cấp A',
       supplierCode: 'NCC-A',
@@ -68,6 +71,9 @@ const priceTrends = {
       receivedDate: '2026-07-22',
       deliveryMonth: '2026-08-01',
       convertedPriceVndPerKg: 11500,
+      priceOriginal: 11500,
+      currency: 'VND',
+      unit: 'KG',
       supplierId: 'supplier-2',
       supplierName: 'Nhà cung cấp B',
       supplierCode: 'NCC-B',
@@ -87,6 +93,9 @@ const priceTrends = {
       receivedDate: '2026-07-25',
       deliveryMonth: '2026-09-01',
       convertedPriceVndPerKg: 12000,
+      priceOriginal: 12000,
+      currency: 'VND',
+      unit: 'KG',
       supplierId: 'supplier-1',
       supplierName: 'Nhà cung cấp A',
       supplierCode: 'NCC-A',
@@ -183,7 +192,6 @@ describe('useDashboardPage', () => {
         deliveryMonth: '2026-10-01',
         receivedDateStart: null,
         receivedDateEnd: null,
-        supplierType: null,
       },
       'mock-access-token',
     )
@@ -257,11 +265,107 @@ describe('useDashboardPage', () => {
     })
   })
 
+  it('ticking "Giá CNF" keeps only USD/MT quotes and switches the chart to their original USD price', async () => {
+    dashboardApiMock.getQuotifyPriceTrends.mockResolvedValue({
+      ...priceTrends,
+      points: [
+        {
+          ...priceTrends.points[0],
+          lineId: 'line-vnd',
+          currency: 'VND',
+          unit: 'KG',
+          convertedPriceVndPerKg: 7000,
+          priceOriginal: 7000,
+        },
+        {
+          ...priceTrends.points[0],
+          lineId: 'line-usd-1',
+          currency: 'USD',
+          unit: 'MT',
+          convertedPriceVndPerKg: 11000,
+          priceOriginal: 400,
+          purchased: false,
+        },
+        {
+          ...priceTrends.points[0],
+          lineId: 'line-usd-2',
+          currency: 'USD',
+          unit: 'MT',
+          convertedPriceVndPerKg: 11500,
+          priceOriginal: 420,
+          purchased: false,
+        },
+      ],
+    })
+
+    const page = useDashboardPage()
+    await page.bootstrap()
+
+    // Chưa tick: vẫn dùng giá quy đổi VNĐ/KG, gồm cả điểm VND/KG.
+    expect(page.deliveryMonthBuckets.value[0]).toMatchObject({ pointCount: 3 })
+
+    // Tick "Giá CNF" chỉ lọc lại dữ liệu ĐÃ CÓ ở client — không cần gọi lại
+    // API — nên bucket phải đổi ngay, phản ứng thuần theo `showCnfOnly`.
+    page.showCnfOnly.value = true
+
+    expect(page.deliveryMonthBuckets.value).toHaveLength(1)
+    expect(page.deliveryMonthBuckets.value[0]).toMatchObject({
+      pointCount: 2,
+      minPrice: 400,
+      maxPrice: 420,
+      avgPrice: 410,
+    })
+  })
+
+  it('formats the "Giá theo kỳ hàng về" tooltip and Y-axis values in USD when "Giá CNF" is ticked', async () => {
+    dashboardApiMock.getQuotifyPriceTrends.mockResolvedValue({
+      ...priceTrends,
+      points: [
+        {
+          ...priceTrends.points[0],
+          lineId: 'line-usd-1',
+          currency: 'USD',
+          unit: 'MT',
+          convertedPriceVndPerKg: 11000,
+          priceOriginal: 400,
+          purchased: true,
+        },
+      ],
+    })
+
+    const page = useDashboardPage()
+    await page.bootstrap()
+    page.showCnfOnly.value = true
+
+    const avgLabel = page.chartOptions.value.plugins.tooltip.callbacks.label({
+      dataIndex: 0,
+      dataset: { label: 'Giá trung bình' },
+    })
+    expect(avgLabel).toBe('Giá trung bình: $400.00 USD/MT')
+
+    const canvas = document.createElement('canvas')
+    document.createElement('div').appendChild(canvas)
+    page.chartOptions.value.plugins.tooltip.external({
+      chart: { canvas },
+      tooltip: {
+        opacity: 1,
+        title: ['07/2026'],
+        body: [{ lines: ['Giá trung bình: $400.00 USD/MT'] }],
+        labelColors: [{ backgroundColor: '#000', borderColor: '#000' }],
+        dataPoints: [{ dataIndex: 0 }],
+        caretX: 10,
+        caretY: 10,
+      },
+    })
+    const tooltipText = canvas.parentElement?.querySelector('.quotify-chart-tooltip')?.textContent
+    expect(tooltipText).toContain('USD/MT')
+    expect(tooltipText).not.toContain('VNĐ/KG')
+  })
+
   it('sends selected material, month and received date filters to dashboard APIs', async () => {
     const page = useDashboardPage()
 
     page.selectedMaterialId.value = 'material-1'
-    page.selectedSupplierType.value = 'international'
     page.deliveryMonth.value = new Date(2026, 7, 1)
     page.receivedDateStart.value = new Date(2026, 6, 1)
     page.receivedDateEnd.value = new Date(2026, 6, 31)
@@ -273,7 +377,6 @@ describe('useDashboardPage', () => {
       deliveryMonth: '2026-08-01',
       receivedDateStart: '2026-07-01',
       receivedDateEnd: '2026-07-31',
-      supplierType: 'international',
     }
 
     expect(dashboardApiMock.getQuotifyEntryKpis).toHaveBeenCalledWith(
@@ -292,7 +395,6 @@ describe('useDashboardPage', () => {
 
     const page = useDashboardPage()
     page.selectedMaterialId.value = 'another-material'
-    page.selectedSupplierType.value = 'domestic'
     page.deliveryMonth.value = new Date(2027, 2, 1)
     page.materials.value = [
       {
@@ -312,7 +414,6 @@ describe('useDashboardPage', () => {
     await page.resetFilters()
 
     expect(page.selectedMaterialId.value).toBe('material-1')
-    expect(page.selectedSupplierType.value).toBeNull()
     // "Xóa lọc" đưa kỳ giao hàng về lại mặc định (tháng hiện tại + 2), không
     // phải rỗng — chart này luôn cần 1 kỳ giao hàng cố định.
     expect(page.deliveryMonth.value).toEqual(new Date(2026, 9, 1))
@@ -322,7 +423,6 @@ describe('useDashboardPage', () => {
         deliveryMonth: '2026-10-01',
         receivedDateStart: null,
         receivedDateEnd: null,
-        supplierType: null,
       },
       'mock-access-token',
     )
@@ -360,7 +460,6 @@ describe('useDashboardPage', () => {
 
     it('fetches trends for each selected material in parallel with shared filters, ignoring the fixed delivery month of the sibling chart', async () => {
       const page = useDashboardPage()
-      page.selectedSupplierType.value = 'international'
       // Chart này so sánh giá GIỮA CÁC kỳ hàng về, nên phải không bị ảnh
       // hưởng bởi kỳ giao hàng cố định của chart "Giá theo kỳ hàng về" cạnh
       // nó (dùng chung 1 bộ lọc "Kỳ giao hàng" ở panel trên) — nếu không,
@@ -376,7 +475,6 @@ describe('useDashboardPage', () => {
           materialId: 'material-1',
           receivedDateStart: null,
           receivedDateEnd: null,
-          supplierType: 'international',
         },
         'mock-access-token',
       )
@@ -385,7 +483,6 @@ describe('useDashboardPage', () => {
           materialId: 'material-2',
           receivedDateStart: null,
           receivedDateEnd: null,
-          supplierType: 'international',
         },
         'mock-access-token',
       )

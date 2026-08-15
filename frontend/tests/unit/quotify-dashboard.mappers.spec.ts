@@ -115,6 +115,9 @@ describe('quotify dashboard mappers', () => {
           received_date: '2026-07-20',
           delivery_month: '2026-08-01',
           converted_price_vnd_per_kg: '10500.25',
+          price_original: '420.50',
+          currency: 'USD',
+          unit: 'MT',
           supplier_id: 'supplier-1',
           supplier_name: 'Nhà cung cấp A',
           supplier_code: 'NCC-A',
@@ -170,6 +173,9 @@ describe('quotify dashboard mappers', () => {
       points: [
         {
           convertedPriceVndPerKg: 10500.25,
+          priceOriginal: 420.5,
+          currency: 'USD',
+          unit: 'MT',
           supplierType: 'domestic',
           supplierLabel: 'NCC-A - Nhà cung cấp A',
           purchased: true,

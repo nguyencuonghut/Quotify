@@ -13,7 +13,6 @@ import type { MaterialDomain } from '@/types/materials'
 import type {
   QuotifyDashboardQuery,
   QuotifyDashboardSupplierType,
-  QuotifyDashboardSupplierTypeFilter,
   QuotifyEntryKpis,
   QuotifyPriceTrendPoint,
   QuotifyPriceTrends,
@@ -28,11 +27,6 @@ interface DashboardMetricCard {
   detail: string
   icon: string
   tone: 'primary' | 'success' | 'info' | 'warn'
-}
-
-interface DashboardSupplierTypeOption {
-  label: string
-  value: QuotifyDashboardSupplierTypeFilter
 }
 
 interface DashboardUserOption {
@@ -58,10 +52,6 @@ const MAX_COMPARISON_MATERIALS = 3
 const MAX_COMPARISON_YEARS = 5
 const preferredMaterialCodes = ['CORN']
 const preferredMaterialNames = ['ngô hạt', 'ngo hat', 'bắp hạt', 'bap hat']
-const supplierTypeOptions: DashboardSupplierTypeOption[] = [
-  { label: 'Nội địa', value: 'domestic' },
-  { label: 'Quốc tế', value: 'international' },
-]
 
 function formatMoney(value: number | null): string {
   if (value === null || Number.isNaN(value)) {
@@ -72,6 +62,20 @@ function formatMoney(value: number | null): string {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   }).format(value)} VNĐ/KG`
+}
+
+/** Dùng cho chế độ "Giá CNF" — hiện giá gốc USD/MT thay vì giá quy đổi
+ * VNĐ/KG, cùng quy ước hiển thị "$..." đã dùng ở nơi khác (ví dụ
+ * `formatOriginalPrice` trong QuotesPage.vue). */
+function formatUsdPerMt(value: number | null): string {
+  if (value === null || Number.isNaN(value)) {
+    return 'Chưa có dữ liệu'
+  }
+
+  return `$${new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  }).format(value)} USD/MT`
 }
 
 function formatNumber(value: number): string {
@@ -304,13 +308,17 @@ function cssVar(name: string, fallback: string): string {
   )
 }
 
-function buildTooltipLabel(point: QuotifyPriceTrendPoint): string {
+function buildTooltipLabel(
+  point: QuotifyPriceTrendPoint,
+  getPrice: (point: QuotifyPriceTrendPoint) => number = (point) => point.convertedPriceVndPerKg,
+  formatPrice: (value: number | null) => string = formatMoney,
+): string {
   return [
     point.supplierLabel,
     formatSupplierType(point.supplierType),
     formatDateLabel(point.receivedDate),
     formatMonthLabel(point.deliveryMonth),
-    formatMoney(point.convertedPriceVndPerKg),
+    formatPrice(getPrice(point)),
   ].join(' | ')
 }
 
@@ -359,6 +367,7 @@ interface RepresentativeTooltipPoint {
 function pickRepresentativeTooltipPoints(
   points: QuotifyPriceTrendPoint[],
   avgPrice: number,
+  getPrice: (point: QuotifyPriceTrendPoint) => number = (point) => point.convertedPriceVndPerKg,
 ): RepresentativeTooltipPoint[] {
   const selected: RepresentativeTooltipPoint[] = []
   const usedIds = new Set<string>()
@@ -373,9 +382,7 @@ function pickRepresentativeTooltipPoints(
     usedSupplierIds.add(point.supplierId)
   }
 
-  const byPriceAsc = [...points].sort(
-    (left, right) => left.convertedPriceVndPerKg - right.convertedPriceVndPerKg,
-  )
+  const byPriceAsc = [...points].sort((left, right) => getPrice(left) - getPrice(right))
   take(byPriceAsc[0], 'Giá thấp nhất')
   take(byPriceAsc[byPriceAsc.length - 1], 'Giá cao nhất')
 
@@ -393,8 +400,7 @@ function pickRepresentativeTooltipPoints(
 
   const byDistanceToAvg = [...points].sort(
     (left, right) =>
-      Math.abs(left.convertedPriceVndPerKg - avgPrice) -
-      Math.abs(right.convertedPriceVndPerKg - avgPrice),
+      Math.abs(getPrice(left) - avgPrice) - Math.abs(getPrice(right) - avgPrice),
   )
   for (const point of byDistanceToAvg) {
     if (selected.length >= TOOLTIP_SAMPLE_SIZE) {
@@ -416,6 +422,9 @@ function pickRepresentativeTooltipPoints(
 
 function buildDeliveryMonthBuckets(
   points: QuotifyPriceTrendPoint[],
+  // Mặc định lấy giá quy đổi VNĐ/KG; chế độ "Giá CNF" truyền vào
+  // `(point) => point.priceOriginal` để dùng giá gốc USD thay thế.
+  getPrice: (point: QuotifyPriceTrendPoint) => number = (point) => point.convertedPriceVndPerKg,
 ): DeliveryMonthBucket[] {
   const bucketMap = new Map<string, QuotifyPriceTrendPoint[]>()
   for (const point of points) {
@@ -429,7 +438,7 @@ function buildDeliveryMonthBuckets(
   return Array.from(bucketMap.entries())
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([receivedMonthKey, bucketPoints]) => {
-      const prices = bucketPoints.map((point) => point.convertedPriceVndPerKg)
+      const prices = bucketPoints.map(getPrice)
       const purchasedPoint = bucketPoints.find((point) => point.purchased)
 
       return {
@@ -440,7 +449,7 @@ function buildDeliveryMonthBuckets(
         avgPrice:
           prices.reduce((total, current) => total + current, 0) / prices.length,
         pointCount: bucketPoints.length,
-        purchasedPrice: purchasedPoint?.convertedPriceVndPerKg ?? null,
+        purchasedPrice: purchasedPoint ? getPrice(purchasedPoint) : null,
         points: bucketPoints,
       }
     })
@@ -580,10 +589,12 @@ export function useDashboardPage() {
   const errorMessage = ref<string | null>(null)
 
   const selectedMaterialId = ref<string | null>(null)
-  const selectedSupplierType = ref<QuotifyDashboardSupplierTypeFilter | null>(null)
   const deliveryMonth = ref<Date | null>(getDefaultDeliveryMonth())
   const receivedDateStart = ref<Date | null>(null)
   const receivedDateEnd = ref<Date | null>(null)
+  // "Giá CNF": chỉ tính các báo giá USD/MT và hiển thị giá gốc (USD) thay vì
+  // giá quy đổi VNĐ/KG — mặc định untick (vẫn dùng VNĐ/KG như trước).
+  const showCnfOnly = ref(false)
   const selectedWeek = ref<Date | null>(getWeekStartDate(new Date()))
   const selectedWeeklyUserId = ref<string | null>(null)
 
@@ -616,7 +627,6 @@ export function useDashboardPage() {
             materialId,
             receivedDateStart: queryParams.value.receivedDateStart,
             receivedDateEnd: queryParams.value.receivedDateEnd,
-            supplierType: queryParams.value.supplierType,
           },
           authStore.accessToken,
         ),
@@ -746,7 +756,6 @@ export function useDashboardPage() {
     deliveryMonth: toDateInputValue(deliveryMonth.value),
     receivedDateStart: toDateInputValue(receivedDateStart.value),
     receivedDateEnd: toDateInputValue(receivedDateEnd.value),
-    supplierType: selectedSupplierType.value,
   }))
 
   const weeklyEntryQueryParams = computed<QuotifyWeeklyEntryActivityQuery>(() => ({
@@ -801,11 +810,24 @@ export function useDashboardPage() {
           : 'success',
     },
   ])
-  const trendPoints = computed(() => priceTrends.value?.points ?? [])
+  const trendPoints = computed(() => {
+    const points = priceTrends.value?.points ?? []
+    if (!showCnfOnly.value) {
+      return points
+    }
+    // "Giá CNF": chỉ các báo giá chào bằng USD/MT mới có ý nghĩa so sánh
+    // theo giá gốc (CNF) — bỏ báo giá VND/KG khỏi chart trong chế độ này.
+    return points.filter(
+      (point) => point.currency.toUpperCase() === 'USD' && point.unit.toUpperCase() === 'MT',
+    )
+  })
   const purchaseContexts = computed(() => priceTrends.value?.purchaseContexts ?? [])
   const hasTrendData = computed(() => trendPoints.value.length > 0)
   const deliveryMonthBuckets = computed(() =>
-    buildDeliveryMonthBuckets(trendPoints.value),
+    buildDeliveryMonthBuckets(
+      trendPoints.value,
+      showCnfOnly.value ? (point) => point.priceOriginal : undefined,
+    ),
   )
 
   const chartLabels = computed(() =>
@@ -994,6 +1016,13 @@ export function useDashboardPage() {
       'Gần giá trung bình': cssVar('--app-accent', '#7c3aed'),
     }
     const neutralColor = cssVar('--app-text-muted', '#94a3b8')
+    // "Giá CNF": bucket đã tính sẵn theo giá gốc USD (xem `deliveryMonthBuckets`),
+    // ở đây chỉ cần đổi formatter hiển thị + cách chọn giá đại diện cho từng
+    // báo giá mẫu trong tooltip (`getPrice`) sang cùng field USD đó.
+    const formatPrice = showCnfOnly.value ? formatUsdPerMt : formatMoney
+    const getPrice = showCnfOnly.value
+      ? (point: QuotifyPriceTrendPoint) => point.priceOriginal
+      : (point: QuotifyPriceTrendPoint) => point.convertedPriceVndPerKg
 
     return {
       maintainAspectRatio: false,
@@ -1039,7 +1068,7 @@ export function useDashboardPage() {
               if (prefix === 'Đã chốt mua') {
                 return bucket.purchasedPrice === null
                   ? ''
-                  : `${prefix}: ${formatMoney(bucket.purchasedPrice)}`
+                  : `${prefix}: ${formatPrice(bucket.purchasedPrice)}`
               }
 
               const value =
@@ -1048,7 +1077,7 @@ export function useDashboardPage() {
                   : prefix === 'Giá cao nhất'
                     ? bucket.maxPrice
                     : bucket.avgPrice
-              return `${prefix}: ${formatMoney(value)}`
+              return `${prefix}: ${formatPrice(value)}`
             },
           },
           // Tooltip mặc định của Chart.js vẽ trên canvas, mỗi dòng chỉ có 1
@@ -1102,11 +1131,14 @@ export function useDashboardPage() {
               countEl.textContent = `${bucket.pointCount} báo giá nhận trong tháng ${bucket.label}`
               tooltipEl.appendChild(countEl)
 
-              const sample = pickRepresentativeTooltipPoints(bucket.points, bucket.avgPrice)
+              const sample = pickRepresentativeTooltipPoints(bucket.points, bucket.avgPrice, getPrice)
               for (const entry of sample) {
                 const swatchColor = entry.role ? roleColors[entry.role] ?? neutralColor : neutralColor
                 tooltipEl.appendChild(
-                  buildTooltipRowElement(buildTooltipLabel(entry.point), swatchColor),
+                  buildTooltipRowElement(
+                    buildTooltipLabel(entry.point, getPrice, formatPrice),
+                    swatchColor,
+                  ),
                 )
               }
 
@@ -1524,10 +1556,10 @@ export function useDashboardPage() {
 
   async function resetFilters() {
     selectedMaterialId.value = findDefaultMaterialId(materials.value)
-    selectedSupplierType.value = null
     deliveryMonth.value = getDefaultDeliveryMonth()
     receivedDateStart.value = null
     receivedDateEnd.value = null
+    showCnfOnly.value = false
     await loadDashboard()
   }
 
@@ -1551,16 +1583,15 @@ export function useDashboardPage() {
     weeklyEntryActivity,
     materials,
     weeklyUserOptions,
-    supplierTypeOptions,
     isLoading,
     isLoadingWeeklyEntry,
     isLoadingLookups,
     errorMessage,
     selectedMaterialId,
-    selectedSupplierType,
     deliveryMonth,
     receivedDateStart,
     receivedDateEnd,
+    showCnfOnly,
     selectedWeek,
     selectedWeeklyUserId,
     comparisonMaterialIds,

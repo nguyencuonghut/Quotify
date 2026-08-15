@@ -53,6 +53,9 @@ class QuotifyPriceTrendPoint(BaseModel):
     received_date: date
     delivery_month: date
     converted_price_vnd_per_kg: Decimal
+    price_original: Decimal
+    currency: str
+    unit: str
     supplier_id: UUID
     supplier_name: str
     supplier_code: str

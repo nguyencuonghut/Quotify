@@ -921,3 +921,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Remove KPI cards and move filters into chart panel
 - Tom tat: Xoa 4 KPI card dau trang. Chuyen toan bo bo loc chung (Vat tu/Ky giao hang/Loai NCC/Tu-Den ngay nhan + nut Loc/Xoa loc) vao trong panel 'Gia theo ky hang ve'. Xoa dead code metricCards/summary/emptySummary o composable va CSS lien quan. Verify Playwright thuc xac nhan layout dung, khong con KPI card.
+
+## 2026-08-14 10:30:17Z - claude
+
+- Tieu de: CNF checkbox va bo Loai NCC cho chart Gia theo ky hang ve
+- Tom tat: Bo filter Loai NCC (theo yeu cau nguoi dung, khong chuyen sang chart So sanh); them tick Gia CNF loc USD/MT + doi truc Y/tooltip sang gia goc USD; them price_original/currency/unit vao backend schema + query; tong quat hoa 4 ham composable qua tham so getPrice/formatPrice; verify Playwright thuc te + full regression sach.

@@ -24,19 +24,15 @@ vi.mock('@/composables/useDashboardPage', async () => {
           name: 'Ngô hạt',
         },
       ]),
-      supplierTypeOptions: [
-        { label: 'Nội địa', value: 'domestic' },
-        { label: 'Quốc tế', value: 'international' },
-      ],
       isLoading: ref(false),
       isLoadingWeeklyEntry: ref(false),
       isLoadingLookups: ref(false),
       errorMessage: ref(null),
       selectedMaterialId: ref(null),
-      selectedSupplierType: ref(null),
       deliveryMonth: ref(null),
       receivedDateStart: ref(null),
       receivedDateEnd: ref(null),
+      showCnfOnly: ref(false),
       selectedWeek: ref(null),
       selectedWeeklyUserId: ref(null),
       comparisonMaterialIds: ref([]),
@@ -172,7 +168,7 @@ describe('DashboardPage', () => {
     expect(dashboardPageMock.bootstrap).toHaveBeenCalled()
     expect(wrapper.text()).toContain('Dashboard Quotify')
     expect(wrapper.text()).toContain('Phân tích giá quy đổi VNĐ/KG')
-    expect(wrapper.text()).toContain('Loại NCC')
+    expect(wrapper.text()).toContain('Giá CNF')
     expect(wrapper.text()).toContain('Tình hình nhập báo giá theo tuần')
     expect(wrapper.text()).toContain('Người nhập')
     expect(wrapper.text()).toContain('User chưa nhập')
