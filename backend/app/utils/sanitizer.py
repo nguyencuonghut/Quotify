@@ -1,4 +1,17 @@
+import html
+import re
+
 import nh3
+
+
+def clean_html_to_text(text: str | None) -> str | None:
+    if not text:
+        return text
+    text = re.sub(r"</?(p|br|div|li)[^>]*>", " ", text)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    return " ".join(text.split())
+
 
 def sanitize_html(raw_html: str) -> str:
     if raw_html is None:

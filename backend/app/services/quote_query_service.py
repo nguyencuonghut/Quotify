@@ -11,6 +11,8 @@ from app.models.material import Material
 from app.models.material_type import MaterialType
 from app.models.quote import Quote
 from app.models.quote_line import QuoteLine
+from app.models.quote_note import QuoteNote
+from app.models.quote_note_revision import QuoteNoteRevision
 from app.models.quote_version import QuoteVersion
 from app.models.supplier import Supplier
 from app.models.user import User
@@ -235,3 +237,160 @@ class QuoteQueryService:
             })
 
         return items, total
+
+    async def query_flattened_quotes_for_export(
+        self,
+        *,
+        global_search: str | None = None,
+        material_type_id: UUID | None = None,
+        material_id: UUID | None = None,
+        supplier_id: UUID | None = None,
+        created_by_id: UUID | None = None,
+        received_date_start: date | None = None,
+        received_date_end: date | None = None,
+        delivery_month: date | None = None,
+        currency: str | None = None,
+        purchased: bool | None = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+    ) -> list[dict[str, Any]]:
+        # Xuất Excel lấy TOÀN BỘ dòng khớp bộ lọc (không phân trang) — khác
+        # `query_flattened_quotes` (dùng cho bảng trên UI, luôn giới hạn
+        # limit/offset), nên không cần câu COUNT riêng.
+        #
+        # Ghi chú (per-quote, xem `QuoteNote`/`QuoteNoteRevision`) là 1 bản
+        # ghi có NHIỀU revision theo thời gian — chỉ lấy bản mới nhất (số
+        # revision lớn nhất) qua window function `row_number()`, không lấy cả
+        # lịch sử, theo đúng phạm vi báo cáo cho lãnh đạo đã thống nhất.
+        latest_revision_rank = (
+            select(
+                QuoteNoteRevision.note_id,
+                QuoteNoteRevision.content,
+                QuoteNoteRevision.created_at,
+                User.full_name.label("author_name"),
+                func.row_number()
+                .over(
+                    partition_by=QuoteNoteRevision.note_id,
+                    order_by=desc(QuoteNoteRevision.revision_number),
+                )
+                .label("rn"),
+            ).outerjoin(User, QuoteNoteRevision.author_id == User.id)
+        ).subquery()
+
+        latest_revision = (
+            select(
+                latest_revision_rank.c.note_id,
+                latest_revision_rank.c.content,
+                latest_revision_rank.c.created_at,
+                latest_revision_rank.c.author_name,
+            ).where(latest_revision_rank.c.rn == 1)
+        ).subquery()
+
+        stmt = (
+            select(
+                QuoteLine.id,
+                Quote.id.label("quote_id"),
+                QuoteVersion.id.label("quote_version_id"),
+                Supplier.id.label("supplier_id"),
+                Supplier.name.label("supplier_name"),
+                Supplier.code.label("supplier_code"),
+                Material.id.label("material_id"),
+                Material.name.label("material_name"),
+                Material.code.label("material_code"),
+                MaterialType.name.label("material_type_name"),
+                MaterialType.code.label("material_type_code"),
+                QuoteVersion.received_date,
+                QuoteLine.delivery_month,
+                QuoteLine.price_original,
+                QuoteLine.currency,
+                QuoteLine.unit,
+                QuoteLine.exchange_rate,
+                QuoteLine.exchange_rate_source,
+                QuoteLine.import_tax_rate_percent,
+                QuoteLine.processing_cost_vnd_per_kg,
+                QuoteLine.price_converted_vnd_per_kg,
+                QuoteLine.purchase_marked_at,
+                QuoteVersion.version_number,
+                QuoteVersion.status.label("version_status"),
+                User.full_name.label("created_by_name"),
+                QuoteLine.created_at,
+                latest_revision.c.content.label("note_content"),
+                latest_revision.c.author_name.label("note_author_name"),
+                latest_revision.c.created_at.label("note_created_at"),
+            )
+            .join(QuoteVersion, QuoteLine.quote_version_id == QuoteVersion.id)
+            .join(Quote, QuoteVersion.quote_id == Quote.id)
+            .join(Supplier, Quote.supplier_id == Supplier.id)
+            .join(Material, QuoteLine.material_id == Material.id)
+            .join(MaterialType, Material.material_type_id == MaterialType.id)
+            .outerjoin(User, QuoteVersion.created_by_id == User.id)
+            .outerjoin(QuoteNote, QuoteNote.quote_id == Quote.id)
+            .outerjoin(latest_revision, latest_revision.c.note_id == QuoteNote.id)
+        )
+
+        stmt = self._apply_filters(
+            stmt,
+            global_search=global_search,
+            material_type_id=material_type_id,
+            material_id=material_id,
+            supplier_id=supplier_id,
+            created_by_id=created_by_id,
+            received_date_start=received_date_start,
+            received_date_end=received_date_end,
+            delivery_month=delivery_month,
+            currency=currency,
+            purchased=purchased,
+        )
+
+        sort_by_map = {
+            "received_date": QuoteVersion.received_date,
+            "delivery_month": QuoteLine.delivery_month,
+            "supplier_name": Supplier.name,
+            "material_name": Material.name,
+            "price_original": QuoteLine.price_original,
+            "price_converted_vnd_per_kg": QuoteLine.price_converted_vnd_per_kg,
+            "version_number": QuoteVersion.version_number,
+            "created_at": QuoteLine.created_at,
+        }
+        sort_col = sort_by_map.get(sort_by, QuoteLine.created_at)
+        if sort_order == "desc":
+            stmt = stmt.order_by(desc(sort_col), asc(QuoteLine.line_order), desc(QuoteLine.id))
+        else:
+            stmt = stmt.order_by(asc(sort_col), asc(QuoteLine.line_order), asc(QuoteLine.id))
+
+        result = await self.db.execute(stmt)
+        items = []
+        for row in result.all():
+            items.append({
+                "id": row.id,
+                "quote_id": row.quote_id,
+                "quote_version_id": row.quote_version_id,
+                "supplier_id": row.supplier_id,
+                "supplier_name": row.supplier_name,
+                "supplier_code": row.supplier_code,
+                "material_id": row.material_id,
+                "material_name": row.material_name,
+                "material_code": row.material_code,
+                "material_type_name": row.material_type_name,
+                "material_type_code": row.material_type_code,
+                "received_date": row.received_date,
+                "delivery_month": row.delivery_month,
+                "price_original": row.price_original,
+                "currency": row.currency,
+                "unit": row.unit,
+                "exchange_rate": row.exchange_rate,
+                "exchange_rate_source": row.exchange_rate_source,
+                "import_tax_rate_percent": row.import_tax_rate_percent,
+                "processing_cost_vnd_per_kg": row.processing_cost_vnd_per_kg,
+                "price_converted_vnd_per_kg": row.price_converted_vnd_per_kg,
+                "purchased": row.purchase_marked_at is not None,
+                "version_number": row.version_number,
+                "version_status": row.version_status,
+                "created_by_name": row.created_by_name,
+                "created_at": row.created_at,
+                "note_content": row.note_content,
+                "note_author_name": row.note_author_name,
+                "note_created_at": row.note_created_at,
+            })
+
+        return items

@@ -72,6 +72,14 @@
 
         <div class="quotes-page__actions">
           <Button
+            icon="pi pi-file-excel"
+            label="Xuất Excel"
+            severity="success"
+            outlined
+            :loading="isExporting"
+            @click="exportQuotes"
+          />
+          <Button
             v-if="hasBackfillImportPermission"
             icon="pi pi-upload"
             label="Import báo giá cũ"
@@ -466,6 +474,7 @@ const {
   items,
   total,
   isLoading,
+  isExporting,
   errorMsg,
   globalSearch,
   supplierId,
@@ -478,6 +487,7 @@ const {
   limit,
   offset,
   loadQuotesData,
+  exportQuotes,
   handlePageChange,
   handleSortChange,
   resetFilters,

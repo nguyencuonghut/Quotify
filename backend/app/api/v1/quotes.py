@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import html
 import io
-import re
 from collections.abc import Generator
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Any, BinaryIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,10 +41,12 @@ from app.services import (
     FileMetadataNotFoundError,
     QuotifySettingsService,
 )
+from app.services.quote_export_service import BUSINESS_TIMEZONE, build_quote_export_workbook
 from app.services.quote_note_service import QuoteNoteService
 from app.services.quote_pricing import QuotePricingService
 from app.services.quote_query_service import QuoteQueryService
 from app.services.quote_service import QuoteService
+from app.utils.sanitizer import clean_html_to_text
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 QUOTE_OWNER_DENIED_DETAIL = "Bạn chỉ được thao tác trên phiếu báo giá do mình tạo."
@@ -268,6 +268,69 @@ async def list_quotes(
     return QuoteListResponse(
         items=[QuoteFlattenedResponse.model_validate(item) for item in items],
         total=total,
+    )
+
+
+# Đăng ký TRƯỚC route "/{id}" (path param) — nếu không, FastAPI sẽ khớp
+# "/export" vào "/{id}" trước (do cùng tiếp đầu ngữ 1 segment), khiến request
+# thất bại khi cố parse "export" thành UUID.
+@router.get("/export")
+async def export_quotes(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    query_service: Annotated[QuoteQueryService, Depends(get_quote_query_service)],
+    audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    _: Annotated[User, Depends(require_permission("quotes.read"))],
+    global_search: str | None = None,
+    material_type_id: UUID | None = None,
+    material_id: UUID | None = None,
+    supplier_id: UUID | None = None,
+    created_by_id: UUID | None = None,
+    received_date_start: date | None = None,
+    received_date_end: date | None = None,
+    delivery_month: date | None = None,
+    currency: str | None = None,
+    purchased: bool | None = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+) -> Response:
+    # Xuất Excel LUÔN tôn trọng bộ lọc đang áp dụng trên trang (cùng tham số
+    # với `list_quotes`), nhưng KHÔNG phân trang — lấy toàn bộ dòng khớp bộ
+    # lọc, không chỉ trang hiện tại đang xem.
+    items = await query_service.query_flattened_quotes_for_export(
+        global_search=global_search,
+        material_type_id=material_type_id,
+        material_id=material_id,
+        supplier_id=supplier_id,
+        created_by_id=created_by_id,
+        received_date_start=received_date_start,
+        received_date_end=received_date_end,
+        delivery_month=delivery_month,
+        currency=currency,
+        purchased=purchased,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
+
+    content = build_quote_export_workbook(items)
+
+    await audit_service.log_event(
+        action="quotes.exported",
+        entity_type="quote",
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+            metadata_json={"row_count": len(items)},
+        ),
+    )
+
+    generated_at = datetime.now(BUSINESS_TIMEZONE)
+    filename = f"bao_gia_{generated_at.strftime('%Y%m%d_%H%M%S')}.xlsx"
+    disposition = f'attachment; filename="{filename}"'
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": disposition},
     )
 
 
@@ -868,15 +931,6 @@ async def get_quote_note(
         updated_at=note.updated_at,
         revisions=revisions,
     )
-
-
-def clean_html_to_text(text: str | None) -> str | None:
-    if not text:
-        return text
-    text = re.sub(r"</?(p|br|div|li)[^>]*>", " ", text)
-    text = re.sub(r"<[^>]+>", "", text)
-    text = html.unescape(text)
-    return " ".join(text.split())
 
 
 @router.put("/{quote_id}/notes", response_model=QuoteNoteRevisionResponse)

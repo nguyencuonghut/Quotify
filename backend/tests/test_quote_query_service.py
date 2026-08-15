@@ -122,3 +122,57 @@ async def test_query_flattened_quotes_uses_lightweight_count(
     assert "quote_versions.status != :status_1" in count_sql
     assert "limit" in select_sql
     assert "offset" in select_sql
+
+
+@pytest.mark.asyncio
+async def test_query_flattened_quotes_for_export_returns_every_matching_row_without_pagination(
+    mock_rows: list[FakeResultRow],
+) -> None:
+    fake_db = FakeDbSession(mock_rows)
+    service = QuoteQueryService(cast(Any, fake_db))
+
+    items = await service.query_flattened_quotes_for_export(supplier_id=uuid4())
+
+    assert len(items) == 1
+    assert items[0]["supplier_name"] == "Supplier ABC"
+    # Không cần đếm tổng số (không phân trang cho export) — chỉ đúng 1 lượt
+    # truy vấn, không có lượt COUNT riêng như query_flattened_quotes.
+    assert len(fake_db.queries) == 1
+    select_sql = str(fake_db.queries[0]).lower()
+    assert "limit" not in select_sql
+    assert "offset" not in select_sql
+
+
+@pytest.mark.asyncio
+async def test_query_flattened_quotes_for_export_includes_the_latest_note_per_quote(
+    mock_rows: list[FakeResultRow],
+) -> None:
+    mock_rows[0].__dict__.update(
+        {
+            "note_content": "Đã thương lượng giảm giá 2%",
+            "note_author_name": "Nguyễn Văn Mua",
+            "note_created_at": datetime(2026, 7, 30, 3, 0, tzinfo=UTC),
+        }
+    )
+    fake_db = FakeDbSession(mock_rows)
+    service = QuoteQueryService(cast(Any, fake_db))
+
+    items = await service.query_flattened_quotes_for_export()
+
+    assert items[0]["note_content"] == "Đã thương lượng giảm giá 2%"
+    assert items[0]["note_author_name"] == "Nguyễn Văn Mua"
+    assert items[0]["note_created_at"] == datetime(2026, 7, 30, 3, 0, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_query_flattened_quotes_for_export_leaves_note_fields_blank_when_absent(
+    mock_rows: list[FakeResultRow],
+) -> None:
+    fake_db = FakeDbSession(mock_rows)
+    service = QuoteQueryService(cast(Any, fake_db))
+
+    items = await service.query_flattened_quotes_for_export()
+
+    assert items[0]["note_content"] is None
+    assert items[0]["note_author_name"] is None
+    assert items[0]["note_created_at"] is None

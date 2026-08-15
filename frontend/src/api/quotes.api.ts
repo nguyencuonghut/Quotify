@@ -1,4 +1,5 @@
-import { apiRequest } from '@/api/http'
+import { apiRequest, ApiError } from '@/api/http'
+import { getApiBaseUrl } from '@/api/runtime'
 import {
   mapQuoteDtoToDomain,
   mapQuoteVersionDtoToDomain,
@@ -199,10 +200,9 @@ export function deleteQuoteNoteRevision(
   })
 }
 
-export function getQuotesList(
-  params: Record<string, any>,
-  accessToken?: string | null,
-): Promise<{ items: QuoteFlattenedDomain[]; total: number }> {
+type QuotesQueryFilterParams = Record<string, string | number | boolean | null | undefined>
+
+function buildQuotesQueryString(params: QuotesQueryFilterParams): string {
   const queryParams: Record<string, string> = {}
   Object.keys(params).forEach((key) => {
     if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
@@ -211,7 +211,14 @@ export function getQuotesList(
     }
   })
 
-  const searchParams = new URLSearchParams(queryParams).toString()
+  return new URLSearchParams(queryParams).toString()
+}
+
+export function getQuotesList(
+  params: Record<string, any>,
+  accessToken?: string | null,
+): Promise<{ items: QuoteFlattenedDomain[]; total: number }> {
+  const searchParams = buildQuotesQueryString(params)
   const url = `/quotes${searchParams ? `?${searchParams}` : ''}`
 
   return apiRequest<{ items: QuoteFlattenedDto[]; total: number }>(url, {
@@ -221,4 +228,47 @@ export function getQuotesList(
     items: Array.isArray(res.items) ? res.items.map(mapQuoteFlattenedDtoToDomain) : [],
     total: res.total,
   }))
+}
+
+function resolveExportFilename(contentDisposition: string | null): string {
+  const match = contentDisposition?.match(/filename="([^"]+)"/)
+  return match?.[1] ?? 'bao_gia.xlsx'
+}
+
+// Tôn trọng nguyên bộ lọc đang áp dụng trên trang (cùng tham số với
+// `getQuotesList`), nhưng dùng `fetch` thô thay vì `apiRequest` — cùng quy
+// ước với `downloadQuoteBackfillImportTemplate`/`downloadQuoteBackfillImportErrorFile`
+// (`quote-backfill-imports.api.ts`), vì phản hồi là file nhị phân
+// (application/vnd...spreadsheetml.sheet), không phải JSON.
+export async function downloadQuotesExport(
+  params: QuotesQueryFilterParams,
+  accessToken?: string | null,
+): Promise<void> {
+  const searchParams = buildQuotesQueryString(params)
+  const url = `/quotes/export${searchParams ? `?${searchParams}` : ''}`
+
+  const headers = new Headers()
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`)
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}${url}`, {
+    headers,
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    throw new ApiError(
+      response.statusText || 'Không thể xuất file Excel.',
+      response.status,
+    )
+  }
+
+  const blob = await response.blob()
+  const filename = resolveExportFilename(response.headers.get('content-disposition'))
+  const downloadUrl = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = downloadUrl
+  link.download = filename
+  link.click()
+  window.URL.revokeObjectURL(downloadUrl)
 }

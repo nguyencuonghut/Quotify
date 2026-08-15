@@ -9,10 +9,12 @@ const quotesApiMock = vi.hoisted(() => ({
   listSuppliers: vi.fn(),
   listMaterials: vi.fn(),
   listMaterialTypesLookup: vi.fn(),
+  downloadQuotesExport: vi.fn(),
 }))
 
 vi.mock('@/api/quotes.api', () => ({
   getQuotesList: quotesApiMock.getQuotesList,
+  downloadQuotesExport: quotesApiMock.downloadQuotesExport,
 }))
 
 describe('useQuotesPage', () => {
@@ -148,5 +150,36 @@ describe('useQuotesPage', () => {
     expect(page.errorMsg.value).toBe(
       'Phiên đăng nhập đã hết hạn, vui lòng tải lại trang.',
     )
+  })
+
+  it('exports quotes to Excel using the currently applied filters', async () => {
+    quotesApiMock.downloadQuotesExport.mockResolvedValue(undefined)
+
+    const page = useQuotesPage(() => 'mock-token')
+    page.supplierId.value = 'supp-1'
+    page.purchased.value = true
+
+    expect(page.isExporting.value).toBe(false)
+    await page.exportQuotes()
+
+    expect(quotesApiMock.downloadQuotesExport).toHaveBeenCalledWith(
+      expect.objectContaining({ supplierId: 'supp-1', purchased: true }),
+      'mock-token',
+    )
+    expect(page.isExporting.value).toBe(false)
+  })
+
+  it('shows a friendly message when the export request fails', async () => {
+    quotesApiMock.downloadQuotesExport.mockRejectedValue(
+      new ApiError('Invalid authentication credentials.', 401),
+    )
+
+    const page = useQuotesPage(() => 'mock-token')
+    await page.exportQuotes()
+
+    expect(page.errorMsg.value).toBe(
+      'Phiên đăng nhập đã hết hạn, vui lòng tải lại trang.',
+    )
+    expect(page.isExporting.value).toBe(false)
   })
 })

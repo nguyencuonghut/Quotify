@@ -946,3 +946,13 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Sua loi Invalid authentication credentials thi thoang o trang Quotes
 - Tom tat: Dieu tra va sua loi thi thoang hien Invalid authentication credentials o /quotes - nguyen nhan la access token JWT het han sau 30 phut nhung SPA khong co co che tu refresh-on-401. Them setUnauthorizedHandler/retry o http.ts, ensureFreshAccessToken dedupe o auth.store.ts, dang ky handler o main.ts (redirect /login khi refresh that bai that), sua useQuotesPage doc token song thay vi chup tinh, dich message loi 401 con sot sang tieng Viet. TDD day du 8 test moi, verify Playwright thuc te ca 2 nhanh (phuc hoi im lang / redirect login sach).
+
+## 2026-08-15 03:18:13Z - claude
+
+- Tieu de: Them tinh nang Xuat Excel cho trang Quotes
+- Tom tat: Them nut Xuat Excel o trang /quotes: xuat file .xlsx day du 15 cot nghiep vu (11 cot bang UI + Ghi chu/Nguoi ghi chu/Thoi gian ghi chu), format chuyen nghiep (tieu de, header dam mau navy, bang mau xen ke, auto-filter, freeze header), ton trong bo loc dang ap dung, chi lay ghi chu moi nhat qua window function. Them openpyxl dependency. Phat hien va sua loi that: ghi chu luu HTML tu Quill editor ro ri thang vao Excel - da chuyen clean_html_to_text ra module dung chung va ap dung. TDD day du 18 test moi, verify Playwright + doc file that bang openpyxl voi 16203 dong du lieu that.
+
+## 2026-08-15 03:24:34Z - claude
+
+- Tieu de: Sua format cot Ky giao hang trong file xuat Excel
+- Tom tat: Doi number_format cot Ky giao hang tu dd/mm/yyyy sang mm/yyyy trong file Excel xuat tu trang Quotes, vi ky giao hang chi co y nghia theo thang. Them kind moi month rieng, khong doi gia tri cell. Test moi + verify Playwright voi file that.

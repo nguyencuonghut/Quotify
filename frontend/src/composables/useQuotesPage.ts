@@ -1,7 +1,18 @@
 import { ref, computed } from 'vue'
 import { ApiError } from '@/api/http'
-import { getQuotesList } from '@/api/quotes.api'
+import { downloadQuotesExport, getQuotesList } from '@/api/quotes.api'
 import type { QuoteFlattenedDomain } from '@/types/quotes'
+
+// Lỗi 401 chỉ tới đây khi cơ chế tự refresh token ở tầng http.ts (xem
+// `setUnauthorizedHandler` trong main.ts) cũng đã thất bại thật sự (refresh
+// token cũng hết hạn/không hợp lệ) — không nên hiện nguyên văn message tiếng
+// Anh từ backend lên UI.
+function describeError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && err.status === 401) {
+    return 'Phiên đăng nhập đã hết hạn, vui lòng tải lại trang.'
+  }
+  return err instanceof Error ? err.message : fallback
+}
 
 type QuoteListQueryParams = Record<string, string | number | boolean | null>
 
@@ -30,6 +41,7 @@ export function useQuotesPage(getAccessToken: () => string | null) {
   const items = ref<QuoteFlattenedDomain[]>([])
   const total = ref<number>(0)
   const isLoading = ref<boolean>(false)
+  const isExporting = ref<boolean>(false)
   const errorMsg = ref<string | null>(null)
 
   // Filters
@@ -96,18 +108,21 @@ export function useQuotesPage(getAccessToken: () => string | null) {
       items.value = res.items
       total.value = res.total
     } catch (err: unknown) {
-      if (err instanceof ApiError && err.status === 401) {
-        // Chỉ tới đây khi cơ chế tự refresh token ở tầng http.ts (xem
-        // `setUnauthorizedHandler` trong main.ts) cũng đã thất bại thật sự
-        // (refresh token cũng hết hạn/không hợp lệ) — không nên hiện nguyên
-        // văn message tiếng Anh từ backend lên UI.
-        errorMsg.value = 'Phiên đăng nhập đã hết hạn, vui lòng tải lại trang.'
-      } else {
-        errorMsg.value =
-          err instanceof Error ? err.message : 'Lỗi khi tải danh sách báo giá.'
-      }
+      errorMsg.value = describeError(err, 'Lỗi khi tải danh sách báo giá.')
     } finally {
       isLoading.value = false
+    }
+  }
+
+  const exportQuotes = async () => {
+    isExporting.value = true
+    errorMsg.value = null
+    try {
+      await downloadQuotesExport(queryParams.value, getAccessToken())
+    } catch (err: unknown) {
+      errorMsg.value = describeError(err, 'Không thể xuất file Excel.')
+    } finally {
+      isExporting.value = false
     }
   }
 
@@ -141,6 +156,7 @@ export function useQuotesPage(getAccessToken: () => string | null) {
     items,
     total,
     isLoading,
+    isExporting,
     errorMsg,
     globalSearch,
     supplierId,
@@ -155,6 +171,7 @@ export function useQuotesPage(getAccessToken: () => string | null) {
     sortField,
     sortOrder,
     loadQuotesData,
+    exportQuotes,
     handlePageChange,
     handleSortChange,
     resetFilters,
