@@ -926,3 +926,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: CNF checkbox va bo Loai NCC cho chart Gia theo ky hang ve
 - Tom tat: Bo filter Loai NCC (theo yeu cau nguoi dung, khong chuyen sang chart So sanh); them tick Gia CNF loc USD/MT + doi truc Y/tooltip sang gia goc USD; them price_original/currency/unit vao backend schema + query; tong quat hoa 4 ham composable qua tham so getPrice/formatPrice; verify Playwright thuc te + full regression sach.
+
+## 2026-08-15 01:42:24Z - claude
+
+- Tieu de: Them checkbox Gia CNF cho 2 chart con lai + tang spacing checkbox chart goc
+- Tom tat: Tang spacing checkbox Gia CNF (chart Gia theo ky hang ve) qua class rieng khong dung chung. Them checkbox Gia CNF cho chart Dien bien gia theo thoi gian chao gia va So sanh gia theo mua vu qua cac nam, moi chart 1 toggle doc lap; tong quat hoa buildGroupedComparisonBuckets/buildPriceDifferenceLines/buildComparisonChartOptions qua getPrice/formatPrice/formatPriceTriplet; phat hien va sua loi hien thi that (callout chenh lech gia hardcode VND/KG du tooltip da doi sang USD); 37/37 test composable pass, verify Playwright thuc te sach.

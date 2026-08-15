@@ -488,7 +488,13 @@ function formatPercent(value: number): string {
  * qua mặt hàng chưa có báo giá tháng đó (avgPrice null). Lấy mặt hàng rẻ
  * nhất làm mốc so sánh cho các mặt hàng còn lại — hữu ích cho quyết định
  * thay thế nguyên liệu, không chỉ đơn thuần liệt kê giá. */
-function buildPriceDifferenceLines(series: MaterialComparisonSeriesPoint[]): string[] {
+function buildPriceDifferenceLines(
+  series: MaterialComparisonSeriesPoint[],
+  // "Giá CNF": giá trong `series` đã tính theo giá gốc USD (xem `getPrice` ở
+  // `buildGroupedComparisonBuckets`) — chỉ cần đổi formatter hiển thị sang
+  // `formatUsdPerMt` để đơn vị khớp với phần còn lại của tooltip.
+  formatPrice: (value: number) => string = formatMoney,
+): string[] {
   const priced = series.filter(
     (entry): entry is MaterialComparisonSeriesPoint & { avgPrice: number } =>
       entry.avgPrice !== null,
@@ -506,7 +512,7 @@ function buildPriceDifferenceLines(series: MaterialComparisonSeriesPoint[]): str
     .map((entry) => {
       const diff = entry.avgPrice - cheapest.avgPrice
       const percent = (diff / cheapest.avgPrice) * 100
-      return `${entry.materialName} cao hơn ${cheapest.materialName}: +${formatMoney(diff)} (+${formatPercent(percent)})`
+      return `${entry.materialName} cao hơn ${cheapest.materialName}: +${formatPrice(diff)} (+${formatPercent(percent)})`
     })
 }
 
@@ -526,10 +532,18 @@ function buildGroupedComparisonBuckets(
   options?: {
     compareKeys?: (left: string, right: string) => number
     formatLabel?: (groupKey: string) => string
+    // "Giá CNF": truyền `(point) => point.priceOriginal` để tính avg/min/max
+    // theo giá gốc USD thay vì giá quy đổi VNĐ/KG mặc định.
+    getPrice?: (point: QuotifyPriceTrendPoint) => number
+    // "Giá CNF": truyền `formatUsdPerMt` để callout chênh lệch giá hiện đúng
+    // đơn vị USD/MT thay vì VNĐ/KG mặc định.
+    formatPrice?: (value: number) => string
   },
 ): MaterialComparisonBucket[] {
   const compareKeys = options?.compareKeys ?? ((left, right) => left.localeCompare(right))
   const formatLabel = options?.formatLabel ?? formatMonthLabel
+  const getPrice = options?.getPrice ?? ((point) => point.convertedPriceVndPerKg)
+  const formatPrice = options?.formatPrice ?? formatMoney
 
   const groupKeys = new Set<string>()
   for (const result of materialResults) {
@@ -544,7 +558,7 @@ function buildGroupedComparisonBuckets(
       const series = materialResults.map((result) => {
         const pointsInGroup = result.points.filter((point) => getGroupKey(point) === groupKey)
         const pointCount = pointsInGroup.length
-        const prices = pointsInGroup.map((point) => point.convertedPriceVndPerKg)
+        const prices = pointsInGroup.map(getPrice)
         const avgPrice =
           pointCount === 0 ? null : prices.reduce((total, price) => total + price, 0) / pointCount
 
@@ -562,7 +576,7 @@ function buildGroupedComparisonBuckets(
         groupKey,
         label: formatLabel(groupKey),
         series,
-        differenceLines: buildPriceDifferenceLines(series),
+        differenceLines: buildPriceDifferenceLines(series, formatPrice),
       }
     })
 }
@@ -571,6 +585,38 @@ function buildMaterialComparisonBuckets(
   materialResults: MaterialTrendResult[],
 ): MaterialComparisonBucket[] {
   return buildGroupedComparisonBuckets(materialResults, (point) => point.deliveryMonth)
+}
+
+/** "Giá CNF": chỉ các báo giá chào bằng USD/MT mới có ý nghĩa so sánh theo
+ * giá gốc (CNF) — bỏ báo giá VND/KG khi bật chế độ này. Dùng chung cho cả 3
+ * chart có tick "Giá CNF" (chart đơn 1 mặt hàng + 2 chart so sánh nhiều mặt
+ * hàng/năm). */
+function filterCnfPoints(
+  points: QuotifyPriceTrendPoint[],
+  onlyCnf: boolean,
+): QuotifyPriceTrendPoint[] {
+  if (!onlyCnf) {
+    return points
+  }
+  return points.filter(
+    (point) => point.currency.toUpperCase() === 'USD' && point.unit.toUpperCase() === 'MT',
+  )
+}
+
+/** Định dạng dòng tóm tắt TB/Thấp/Cao trong tooltip của 2 chart so sánh
+ * nhiều mặt hàng/năm — chuyển sang giá gốc USD/MT khi "Giá CNF" bật (giá trị
+ * trong `entry` đã được tính đúng theo field USD nhờ `getPrice` truyền vào
+ * `buildGroupedComparisonBuckets`, ở đây chỉ cần đổi cách hiển thị). */
+function formatComparisonPriceTriplet(
+  entry: MaterialComparisonSeriesPoint,
+  onlyCnf: boolean,
+): string {
+  if (entry.avgPrice === null || entry.minPrice === null || entry.maxPrice === null) {
+    return 'Chưa có báo giá'
+  }
+  const formatValue = onlyCnf ? (value: number) => `$${formatNumber(value)}` : formatNumber
+  const unitLabel = onlyCnf ? 'USD/MT' : 'VNĐ/KG'
+  return `TB ${formatValue(entry.avgPrice)} (Thấp ${formatValue(entry.minPrice)} – Cao ${formatValue(entry.maxPrice)}) ${unitLabel} (${entry.pointCount} báo giá)`
 }
 
 export function useDashboardPage() {
@@ -654,14 +700,28 @@ export function useDashboardPage() {
   const historyMaterialIds = ref<string[]>([])
   const historyTrendResults = ref<MaterialTrendResult[]>([])
   const historyBandVisibility = ref<Record<string, boolean>>({})
+  // "Giá CNF" riêng cho chart này — panel độc lập với bộ lọc chung Dashboard,
+  // nên không dùng chung `showCnfOnly` ở trên.
+  const historyShowCnfOnly = ref(false)
 
-  const historyBuckets = computed(() =>
-    buildGroupedComparisonBuckets(
-      historyTrendResults.value,
+  const historyBuckets = computed(() => {
+    const results = historyShowCnfOnly.value
+      ? historyTrendResults.value.map((result) => ({
+        ...result,
+        points: filterCnfPoints(result.points, true),
+      }))
+      : historyTrendResults.value
+
+    return buildGroupedComparisonBuckets(
+      results,
       (point) => computeThirdPeriodStart(point.receivedDate),
-      { formatLabel: formatDateLabel },
-    ),
-  )
+      {
+        formatLabel: formatDateLabel,
+        getPrice: historyShowCnfOnly.value ? (point) => point.priceOriginal : undefined,
+        formatPrice: historyShowCnfOnly.value ? formatUsdPerMt : undefined,
+      },
+    )
+  })
 
   async function loadPriceHistory() {
     const materialIds = historyMaterialIds.value.slice(0, MAX_COMPARISON_MATERIALS)
@@ -702,22 +762,34 @@ export function useDashboardPage() {
   const seasonalYears = ref<number[]>([])
   const seasonalTrendResults = ref<MaterialTrendResult[]>([])
   const seasonalBandVisibility = ref<Record<string, boolean>>({})
+  // "Giá CNF" riêng cho chart này — panel độc lập với bộ lọc chung Dashboard,
+  // nên không dùng chung `showCnfOnly` ở trên.
+  const seasonalShowCnfOnly = ref(false)
 
   const seasonalAvailableYears = computed<number[]>(() => {
     const currentYear = new Date().getFullYear()
     return Array.from({ length: MAX_COMPARISON_YEARS }, (_, index) => currentYear - index)
   })
 
-  const seasonalBuckets = computed<MaterialComparisonBucket[]>(() =>
-    buildGroupedComparisonBuckets(
-      seasonalTrendResults.value,
+  const seasonalBuckets = computed<MaterialComparisonBucket[]>(() => {
+    const results = seasonalShowCnfOnly.value
+      ? seasonalTrendResults.value.map((result) => ({
+        ...result,
+        points: filterCnfPoints(result.points, true),
+      }))
+      : seasonalTrendResults.value
+
+    return buildGroupedComparisonBuckets(
+      results,
       (point) => String(computeThirdsBeforeDelivery(point.receivedDate, point.deliveryMonth)),
       {
         compareKeys: (left, right) => Number(left) - Number(right),
         formatLabel: formatThirdOffsetLabel,
+        getPrice: seasonalShowCnfOnly.value ? (point) => point.priceOriginal : undefined,
+        formatPrice: seasonalShowCnfOnly.value ? formatUsdPerMt : undefined,
       },
-    ),
-  )
+    )
+  })
 
   async function loadSeasonalComparison() {
     const years = seasonalYears.value.slice(0, MAX_COMPARISON_YEARS)
@@ -810,17 +882,9 @@ export function useDashboardPage() {
           : 'success',
     },
   ])
-  const trendPoints = computed(() => {
-    const points = priceTrends.value?.points ?? []
-    if (!showCnfOnly.value) {
-      return points
-    }
-    // "Giá CNF": chỉ các báo giá chào bằng USD/MT mới có ý nghĩa so sánh
-    // theo giá gốc (CNF) — bỏ báo giá VND/KG khỏi chart trong chế độ này.
-    return points.filter(
-      (point) => point.currency.toUpperCase() === 'USD' && point.unit.toUpperCase() === 'MT',
-    )
-  })
+  const trendPoints = computed(() =>
+    filterCnfPoints(priceTrends.value?.points ?? [], showCnfOnly.value),
+  )
   const purchaseContexts = computed(() => priceTrends.value?.purchaseContexts ?? [])
   const hasTrendData = computed(() => trendPoints.value.length > 0)
   const deliveryMonthBuckets = computed(() =>
@@ -1215,6 +1279,11 @@ export function useDashboardPage() {
       entry: MaterialComparisonSeriesPoint,
       bucket: MaterialComparisonBucket,
     ) => string = (entry) => entry.materialName,
+    // "Giá CNF": dòng tóm tắt TB/Thấp/Cao trong tooltip đổi sang giá gốc
+    // USD/MT — 2 chart chưa có CNF (chart so sánh theo kỳ hàng về) giữ
+    // nguyên mặc định VNĐ/KG nên không cần đổi gì ở lời gọi của chúng.
+    formatPriceTriplet: (entry: MaterialComparisonSeriesPoint) => string = (entry) =>
+      formatComparisonPriceTriplet(entry, false),
   ) {
     const grid =
       themeStore.mode === 'dark'
@@ -1290,10 +1359,7 @@ export function useDashboardPage() {
             bucket.series.forEach((entry, index) => {
               const color =
                 MATERIAL_COMPARISON_COLORS[index % MATERIAL_COMPARISON_COLORS.length]
-              const priceLabel =
-                entry.avgPrice === null || entry.minPrice === null || entry.maxPrice === null
-                  ? 'Chưa có báo giá'
-                  : `TB ${formatNumber(entry.avgPrice)} (Thấp ${formatNumber(entry.minPrice)} – Cao ${formatNumber(entry.maxPrice)}) VNĐ/KG (${entry.pointCount} báo giá)`
+              const priceLabel = formatPriceTriplet(entry)
               tooltipEl.appendChild(
                 buildTooltipRowElement(`${formatSeriesRowLabel(entry, bucket)}: ${priceLabel}`, color),
               )
@@ -1373,6 +1439,8 @@ export function useDashboardPage() {
         receivedDateStart: bucket.groupKey,
         receivedDateEnd: getThirdPeriodEnd(bucket.groupKey),
       }),
+      undefined,
+      (entry) => formatComparisonPriceTriplet(entry, historyShowCnfOnly.value),
     )
   })
 
@@ -1412,6 +1480,7 @@ export function useDashboardPage() {
         const { actualMonth, third } = resolveBucketDateInfo(entry.materialId, bucket)
         return `${entry.materialName} (${formatMonthLabel(actualMonth)}, kỳ ${third + 1})`
       },
+      (entry) => formatComparisonPriceTriplet(entry, seasonalShowCnfOnly.value),
     )
   })
 
@@ -1603,6 +1672,7 @@ export function useDashboardPage() {
     historyBuckets,
     historyTrendResults,
     historyBandVisibility,
+    historyShowCnfOnly,
     historyChartData,
     historyChartOptions,
     loadPriceHistory,
@@ -1613,6 +1683,7 @@ export function useDashboardPage() {
     seasonalBuckets,
     seasonalTrendResults,
     seasonalBandVisibility,
+    seasonalShowCnfOnly,
     seasonalChartData,
     seasonalChartOptions,
     loadSeasonalComparison,

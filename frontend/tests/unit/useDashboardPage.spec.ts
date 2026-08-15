@@ -866,6 +866,95 @@ describe('useDashboardPage', () => {
       ])
     })
 
+    it('ticking "Giá CNF" on this chart keeps only USD/MT quotes and uses their original USD price for the buckets', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => {
+        if (query.materialId === 'material-1') {
+          return {
+            ...priceTrends,
+            points: [
+              { ...priceTrends.points[0], receivedDate: '2026-01-05', currency: 'VND', unit: 'KG', convertedPriceVndPerKg: 7000, priceOriginal: 7000 },
+              { ...priceTrends.points[0], receivedDate: '2026-01-06', currency: 'USD', unit: 'MT', convertedPriceVndPerKg: 11000, priceOriginal: 400 },
+            ],
+          }
+        }
+        return {
+          ...priceTrends,
+          points: [
+            { ...priceTrends.points[0], receivedDate: '2026-01-07', currency: 'USD', unit: 'MT', convertedPriceVndPerKg: 11500, priceOriginal: 420 },
+          ],
+        }
+      })
+
+      const page = useDashboardPage()
+      page.materials.value = [
+        { ...page.materials.value[0], id: 'material-1', name: 'Ngô hạt' },
+        { ...page.materials.value[0], id: 'material-2', name: 'Khô đậu nành' },
+      ]
+      page.historyMaterialIds.value = ['material-1', 'material-2']
+      page.historyDeliveryMonth.value = new Date(2026, 11, 1)
+      await page.loadPriceHistory()
+
+      expect(page.historyBuckets.value).toHaveLength(1)
+
+      page.historyShowCnfOnly.value = true
+
+      expect(page.historyBuckets.value).toHaveLength(1)
+      expect(page.historyBuckets.value[0].series).toEqual([
+        {
+          materialId: 'material-1',
+          materialName: 'Ngô hạt',
+          avgPrice: 400,
+          minPrice: 400,
+          maxPrice: 400,
+          pointCount: 1,
+        },
+        {
+          materialId: 'material-2',
+          materialName: 'Khô đậu nành',
+          avgPrice: 420,
+          minPrice: 420,
+          maxPrice: 420,
+          pointCount: 1,
+        },
+      ])
+    })
+
+    it('formats the tooltip price range in USD/MT when "Giá CNF" is ticked on this chart', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async () => ({
+        ...priceTrends,
+        points: [
+          { ...priceTrends.points[0], receivedDate: '2026-01-05', currency: 'USD', unit: 'MT', convertedPriceVndPerKg: 11000, priceOriginal: 400 },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.materials.value = [
+        { ...page.materials.value[0], id: 'material-1', name: 'Ngô hạt' },
+        { ...page.materials.value[0], id: 'material-2', name: 'Khô đậu nành' },
+      ]
+      page.historyMaterialIds.value = ['material-1', 'material-2']
+      page.historyDeliveryMonth.value = new Date(2026, 11, 1)
+      await page.loadPriceHistory()
+      page.historyShowCnfOnly.value = true
+
+      const canvas = document.createElement('canvas')
+      document.createElement('div').appendChild(canvas)
+      page.historyChartOptions.value.plugins.tooltip.external({
+        chart: { canvas },
+        tooltip: {
+          opacity: 1,
+          title: ['01/2026'],
+          dataPoints: [{ dataIndex: 0 }],
+          caretX: 10,
+          caretY: 10,
+        },
+      })
+
+      const tooltipText = canvas.parentElement?.querySelector('.quotify-chart-tooltip')?.textContent
+      expect(tooltipText).toContain('USD/MT')
+      expect(tooltipText).not.toContain('VNĐ/KG')
+    })
+
     it('reuses the price-difference callout for the received-date buckets', async () => {
       dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
         ...priceTrends,
@@ -1098,6 +1187,40 @@ describe('useDashboardPage', () => {
 
       expect(page.seasonalBuckets.value.map((bucket) => bucket.groupKey)).toEqual(['-31', '-30'])
       expect(page.seasonalBuckets.value.map((bucket) => bucket.label)).toEqual(['T-11', 'T-10'])
+    })
+
+    it('ticking "Giá CNF" on this chart keeps only USD/MT quotes and uses their original USD price for the buckets', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points: [
+          {
+            ...priceTrends.points[0],
+            receivedDate: '2023-11-05',
+            deliveryMonth: '2024-10-01',
+            currency: query.deliveryMonth === '2024-10-01' ? 'USD' : 'VND',
+            unit: query.deliveryMonth === '2024-10-01' ? 'MT' : 'KG',
+            convertedPriceVndPerKg: query.deliveryMonth === '2024-10-01' ? 11000 : 6800,
+            priceOriginal: query.deliveryMonth === '2024-10-01' ? 400 : 6800,
+          },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      page.seasonalYears.value = [2024, 2025]
+
+      await page.loadSeasonalComparison()
+
+      expect(page.seasonalBuckets.value).toHaveLength(1)
+
+      page.seasonalShowCnfOnly.value = true
+
+      expect(page.seasonalBuckets.value).toHaveLength(1)
+      expect(page.seasonalBuckets.value[0].series).toEqual([
+        { materialId: '2024', materialName: '2024', avgPrice: 400, minPrice: 400, maxPrice: 400, pointCount: 1 },
+        { materialId: '2025', materialName: '2025', avgPrice: null, minPrice: null, maxPrice: null, pointCount: 0 },
+      ])
     })
 
     it('reuses the price-difference callout to compare years at the same offset', async () => {

@@ -46,6 +46,7 @@ vi.mock('@/composables/useDashboardPage', async () => {
       historyBuckets: computed(() => []),
       historyBandVisibility: ref({}),
       historyTrendResults: computed(() => []),
+      historyShowCnfOnly: ref(false),
       historyChartData: computed(() => ({ labels: [], datasets: [] })),
       historyChartOptions: computed(() => ({})),
       seasonalMaterialId: ref(null),
@@ -55,6 +56,7 @@ vi.mock('@/composables/useDashboardPage', async () => {
       seasonalBuckets: computed(() => []),
       seasonalBandVisibility: ref({}),
       seasonalTrendResults: computed(() => []),
+      seasonalShowCnfOnly: ref(false),
       seasonalChartData: computed(() => ({ labels: [], datasets: [] })),
       seasonalChartOptions: computed(() => ({})),
       weeklyUserOptions: [

@@ -340,6 +340,11 @@
           </label>
         </div>
 
+        <label class="dashboard-page__comparison-band-toggle dashboard-page__cnf-toggle">
+          <Checkbox v-model="historyShowCnfOnly" binary />
+          <span>Giá CNF (chỉ tính báo giá USD/MT, trục Y hiện giá USD)</span>
+        </label>
+
         <div v-if="historyTrendResults.length > 0" class="dashboard-page__comparison-bands">
           <label
             v-for="result in historyTrendResults"
@@ -423,6 +428,11 @@
             />
           </label>
         </div>
+
+        <label class="dashboard-page__comparison-band-toggle dashboard-page__cnf-toggle">
+          <Checkbox v-model="seasonalShowCnfOnly" binary />
+          <span>Giá CNF (chỉ tính báo giá USD/MT, trục Y hiện giá USD)</span>
+        </label>
 
         <div v-if="seasonalTrendResults.length > 0" class="dashboard-page__comparison-bands">
           <label
@@ -538,6 +548,7 @@ const {
   historyBuckets,
   historyBandVisibility,
   historyTrendResults,
+  historyShowCnfOnly,
   historyChartData,
   historyChartOptions,
   loadPriceHistory,
@@ -548,6 +559,7 @@ const {
   seasonalBuckets,
   seasonalBandVisibility,
   seasonalTrendResults,
+  seasonalShowCnfOnly,
   seasonalChartData,
   seasonalChartOptions,
   loadSeasonalComparison,
