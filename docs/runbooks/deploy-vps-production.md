@@ -34,7 +34,7 @@ git clone <repo-url> /opt/quotify   # lần đầu
 cd /opt/quotify
 ```
 
-Các lần deploy sau chỉ cần `git pull` trong thư mục này (xem bước 6).
+Các lần deploy sau chỉ cần `git pull` trong thư mục này (xem mục 9).
 
 ## 2. Tạo `.env` production thật
 
@@ -242,29 +242,119 @@ admin:
 - 7 tài khoản phòng Thu Mua thật — mỗi người một mật khẩu riêng, không dùng
   mật khẩu chung.
 
-## 9. Deploy các lần tiếp theo (không phải lần đầu)
+## 9. Deploy các lần tiếp theo (update code, không phải lần đầu)
+
+Thứ tự dưới đây **cố tình khác** thứ tự "build → migrate-prod (exec) → up -d"
+đơn giản, vì `make migrate-prod` dùng `docker compose exec` — lệnh này chạy
+**bên trong container `backend` đang chạy sẵn** (image cũ, code cũ), không
+phải image vừa build. Nếu code mới có migration mới, `exec` vào container cũ
+sẽ **không thấy** file migration mới đó (nó chỉ tồn tại trong image mới, chưa
+được `up -d` để thay container). Vì vậy bước migrate ở đây dùng
+`docker compose run --rm` (container tạm, tạo từ image vừa build) giống hệt
+cách làm ở mục 5 (lần deploy đầu) — chạy trước khi tráo container đang phục
+vụ traffic, để schema mới sẵn sàng trước khi code mới bắt đầu nhận request.
+
+### 9.1 SSH vào VPS và kiểm tra trạng thái trước khi pull
 
 ```bash
+ssh <user>@<vps-ip>
 cd /opt/quotify
-git pull
-docker compose -f docker-compose.prod.yml build backend frontend worker
-make migrate-prod
-docker compose -f docker-compose.prod.yml up -d
+
+# Đảm bảo thư mục sạch — đây là bản clone chỉ dùng để deploy, không nên có
+# thay đổi thủ công chưa commit (nếu có, phải hiểu rõ trước khi pull đè lên)
+git status
 ```
 
-`seed-prod-auth`/`seed-prod-catalog` là idempotent — chỉ cần chạy lại khi có
-thay đổi permission mới hoặc mã vật tư mới, không bắt buộc mỗi lần deploy.
+Nếu `git status` báo có file bị sửa mà bạn không nhớ đã sửa gì, dừng lại và
+kiểm tra kỹ trước khi tiếp tục (đừng `git checkout .`/`git reset --hard` vội).
 
-Trước khi build/migrate, luôn backup (`bash scripts/ops/backup-postgres.sh`,
-`bash scripts/ops/backup-minio.sh`) theo Waiver Rule ở
-`docs/runbooks/deploy-rollback-restore.md`. Hai script này dùng `docker compose`
-không kèm `-f`, nên chạy trong thư mục `/opt/quotify` với biến môi trường:
+### 9.2 Backup trước khi động vào build/migrate
+
+Bắt buộc theo Waiver Rule ở `docs/runbooks/deploy-rollback-restore.md`. Hai
+script backup dùng `docker compose` không kèm `-f`, nên cần set biến môi
+trường trước:
 
 ```bash
 export COMPOSE_FILE=docker-compose.prod.yml
 bash scripts/ops/backup-postgres.sh
 bash scripts/ops/backup-minio.sh
 ```
+
+Kiểm tra file backup vừa tạo có kích thước hợp lý (không phải file rỗng
+0 byte) trước khi đi tiếp:
+
+```bash
+ls -lh backups/"$(date +%Y%m%d)"* 2>/dev/null || ls -lht backups | head -5
+```
+
+### 9.3 Pull code mới
+
+```bash
+git pull
+```
+
+Xem trước danh sách migration mới (nếu có) để biết deploy này có đổi schema
+hay không:
+
+```bash
+git log --oneline -- backend/alembic/versions | head -5
+```
+
+Nếu `.env.production.example` vừa được cập nhật (thêm biến mới), so sánh với
+`.env` thật đang dùng để bổ sung biến còn thiếu:
+
+```bash
+diff .env.production.example .env || true
+```
+
+### 9.4 Build lại image
+
+```bash
+docker compose -f docker-compose.prod.yml build backend frontend worker
+```
+
+### 9.5 Migrate — chạy bằng container tạm từ image mới, chưa đụng tới container đang chạy
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm backend uv run alembic upgrade head
+```
+
+### 9.6 Seed lại nếu deploy này có thay đổi permission hoặc mã vật tư
+
+Idempotent — **không bắt buộc** chạy mỗi lần deploy, chỉ chạy lại khi commit
+vừa pull có thêm permission mới hoặc material type mới. Dùng `run --rm` (từ
+image vừa build ở bước 9.4) thay vì `make seed-prod-auth`/`make seed-prod-catalog`
+(hai target đó dùng `exec`, cùng vấn đề như `make migrate-prod` ở đầu mục 9 —
+`exec` vào container cũ sẽ chạy seed script cũ, bỏ lỡ permission/material
+type mới nếu chưa `up -d`):
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/seed_auth_rbac.py
+docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/seed_quotify_catalog.py
+```
+
+### 9.7 Tráo container sang image mới
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Compose chỉ tạo lại các service có image thay đổi (`backend`/`frontend`/`worker`
+ở bước 9.4) — `postgres`/`redis`/`minio`/`reverse-proxy`/`certbot` không bị
+restart nếu ảnh của chúng không đổi.
+
+### 9.8 Verify ngay sau khi lên
+
+```bash
+curl -I https://quotify.honghafeed.com.vn/health
+curl -I https://quotify.honghafeed.com.vn/ready
+docker compose -f docker-compose.prod.yml logs --tail=50 backend
+docker compose -f docker-compose.prod.yml ps
+```
+
+Checklist đầy đủ theo `docs/runbooks/deploy-rollback-restore.md` (login flow,
+users list, upload/download file, audit event ghi đúng IP). Nếu có lỗi ngay
+sau khi lên, xem mục 10 (Rollback) — đã có backup từ bước 9.2 nếu cần restore.
 
 ## 10. Rollback
 
