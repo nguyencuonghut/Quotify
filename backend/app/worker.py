@@ -5,7 +5,7 @@ import codecs
 import csv
 import io
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import Any, BinaryIO
 from uuid import UUID, uuid4
 
@@ -392,22 +392,28 @@ async def import_catalog_task(ctx: dict[str, Any], job_id: UUID) -> None:
                 object_name=job.file.storage_path,
             )
             try:
-                reader = csv.DictReader(_iter_decoded_csv_lines(minio_response))
+                if config.file_format == "xlsx":
+                    headers, rows = _read_xlsx_rows(minio_response)
+                    fieldnames: Sequence[str] | None = headers
+                else:
+                    reader = csv.DictReader(_iter_decoded_csv_lines(minio_response))
+                    rows = reader
+                    fieldnames = reader.fieldnames
                 summary = await catalog_service.import_rows(
                     entity_type=config.entity_type,
-                    rows=reader,
-                    fieldnames=reader.fieldnames,
+                    rows=rows,
+                    fieldnames=fieldnames,
                 )
             finally:
                 minio_response.close()
                 minio_response.release_conn()
         except CatalogImportHeaderError as exc:
-            logger.warning("Catalog import job %s has invalid CSV header.", job_id)
+            logger.warning("Catalog import job %s has invalid header.", job_id)
             job.status = "failed"
             job.total_rows = 1
             job.processed_rows = 0
             job.failed_rows = 1
-            job.error_summary = "Header CSV không hợp lệ."
+            job.error_summary = "Header không hợp lệ."
             job.errors_json = [{"row": 1, "code": "", "errors": [str(exc)]}]
             await _log_worker_audit_event(
                 session,
@@ -424,16 +430,25 @@ async def import_catalog_task(ctx: dict[str, Any], job_id: UUID) -> None:
                     "total_rows": job.total_rows,
                     "processed_rows": job.processed_rows,
                     "failed_rows": job.failed_rows,
-                    "error_category": "invalid_csv_header",
-                    "error_summary": "Header CSV không hợp lệ.",
+                    "error_category": (
+                        "invalid_xlsx_header"
+                        if config.file_format == "xlsx"
+                        else "invalid_csv_header"
+                    ),
+                    "error_summary": "Header không hợp lệ.",
                 },
             )
             await session.commit()
             return
         except Exception:
-            logger.exception(f"Failed to read/parse catalog CSV file for job {job_id}")
+            logger.exception(f"Failed to read/parse catalog import file for job {job_id}")
             job.status = "failed"
-            job.error_summary = "Không thể đọc hoặc xử lý file CSV import danh mục."
+            error_summary = (
+                "Không thể đọc hoặc xử lý file Excel (.xlsx) import danh mục."
+                if config.file_format == "xlsx"
+                else "Không thể đọc hoặc xử lý file CSV import danh mục."
+            )
+            job.error_summary = error_summary
             await _log_worker_audit_event(
                 session,
                 action=config.failed_action,
@@ -446,8 +461,12 @@ async def import_catalog_task(ctx: dict[str, Any], job_id: UUID) -> None:
                     "import_entity_type": job.entity_type,
                     "status": job.status,
                     "outcome": "failed",
-                    "error_category": "csv_read_parse_failed",
-                    "error_summary": "Không thể đọc hoặc xử lý file CSV import danh mục.",
+                    "error_category": (
+                        "xlsx_read_parse_failed"
+                        if config.file_format == "xlsx"
+                        else "csv_read_parse_failed"
+                    ),
+                    "error_summary": error_summary,
                 },
             )
             await session.commit()

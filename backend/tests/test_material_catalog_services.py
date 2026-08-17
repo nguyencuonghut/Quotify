@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 from uuid import UUID, uuid4
 
 import pytest
+from openpyxl import load_workbook
 
 from app.models import Material, MaterialType
 from app.services.catalog_import import (
@@ -116,9 +118,13 @@ def test_normalize_catalog_code_trims_and_uppercases() -> None:
 def test_catalog_import_template_contains_expected_headers() -> None:
     config = get_catalog_import_config("materials")
 
-    content = build_catalog_import_template(config).decode("utf-8-sig")
+    content = build_catalog_import_template(config)
 
-    assert content.splitlines()[0] == "code,name,material_type_code,status,note"
+    workbook = load_workbook(io.BytesIO(content), read_only=True)
+    worksheet = workbook.active
+    assert worksheet is not None
+    header_row = next(worksheet.iter_rows(values_only=True))
+    assert header_row == ("code", "name", "material_type_code", "status", "note")
 
 
 def test_catalog_import_rejects_invalid_headers() -> None:

@@ -347,6 +347,57 @@ async def test_import_catalog_task_completes_with_partial_row_errors(
 
 
 @pytest.mark.asyncio
+async def test_import_catalog_task_reads_xlsx_for_materials_entity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_id = uuid4()
+    db_file = File(
+        id=uuid4(),
+        filename="materials.xlsx",
+        bucket="bucket",
+        storage_path="x/materials.xlsx",
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        size_bytes=100,
+    )
+    job = ImportJob(
+        id=job_id,
+        file_id=db_file.id,
+        entity_type="materials",
+        task_name="import_catalog_task",
+        status="pending",
+        created_by_id=uuid4(),
+    )
+    job.file = db_file
+
+    session = FakeAsyncSession(import_job=job)
+    session_factory = MagicMock()
+    session_factory.return_value = session
+
+    minio_client = MagicMock()
+    minio_client.get_object.return_value = FakeMinioResponse(
+        _build_xlsx_bytes(
+            [
+                ["code", "name", "material_type_code", "status", "note"],
+                ["CORN", "Ngo hat", "NGUYEN_LIEU", "active", None],
+            ],
+        ),
+    )
+    monkeypatch.setattr("app.worker.CatalogImportService", FakeCatalogImportService)
+
+    await import_catalog_task(
+        {
+            "session_factory": session_factory,
+            "minio_client": minio_client,
+        },
+        job_id,
+    )
+
+    assert job.status == "completed"
+    assert job.total_rows == FakeCatalogImportService.next_summary.total_rows
+    assert job.processed_rows == FakeCatalogImportService.next_summary.processed_rows
+
+
+@pytest.mark.asyncio
 async def test_import_catalog_task_invalid_header_counts_as_failed_row() -> None:
     job_id = uuid4()
     db_file = File(
@@ -385,13 +436,13 @@ async def test_import_catalog_task_invalid_header_counts_as_failed_row() -> None
     )
 
     assert job.status == "failed"
-    assert job.error_summary == "Header CSV không hợp lệ."
+    assert job.error_summary == "Header không hợp lệ."
     assert job.total_rows == 1
     assert job.processed_rows == 0
     assert job.failed_rows == 1
     assert job.errors_json is not None
     assert job.errors_json[0]["row"] == 1
-    assert "Header CSV không hợp lệ" in job.errors_json[0]["errors"][0]
+    assert "Header không hợp lệ" in job.errors_json[0]["errors"][0]
     audit_logs = [item for item in session.added if isinstance(item, AuditLog)]
     assert len(audit_logs) == 1
     assert audit_logs[0].action == "catalog.material_types_import_failed"
@@ -405,7 +456,7 @@ async def test_import_catalog_task_invalid_header_counts_as_failed_row() -> None
         "processed_rows": 0,
         "failed_rows": 1,
         "error_category": "invalid_csv_header",
-        "error_summary": "Header CSV không hợp lệ.",
+        "error_summary": "Header không hợp lệ.",
     }
 
 

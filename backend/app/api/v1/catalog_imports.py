@@ -87,9 +87,14 @@ async def download_catalog_import_template(
     entity_type = _require_catalog_import_permission(entity_type, current_user)
     config = get_catalog_import_config(entity_type)
     content = build_catalog_import_template(config)
+    media_type = (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        if config.file_format == "xlsx"
+        else "text/csv; charset=utf-8"
+    )
     return Response(
         content=content,
-        media_type="text/csv; charset=utf-8",
+        media_type=media_type,
         headers={
             "Content-Disposition": f'attachment; filename="{config.template_filename}"',
         },
@@ -112,11 +117,14 @@ async def import_catalog(
 ) -> ImportJobResponse:
     entity_type = _require_catalog_import_permission(entity_type, current_user)
     config = get_catalog_import_config(entity_type)
-    if not file.filename or not file.filename.endswith(".csv"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Chỉ hỗ trợ file CSV cho import danh mục.",
+    required_extension = f".{config.file_format}"
+    if not file.filename or not file.filename.endswith(required_extension):
+        detail = (
+            "Chỉ hỗ trợ file Excel (.xlsx) cho import danh mục."
+            if config.file_format == "xlsx"
+            else "Chỉ hỗ trợ file CSV cho import danh mục."
         )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
     file_size = file.size
     data_stream: io.BytesIO | typing.BinaryIO
@@ -127,10 +135,15 @@ async def import_catalog(
     else:
         data_stream = file.file
 
+    default_content_type = (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        if config.file_format == "xlsx"
+        else "text/csv"
+    )
     try:
         db_file = await file_service.upload_file(
             filename=file.filename,
-            content_type=file.content_type or "text/csv",
+            content_type=file.content_type or default_content_type,
             size_bytes=file_size,
             data_stream=data_stream,
             is_public=False,

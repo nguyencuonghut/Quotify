@@ -145,15 +145,15 @@
           <div class="suppliers-page__dialog-actions">
             <Button
               icon="pi pi-download"
-              label="Tải template CSV"
+              :label="`Tải template ${fileFormatLabel}`"
               severity="secondary"
               text
               @click="downloadTemplate"
             />
           </div>
           <FileUpload
-            accept=".csv,text/csv"
-            choose-label="Chọn file CSV"
+            :accept="fileAccept"
+            :choose-label="`Chọn file ${fileFormatLabel}`"
             custom-upload
             mode="basic"
             name="file"
@@ -611,6 +611,8 @@ const {
   importJob,
   importError,
   uploadingImport,
+  fileAccept,
+  fileFormatLabel,
   openImportDialog,
   handleImportUpload,
   downloadTemplate,

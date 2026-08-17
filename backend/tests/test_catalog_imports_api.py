@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import Any
@@ -8,6 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from openpyxl import Workbook, load_workbook
 
 from app.api.v1.catalog_imports import (
     get_audit_log_service,
@@ -145,7 +147,11 @@ async def test_download_catalog_import_template_requires_entity_permission(
     denied_response = await client.get("/api/v1/catalog-imports/templates/suppliers")
 
     assert allowed_response.status_code == 200
-    assert "material_type_code" in allowed_response.text
+    workbook = load_workbook(io.BytesIO(allowed_response.content), read_only=True)
+    worksheet = workbook.active
+    assert worksheet is not None
+    header_row = next(worksheet.iter_rows(values_only=True))
+    assert "material_type_code" in header_row
     assert denied_response.status_code == 403
     app.dependency_overrides.clear()
 
@@ -171,6 +177,45 @@ async def test_start_catalog_import_creates_job_and_enqueues_after_commit(
     job = override_dependencies.jobs[UUID(data["id"])]
     assert job.task_name == "import_catalog_task"
     assert override_dependencies.enqueue_observed_committed_states == [True]
+
+
+@pytest.mark.asyncio
+async def test_start_materials_import_accepts_xlsx_file(
+    client: AsyncClient,
+    override_dependencies: MockJobAdminService,
+) -> None:
+    workbook = Workbook()
+    worksheet = workbook.active
+    assert worksheet is not None
+    worksheet.append(["code", "name", "material_type_code", "status", "note"])
+    worksheet.append(["CORN", "Ngo hat", "NGUYEN_LIEU", "active", None])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    files = {
+        "file": (
+            "materials.xlsx",
+            buffer.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ),
+    }
+
+    response = await client.post("/api/v1/catalog-imports/materials", files=files)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["entity_type"] == "materials"
+
+
+@pytest.mark.asyncio
+async def test_start_materials_import_rejects_non_xlsx_file(
+    client: AsyncClient,
+    override_dependencies: MockJobAdminService,
+) -> None:
+    files = {"file": ("materials.csv", b"code,name\nCORN,Ngo hat", "text/csv")}
+
+    response = await client.post("/api/v1/catalog-imports/materials", files=files)
+
+    assert response.status_code == 400
 
 
 @pytest.mark.asyncio

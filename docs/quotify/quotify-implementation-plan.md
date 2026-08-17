@@ -568,8 +568,13 @@ có thay vì tạo pipeline song song.
 8. Không ghi raw row hoặc exception nhạy cảm vào audit.
 9. UI tái sử dụng dialog import/job progress hiện có nhưng tách composable dùng
     chung nếu việc tách thật sự giảm lặp.
-10. V1 không hỗ trợ XLSX; chỉ bổ sung sau một kế hoạch riêng nếu CSV không đáp
-    ứng vận hành thực tế.
+10. ~~V1 không hỗ trợ XLSX; chỉ bổ sung sau một kế hoạch riêng nếu CSV không
+    đáp ứng vận hành thực tế.~~ **Đã đổi quyết định ngày 17/08/2026**: import
+    `materials`/`suppliers` chuyển sang `.xlsx` sau khi phát hiện CSV thực tế
+    dễ hỏng encoding tên có dấu và làm mất số 0 đứng đầu ở các cột dạng mã
+    (tax_code, contact_phone) do Excel tự suy luận kiểu số — cùng nguyên nhân
+    với quyết định đổi CSV → XLSX ở tính năng import báo giá cũ, xem
+    `docs/quotify/plan-import-bao-gia-cu.md`. `material_types` vẫn giữ CSV.
 11. Mỗi route start/status/error-file xác định permission từ `entity_type` bằng
     allowlist server-side; không nhận permission code tùy ý từ client.
 12. Tải error report phải kiểm tra job thuộc đúng loại danh mục và user có

@@ -11,6 +11,15 @@ import { ApiError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth.store'
 import type { ImportJobDomain } from '@/types/jobs'
 
+// `material_types` giữ CSV (đúng pattern import danh mục cũ); `materials`/
+// `suppliers` đổi sang xlsx ngày 17/08/2026 — xem catalog_import.py backend
+// để biết lý do (CSV dễ hỏng encoding tên có dấu / mất số 0 đầu mã số thuế).
+const CATALOG_IMPORT_FILE_FORMATS: Record<CatalogImportEntityType, 'csv' | 'xlsx'> = {
+  material_types: 'csv',
+  materials: 'xlsx',
+  suppliers: 'xlsx',
+}
+
 export function useCatalogImport(
   entityType: CatalogImportEntityType,
   refreshAfterImport: () => Promise<void>,
@@ -21,6 +30,13 @@ export function useCatalogImport(
   const importError = ref<string | null>(null)
   const uploadingImport = ref(false)
   const pollIntervals = new Map<string, number>()
+
+  const fileFormat = CATALOG_IMPORT_FILE_FORMATS[entityType]
+  const fileAccept =
+    fileFormat === 'xlsx'
+      ? '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      : '.csv,text/csv'
+  const fileFormatLabel = fileFormat === 'xlsx' ? 'Excel' : 'CSV'
 
   function openImportDialog() {
     importError.value = null
@@ -52,7 +68,9 @@ export function useCatalogImport(
       await downloadCatalogImportTemplate(entityType, authStore.accessToken)
     } catch (error) {
       importError.value =
-        error instanceof ApiError ? error.message : 'Không thể tải template CSV.'
+        error instanceof ApiError
+          ? error.message
+          : `Không thể tải template ${fileFormatLabel}.`
     }
   }
 
@@ -101,6 +119,8 @@ export function useCatalogImport(
     importJob,
     importError,
     uploadingImport,
+    fileAccept,
+    fileFormatLabel,
     openImportDialog,
     handleImportUpload,
     downloadTemplate,

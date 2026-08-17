@@ -7,6 +7,9 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -17,6 +20,7 @@ from app.schemas.supplier import normalize_supplier_types
 from app.services.material_type_admin import normalize_catalog_code, normalize_optional_text
 
 CatalogImportEntityType = Literal["material_types", "materials", "suppliers"]
+CatalogImportFileFormat = Literal["csv", "xlsx"]
 
 CATALOG_IMPORT_ENTITY_TYPES: tuple[CatalogImportEntityType, ...] = (
     "material_types",
@@ -30,6 +34,11 @@ class CatalogImportConfig:
     entity_type: CatalogImportEntityType
     permission: str
     task_name: str
+    # `material_types` giữ CSV (đúng pattern import danh mục cũ); `materials`/
+    # `suppliers` đổi sang xlsx ngày 17/08/2026 vì có nhiều cột text dễ bị Excel
+    # tự ý đổi kiểu hoặc CSV bị hỏng encoding (tên có dấu, mã có số 0 đứng đầu
+    # như tax_code) — xem quyết định tương tự ở quote_backfill_import.py.
+    file_format: CatalogImportFileFormat
     template_filename: str
     template_headers: tuple[str, ...]
     sample_row: tuple[str, ...]
@@ -43,6 +52,7 @@ CATALOG_IMPORT_CONFIGS: dict[str, CatalogImportConfig] = {
         entity_type="material_types",
         permission="material_types.import",
         task_name="import_catalog_task",
+        file_format="csv",
         template_filename="material_types_import_template.csv",
         template_headers=("code", "name", "status", "note"),
         sample_row=("NGUYEN_LIEU", "Nguyên liệu", "active", "Ghi chú tùy chọn"),
@@ -54,7 +64,8 @@ CATALOG_IMPORT_CONFIGS: dict[str, CatalogImportConfig] = {
         entity_type="materials",
         permission="materials.import",
         task_name="import_catalog_task",
-        template_filename="materials_import_template.csv",
+        file_format="xlsx",
+        template_filename="materials_import_template.xlsx",
         template_headers=("code", "name", "material_type_code", "status", "note"),
         sample_row=("CORN", "Ngô hạt", "NGUYEN_LIEU", "active", "Ghi chú tùy chọn"),
         started_action="catalog.materials_import_started",
@@ -65,7 +76,8 @@ CATALOG_IMPORT_CONFIGS: dict[str, CatalogImportConfig] = {
         entity_type="suppliers",
         permission="suppliers.import",
         task_name="import_catalog_task",
-        template_filename="suppliers_import_template.csv",
+        file_format="xlsx",
+        template_filename="suppliers_import_template.xlsx",
         template_headers=(
             "code",
             "name",
@@ -114,7 +126,7 @@ class CatalogImportSummary:
 
 
 class CatalogImportHeaderError(Exception):
-    """Raised when a catalog import CSV has invalid headers."""
+    """Raised when a catalog import file has invalid headers."""
 
 
 class CatalogImportService:
@@ -304,11 +316,37 @@ def get_catalog_import_config(entity_type: str) -> CatalogImportConfig:
 
 
 def build_catalog_import_template(config: CatalogImportConfig) -> bytes:
+    if config.file_format == "xlsx":
+        return _build_xlsx_catalog_import_template(config)
+
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(config.template_headers)
     writer.writerow(config.sample_row)
     return buffer.getvalue().encode("utf-8-sig")
+
+
+def _build_xlsx_catalog_import_template(config: CatalogImportConfig) -> bytes:
+    workbook = Workbook()
+    worksheet = workbook.active
+    assert isinstance(worksheet, Worksheet)  # noqa: S101 — a fresh Workbook() always has one
+    worksheet.title = config.entity_type
+
+    worksheet.append(config.template_headers)
+    for cell in worksheet[1]:
+        cell.font = Font(bold=True)
+    worksheet.append(config.sample_row)
+
+    # Mọi cột đều là text (mã, tên, trạng thái, số điện thoại, mã số thuế...);
+    # ép định dạng text ("@") để Excel không tự ý đổi thành số và làm mất số 0
+    # đứng đầu (vd. mã số thuế "0100000000").
+    for row in worksheet.iter_rows(min_row=1):
+        for cell in row:
+            cell.number_format = "@"
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
 
 
 def build_catalog_import_error_report(job_errors: list[Any] | None) -> bytes:
@@ -336,7 +374,7 @@ def validate_catalog_import_headers(
         expected = ", ".join(config.template_headers)
         received = ", ".join(received_headers) if received_headers else "(không có header)"
         raise CatalogImportHeaderError(
-            f"Header CSV không hợp lệ. Cần: {expected}. Nhận: {received}.",
+            f"Header không hợp lệ. Cần: {expected}. Nhận: {received}.",
         )
 
 
