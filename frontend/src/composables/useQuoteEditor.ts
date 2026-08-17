@@ -105,7 +105,7 @@ export function useQuoteEditor(accessToken: string | null) {
     systemUsdRateError.value = false
     try {
       const rateData = await getUsdSellRateToday(accessToken)
-      systemUsdRate.value = rateData.rate
+      systemUsdRate.value = Number(rateData.rate)
     } catch {
       systemUsdRate.value = null
       systemUsdRateError.value = true

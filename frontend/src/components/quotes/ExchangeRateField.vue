@@ -118,8 +118,8 @@ import { useAuthStore } from '@/stores/auth.store'
 interface Props {
   receivedDate: string // Định dạng YYYY-MM-DD
   rate: number | null
-  source: string
-  sourceMode: string // 'auto' | 'manual_past' | 'manual_fallback'
+  source?: string | null
+  sourceMode?: string | null // 'auto' | 'manual_past' | 'manual_fallback'
   manualReason: string | null
   disabled?: boolean
   invalid?: boolean
@@ -227,7 +227,7 @@ const onRateChange = (val: number | null) => {
   emit('update:rate', val)
 }
 
-const onReasonChange = (val: string) => {
-  emit('update:manualReason', val)
+const onReasonChange = (val: string | undefined) => {
+  emit('update:manualReason', val ?? '')
 }
 </script>

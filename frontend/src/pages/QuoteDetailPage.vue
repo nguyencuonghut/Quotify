@@ -614,14 +614,12 @@ const quoteId = route.params.quoteId as string
 const {
   quote,
   activeVersionId,
-  isLoading,
   errorMsg,
   isConfirming,
   isFileUploading,
   sortedVersions,
   activeVersion,
   note,
-  isNoteLoading,
   isSavingNote,
   noteErrorMsg,
   loadQuote,
@@ -759,13 +757,6 @@ const editingContent = ref<string>('')
 const isEditingRevisionId = ref<string | null>(null)
 const editingRevisionContent = ref<string>('')
 
-const latestRevision = computed(() => {
-  if (!note.value || !Array.isArray(note.value.revisions) || note.value.revisions.length === 0) {
-    return null
-  }
-  return note.value.revisions[0]
-})
-
 const chronologicalRevisions = computed(() => {
   if (!note.value || !Array.isArray(note.value.revisions)) {
     return []
@@ -828,11 +819,6 @@ const confirmDeleteRevision = async (revId: string) => {
 // Revision viewer
 const showRevisionDialog = ref<boolean>(false)
 const selectedRevision = ref<any>(null)
-
-const viewRevision = (revision: any) => {
-  selectedRevision.value = revision
-  showRevisionDialog.value = true
-}
 
 const goBack = () => {
   useRouterObj.push('/quotes')
@@ -897,8 +883,8 @@ const togglePurchase = async (line: QuoteLineDomain) => {
     }
   } else {
     selectedLineForPurchase.value = line
-    if (quote.value && quote.value.receivedDate) {
-      selectedPurchaseDate.value = new Date(quote.value.receivedDate)
+    if (activeVersion.value && activeVersion.value.receivedDate) {
+      selectedPurchaseDate.value = new Date(activeVersion.value.receivedDate)
     } else {
       selectedPurchaseDate.value = new Date()
     }
@@ -943,16 +929,6 @@ const formatMoney = (val: number | string | null): string => {
 const formatDateTime = (val: string | null): string => {
   if (!val) return ''
   return new Date(val).toLocaleString('vi-VN')
-}
-
-const formatDateTimeShort = (val: string | null): string => {
-  if (!val) return ''
-  const date = new Date(val)
-  const dd = String(date.getDate()).padStart(2, '0')
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const hh = String(date.getHours()).padStart(2, '0')
-  const min = String(date.getMinutes()).padStart(2, '0')
-  return `${dd}/${mm} ${hh}:${min}`
 }
 
 const formatOnlyDate = (val: string | null): string => {

@@ -5,7 +5,7 @@ export function mapExchangeRateDtoToDomain(
 ): ExchangeRateDomain {
   return {
     currency: dto.currency,
-    rate: dto.rate !== null && dto.rate !== undefined ? Number(dto.rate) : null,
+    rate: dto.rate,
     source: dto.source,
     retrievedAt: dto.retrieved_at,
   }

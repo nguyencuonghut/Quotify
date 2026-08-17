@@ -158,7 +158,7 @@
                   <DatePicker
                     :model-value="line.deliveryMonth ? new Date(Number(line.deliveryMonth.split('-')[0]), Number(line.deliveryMonth.split('-')[1]) - 1, 1) : null"
                     @update:model-value="(val) => {
-                      if (val) {
+                      if (val instanceof Date) {
                         const yyyy = val.getFullYear()
                         const mm = String(val.getMonth() + 1).padStart(2, '0')
                         line.deliveryMonth = `${yyyy}-${mm}`
@@ -300,7 +300,7 @@
               <DatePicker
                 :model-value="line.deliveryMonth ? new Date(Number(line.deliveryMonth.split('-')[0]), Number(line.deliveryMonth.split('-')[1]) - 1, 1) : null"
                 @update:model-value="(val) => {
-                  if (val) {
+                  if (val instanceof Date) {
                     const yyyy = val.getFullYear()
                     const mm = String(val.getMonth() + 1).padStart(2, '0')
                     line.deliveryMonth = `${yyyy}-${mm}`
@@ -370,7 +370,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Select from 'primevue/select'
 import DatePicker from 'primevue/datepicker'
@@ -383,7 +383,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { listSuppliers } from '@/api/suppliers.api'
 import { getQuote, createQuote, updateDraft, createVersion } from '@/api/quotes.api'
 import type { SupplierDomain } from '@/types/suppliers'
-import type { QuoteDomain, QuoteVersionDomain } from '@/types/quotes'
+import type { QuoteDomain } from '@/types/quotes'
 import { useQuoteEditor } from '@/composables/useQuoteEditor'
 import ExchangeRateField from '@/components/quotes/ExchangeRateField.vue'
 import AdminLayout from '@/layouts/AdminLayout.vue'
@@ -535,7 +535,7 @@ const submitForm = async () => {
       router.push(`/quotes/${quote.id}`)
     } else if (isNewVersion.value) {
       const payload = prepareUpdatePayload()
-      const version = await createVersion(quoteId!, payload, authStore.accessToken)
+      await createVersion(quoteId!, payload, authStore.accessToken)
       router.push(`/quotes/${quoteId}`)
     } else {
       // Edit draft

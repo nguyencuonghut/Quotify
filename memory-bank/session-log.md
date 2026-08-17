@@ -966,3 +966,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Them huong dan ket noi DB tu xa qua DBeaver + SSH tunnel
 - Tom tat: Them ports 127.0.0.1-only cho postgres va minio console trong docker-compose.prod.yml (khong expose ra internet), them muc 11 vao runbook deploy huong dan 2 cach ket noi DBeaver qua SSH tunnel. Verify bang docker compose config that xac nhan host_ip 127.0.0.1, khong phai 0.0.0.0.
+
+## 2026-08-17 02:22:50Z - claude
+
+- Tieu de: Fix frontend Docker build TS errors
+- Tom tat: vue-tsc build failed in Dockerfile due to type errors in exchange-rates/quotes mappers, ExchangeRateField props, useQuoteEditor, QuoteDetailPage (receivedDate lives on version not quote), and QuoteEditorPage DatePicker handlers (val union needs instanceof Date guard). Fixed all, verified with docker build --target build.

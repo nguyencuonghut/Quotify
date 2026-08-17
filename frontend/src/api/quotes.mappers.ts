@@ -110,10 +110,6 @@ export function mapQuoteFlattenedDtoToDomain(dto: QuoteFlattenedDto): QuoteFlatt
     supplierName: dto.supplier_name,
     supplierCode: dto.supplier_code,
     materialId: dto.material_id,
-    material_name: dto.material_name, // Chú ý: backend trả material_name
-    material_code: dto.material_code,
-    material_type_name: dto.material_type_name,
-    material_type_code: dto.material_type_code,
     materialName: dto.material_name,
     materialCode: dto.material_code,
     materialTypeName: dto.material_type_name,
