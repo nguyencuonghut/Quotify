@@ -173,8 +173,14 @@ import danh mục (`Loại vật tư`, `Vật tư`, `Nhà cung cấp`) đã có:
   kỳ giao + tỷ giá + thuế + chi phí làm hàng), vẫn cho phép NCC báo giá khác
   trong cùng ngày. Xem `_resolve_supplier_id`/`_load_existing_line_keys`
   trong `quote_backfill_import.py`.
-- Không hỗ trợ Excel (`.xlsx`); chỉ CSV, đúng theo pattern import danh mục
-  hiện tại của Quotify.
+- ~~Không hỗ trợ Excel (`.xlsx`); chỉ CSV, đúng theo pattern import danh mục
+  hiện tại của Quotify.~~ **Đã đổi quyết định ngày 17/08/2026** sau khi phát
+  hiện file CSV thực tế xuất từ Excel/công cụ khác dễ bị hỏng encoding
+  (mojibake) đối với tên nhà cung cấp có dấu tiếng Việt, khiến toàn bộ dòng
+  báo lỗi "nhà cung cấp không tồn tại" dù dữ liệu đúng. `.xlsx` lưu chuỗi ký
+  tự dưới dạng Unicode có cấu trúc (XML trong `sharedStrings.xml`), không có
+  bước "đoán charset" khi đọc/ghi như CSV, nên loại lỗi này không còn xảy ra.
+  Import danh mục (materials/suppliers/users) vẫn giữ CSV, không đổi.
 - Không đổi công thức giá quy đổi hay bảng `quotify_settings` — tính năng
   này chỉ thêm đường dẫn "override" cho riêng luồng import, không đổi hành
   vi mặc định.
@@ -465,7 +471,8 @@ query, và không làm phình bảng `import_jobs`/`audit_logs`. Các điểm b�
 ## Ngoài Phạm Vi (Nhắc Lại)
 
 - Không hỗ trợ sửa/xóa ghi chú dòng sau khi import (chỉ tạo lúc import).
-- Không hỗ trợ Excel, chỉ CSV.
+- ~~Không hỗ trợ Excel, chỉ CSV.~~ Đã đổi sang `.xlsx` ngày 17/08/2026 — xem
+  quyết định ở mục "Ngoài Phạm Vi" phía trên.
 - ~~Không dò trùng lặp dữ liệu~~ — đã đổi ngày 12/08/2026, xem quyết định ở trên.
 - Không đổi hành vi `POST /api/v1/quotes` hiện có.
 - Không thêm lịch sử revision cho ghi chú dòng.

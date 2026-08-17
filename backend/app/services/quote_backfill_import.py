@@ -10,6 +10,9 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,7 +33,11 @@ QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS: tuple[str, ...] = (
     "processing_cost_vnd_per_kg",
     "note",
 )
-QUOTE_BACKFILL_IMPORT_TEMPLATE_FILENAME = "quote_backfill_import_template.csv"
+QUOTE_BACKFILL_IMPORT_TEMPLATE_FILENAME = "quote_backfill_import_template.xlsx"
+# Cột lưu ngày tháng dạng text (DD/MM/YYYY, MM/YYYY) thay vì ô ngày tháng của
+# Excel, để tránh Excel tự ý đổi định dạng hiển thị theo locale máy người dùng
+# và làm sai lệch giá trị đọc lại ở backend — xem Decision đổi CSV -> XLSX.
+QUOTE_BACKFILL_IMPORT_DATE_COLUMNS: frozenset[str] = frozenset({"received_date", "delivery_month"})
 QUOTE_BACKFILL_IMPORT_SAMPLE_ROW: tuple[str, ...] = (
     "Tập đoàn Tân Long (Tan Long Group)",
     "15/06/2026",
@@ -124,7 +131,7 @@ COMMIT_BATCH_SIZE = 200
 
 
 class QuoteBackfillImportHeaderError(Exception):
-    """Raised when the backfill-import CSV header doesn't match the template."""
+    """Raised when the backfill-import file's header row doesn't match the template."""
 
 
 @dataclass(slots=True)
@@ -160,16 +167,36 @@ def validate_quote_backfill_import_headers(fieldnames: Sequence[str] | None) -> 
         expected = ", ".join(QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS)
         received = ", ".join(received_headers) if received_headers else "(không có header)"
         raise QuoteBackfillImportHeaderError(
-            f"Header CSV không hợp lệ. Cần: {expected}. Nhận: {received}.",
+            f"Header không hợp lệ. Cần: {expected}. Nhận: {received}.",
         )
 
 
 def build_quote_backfill_import_template() -> bytes:
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS)
-    writer.writerow(QUOTE_BACKFILL_IMPORT_SAMPLE_ROW)
-    return buffer.getvalue().encode("utf-8-sig")
+    workbook = Workbook()
+    worksheet = workbook.active
+    assert isinstance(worksheet, Worksheet)  # noqa: S101 — a fresh Workbook() always has one
+    worksheet.title = "quote_backfill_import"
+
+    worksheet.append(QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS)
+    for cell in worksheet[1]:
+        cell.font = Font(bold=True)
+
+    # Cột ngày tháng ghi dạng text (định dạng "@") để Excel không tự động
+    # chuyển sang kiểu ngày-giờ nội bộ và đổi hiển thị theo locale máy người
+    # dùng — backend luôn cần nhận đúng chuỗi "DD/MM/YYYY"/"MM/YYYY".
+    date_column_indexes = [
+        index
+        for index, header in enumerate(QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS, start=1)
+        if header in QUOTE_BACKFILL_IMPORT_DATE_COLUMNS
+    ]
+    worksheet.append(QUOTE_BACKFILL_IMPORT_SAMPLE_ROW)
+    for row in worksheet.iter_rows(min_row=1):
+        for index in date_column_indexes:
+            row[index - 1].number_format = "@"
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
 
 
 def build_quote_backfill_import_error_report(job_errors: list[Any] | None) -> bytes:
@@ -186,6 +213,22 @@ def build_quote_backfill_import_error_report(job_errors: list[Any] | None) -> by
             error_text = str(errors or "")
         writer.writerow([item.get("row", ""), error_text])
     return buffer.getvalue().encode("utf-8-sig")
+
+
+def normalize_xlsx_cell_value(header: str, value: object) -> str | None:
+    """Converts a raw cell value read via openpyxl back into the plain string
+    shape `parse_quote_backfill_import_row` expects, so the row-parsing logic
+    below stays format-agnostic (it was written for CSV's `csv.DictReader`,
+    which always yields strings). Excel returns native Python types for
+    numeric/date cells instead of text, hence this conversion step."""
+    if value is None:
+        return None
+    if header in QUOTE_BACKFILL_IMPORT_DATE_COLUMNS and isinstance(value, (datetime, date)):
+        pattern = "%d/%m/%Y" if header == "received_date" else "%m/%Y"
+        return value.strftime(pattern)
+    if isinstance(value, str):
+        return value
+    return str(value)
 
 
 def _require_field(row: dict[str, str | None], key: str, label: str) -> str:
@@ -226,7 +269,7 @@ def _parse_optional_decimal(
 
 
 def parse_quote_backfill_import_row(row_number: int, row: dict[str, str | None]) -> _ParsedRow:
-    """Parses and validates a single CSV row. Raises `ValueError` with a
+    """Parses and validates a single import row. Raises `ValueError` with a
     Vietnamese message describing the first problem found; does not touch the
     database (no supplier/material code resolution here — that is batched
     separately for performance, see `QuoteBackfillImportService`)."""

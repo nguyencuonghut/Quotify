@@ -77,7 +77,7 @@ async def download_quote_backfill_import_template(
     disposition = f'attachment; filename="{QUOTE_BACKFILL_IMPORT_TEMPLATE_FILENAME}"'
     return Response(
         content=content,
-        media_type="text/csv; charset=utf-8",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": disposition},
     )
 
@@ -91,10 +91,10 @@ async def import_quote_backfill(
     file_service: Annotated[FileAdminService, Depends(get_file_admin_service)],
     audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
 ) -> ImportJobResponse:
-    if not file.filename or not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.endswith(".xlsx"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Chỉ hỗ trợ file CSV cho import báo giá cũ.",
+            detail="Chỉ hỗ trợ file Excel (.xlsx) cho import báo giá cũ.",
         )
 
     file_size = file.size
@@ -109,7 +109,10 @@ async def import_quote_backfill(
     try:
         db_file = await file_service.upload_file(
             filename=file.filename,
-            content_type=file.content_type or "text/csv",
+            content_type=(
+                file.content_type
+                or "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
             size_bytes=file_size,
             data_stream=data_stream,
             is_public=False,

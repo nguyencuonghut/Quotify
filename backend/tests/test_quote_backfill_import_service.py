@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import io
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from openpyxl import load_workbook
 
 from app.services.quote_backfill_import import (
     QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS,
@@ -17,6 +19,7 @@ from app.services.quote_backfill_import import (
     build_quote_backfill_import_error_report,
     build_quote_backfill_import_template,
     normalize_supplier_name_for_matching,
+    normalize_xlsx_cell_value,
     parse_quote_backfill_import_row,
     validate_quote_backfill_import_headers,
 )
@@ -239,9 +242,12 @@ class TestHeaderAndReportBuilders:
             validate_quote_backfill_import_headers(("supplier_name", "received_date"))
 
     def test_template_contains_expected_headers_and_sample_row(self) -> None:
-        content = build_quote_backfill_import_template().decode("utf-8-sig")
-        first_line = content.splitlines()[0]
-        assert first_line == ",".join(QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS)
+        workbook = load_workbook(io.BytesIO(build_quote_backfill_import_template()), read_only=True)
+        worksheet = workbook.active
+        assert worksheet is not None
+        rows = list(worksheet.iter_rows(values_only=True))
+        assert rows[0] == QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS
+        assert len(rows) == 2
 
     def test_error_report_formats_row_and_joined_errors(self) -> None:
         content = build_quote_backfill_import_error_report(
@@ -250,6 +256,26 @@ class TestHeaderAndReportBuilders:
         lines = content.splitlines()
         assert lines[0] == "row,errors"
         assert lines[1] == "3,Lỗi A; Lỗi B"
+
+
+class TestNormalizeXlsxCellValue:
+    def test_returns_none_for_none(self) -> None:
+        assert normalize_xlsx_cell_value("note", None) is None
+
+    def test_passes_through_strings(self) -> None:
+        assert normalize_xlsx_cell_value("supplier_name", "ADM") == "ADM"
+
+    def test_formats_received_date_from_datetime(self) -> None:
+        assert (
+            normalize_xlsx_cell_value("received_date", datetime(2026, 6, 15))
+            == "15/06/2026"
+        )
+
+    def test_formats_delivery_month_from_date(self) -> None:
+        assert normalize_xlsx_cell_value("delivery_month", date(2026, 7, 1)) == "07/2026"
+
+    def test_stringifies_numeric_values(self) -> None:
+        assert normalize_xlsx_cell_value("price_original", 300.0) == "300.0"
 
 
 class FakeNestedTransaction:

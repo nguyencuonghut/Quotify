@@ -278,15 +278,15 @@
           <div class="quotes-page__dialog-actions">
             <Button
               icon="pi pi-download"
-              label="Tải template CSV"
+              label="Tải template Excel"
               severity="secondary"
               text
               @click="downloadTemplate"
             />
           </div>
           <FileUpload
-            accept=".csv,text/csv"
-            choose-label="Chọn file CSV"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            choose-label="Chọn file Excel"
             custom-upload
             mode="basic"
             name="file"

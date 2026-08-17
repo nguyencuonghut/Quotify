@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import Any
@@ -8,6 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from openpyxl import Workbook, load_workbook
 
 from app.api.v1.quote_backfill_imports import (
     get_audit_log_service,
@@ -147,8 +149,12 @@ async def test_download_quote_backfill_import_template_requires_permission(
 
     assert denied_response.status_code == 403
     assert allowed_response.status_code == 200
-    assert "supplier_name" in allowed_response.text
-    assert "import_tax_rate_percent" in allowed_response.text
+    workbook = load_workbook(io.BytesIO(allowed_response.content), read_only=True)
+    worksheet = workbook.active
+    assert worksheet is not None
+    header_row = next(worksheet.iter_rows(values_only=True))
+    assert "supplier_name" in header_row
+    assert "import_tax_rate_percent" in header_row
     app.dependency_overrides.clear()
 
 
@@ -157,14 +163,37 @@ async def test_start_quote_backfill_import_creates_job_and_enqueues_after_commit
     client: AsyncClient,
     override_dependencies: MockJobAdminService,
 ) -> None:
+    workbook = Workbook()
+    worksheet = workbook.active
+    assert worksheet is not None
+    worksheet.append(
+        [
+            "supplier_name",
+            "received_date",
+            "material_code",
+            "price_original",
+            "currency",
+            "unit",
+            "delivery_month",
+            "exchange_rate",
+            "import_tax_rate_percent",
+            "processing_cost_vnd_per_kg",
+            "note",
+        ],
+    )
+    worksheet.append(
+        [
+            "TAN_LONG", "15/06/2026", "CORN", "300.00", "USD", "MT",
+            "07/2026", "26100.00", "0.00", "200.00", None,
+        ],
+    )
+    buffer = io.BytesIO()
+    workbook.save(buffer)
     files = {
         "file": (
-            "quote_backfill.csv",
-            b"supplier_name,received_date,material_code,price_original,currency,unit,"
-            b"delivery_month,exchange_rate,import_tax_rate_percent,"
-            b"processing_cost_vnd_per_kg,note\n"
-            b"TAN_LONG,15/06/2026,CORN,300.00,USD,MT,07/2026,26100.00,0.00,200.00,",
-            "text/csv",
+            "quote_backfill.xlsx",
+            buffer.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         ),
     }
 
@@ -179,11 +208,11 @@ async def test_start_quote_backfill_import_creates_job_and_enqueues_after_commit
 
 
 @pytest.mark.asyncio
-async def test_start_quote_backfill_import_rejects_non_csv_file(
+async def test_start_quote_backfill_import_rejects_non_xlsx_file(
     client: AsyncClient,
     override_dependencies: MockJobAdminService,
 ) -> None:
-    files = {"file": ("quote_backfill.xlsx", b"not a csv", "application/vnd.ms-excel")}
+    files = {"file": ("quote_backfill.csv", b"supplier_name\nTAN_LONG", "text/csv")}
 
     response = await client.post("/api/v1/quote-backfill-imports", files=files)
 

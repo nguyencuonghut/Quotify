@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
+from openpyxl import Workbook
 
 from app.models import AuditLog, ExportJob, File, ImportJob, Role, User, UserStatus
 from app.models.backup_log import BackupLog
@@ -409,9 +410,29 @@ async def test_import_catalog_task_invalid_header_counts_as_failed_row() -> None
 
 
 QUOTE_BACKFILL_IMPORT_HEADER_ROW = (
-    b"supplier_name,received_date,material_code,price_original,currency,unit,"
-    b"delivery_month,exchange_rate,import_tax_rate_percent,processing_cost_vnd_per_kg,note\n"
+    "supplier_name",
+    "received_date",
+    "material_code",
+    "price_original",
+    "currency",
+    "unit",
+    "delivery_month",
+    "exchange_rate",
+    "import_tax_rate_percent",
+    "processing_cost_vnd_per_kg",
+    "note",
 )
+
+
+def _build_xlsx_bytes(rows: list[list[object]]) -> bytes:
+    workbook = Workbook()
+    worksheet = workbook.active
+    assert worksheet is not None
+    for row in rows:
+        worksheet.append(row)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
 
 
 @pytest.mark.asyncio
@@ -443,8 +464,24 @@ async def test_import_quote_backfill_task_completes_with_summary(
 
     minio_client = MagicMock()
     minio_client.get_object.return_value = FakeMinioResponse(
-        QUOTE_BACKFILL_IMPORT_HEADER_ROW
-        + b"TAN_LONG,15/06/2026,CORN,300.00,USD,MT,07/2026,26100.00,0.00,200.00,\n"
+        _build_xlsx_bytes(
+            [
+                list(QUOTE_BACKFILL_IMPORT_HEADER_ROW),
+                [
+                    "TAN_LONG",
+                    "15/06/2026",
+                    "CORN",
+                    "300.00",
+                    "USD",
+                    "MT",
+                    "07/2026",
+                    "26100.00",
+                    "0.00",
+                    "200.00",
+                    None,
+                ],
+            ],
+        ),
     )
     monkeypatch.setattr("app.worker.QuoteBackfillImportService", FakeQuoteBackfillImportService)
 
@@ -510,7 +547,7 @@ async def test_import_quote_backfill_task_invalid_header_counts_as_failed_row(
 
     minio_client = MagicMock()
     minio_client.get_object.return_value = FakeMinioResponse(
-        b"ma_ncc,ngay_nhan\nTAN_LONG,2026-06-15\n",
+        _build_xlsx_bytes([["ma_ncc", "ngay_nhan"], ["TAN_LONG", "2026-06-15"]]),
     )
     monkeypatch.setattr("app.worker.QuoteBackfillImportService", FakeQuoteBackfillImportService)
 
@@ -523,13 +560,13 @@ async def test_import_quote_backfill_task_invalid_header_counts_as_failed_row(
     )
 
     assert job.status == "failed"
-    assert job.error_summary == "Header CSV không hợp lệ."
+    assert job.error_summary == "Header không hợp lệ."
     assert job.total_rows == 1
     assert job.processed_rows == 0
     assert job.failed_rows == 1
     assert job.errors_json is not None
     assert job.errors_json[0]["row"] == 1
-    assert "Header CSV không hợp lệ" in job.errors_json[0]["errors"][0]
+    assert "Header không hợp lệ" in job.errors_json[0]["errors"][0]
     audit_logs = [item for item in session.added if isinstance(item, AuditLog)]
     assert len(audit_logs) == 1
     assert audit_logs[0].action == "quotes.backfill_import_failed"
@@ -539,8 +576,8 @@ async def test_import_quote_backfill_task_invalid_header_counts_as_failed_row(
         "import_entity_type": "quote_backfill",
         "status": "failed",
         "outcome": "failed",
-        "error_category": "invalid_csv_header",
-        "error_summary": "Header CSV không hợp lệ.",
+        "error_category": "invalid_xlsx_header",
+        "error_summary": "Header không hợp lệ.",
     }
 
 

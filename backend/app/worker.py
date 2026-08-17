@@ -21,6 +21,7 @@ except ImportError:
 from datetime import UTC, datetime
 
 from arq import cron, func
+from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -43,6 +44,7 @@ from app.services.file_admin import FileAdminService
 from app.services.quote_backfill_import import (
     QuoteBackfillImportHeaderError,
     QuoteBackfillImportService,
+    normalize_xlsx_cell_value,
 )
 from app.services.quote_pricing import QuotePricingService
 from app.services.quote_service import QuoteService
@@ -101,6 +103,37 @@ def _iter_decoded_csv_lines(
         if not first_line_stripped:
             pending = _strip_leading_bom_artifact(pending)
         yield pending
+
+
+def _read_xlsx_rows(
+    binary_stream: BinaryIO,
+) -> tuple[list[str], Iterator[dict[str, str | None]]]:
+    """Reads an entire XLSX file into memory (openpyxl needs a seekable
+    buffer, unlike CSV which can be decoded incrementally) and returns the
+    header row plus a lazy iterator of data rows converted back to the same
+    `dict[str, str | None]` shape the CSV-era row parser expects."""
+    workbook = load_workbook(io.BytesIO(binary_stream.read()), read_only=True, data_only=True)
+    worksheet = workbook.active
+    if worksheet is None:
+        return [], iter(())
+    rows = worksheet.iter_rows(values_only=True)
+
+    try:
+        header_row = next(rows)
+    except StopIteration:
+        return [], iter(())
+    headers = [str(cell).strip() if cell is not None else "" for cell in header_row]
+
+    def _rows() -> Iterator[dict[str, str | None]]:
+        for raw_row in rows:
+            if all(cell is None for cell in raw_row):
+                continue
+            yield {
+                header: normalize_xlsx_cell_value(header, value)
+                for header, value in zip(headers, raw_row, strict=False)
+            }
+
+    return headers, _rows()
 
 
 async def _log_worker_audit_event(
@@ -505,22 +538,22 @@ async def import_quote_backfill_task(ctx: dict[str, Any], job_id: UUID) -> None:
                 object_name=job.file.storage_path,
             )
             try:
-                reader = csv.DictReader(_iter_decoded_csv_lines(minio_response))
+                headers, rows = _read_xlsx_rows(minio_response)
                 summary = await backfill_service.import_rows(
-                    rows=reader,
-                    fieldnames=reader.fieldnames,
+                    rows=rows,
+                    fieldnames=headers,
                     created_by_id=job.created_by_id,
                 )
             finally:
                 minio_response.close()
                 minio_response.release_conn()
         except QuoteBackfillImportHeaderError as exc:
-            logger.warning("Quote backfill import job %s has invalid CSV header.", job_id)
+            logger.warning("Quote backfill import job %s has invalid header.", job_id)
             job.status = "failed"
             job.total_rows = 1
             job.processed_rows = 0
             job.failed_rows = 1
-            job.error_summary = "Header CSV không hợp lệ."
+            job.error_summary = "Header không hợp lệ."
             job.errors_json = [{"row": 1, "errors": [str(exc)]}]
             await _log_worker_audit_event(
                 session,
@@ -534,16 +567,17 @@ async def import_quote_backfill_task(ctx: dict[str, Any], job_id: UUID) -> None:
                     "import_entity_type": job.entity_type,
                     "status": job.status,
                     "outcome": "failed",
-                    "error_category": "invalid_csv_header",
-                    "error_summary": "Header CSV không hợp lệ.",
+                    "error_category": "invalid_xlsx_header",
+                    "error_summary": "Header không hợp lệ.",
                 },
             )
             await session.commit()
             return
         except Exception:
-            logger.exception(f"Failed to read/parse quote backfill CSV file for job {job_id}")
+            logger.exception(f"Failed to read/parse quote backfill XLSX file for job {job_id}")
             job.status = "failed"
-            job.error_summary = "Không thể đọc hoặc xử lý file CSV import báo giá cũ."
+            error_summary = "Không thể đọc hoặc xử lý file Excel (.xlsx) import báo giá cũ."
+            job.error_summary = error_summary
             await _log_worker_audit_event(
                 session,
                 action="quotes.backfill_import_failed",
@@ -556,8 +590,8 @@ async def import_quote_backfill_task(ctx: dict[str, Any], job_id: UUID) -> None:
                     "import_entity_type": job.entity_type,
                     "status": job.status,
                     "outcome": "failed",
-                    "error_category": "csv_read_parse_failed",
-                    "error_summary": "Không thể đọc hoặc xử lý file CSV import báo giá cũ.",
+                    "error_category": "xlsx_read_parse_failed",
+                    "error_summary": error_summary,
                 },
             )
             await session.commit()

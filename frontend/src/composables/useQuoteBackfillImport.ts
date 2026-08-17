@@ -48,7 +48,7 @@ export function useQuoteBackfillImport(refreshAfterImport: () => Promise<void>) 
       await downloadQuoteBackfillImportTemplate(authStore.accessToken)
     } catch (error) {
       importError.value =
-        error instanceof ApiError ? error.message : 'Không thể tải template CSV.'
+        error instanceof ApiError ? error.message : 'Không thể tải template Excel.'
     }
   }
 
