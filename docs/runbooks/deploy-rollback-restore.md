@@ -30,8 +30,8 @@ với giá trị thật (không phải placeholder mẫu) trước khi chạy:
 make seed-prod-auth
 ```
 
-3.6. Seed danh mục vật tư (material types + materials — dữ liệu nghiệp vụ thật,
-idempotent, không kèm nhà cung cấp mẫu hay tài khoản):
+3.6. Seed nhóm vật tư (material types — idempotent, không kèm materials, nhà
+cung cấp mẫu hay tài khoản):
 
 ```bash
 make seed-prod-catalog
@@ -41,8 +41,9 @@ Không chạy `scripts/seed_quotify.py` trên production — script này seed th
 nhà cung cấp mẫu (không phải dữ liệu thật) và 7 tài khoản thật dùng chung một
 mật khẩu hard-code trong source code. Danh sách nhà cung cấp thật và 7 tài
 khoản Thu Mua phải tạo thủ công qua UI/API (mật khẩu riêng từng người), không
-qua seed script. Xem `docs/quotify/plan-production-migrate-seed.md` để biết
-chi tiết.
+qua seed script. Danh mục vật tư (materials) và nhà cung cấp thật cũng import
+trực tiếp từ dữ liệu thật, không seed tự động. Xem
+`docs/quotify/plan-production-migrate-seed.md` để biết chi tiết.
 
 4. Deploy production stack:
 

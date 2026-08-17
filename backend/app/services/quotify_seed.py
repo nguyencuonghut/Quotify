@@ -31,6 +31,11 @@ class QuotifyCatalogSeedSummary:
     created_materials: int
 
 
+@dataclass(slots=True, frozen=True)
+class QuotifyMaterialTypeSeedSummary:
+    created_material_types: int
+
+
 class QuotifySeedService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -63,6 +68,20 @@ class QuotifySeedService:
         return QuotifyCatalogSeedSummary(
             created_material_types=created_material_types,
             created_materials=created_materials,
+        )
+
+    async def seed_material_types(self) -> QuotifyMaterialTypeSeedSummary:
+        """Seed only material types — không seed materials/suppliers.
+
+        Dùng cho production khi danh mục vật tư (materials) và nhà cung cấp
+        sẽ được import thủ công từ dữ liệu thật, chỉ cần nhóm vật tư
+        (material types) làm khung phân loại có sẵn.
+        """
+        _material_types, created_material_types = await self._ensure_material_types()
+        await self.session.commit()
+
+        return QuotifyMaterialTypeSeedSummary(
+            created_material_types=created_material_types,
         )
 
     async def _ensure_material_types(self) -> tuple[dict[str, MaterialType], int]:

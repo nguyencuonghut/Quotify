@@ -179,7 +179,7 @@ docker compose -f docker-compose.prod.yml run --rm backend uv run alembic upgrad
 # Seed vừa đủ: 1 admin + permissions/roles
 docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/seed_auth_rbac.py
 
-# Seed danh mục vật tư (material types + materials — không kèm nhà cung cấp/user)
+# Seed nhóm vật tư (material types — không kèm materials/nhà cung cấp/user)
 docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/seed_quotify_catalog.py
 
 # Lên toàn bộ stack, bao gồm reverse-proxy (giờ start được vì cert đã có) và
@@ -197,7 +197,10 @@ dùng `exec` vào container đang chạy — xem `docs/runbooks/deploy-rollback-
 Không seed `scripts/seed_quotify.py` nguyên bản — script này seed thêm nhà
 cung cấp mẫu (không phải dữ liệu thật) và 7 tài khoản thật dùng chung mật khẩu
 hard-code trong source. Nhà cung cấp thật và tài khoản Thu Mua tạo thủ công ở
-bước 8.
+bước 8. Danh mục vật tư (materials) và nhà cung cấp thật **không seed tự
+động** — import trực tiếp từ dữ liệu thật sau khi lên stack (qua UI hoặc
+import script riêng), `seed_quotify_catalog.py` chỉ tạo sẵn khung nhóm vật tư
+(material types).
 
 ## 6. Verify
 

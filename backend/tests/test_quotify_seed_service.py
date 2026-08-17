@@ -138,6 +138,20 @@ async def test_quotify_seed_material_catalog_skips_suppliers_and_users() -> None
 
 
 @pytest.mark.asyncio
+async def test_quotify_seed_material_types_skips_materials_suppliers_and_users() -> None:
+    session = FakeSeedSession()
+    service = QuotifySeedService(session)  # type: ignore[arg-type]
+
+    summary = await service.seed_material_types()
+
+    assert summary.created_material_types == len(MATERIAL_TYPE_SEEDS)
+    assert session.materials == []
+    assert session.suppliers == []
+    assert session.users == []
+    assert session.commit_count == 1
+
+
+@pytest.mark.asyncio
 async def test_quotify_seed_is_idempotent() -> None:
     material_type_ids = {seed.code: uuid4() for seed in MATERIAL_TYPE_SEEDS}
     material_types = [
