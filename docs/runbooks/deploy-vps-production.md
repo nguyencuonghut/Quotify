@@ -100,10 +100,18 @@ có giá trị (`docker compose up` sẽ báo lỗi rõ ràng và dừng lại n
 ### 2.3 Mật khẩu Postgres có ký tự đặc biệt (ví dụ `Hongha@#2026`)
 
 `POSTGRES_PASSWORD` dùng trực tiếp cho container Postgres nên **giữ nguyên
-mật khẩu gốc, không cần mã hóa gì**:
+mật khẩu gốc, không cần mã hóa gì** — nhưng **bắt buộc bọc trong dấu ngoặc
+kép** nếu mật khẩu có ký tự `#`: file `.env` được Docker Compose đọc theo cú
+pháp dotenv, nơi `#` mở đầu một comment; nếu để trần
+(`POSTGRES_PASSWORD=Hongha@#2026`), Compose có thể cắt cụt giá trị ngay tại
+`#`, khiến Postgres thực ra được khởi tạo với mật khẩu `Hongha@` (thiếu
+`#2026`) — trong khi `DATABASE_URL` ở dưới vẫn percent-encode đúng và đầy đủ,
+dẫn tới 2 bên lệch nhau và `alembic upgrade`/backend báo
+`asyncpg.exceptions.InvalidPasswordError` dù mật khẩu "nhìn có vẻ đúng". Luôn
+viết:
 
 ```
-POSTGRES_PASSWORD=Hongha@#2026
+POSTGRES_PASSWORD="Hongha@#2026"
 ```
 
 Nhưng `DATABASE_URL` là một **connection URI** (`postgresql+asyncpg://user:pass@host:port/db`),
@@ -136,6 +144,34 @@ gồm chữ/số (không ký tự đặc biệt) thay vì tự chọn:
 
 ```bash
 openssl rand -base64 24 | tr -dc 'A-Za-z0-9'
+```
+
+**Chẩn đoán khi gặp `InvalidPasswordError` dù đã làm đúng các bước trên**: so
+sánh mật khẩu Postgres đang chạy thật (biến `$POSTGRES_PASSWORD` bên trong
+container `postgres`) với mật khẩu backend đang thật sự dùng (giải mã từ
+`DATABASE_URL`) — chỉ in ra md5 hash để so khớp, không lộ mật khẩu thật:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T postgres sh -c 'printf "%s" "$POSTGRES_PASSWORD" | md5sum'
+
+docker compose -f docker-compose.prod.yml exec -T backend python3 -c "
+from app.core.config import get_settings
+from urllib.parse import urlsplit, unquote
+import hashlib
+s = get_settings()
+pw = unquote(urlsplit(s.database_url).password or '')
+print(hashlib.md5(pw.encode()).hexdigest())
+"
+```
+
+Hai hash phải giống nhau. Nếu khác, `.env` đang có 2 giá trị lệch nhau (thường
+do thiếu dấu ngoặc kép như trên, hoặc gõ nhầm khi percent-encode) — sửa lại
+`.env` cho khớp, sau đó **phải** xóa volume Postgres và khởi tạo lại (đổi
+`.env` không tự đổi mật khẩu của Postgres đã init trước đó):
+
+```bash
+docker compose -f docker-compose.prod.yml down -v   # nhớ đúng -f, kẻo xóa nhầm volume dev
+docker compose -f docker-compose.prod.yml up -d postgres redis minio
 ```
 
 **Lưu ý về Alembic** (đã sửa ngày 17/08/2026): `%` trong `DATABASE_URL` đã
