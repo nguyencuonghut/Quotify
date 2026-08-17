@@ -956,3 +956,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Sua format cot Ky giao hang trong file xuat Excel
 - Tom tat: Doi number_format cot Ky giao hang tu dd/mm/yyyy sang mm/yyyy trong file Excel xuat tu trang Quotes, vi ky giao hang chi co y nghia theo thang. Them kind moi month rieng, khong doi gia tri cell. Test moi + verify Playwright voi file that.
+
+## 2026-08-17 01:25:45Z - claude
+
+- Tieu de: Bo sung huong dan deploy production + sua loi hard-code credential
+- Tom tat: Mo rong docs/runbooks/deploy-vps-production.md voi bang lenh openssl chi tiet cho tung secret va muc rieng xu ly mat khau Postgres co ky tu dac biet (percent-encode cho DATABASE_URL, giu nguyen cho POSTGRES_PASSWORD). Phat hien va sua loi bao mat that: docker-compose.prod.yml hard-code cung mat khau Postgres/MinIO yeu, khien doi .env khong co tac dung - da doi sang doc bien bat buoc tu .env va verify bang docker compose config that trong thu muc co lap.

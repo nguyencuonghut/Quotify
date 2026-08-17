@@ -40,21 +40,101 @@ Các lần deploy sau chỉ cần `git pull` trong thư mục này (xem bước 
 cp .env.production.example .env
 ```
 
-Sửa `.env` — **không commit file này**, chỉ tồn tại trên VPS:
+Sửa `.env` — **không commit file này**, chỉ tồn tại trên VPS.
 
-- `DOMAIN_NAME=quotify.honghafeed.com.vn`
-- `CORS_ORIGINS=https://quotify.honghafeed.com.vn`
-- `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET_KEY`,
-  `MINIO_SECRET_KEY`: thay toàn bộ giá trị `change-me-*` bằng giá trị thật,
-  sinh ngẫu nhiên đủ mạnh (ví dụ `openssl rand -hex 32`).
-- `AUTH_SEED_ADMIN_EMAIL`/`AUTH_SEED_ADMIN_PASSWORD`: email + mật khẩu thật
-  của tài khoản admin đầu tiên. Không được để `change-me-admin-password` —
+### 2.1 Domain và CORS
+
+```
+DOMAIN_NAME=quotify.honghafeed.com.vn
+CORS_ORIGINS=https://quotify.honghafeed.com.vn
+```
+
+### 2.2 Sinh từng secret bắt buộc — lệnh cụ thể
+
+Thay **toàn bộ** giá trị `change-me-*` trong `.env` bằng giá trị thật. Chạy
+từng lệnh dưới đây trên VPS (hoặc máy cá nhân rồi copy qua kênh an toàn) và
+dán kết quả vào đúng biến tương ứng:
+
+| Biến trong `.env`                        | Lệnh sinh giá trị                          | Ghi chú                                                    |
+| ----------------------------------------- | ------------------------------------------- | ------------------------------------------------------------ |
+| `JWT_SECRET_KEY`                          | `openssl rand -hex 32`                      | Ký access token — chạy riêng, không trùng với refresh secret |
+| `JWT_REFRESH_SECRET_KEY`                  | `openssl rand -hex 32`                      | Chạy **lần thứ 2**, phải khác `JWT_SECRET_KEY` ở trên         |
+| `POSTGRES_PASSWORD`                       | Xem mục 2.3 bên dưới                        | Có thể tự chọn mật khẩu nhớ được — xem cách xử lý ký tự đặc biệt |
+| `MINIO_ACCESS_KEY`                        | `openssl rand -hex 12`                      | Đổi khỏi mặc định `minioadmin` của image — dùng làm username |
+| `MINIO_SECRET_KEY`                        | `openssl rand -base64 32`                   | Không cần nhớ, chỉ máy-tới-máy dùng                          |
+| `AUTH_SEED_ADMIN_PASSWORD`                | Tự chọn, hoặc `openssl rand -base64 18`     | Mật khẩu admin đầu tiên — người dùng thật sẽ gõ để đăng nhập  |
+
+Ví dụ chạy nhanh cả loạt (rồi copy từng dòng in ra vào `.env`):
+
+```bash
+echo "JWT_SECRET_KEY=$(openssl rand -hex 32)"
+echo "JWT_REFRESH_SECRET_KEY=$(openssl rand -hex 32)"
+echo "MINIO_ACCESS_KEY=$(openssl rand -hex 12)"
+echo "MINIO_SECRET_KEY=$(openssl rand -base64 32)"
+echo "AUTH_SEED_ADMIN_PASSWORD=$(openssl rand -base64 18)"
+```
+
+Sau khi sinh xong:
+
+- `AUTH_SEED_ADMIN_EMAIL`: email thật của tài khoản admin đầu tiên. Không
+  được để nguyên `change-me-admin-password` cho mật khẩu —
   `seed_auth_rbac.py` sẽ tự chặn nếu còn placeholder.
 - `AUTH_SEED_UPDATE_ADMIN_PASSWORD=false` (giữ `false` sau lần setup đầu).
 - `CERTBOT_EMAIL`: email thật dùng để đăng ký với Let's Encrypt (nhận cảnh
   báo hết hạn cert nếu renew tự động thất bại).
 - `PROXY_HTTP_PORT=80`, `PROXY_HTTPS_PORT=443` (giữ mặc định nếu VPS không
   chạy web server khác trên 2 cổng này).
+
+**Quan trọng — `docker-compose.prod.yml` đọc đúng các giá trị này từ `.env`**
+(đã sửa ngày 15/08/2026): trước đây `POSTGRES_PASSWORD`/`MINIO_ROOT_USER`/
+`MINIO_ROOT_PASSWORD`/`DATABASE_URL` bị hard-code cứng ngay trong compose
+file, khiến việc đổi giá trị trong `.env` **không có tác dụng gì** — Postgres
+luôn chạy với mật khẩu `postgres`, MinIO luôn chạy với `minioadmin`/`minioadmin`
+bất kể `.env` ghi gì. Đã sửa để `postgres`/`minio` đọc `${POSTGRES_PASSWORD}`/
+`${MINIO_ACCESS_KEY}`/`${MINIO_SECRET_KEY}` từ `.env` thật, và bắt buộc phải
+có giá trị (`docker compose up` sẽ báo lỗi rõ ràng và dừng lại nếu bạn quên
+đặt, thay vì âm thầm dùng mật khẩu yếu mặc định của image).
+
+### 2.3 Mật khẩu Postgres có ký tự đặc biệt (ví dụ `Hongha@#2026`)
+
+`POSTGRES_PASSWORD` dùng trực tiếp cho container Postgres nên **giữ nguyên
+mật khẩu gốc, không cần mã hóa gì**:
+
+```
+POSTGRES_PASSWORD=Hongha@#2026
+```
+
+Nhưng `DATABASE_URL` là một **connection URI** (`postgresql+asyncpg://user:pass@host:port/db`),
+trong đó ký tự `@` là dấu phân cách giữa phần thông tin đăng nhập và host. Nếu
+dán thẳng mật khẩu có `@` vào URI, phần parse sẽ hiểu sai — ví dụ mật khẩu
+`Hongha@#2026` sẽ khiến thư viện đọc nhầm host thành `#2026@postgres` thay vì
+`postgres` (đã kiểm chứng thực tế: request tới database sẽ lỗi kết nối do
+"không tìm thấy host" kiểu này). Cách đúng là **mã hóa phần trăm (percent-encode)
+riêng đoạn mật khẩu** trước khi ghép vào `DATABASE_URL` — dùng lệnh sau:
+
+```bash
+python3 -c "import urllib.parse; print(urllib.parse.quote('Hongha@#2026', safe=''))"
+# In ra: Hongha%40%232026
+```
+
+Rồi ghép vào `DATABASE_URL` (chỉ đoạn mật khẩu được mã hóa, phần còn lại giữ
+nguyên):
+
+```
+DATABASE_URL=postgresql+asyncpg://postgres:Hongha%40%232026@postgres:5432/app
+```
+
+Tóm tắt quy tắc: **`POSTGRES_PASSWORD` = mật khẩu gốc, `DATABASE_URL` = mật
+khẩu đã percent-encode**. Áp dụng lệnh `urllib.parse.quote(..., safe='')` ở
+trên cho bất kỳ mật khẩu nào có ký tự đặc biệt (`@`, `#`, `:`, `/`, `%`, khoảng
+trắng...), kể cả khi bạn tự chọn mật khẩu khác không phải ví dụ trên.
+
+Nếu muốn tránh hoàn toàn bước mã hóa này, có thể sinh mật khẩu ngẫu nhiên chỉ
+gồm chữ/số (không ký tự đặc biệt) thay vì tự chọn:
+
+```bash
+openssl rand -base64 24 | tr -dc 'A-Za-z0-9'
+```
 
 ## 3. Build image production qua SSH (không CI/CD)
 

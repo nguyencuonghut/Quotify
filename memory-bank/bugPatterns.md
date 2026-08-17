@@ -805,6 +805,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Bất kỳ endpoint auth mới nào (login/refresh/logout) PHẢI truyền `skipAuthRetry: true` cho `apiRequest`, nếu không sẽ tạo vòng lặp refresh vô hạn khi refresh-token cũng hết hạn. Không truyền `accessToken` dạng chuỗi tĩnh vào composable dùng lâu dài trên 1 trang — luôn dùng getter/computed đọc "sống" từ store. Verify bằng Playwright thật với `page.route` giả lập 401 thật từ backend (không chỉ unit test) cho cả 2 nhánh: refresh thành công (phục hồi im lặng) và refresh thất bại thật (điều hướng `/login` sạch, không rơi vào raw English string ở bất kỳ thời điểm nào).
 - Related files: `frontend/src/api/http.ts`, `frontend/src/stores/auth.store.ts`, `frontend/src/api/auth.api.ts`, `frontend/src/main.ts`, `frontend/src/composables/useQuotesPage.ts`. Lưu ý: `useQuoteEditor.ts`/`useQuoteDetail.ts` còn cùng pattern tham số tĩnh nhưng chưa sửa (đã được retry-on-401 ở tầng http tự chữa phần lớn tác động, chỉ tốn thêm 1 round-trip).
 
+### 2026-08-15: `docker-compose.prod.yml` hard-code mật khẩu Postgres/MinIO — đổi `.env` production không có tác dụng gì
+
+- Area: `docker-compose.prod.yml` (phát hiện khi viết tài liệu deploy production, không phải người dùng báo lỗi)
+- Trigger: Không có triệu chứng rõ ràng khi vận hành bình thường (Postgres/MinIO vẫn kết nối được) — đây là lỗ hổng bảo mật ÂM THẦM: production luôn chạy với mật khẩu mặc định yếu (`postgres`/`minioadmin`/`minioadmin`) dù người vận hành đã làm đúng theo runbook, đặt `POSTGRES_PASSWORD`/`MINIO_SECRET_KEY` thật trong `.env`.
+- Root cause: `environment:` của service `postgres`/`minio` và `DATABASE_URL` của service `backend`/`worker` trong `docker-compose.prod.yml` bị ghi CỨNG giá trị literal (`POSTGRES_PASSWORD: postgres`, `MINIO_ROOT_PASSWORD: minioadmin`, `DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/app`) thay vì tham chiếu `${VAR}` từ `.env`. Vì `environment:` trong compose LUÔN ghi đè lên `env_file:` cho cùng 1 key, các dòng hard-code này thắng tuyệt đối bất kể `.env` chứa gì.
+- Fix: Đổi `postgres`/`minio` sang đọc `${POSTGRES_PASSWORD}`/`${MINIO_ACCESS_KEY}`/`${MINIO_SECRET_KEY}` (cú pháp bắt buộc `${VAR:?message}` — `docker compose up` dừng lại với lỗi rõ ràng nếu secret rỗng, thay vì âm thầm dùng giá trị yếu). Xóa hẳn dòng `DATABASE_URL` hard-code khỏi `environment:` của backend/worker để giá trị thật từ `env_file: .env` được dùng.
+- Regression guard: Bất kỳ secret nào thêm vào `docker-compose.prod.yml` trong tương lai PHẢI dùng `${VAR:?...}`, không bao giờ literal — và phải verify bằng `docker compose config` thật trong thư mục cô lập (copy compose file + `.env` test riêng, không chạy trực tiếp ở repo có `.env` dev đang dùng) để xác nhận giá trị thực sự được truyền đúng, không chỉ đọc code bằng mắt.
+- Related files: `docker-compose.prod.yml`, `.env.production.example`, `docs/runbooks/deploy-vps-production.md`
+
 ## Usage Rule
 
 Before changing behavior in an area with prior bugs, read the relevant entries first and explicitly avoid repeating the same failure mode.
