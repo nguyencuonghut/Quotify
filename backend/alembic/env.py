@@ -16,7 +16,12 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+
+# ConfigParser dùng '%' cho cú pháp interpolation (vd. '%(section)s'), nên URL
+# chứa mật khẩu percent-encode (vd. 'Hongha%40%232026') sẽ bị hiểu nhầm và
+# ném ValueError. Escape bằng cách nhân đôi '%' — ConfigParser sẽ tự giải nén
+# lại về '%' khi đọc qua get_main_option()/interpolation ở dưới.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:

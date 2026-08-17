@@ -138,6 +138,14 @@ gồm chữ/số (không ký tự đặc biệt) thay vì tự chọn:
 openssl rand -base64 24 | tr -dc 'A-Za-z0-9'
 ```
 
+**Lưu ý về Alembic** (đã sửa ngày 17/08/2026): `%` trong `DATABASE_URL` đã
+percent-encode (vd. `%40`, `%23`) từng khiến `alembic upgrade head` chết với
+`ValueError: invalid interpolation syntax` — vì `alembic.ini` được đọc bằng
+`ConfigParser`, và `%` là ký tự interpolation đặc biệt của thư viện đó, không
+liên quan gì tới SQLAlchemy. `backend/alembic/env.py` đã escape `%` → `%%`
+trước khi gọi `config.set_main_option(...)` nên mật khẩu percent-encode ở
+trên chạy bình thường, không cần tránh ký tự `%` khi chọn mật khẩu.
+
 ## 3. Build image production qua SSH (không CI/CD)
 
 ```bash
