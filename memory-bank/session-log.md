@@ -961,3 +961,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Bo sung huong dan deploy production + sua loi hard-code credential
 - Tom tat: Mo rong docs/runbooks/deploy-vps-production.md voi bang lenh openssl chi tiet cho tung secret va muc rieng xu ly mat khau Postgres co ky tu dac biet (percent-encode cho DATABASE_URL, giu nguyen cho POSTGRES_PASSWORD). Phat hien va sua loi bao mat that: docker-compose.prod.yml hard-code cung mat khau Postgres/MinIO yeu, khien doi .env khong co tac dung - da doi sang doc bien bat buoc tu .env va verify bang docker compose config that trong thu muc co lap.
+
+## 2026-08-17 01:48:17Z - claude
+
+- Tieu de: Them huong dan ket noi DB tu xa qua DBeaver + SSH tunnel
+- Tom tat: Them ports 127.0.0.1-only cho postgres va minio console trong docker-compose.prod.yml (khong expose ra internet), them muc 11 vao runbook deploy huong dan 2 cach ket noi DBeaver qua SSH tunnel. Verify bang docker compose config that xac nhan host_ip 127.0.0.1, khong phai 0.0.0.0.

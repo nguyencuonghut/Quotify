@@ -19,7 +19,9 @@ Với rollback/restore và các lần deploy tiếp theo, dùng chung
 
 - Firewall VPS mở cổng `22` (SSH), `80` (HTTP/ACME challenge), `443` (HTTPS).
   Không public thêm cổng nào khác (Postgres/MinIO/Redis không được expose ra
-  ngoài — đã đúng theo `docker-compose.prod.yml`).
+  ngoài — đã đúng theo `docker-compose.prod.yml`). Postgres/MinIO console có
+  publish port nhưng CHỈ bind vào `127.0.0.1` của VPS (không phải `0.0.0.0`),
+  dùng để SSH tunnel — xem mục 11 — nên không cần mở thêm gì trên firewall.
 - Có quyền SSH vào VPS bằng tài khoản không phải `root` và trong group `docker`.
 - Repo Git có quyền truy cập từ VPS (SSH deploy key hoặc HTTPS + token), vì
   quy trình này pull code trực tiếp trên VPS, không qua CI/CD.
@@ -266,3 +268,69 @@ bash scripts/ops/backup-minio.sh
 Theo `docs/runbooks/deploy-rollback-restore.md` — checkout lại commit/tag
 trước đó trên VPS (`git checkout <ref>`), build lại image, `up -d`. Không
 downgrade migration mù quáng nếu schema không backward-compatible.
+
+## 11. Kết nối DB từ xa bằng DBeaver qua SSH tunnel
+
+Postgres production **không** publish port ra internet (đúng theo yêu cầu ở
+mục 0 — không public thêm cổng nào ngoài `22`/`80`/`443`). `docker-compose.prod.yml`
+chỉ bind port Postgres vào `127.0.0.1` của chính VPS:
+
+```yaml
+ports:
+  - "127.0.0.1:5432:5432"
+```
+
+Nghĩa là port `5432` chỉ nghe được từ các tiến trình chạy ngay trên VPS — kể
+cả một kết nối SSH tunnel từ máy cá nhân cũng được tính là "chạy trên VPS" ở
+phía server, nên đây là cách an toàn để DBeaver kết nối từ xa mà không cần mở
+thêm port nào ra ngoài.
+
+**Cách 1 — DBeaver tự tạo SSH tunnel (khuyên dùng, không cần mở terminal riêng):**
+
+1. DBeaver → New Database Connection → PostgreSQL.
+2. Tab **Main**:
+   - Host: `localhost` (hoặc `127.0.0.1`) — vì tunnel sẽ làm cho port này
+     "xuất hiện" ngay trên máy cá nhân, không phải điền IP VPS ở đây.
+   - Port: `5432`
+   - Database: giá trị `POSTGRES_DB` trong `.env` (mặc định `app`).
+   - Username: giá trị `POSTGRES_USER` trong `.env` (mặc định `postgres`).
+   - Password: giá trị `POSTGRES_PASSWORD` thật trong `.env` trên VPS (mật
+     khẩu gốc, KHÔNG phải bản percent-encode dùng trong `DATABASE_URL` — xem
+     mục 2.3).
+3. Tab **SSH**:
+   - Tích **Use SSH Tunnel**.
+   - Host/IP: IP public của VPS.
+   - Port: `22`.
+   - User Name: tài khoản SSH không phải `root` (theo yêu cầu ở mục 0).
+   - Authentication Method: **Public Key** → trỏ tới private key (`.pem`/`id_rsa`)
+     dùng để SSH vào VPS, hoặc **Password** nếu VPS cho phép đăng nhập bằng
+     mật khẩu.
+4. **Test Connection** — DBeaver sẽ tự SSH vào VPS, mở tunnel tới
+   `127.0.0.1:5432` trên VPS, rồi mới kết nối Postgres qua tunnel đó.
+
+**Cách 2 — Tự mở SSH tunnel bằng terminal, DBeaver kết nối như DB local:**
+
+```bash
+ssh -N -L 5432:127.0.0.1:5432 <ssh-user>@<vps-ip>
+```
+
+Giữ terminal này chạy (không trả về prompt là bình thường — `-N` nghĩa là
+không mở shell, chỉ forward port). Khi đó, DBeaver chỉ cần kết nối PostgreSQL
+bình thường tới `localhost:5432` (KHÔNG cần cấu hình tab SSH trong DBeaver
+nữa, vì tunnel đã có sẵn ở tầng hệ điều hành).
+
+Đóng terminal (hoặc `Ctrl+C`) sẽ đóng tunnel — chạy lại lệnh trên khi cần kết
+nối lại.
+
+**Lưu ý bảo mật:**
+
+- Không bao giờ đổi `"127.0.0.1:5432:5432"` thành `"5432:5432"` hoặc
+  `"0.0.0.0:5432:5432"` — làm vậy sẽ public thẳng Postgres ra internet, vi
+  phạm yêu cầu firewall ở mục 0 (đã kiểm chứng bằng `docker compose config`:
+  `host_ip: 127.0.0.1` xác nhận chỉ bind loopback).
+- Không cần mở thêm port nào trên firewall VPS cho việc này — mọi kết nối đều
+  đi qua cổng `22` (SSH) đã mở sẵn.
+- Áp dụng đúng cách này cho MinIO console (port `9001`) nếu cần xem trực tiếp
+  qua trình duyệt: `ssh -N -L 9001:127.0.0.1:9001 <ssh-user>@<vps-ip>`, rồi mở
+  `http://localhost:9001` trên máy cá nhân (MinIO console hiện cũng không
+  publish port ra ngoài).

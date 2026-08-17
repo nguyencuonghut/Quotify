@@ -102,6 +102,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-app}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD phải được đặt trong .env, không dùng giá trị mặc định của image}
+    ports:
+      # CHỈ bind vào 127.0.0.1 của VPS — không phải "0.0.0.0:5432:5432".
+      # Không public port này ra internet; chỉ dùng để SSH tunnel từ xa (DBeaver...)
+      # kết nối vào cổng loopback của chính VPS. Xem
+      # "11. Kết nối DB từ xa bằng DBeaver qua SSH tunnel" trong
+      # docs/runbooks/deploy-vps-production.md.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test:
         - CMD-SHELL
@@ -119,6 +126,12 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY phải được đặt trong .env, không dùng giá trị mặc định của image}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY phải được đặt trong .env, không dùng giá trị mặc định của image}
+    ports:
+      # Chỉ bind vào 127.0.0.1 của VPS, giống Postgres — dùng để SSH tunnel
+      # xem MinIO console qua trình duyệt, không public ra internet. Xem
+      # "11. Kết nối DB từ xa bằng DBeaver qua SSH tunnel" trong
+      # docs/runbooks/deploy-vps-production.md.
+      - "127.0.0.1:9001:9001"
     healthcheck:
       test:
         - CMD
