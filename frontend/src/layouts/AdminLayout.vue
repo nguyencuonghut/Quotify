@@ -18,7 +18,11 @@
 
     <aside class="admin-layout__sidebar">
       <div class="admin-layout__sidebar-header">
-        <div class="admin-layout__brand">
+        <RouterLink
+          class="admin-layout__brand"
+          to="/"
+          @click="layoutStore.closeMobileSidebar"
+        >
           <div class="admin-layout__brand-logo" aria-hidden="true">
             <img
               alt=""
@@ -30,7 +34,7 @@
           <div class="admin-layout__brand-copy">
             <h1 class="admin-layout__brand-title">{{ appName }}</h1>
           </div>
-        </div>
+        </RouterLink>
       </div>
 
       <nav class="admin-layout__nav">

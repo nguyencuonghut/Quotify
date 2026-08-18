@@ -50,6 +50,14 @@
   width: 100%;
   min-width: 0;
   padding: 0.35rem 0.5rem;
+  border-radius: 0.75rem;
+  color: inherit;
+  text-decoration: none;
+  transition: background 160ms ease;
+
+  &:hover {
+    background: var(--app-surface-highlight);
+  }
 }
 
 .admin-layout__brand-logo {
