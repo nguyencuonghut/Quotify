@@ -213,6 +213,43 @@ docker compose -f docker-compose.prod.yml run --rm --entrypoint ls certbot \
 
 Phải thấy `fullchain.pem` và `privkey.pem`.
 
+### 4.1 Chạy production không cần SSL (tạm thời)
+
+Nếu chưa sẵn sàng bật SSL, có thể bỏ qua toàn bộ mục 4 và chạy tạm bằng HTTP.
+`reverse-proxy` sẽ **không tự sập** vì thiếu cert nữa, nhưng lưu ý: đây chỉ nên
+là trạng thái tạm thời — mật khẩu, token đăng nhập sẽ đi qua mạng ở dạng không
+mã hoá cho tới khi bật lại SSL.
+
+1. Trong `.env`, đổi 3 biến:
+
+   ```bash
+   NGINX_CONF_FILE=prod-http-only.conf
+   CORS_ORIGINS=http://quotify.honghafeed.com.vn
+   AUTH_REFRESH_COOKIE_SECURE=false
+   ```
+
+   Bỏ qua `AUTH_REFRESH_COOKIE_SECURE=false` sẽ khiến trình duyệt âm thầm từ
+   chối lưu cookie refresh-token (cookie có cờ `Secure` chỉ được lưu qua
+   HTTPS) — đăng nhập tưởng thành công nhưng phiên đăng nhập không giữ được.
+
+2. Bỏ qua mục 4 (không cần certbot), chạy thẳng mục 5 bên dưới. Ở bước cuối
+   `docker compose -f docker-compose.prod.yml up -d`, `reverse-proxy` sẽ đọc
+   `docker/nginx/prod-http-only.conf` (không có `server { listen 443 ssl; }`)
+   thay vì `prod.conf`.
+
+3. Nếu trình duyệt đã từng mở `https://quotify.honghafeed.com.vn` thành công
+   trước đó (kể cả ở lần thử deploy khác), trình duyệt có thể đã lưu chính
+   sách HSTS và tự động ép nâng cấp lên HTTPS — trang sẽ báo lỗi kết nối dù
+   HTTP đang chạy đúng. Xoá HSTS cho domain này trong trình duyệt (Chrome:
+   `chrome://net-internals/#hsts` → "Delete domain security policies") hoặc
+   test bằng cửa sổ ẩn danh/trình duyệt khác trước khi kết luận có lỗi.
+
+4. Khi sẵn sàng bật SSL: chạy mục 4 để xin chứng chỉ, đổi lại 3 biến ở bước 1
+   về giá trị HTTPS (`NGINX_CONF_FILE=prod.conf`,
+   `CORS_ORIGINS=https://...`, `AUTH_REFRESH_COOKIE_SECURE=true`), rồi
+   `docker compose -f docker-compose.prod.yml up -d reverse-proxy` để nạp lại
+   config mới.
+
 ## 5. Migrate + seed + lên stack
 
 ```bash
