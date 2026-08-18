@@ -5,9 +5,10 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import case, distinct, func, select
+from sqlalchemy import case, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.models.material import Material
 from app.models.quote import Quote
 from app.models.quote_line import QuoteLine
@@ -21,6 +22,10 @@ BUSINESS_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 class QuotifyDashboardService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        # Tài khoản seed admin (settings.auth_seed_admin_email) chỉ dùng để
+        # import backfill/danh mục, không phải người nhập báo giá thật — loại
+        # khỏi mọi thống kê theo user để không làm lệch số liệu dashboard.
+        self._excluded_user_email = get_settings().auth_seed_admin_email
 
     async def get_entry_kpis(
         self,
@@ -62,7 +67,10 @@ class QuotifyDashboardService:
             .join(Quote, QuoteVersion.quote_id == Quote.id)
             .join(Supplier, Quote.supplier_id == Supplier.id)
             .outerjoin(User, Quote.created_by_id == User.id)
-            .where(*filters)
+            .where(
+                *filters,
+                or_(User.email.is_(None), User.email != self._excluded_user_email),
+            )
             .group_by(Quote.created_by_id, User.email, User.full_name)
             .order_by(
                 func.count(distinct(Quote.id)).desc(),
@@ -171,7 +179,10 @@ class QuotifyDashboardService:
             )
             .select_from(User)
             .outerjoin(quote_counts, quote_counts.c.user_id == User.id)
-            .where(User.status == UserStatus.ACTIVE)
+            .where(
+                User.status == UserStatus.ACTIVE,
+                User.email != self._excluded_user_email,
+            )
             .order_by(
                 func.coalesce(quote_counts.c.quote_count, 0).desc(),
                 User.full_name.asc(),

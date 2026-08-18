@@ -84,6 +84,7 @@ async def test_get_entry_kpis_counts_quotes_by_original_creator_only() -> None:
     assert "quote_versions.status = :status_1" in str(fake_db.queries[0])
     assert "suppliers.supplier_type" in str(fake_db.queries[0])
     assert "LIKE" in str(fake_db.queries[0])
+    assert "users.email IS NULL OR users.email != :email_1" in str(fake_db.queries[1])
 
 
 @pytest.mark.asyncio
@@ -307,3 +308,4 @@ async def test_get_weekly_entry_activity_includes_active_users_without_quotes() 
     assert response["user_activities"][1]["has_warning"] is True
     assert "quotes.created_at >= :created_at_1" in str(fake_db.queries[0])
     assert "quote_versions.status = :status_1" in str(fake_db.queries[0])
+    assert "users.email != :email_1" in str(fake_db.queries[0])
