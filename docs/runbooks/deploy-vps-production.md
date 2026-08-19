@@ -424,6 +424,19 @@ Compose chỉ tạo lại các service có image thay đổi (`backend`/`fronten
 ở bước 9.4) — `postgres`/`redis`/`minio`/`reverse-proxy`/`certbot` không bị
 restart nếu ảnh của chúng không đổi.
 
+**Quan trọng — luôn restart `reverse-proxy` ngay sau bước này:** Nginx chỉ
+phân giải DNS tên service (`backend`/`frontend`) MỘT LẦN lúc khởi động rồi
+cache lại IP nội bộ Docker. Vì `backend`/`frontend` vừa bị xoá và tạo container
+MỚI (IP nội bộ khác) ở bước trên nhưng `reverse-proxy` không được tạo lại
+(ảnh nginx không đổi), nó vẫn giữ IP cũ đã cache → mọi request qua domain
+(kể cả `/health`, login...) trả về `502 Bad Gateway`, `reverse-proxy` tự báo
+`unhealthy`, và người dùng thấy trang trắng/đen hoặc lỗi 502 khi đăng nhập,
+dù `backend`/`frontend` đều đang chạy khoẻ mạnh. Luôn chạy:
+
+```bash
+docker compose -f docker-compose.prod.yml restart reverse-proxy
+```
+
 ### 9.8 Verify ngay sau khi lên
 
 ```bash
