@@ -122,6 +122,11 @@ async def test_query_flattened_quotes_uses_lightweight_count(
     assert "quote_versions.status != :status_1" in count_sql
     assert "limit" in select_sql
     assert "offset" in select_sql
+    # Tie-break phải theo Quote.sequence_number rồi line_order — KHÔNG theo
+    # quote_lines.id (UUID ngẫu nhiên) — để các dòng cùng 1 Quote/NCC không
+    # bị xen kẽ với NCC khác khi cột đang sort (created_at) bị trùng giá trị.
+    assert "order by quote_lines.created_at desc, quotes.sequence_number asc" in select_sql
+    assert "quote_lines.id" not in select_sql.split("order by", 1)[1]
 
 
 @pytest.mark.asyncio

@@ -194,11 +194,15 @@ class QuoteQueryService:
             "created_at": QuoteLine.created_at,
         }
 
+        # Tie-break luôn theo `Quote.sequence_number` (tăng dần) rồi
+        # `QuoteLine.line_order` — KHÔNG theo hướng sort_order — để giữ
+        # nguyên các dòng cùng 1 Quote/NCC đứng liền nhau đúng thứ tự nhập
+        # liệu/import gốc khi cột đang sort bị trùng giá trị (vd. nhiều NCC
+        # cùng "Ngày nhận"), thay vì xen kẽ theo `QuoteLine.id` (UUID ngẫu
+        # nhiên, không phản ánh thứ tự tạo — xem model Quote.sequence_number).
         sort_col = sort_by_map.get(sort_by, QuoteLine.created_at)
-        if sort_order == "desc":
-            stmt = stmt.order_by(desc(sort_col), asc(QuoteLine.line_order), desc(QuoteLine.id))
-        else:
-            stmt = stmt.order_by(asc(sort_col), asc(QuoteLine.line_order), asc(QuoteLine.id))
+        primary_sort = desc(sort_col) if sort_order == "desc" else asc(sort_col)
+        stmt = stmt.order_by(primary_sort, asc(Quote.sequence_number), asc(QuoteLine.line_order))
 
         # Apply pagination
         stmt = stmt.offset(offset).limit(limit)
@@ -352,11 +356,15 @@ class QuoteQueryService:
             "version_number": QuoteVersion.version_number,
             "created_at": QuoteLine.created_at,
         }
+        # Tie-break luôn theo `Quote.sequence_number` (tăng dần) rồi
+        # `QuoteLine.line_order` — KHÔNG theo hướng sort_order — để giữ
+        # nguyên các dòng cùng 1 Quote/NCC đứng liền nhau đúng thứ tự nhập
+        # liệu/import gốc khi cột đang sort bị trùng giá trị (vd. nhiều NCC
+        # cùng "Ngày nhận"), thay vì xen kẽ theo `QuoteLine.id` (UUID ngẫu
+        # nhiên, không phản ánh thứ tự tạo — xem model Quote.sequence_number).
         sort_col = sort_by_map.get(sort_by, QuoteLine.created_at)
-        if sort_order == "desc":
-            stmt = stmt.order_by(desc(sort_col), asc(QuoteLine.line_order), desc(QuoteLine.id))
-        else:
-            stmt = stmt.order_by(asc(sort_col), asc(QuoteLine.line_order), asc(QuoteLine.id))
+        primary_sort = desc(sort_col) if sort_order == "desc" else asc(sort_col)
+        stmt = stmt.order_by(primary_sort, asc(Quote.sequence_number), asc(QuoteLine.line_order))
 
         result = await self.db.execute(stmt)
         items = []
