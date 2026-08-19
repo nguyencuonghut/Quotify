@@ -30,6 +30,27 @@
   letter-spacing: 0.01em;
 }
 
+// PrimeVue bọc nội dung slot #header trong 1 container flex-row (kèm icon
+// sort) — nếu không gói tên cột + ghi chú phụ vào chung 1 flex item dạng
+// column, chúng sẽ nằm ngang hàng với nhau thay vì xuống dòng.
+.quotes-page__column-header-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.25;
+  font-weight: 600;
+  text-align: center;
+}
+
+// Ghi chú phụ dưới tên cột (vd. "(CNF/Tại cảng)") — luôn xuống dòng riêng,
+// chữ nhỏ và nhạt hơn tên cột chính.
+.quotes-page__column-header-note {
+  display: block;
+  font-size: 0.72em;
+  font-weight: 400;
+  color: var(--app-text-secondary);
+}
+
 .quotes-page__form {
   display: flex;
   flex-direction: column;

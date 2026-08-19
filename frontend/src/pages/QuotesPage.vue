@@ -206,7 +206,13 @@
             </template>
           </Column>
 
-          <Column field="price_original" header="Giá gốc" sortable>
+          <Column field="price_original" sortable>
+            <template #header>
+              <span class="quotes-page__column-header-stack">
+                <span>Giá gốc</span>
+                <span class="quotes-page__column-header-note">(CNF/Tại cảng)</span>
+              </span>
+            </template>
             <template #body="{ data }">
               <span class="quotes-page__price-cell">
                 <span class="quotes-page__price-value">{{
@@ -384,7 +390,10 @@
                 </dd>
               </div>
               <div>
-                <dt>Giá gốc</dt>
+                <dt>
+                  Giá gốc
+                  <span class="quotes-page__column-header-note">(CNF/Tại cảng)</span>
+                </dt>
                 <dd class="quotes-page__price-cell">
                   <span class="quotes-page__price-value">{{
                     formatOriginalPrice(item.priceOriginal, item.currency, item.unit).value
