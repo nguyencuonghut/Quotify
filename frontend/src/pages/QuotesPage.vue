@@ -208,7 +208,14 @@
 
           <Column field="price_original" header="Giá gốc" sortable>
             <template #body="{ data }">
-              {{ formatOriginalPrice(data.priceOriginal, data.currency, data.unit) }}
+              <span class="quotes-page__price-cell">
+                <span class="quotes-page__price-value">{{
+                  formatOriginalPrice(data.priceOriginal, data.currency, data.unit).value
+                }}</span>
+                <span class="quotes-page__price-unit">{{
+                  formatOriginalPrice(data.priceOriginal, data.currency, data.unit).unit
+                }}</span>
+              </span>
             </template>
           </Column>
 
@@ -226,7 +233,14 @@
 
           <Column field="price_converted_vnd_per_kg" header="Giá quy đổi" sortable>
             <template #body="{ data }">
-              <span class="text-primary font-bold">{{ formatVndPerKg(data.priceConvertedVndPerKg) }}</span>
+              <span class="quotes-page__price-cell text-primary font-bold">
+                <span class="quotes-page__price-value">{{
+                  formatVndPerKg(data.priceConvertedVndPerKg).value
+                }}</span>
+                <span class="quotes-page__price-unit">{{
+                  formatVndPerKg(data.priceConvertedVndPerKg).unit
+                }}</span>
+              </span>
             </template>
           </Column>
 
@@ -238,7 +252,14 @@
 
           <Column field="processing_cost_vnd_per_kg" header="Chi phí làm hàng">
             <template #body="{ data }">
-              {{ formatVndPerKg(data.processingCostVndPerKg) }}
+              <span class="quotes-page__price-cell">
+                <span class="quotes-page__price-value">{{
+                  formatVndPerKg(data.processingCostVndPerKg).value
+                }}</span>
+                <span class="quotes-page__price-unit">{{
+                  formatVndPerKg(data.processingCostVndPerKg).unit
+                }}</span>
+              </span>
             </template>
           </Column>
 
@@ -353,13 +374,25 @@
             <dl class="quotes-page__mobile-facts">
               <div>
                 <dt>Giá quy đổi</dt>
-                <dd class="quotes-page__mobile-price">
-                  {{ formatVndPerKg(item.priceConvertedVndPerKg) }}
+                <dd class="quotes-page__mobile-price quotes-page__price-cell">
+                  <span class="quotes-page__price-value">{{
+                    formatVndPerKg(item.priceConvertedVndPerKg).value
+                  }}</span>
+                  <span class="quotes-page__price-unit">{{
+                    formatVndPerKg(item.priceConvertedVndPerKg).unit
+                  }}</span>
                 </dd>
               </div>
               <div>
                 <dt>Giá gốc</dt>
-                <dd>{{ formatOriginalPrice(item.priceOriginal, item.currency, item.unit) }}</dd>
+                <dd class="quotes-page__price-cell">
+                  <span class="quotes-page__price-value">{{
+                    formatOriginalPrice(item.priceOriginal, item.currency, item.unit).value
+                  }}</span>
+                  <span class="quotes-page__price-unit">{{
+                    formatOriginalPrice(item.priceOriginal, item.currency, item.unit).unit
+                  }}</span>
+                </dd>
               </div>
               <div>
                 <dt>Tỷ giá</dt>
@@ -375,7 +408,14 @@
               </div>
               <div>
                 <dt>Chi phí làm hàng</dt>
-                <dd>{{ formatVndPerKg(item.processingCostVndPerKg) }}</dd>
+                <dd class="quotes-page__price-cell">
+                  <span class="quotes-page__price-value">{{
+                    formatVndPerKg(item.processingCostVndPerKg).value
+                  }}</span>
+                  <span class="quotes-page__price-unit">{{
+                    formatVndPerKg(item.processingCostVndPerKg).unit
+                  }}</span>
+                </dd>
               </div>
             </dl>
 
@@ -640,7 +680,7 @@ const onMobileRowsChange = () => {
 }
 
 const formatOriginalPrice = (val: number, currency: string, unit: string) => {
-  if (val === null || val === undefined) return ''
+  if (val === null || val === undefined) return { value: '', unit: '' }
   const normalizedCurrency = currency.toUpperCase()
   const normalizedUnit = unit.toUpperCase()
   const formatted = new Intl.NumberFormat('en-US', {
@@ -648,23 +688,23 @@ const formatOriginalPrice = (val: number, currency: string, unit: string) => {
     maximumFractionDigits: 2,
   }).format(val)
   if (normalizedCurrency === 'VND' && normalizedUnit === 'KG') {
-    return `${formatted} VNĐ/KG`
+    return { value: formatted, unit: 'VNĐ/KG' }
   }
 
   if (normalizedCurrency === 'USD' && normalizedUnit === 'MT') {
-    return `$${formatted} USD/MT`
+    return { value: `$${formatted}`, unit: 'USD/MT' }
   }
 
-  return `${formatted} ${normalizedCurrency}/${normalizedUnit}`
+  return { value: formatted, unit: `${normalizedCurrency}/${normalizedUnit}` }
 }
 
 const formatVndPerKg = (val: number | null) => {
-  if (val === null || val === undefined) return ''
+  if (val === null || val === undefined) return { value: '', unit: '' }
   const formatted = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(val)
-  return `${formatted} VNĐ/KG`
+  return { value: formatted, unit: 'VNĐ/KG' }
 }
 
 const formatExchangeRate = (val: number | null) => {
