@@ -314,6 +314,21 @@
   }
 
   // Line rows detail styling
+  // Đơn vị (VNĐ, VNĐ/KG...) luôn xuống dòng riêng so với giá trị số — dùng
+  // cho cột Giá gốc/Chi phí làm hàng trong bảng "Danh sách dòng vật tư".
+  .quote-detail-page__price-cell {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1.3;
+  }
+
+  .quote-detail-page__price-unit {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--app-text-secondary);
+  }
+
   .quote-detail-page__line-purchase-marked {
     font-size: 0.75rem;
     color: var(--green-600, #10b981);

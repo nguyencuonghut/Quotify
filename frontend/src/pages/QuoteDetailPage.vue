@@ -200,8 +200,12 @@
             <Column field="materialName" header="Tên vật tư" />
             <Column header="Giá gốc" style="width: 140px">
               <template #body="slotProps">
-                {{ formatMoney(slotProps.data.priceOriginal) }}
-                <span class="text-xs text-gray-500 ml-1">{{ slotProps.data.currency }}</span>
+                <span class="quote-detail-page__price-cell">
+                  <span class="quote-detail-page__price-value">
+                    {{ formatMoney(slotProps.data.priceOriginal) }}
+                  </span>
+                  <span class="quote-detail-page__price-unit">{{ slotProps.data.currency }}</span>
+                </span>
               </template>
             </Column>
             <Column field="unit" header="Đơn vị" style="width: 80px" />
@@ -219,12 +223,7 @@
               </template>
               <template #body="slotProps">
                 <div v-if="slotProps.data.currency.toUpperCase() === 'USD'">
-                  <strong>{{ formatMoney(slotProps.data.exchangeRate) }}</strong>
-                  <div class="text-xs text-gray-500">
-                    {{ slotProps.data.exchangeRateSource }}
-                    <span class="badge" v-if="slotProps.data.exchangeRateSourceMode === 'auto'">(Tự động)</span>
-                    <span class="badge" v-else>(Nhập tay)</span>
-                  </div>
+                  <span class="font-bold text-primary">{{ formatMoney(slotProps.data.exchangeRate) }}</span>
                   <div v-if="slotProps.data.exchangeRateManualReason" class="text-xs text-orange-600 italic">
                     Lý do: {{ slotProps.data.exchangeRateManualReason }}
                   </div>
@@ -237,10 +236,28 @@
                 <span class="font-bold text-primary">
                   {{ formatMoney(slotProps.data.priceConvertedVndPer_kg || slotProps.data.priceConvertedVndPerKg) }}
                 </span>
-                <div v-if="slotProps.data.currency.toUpperCase() === 'USD'" class="text-xs text-gray-500">
-                  (Thuế NK: {{ formatMoney(slotProps.data.importTaxRatePercent) }}% · Chi phí làm hàng:
-                  {{ formatMoney(slotProps.data.processingCostVndPerKg) }} VNĐ/KG)
-                </div>
+              </template>
+            </Column>
+            <Column header="Thuế nhập khẩu" style="width: 130px">
+              <template #body="slotProps">
+                <span v-if="slotProps.data.currency.toUpperCase() === 'USD'">
+                  {{ formatMoney(slotProps.data.importTaxRatePercent) }}%
+                </span>
+                <span v-else class="text-xs text-gray-400">-</span>
+              </template>
+            </Column>
+            <Column header="Chi phí làm hàng" style="width: 150px">
+              <template #body="slotProps">
+                <span
+                  v-if="slotProps.data.currency.toUpperCase() === 'USD'"
+                  class="quote-detail-page__price-cell"
+                >
+                  <span class="quote-detail-page__price-value">
+                    {{ formatMoney(slotProps.data.processingCostVndPerKg) }}
+                  </span>
+                  <span class="quote-detail-page__price-unit">VNĐ/KG</span>
+                </span>
+                <span v-else class="quote-detail-page__price-unit">-</span>
               </template>
             </Column>
             <Column header="Ghi chú" style="width: 200px">
