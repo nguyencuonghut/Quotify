@@ -1171,7 +1171,12 @@ export function useDashboardPage() {
         x: {
           ticks: {
             color: textColor,
-            maxRotation: 0,
+            // Cho phép xiên tối đa 45° (thay vì ép nằm ngang) — nhãn ngày
+            // dạng "dd/mm/yyyy" khá dài, nằm ngang dễ chồng lấp nhau khi có
+            // nhiều điểm trên trục X (nhất là khoảng 6 tháng/1 năm); xiên
+            // chéo giúp đọc rõ hơn, theo yêu cầu người dùng ngày 20/08/2026.
+            maxRotation: 45,
+            minRotation: 45,
             callback: (_value: unknown, index: number) => {
               const entry = periodDailyPoints.value[index]
               return entry ? formatDateLabel(entry.date) : ''
