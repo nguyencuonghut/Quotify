@@ -6,6 +6,18 @@
   box-sizing: border-box;
 }
 
+html {
+  // Luôn chừa sẵn chỗ cho scrollbar dọc dù trang có cần cuộn hay không —
+  // nếu không, chiều rộng khả dụng thực tế của trang sẽ phụ thuộc vào CHIỀU
+  // CAO viewport (trang dài hơn viewport mới hiện scrollbar, chiếm ~15-17px
+  // ngang). Ở cùng độ phân giải ngang, màn hình 16:9 (thấp hơn 16:10) dễ
+  // tràn nội dung theo chiều dọc hơn nên hay bị mất thêm 15-17px ngang so
+  // với 16:10 — đủ để đẩy bảng dòng vật tư (min-width 900px) qua ngưỡng
+  // phải cuộn ngang trên 16:9 mà không xảy ra trên 16:10, dù 2 màn hình
+  // rộng ngang bằng nhau (lỗi thật gặp ngày 20/08/2026).
+  scrollbar-gutter: stable;
+}
+
 html,
 body,
 #app {

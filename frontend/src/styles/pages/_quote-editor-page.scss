@@ -121,6 +121,22 @@
     width: 100%;
     border-collapse: collapse;
     min-width: 900px;
+    // Không có `table-layout: fixed`, trình duyệt dùng auto-layout: các ô
+    // input PrimeVue (Select/DatePicker) render input bên trong với
+    // `overflow: hidden` + ellipsis, khiến min-content của cột đó gần như
+    // bằng 0 trong thuật toán tính bảng — khi tổng chiều rộng khả dụng
+    // không đủ cho tất cả các cột theo width khai báo ở `<th>`, trình duyệt
+    // bóp riêng các cột "rỗng min-content" này xuống rất nhỏ (ví dụ cột
+    // "Tháng giao hàng" chỉ còn vài px, DatePicker chỉ hiện được 1-2 ký tự)
+    // thay vì tôn trọng width đã khai báo — trong khi bảng CHỈ NÊN cuộn
+    // ngang (đã có `overflow-x: auto` + `min-width: 900px` ở trên) chứ
+    // không được bóp méo cột. `table-layout: fixed` buộc trình duyệt lấy
+    // đúng width khai báo trên `<th>` của dòng đầu làm width cột cố định,
+    // không phụ thuộc content bên trong nữa — lỗi thật gặp ngày 20/08/2026
+    // trên màn hình 16:9 (ít chiều cao hơn 16:10 cùng độ phân giải ngang
+    // nên hay bị mất thêm ~15-17px ngang cho thanh cuộn dọc, đẩy bảng qua
+    // ngưỡng bị bóp cột).
+    table-layout: fixed;
 
     th {
       background: var(--app-surface-panel-alt);
