@@ -8,7 +8,6 @@ const dashboardPageMock = vi.hoisted(() => ({
   resetFilters: vi.fn(),
   applyWeeklyEntryFilters: vi.fn(),
   resetWeeklyEntryFilters: vi.fn(),
-  loadMaterialComparison: vi.fn(),
   loadPriceHistory: vi.fn(),
   loadSeasonalComparison: vi.fn(),
 }))
@@ -35,12 +34,6 @@ vi.mock('@/composables/useDashboardPage', async () => {
       showCnfOnly: ref(false),
       selectedWeek: ref(null),
       selectedWeeklyUserId: ref(null),
-      comparisonMaterialIds: ref([]),
-      comparisonBuckets: computed(() => []),
-      comparisonBandVisibility: ref({}),
-      comparisonTrendResults: computed(() => []),
-      comparisonChartData: computed(() => ({ labels: [], datasets: [] })),
-      comparisonChartOptions: computed(() => ({})),
       historyDeliveryMonth: ref(null),
       historyMaterialIds: ref([]),
       historyBuckets: computed(() => []),
@@ -128,7 +121,6 @@ vi.mock('@/composables/useDashboardPage', async () => {
       resetFilters: dashboardPageMock.resetFilters,
       applyWeeklyEntryFilters: dashboardPageMock.applyWeeklyEntryFilters,
       resetWeeklyEntryFilters: dashboardPageMock.resetWeeklyEntryFilters,
-      loadMaterialComparison: dashboardPageMock.loadMaterialComparison,
       loadPriceHistory: dashboardPageMock.loadPriceHistory,
       loadSeasonalComparison: dashboardPageMock.loadSeasonalComparison,
       getWeeklyEntryRowClass: (row: { hasWarning: boolean }) =>
@@ -176,7 +168,6 @@ describe('DashboardPage', () => {
     expect(wrapper.text()).toContain('User chưa nhập')
     expect(wrapper.text()).toContain('Giá theo kỳ hàng về')
     expect(wrapper.text()).toContain('Kỳ giao hàng (bắt buộc chọn)')
-    expect(wrapper.text()).toContain('So sánh giá nguyên liệu theo kỳ hàng về')
     expect(wrapper.text()).toContain('Số phiếu báo giá')
     expect(wrapper.text()).toContain('Góc nhìn tại và sau thời điểm đánh dấu')
   })

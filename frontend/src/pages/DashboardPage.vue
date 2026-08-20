@@ -245,63 +245,6 @@
       <section class="dashboard-page__panel dashboard-page__panel--chart">
         <div class="dashboard-page__panel-header">
           <div>
-            <p class="dashboard-page__eyebrow">So sánh mặt hàng</p>
-            <h3 class="dashboard-page__panel-title">So sánh giá nguyên liệu theo kỳ hàng về</h3>
-          </div>
-        </div>
-
-        <label class="dashboard-page__filter-field">
-          <span class="dashboard-page__filter-label">Chọn 2-3 mặt hàng để so sánh</span>
-          <MultiSelect
-            v-model="comparisonMaterialIds"
-            display="chip"
-            filter
-            filter-placeholder="Tìm vật tư..."
-            :loading="isLoadingLookups"
-            :options="materials"
-            option-label="name"
-            option-value="id"
-            placeholder="Chọn vật tư"
-            :selection-limit="3"
-            @update:model-value="loadMaterialComparison"
-          >
-            <template #option="{ option }">{{ option.name }} ({{ option.code }})</template>
-          </MultiSelect>
-        </label>
-
-        <div v-if="comparisonTrendResults.length > 0" class="dashboard-page__comparison-bands">
-          <label
-            v-for="result in comparisonTrendResults"
-            :key="result.materialId"
-            class="dashboard-page__comparison-band-toggle"
-          >
-            <Checkbox v-model="comparisonBandVisibility[result.materialId]" binary />
-            <span>Hiện khoảng giá thấp-cao: {{ result.materialName }}</span>
-          </label>
-        </div>
-
-        <div v-if="comparisonBuckets.length > 0" class="dashboard-page__chart-frame">
-          <Chart
-            class="dashboard-page__chart"
-            type="line"
-            :data="comparisonChartData"
-            :options="comparisonChartOptions"
-          />
-        </div>
-        <div v-else class="dashboard-page__empty">
-          <i class="pi pi-chart-line" aria-hidden="true" />
-          <span v-if="comparisonMaterialIds.length < 2">
-            Chọn ít nhất 2 mặt hàng để xem so sánh giá.
-          </span>
-          <span v-else>
-            Không có dữ liệu báo giá cho các mặt hàng đã chọn phù hợp với bộ lọc hiện tại.
-          </span>
-        </div>
-      </section>
-
-      <section class="dashboard-page__panel dashboard-page__panel--chart">
-        <div class="dashboard-page__panel-header">
-          <div>
             <p class="dashboard-page__eyebrow">Diễn biến giá</p>
             <h3 class="dashboard-page__panel-title">Diễn biến giá theo thời gian chào giá</h3>
           </div>
@@ -542,12 +485,6 @@ const {
   showCnfOnly,
   selectedWeek,
   selectedWeeklyUserId,
-  comparisonMaterialIds,
-  comparisonBuckets,
-  comparisonBandVisibility,
-  comparisonTrendResults,
-  comparisonChartData,
-  comparisonChartOptions,
   historyDeliveryMonth,
   historyMaterialIds,
   historyBuckets,
@@ -568,7 +505,6 @@ const {
   seasonalChartData,
   seasonalChartOptions,
   loadSeasonalComparison,
-  loadMaterialComparison,
   weeklyUserOptions,
   weeklyUserActivities,
   weeklyWarningUsers,

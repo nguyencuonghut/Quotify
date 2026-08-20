@@ -581,12 +581,6 @@ function buildGroupedComparisonBuckets(
     })
 }
 
-function buildMaterialComparisonBuckets(
-  materialResults: MaterialTrendResult[],
-): MaterialComparisonBucket[] {
-  return buildGroupedComparisonBuckets(materialResults, (point) => point.deliveryMonth)
-}
-
 /** "Giá CNF": chỉ các báo giá chào bằng USD/MT mới có ý nghĩa so sánh theo
  * giá gốc (CNF) — bỏ báo giá VND/KG khi bật chế độ này. Dùng chung cho cả 3
  * chart có tick "Giá CNF" (chart đơn 1 mặt hàng + 2 chart so sánh nhiều mặt
@@ -643,55 +637,6 @@ export function useDashboardPage() {
   const showCnfOnly = ref(false)
   const selectedWeek = ref<Date | null>(getWeekStartDate(new Date()))
   const selectedWeeklyUserId = ref<string | null>(null)
-
-  const comparisonMaterialIds = ref<string[]>([])
-  const comparisonTrendResults = ref<MaterialTrendResult[]>([])
-  // Hiện dải giá thấp-cao theo từng mặt hàng — mặc định hiện hết, người dùng
-  // untick để ẩn dải của 1 mặt hàng cụ thể (không ẩn cả đường trung bình).
-  const comparisonBandVisibility = ref<Record<string, boolean>>({})
-
-  const comparisonBuckets = computed(() =>
-    buildMaterialComparisonBuckets(comparisonTrendResults.value),
-  )
-
-  async function loadMaterialComparison() {
-    const materialIds = comparisonMaterialIds.value.slice(0, MAX_COMPARISON_MATERIALS)
-    if (materialIds.length < 2) {
-      comparisonTrendResults.value = []
-      return
-    }
-
-    // KHÔNG lấy `deliveryMonth` từ bộ lọc chung — chart này tồn tại để so
-    // sánh giá GIỮA CÁC kỳ hàng về (trục X), nên không được cố định 1 kỳ.
-    // Điều này khác với chart "Giá theo kỳ hàng về" cạnh nó, nơi kỳ giao
-    // hàng giờ luôn cố định (mặc định tháng hiện tại + 2) để trục X chuyển
-    // thành tháng nhận báo giá — xem `getDefaultDeliveryMonth`.
-    const responses = await Promise.all(
-      materialIds.map((materialId) =>
-        getQuotifyPriceTrends(
-          {
-            materialId,
-            receivedDateStart: queryParams.value.receivedDateStart,
-            receivedDateEnd: queryParams.value.receivedDateEnd,
-          },
-          authStore.accessToken,
-        ),
-      ),
-    )
-
-    comparisonTrendResults.value = materialIds.map((materialId, index) => ({
-      materialId,
-      materialName:
-        materials.value.find((material) => material.id === materialId)?.name ?? materialId,
-      points: responses[index].points,
-    }))
-
-    for (const materialId of materialIds) {
-      if (!(materialId in comparisonBandVisibility.value)) {
-        comparisonBandVisibility.value[materialId] = true
-      }
-    }
-  }
 
   // Chart "diễn biến giá theo ngày báo giá cho 1 kỳ giao hàng cố định" —
   // bộ lọc độc lập với bộ lọc chung của Dashboard (kỳ giao hàng ở đây luôn
@@ -985,14 +930,6 @@ export function useDashboardPage() {
       datasets,
     }
   }
-
-  const comparisonChartData = computed(() =>
-    buildComparisonChartData(
-      comparisonBuckets.value,
-      comparisonTrendResults.value,
-      comparisonBandVisibility.value,
-    ),
-  )
 
   const historyChartData = computed(() =>
     buildComparisonChartData(
@@ -1420,14 +1357,6 @@ export function useDashboardPage() {
     }
   }
 
-  const comparisonChartOptions = computed(() =>
-    buildComparisonChartOptions(
-      comparisonBuckets.value,
-      comparisonTrendResults.value,
-      (bucket, result) => ({ materialId: result.materialId, deliveryMonth: bucket.groupKey }),
-    ),
-  )
-
   const historyChartOptions = computed(() => {
     const fixedDeliveryMonth = toDateInputValue(historyDeliveryMonth.value) ?? ''
     return buildComparisonChartOptions(
@@ -1663,10 +1592,6 @@ export function useDashboardPage() {
     showCnfOnly,
     selectedWeek,
     selectedWeeklyUserId,
-    comparisonMaterialIds,
-    comparisonBuckets,
-    comparisonBandVisibility,
-    comparisonTrendResults,
     historyDeliveryMonth,
     historyMaterialIds,
     historyBuckets,
@@ -1687,9 +1612,6 @@ export function useDashboardPage() {
     seasonalChartData,
     seasonalChartOptions,
     loadSeasonalComparison,
-    comparisonChartData,
-    comparisonChartOptions,
-    loadMaterialComparison,
     userKpis,
     weeklyUserActivities,
     weeklyWarningUsers,
