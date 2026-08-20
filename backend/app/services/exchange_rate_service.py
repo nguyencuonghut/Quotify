@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from app.integrations.vietcombank import (
     VietcombankExchangeRateClient,
     VietcombankExchangeRateError,
+    VietcombankHistoricalExchangeRateClient,
 )
 
 MONEY_QUANTUM = Decimal("0.01")
@@ -26,8 +27,13 @@ class ExchangeRateResult:
 
 
 class ExchangeRateService:
-    def __init__(self, client: VietcombankExchangeRateClient) -> None:
+    def __init__(
+        self,
+        client: VietcombankExchangeRateClient,
+        historical_client: VietcombankHistoricalExchangeRateClient | None = None,
+    ) -> None:
         self.client = client
+        self.historical_client = historical_client
 
     async def get_usd_sell_today(self) -> ExchangeRateResult:
         try:
@@ -35,6 +41,25 @@ class ExchangeRateService:
         except VietcombankExchangeRateError as exc:
             raise ExchangeRateUnavailableError(
                 "Không thể lấy tỷ giá USD bán ra tự động.",
+            ) from exc
+
+        return ExchangeRateResult(
+            currency=rate.currency,
+            rate=quantize_money(rate.rate),
+            source=rate.source,
+            retrieved_at=rate.retrieved_at,
+        )
+
+    async def get_usd_sell_for_date(self, target_date: date) -> ExchangeRateResult:
+        if self.historical_client is None:
+            raise ExchangeRateUnavailableError(
+                "Chức năng lấy tỷ giá theo ngày trong quá khứ chưa được cấu hình.",
+            )
+        try:
+            rate = await self.historical_client.fetch_usd_sell_rate_for_date(target_date)
+        except VietcombankExchangeRateError as exc:
+            raise ExchangeRateUnavailableError(
+                f"Không thể lấy tỷ giá USD bán ra cho ngày {target_date.strftime('%d/%m/%Y')}.",
             ) from exc
 
         return ExchangeRateResult(

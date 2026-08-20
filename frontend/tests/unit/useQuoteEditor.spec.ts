@@ -267,6 +267,59 @@ describe('useQuoteEditor', () => {
     expect(editor.lines.value[0].exchangeRateManualReason).toBeNull()
   })
 
+  it('clears the stale auto-fetched rate when received date changes from today to the past', async () => {
+    // Regression: đổi ngày nhận từ hôm nay sang quá khứ vẫn giữ nguyên tỷ
+    // giá tự động đã lấy trước đó (bug thật gặp phải: người dùng thấy tỷ giá
+    // "đã có sẵn" cho ngày quá khứ, nhưng thực chất là tỷ giá HÔM NAY còn
+    // sót lại, không phải tỷ giá đúng của ngày đã chọn).
+    exchangeRatesApiMock.getUsdSellRateToday.mockResolvedValue({
+      rate: 26340,
+      source: 'Vietcombank USD bán ra',
+      retrievedAt: '2026-08-20T08:00:00+07:00',
+    })
+    const today = getTodayString()
+    const editor = useQuoteEditor('mock-token')
+    editor.receivedDate.value = today
+    editor.addLine()
+    editor.lines.value[0].currency = 'USD'
+    editor.lines.value[0].unit = 'MT'
+    await editor.fetchUsdRateToday()
+    editor.evaluateRateModeForLine(editor.lines.value[0])
+
+    expect(editor.lines.value[0].exchangeRate).toBe(26340)
+    expect(editor.lines.value[0].rateSourceMode).toBe('auto')
+
+    editor.receivedDate.value = '2026-08-10'
+    editor.evaluateRateModeForLine(editor.lines.value[0])
+
+    // Chỉ xóa exchangeRate cũ ở đây — KHÔNG tự đặt rateSourceMode/source
+    // sang 'manual_past', vì việc đó (và tự fetch tỷ giá ngày quá khứ) là
+    // trách nhiệm của ExchangeRateField.vue khi field đó mount/nhận
+    // receivedDate mới (xem ghi chú trong evaluateRateModeForLine). Nếu đặt
+    // sẵn ở đây, nó sẽ chạy trước khi field kịp mount cho lần đầu chọn
+    // USD/MT, khiến điều kiện "chưa có sourceMode" trong field bị vô hiệu và
+    // tự động lấy tỷ giá không bao giờ chạy.
+    expect(editor.lines.value[0].exchangeRate).toBeNull()
+  })
+
+  it('leaves rateSourceMode untouched so the field can auto-fetch on first mount for a past date', () => {
+    // Regression: bug thật gặp phải — chọn "Ngày nhận báo giá" trong quá
+    // khứ TRƯỚC, rồi mới chọn USD/MT, tỷ giá không tự lấy được (phải bấm nút
+    // thủ công). Nguyên nhân: watcher currency/unit gọi evaluateRateModeForLine
+    // TRƯỚC KHI ExchangeRateField.vue kịp mount, và nếu hàm này tự đặt sẵn
+    // rateSourceMode='manual_past' thì điều kiện "chưa có sourceMode" trong
+    // onMounted của field bị vô hiệu, tự động fetch không bao giờ chạy.
+    const editor = useQuoteEditor('mock-token')
+    editor.receivedDate.value = '2026-08-01' // chọn ngày quá khứ trước
+    editor.addLine()
+    editor.lines.value[0].currency = 'USD' // rồi mới chọn USD/MT
+    editor.lines.value[0].unit = 'MT'
+    editor.evaluateRateModeForLine(editor.lines.value[0])
+
+    expect(editor.lines.value[0].rateSourceMode).toBeNull()
+    expect(editor.lines.value[0].exchangeRate).toBeNull()
+  })
+
   it('validates form fields and stops invalid submits', () => {
     const editor = useQuoteEditor('mock-token')
 

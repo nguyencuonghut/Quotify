@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth.store'
 
 const ratesApiMock = vi.hoisted(() => ({
   getUsdSellRateToday: vi.fn(),
+  getUsdSellRateForDate: vi.fn(),
 }))
 
 vi.mock('@/api/exchange-rates.api', () => ratesApiMock)
@@ -136,7 +137,14 @@ describe('ExchangeRateField', () => {
     expect(sourceEmitted?.[0]).toEqual(['Không lấy được tỷ giá tự động'])
   })
 
-  it('sets manual_past mode when receivedDate is in the past', async () => {
+  it('auto-fetches the past-date rate on mount and sets manual_past immediately while loading', async () => {
+    ratesApiMock.getUsdSellRateForDate.mockResolvedValue({
+      currency: 'USD',
+      rate: '26350.00',
+      source: 'Vietcombank USD bán ra',
+      retrievedAt: '2020-01-01T00:00:00+07:00',
+    })
+
     const wrapper = mount(ExchangeRateField, {
       props: {
         receivedDate: '2020-01-01',
@@ -148,7 +156,6 @@ describe('ExchangeRateField', () => {
       global: {
         stubs: {
           InputNumber: true,
-          InputText: true,
           Button: true,
         },
       },
@@ -157,8 +164,46 @@ describe('ExchangeRateField', () => {
     await nextTick()
 
     expect(ratesApiMock.getUsdSellRateToday).not.toHaveBeenCalled()
+    // Đặt mode/source ngay lập tức (trước khi fetch xong) để UI phản hồi tức thì
     expect(wrapper.emitted('update:sourceMode')?.[0]).toEqual(['manual_past'])
     expect(wrapper.emitted('update:source')?.[0]).toEqual(['Ngày nhận trong quá khứ'])
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(ratesApiMock.getUsdSellRateForDate).toHaveBeenCalledWith('2020-01-01', 'mock-token')
+    const sourceModeEmits = wrapper.emitted('update:sourceMode') ?? []
+    expect(sourceModeEmits[sourceModeEmits.length - 1]).toEqual(['auto'])
+    expect(wrapper.emitted('update:rate')?.at(-1)).toEqual([26350])
+  })
+
+  it('keeps manual_past and shows an error when the mount-time past-date fetch fails', async () => {
+    ratesApiMock.getUsdSellRateForDate.mockRejectedValue(new Error('boom'))
+
+    const wrapper = mount(ExchangeRateField, {
+      props: {
+        receivedDate: '2020-01-01',
+        rate: null,
+        source: '',
+        sourceMode: '',
+        manualReason: '',
+      },
+      global: {
+        stubs: {
+          InputNumber: true,
+          Button: true,
+        },
+      },
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await nextTick()
+
+    // props không được cập nhật lại trong test (không có v-model thật ở đây)
+    // nên chỉ kiểm tra các sự kiện emit — banner lỗi phụ thuộc prop sourceMode
+    // thật sự được cập nhật, đã kiểm ở test dùng sourceMode ban đầu khác rỗng.
+    const sourceModeEmits = wrapper.emitted('update:sourceMode') ?? []
+    expect(sourceModeEmits.every((emitted) => emitted[0] === 'manual_past')).toBe(true)
+    expect(ratesApiMock.getUsdSellRateForDate).toHaveBeenCalledWith('2020-01-01', 'mock-token')
   })
 
   it('emits changes when rate is modified', async () => {
@@ -210,5 +255,74 @@ describe('ExchangeRateField', () => {
     const rateInput = wrapper.find('.rate-input')
 
     expect(rateInput.attributes('disabled')).toBeDefined()
+  })
+
+  it('fetches the rate for a past received date when the button is clicked', async () => {
+    ratesApiMock.getUsdSellRateForDate.mockResolvedValue({
+      currency: 'USD',
+      rate: '26330.00',
+      source: 'Vietcombank USD bán ra',
+      retrievedAt: '2026-08-15T00:00:00+07:00',
+    })
+
+    const wrapper = mount(ExchangeRateField, {
+      props: {
+        receivedDate: '2026-08-15',
+        rate: null,
+        source: 'Ngày nhận trong quá khứ',
+        sourceMode: 'manual_past',
+        manualReason: '',
+      },
+      global: {
+        stubs: {
+          InputNumber: true,
+        },
+      },
+    })
+
+    const fetchButton = wrapper.find(
+      '[aria-label="Lấy tỷ giá Vietcombank theo ngày nhận báo giá"]',
+    )
+    expect(fetchButton.exists()).toBe(true)
+    await fetchButton.trigger('click')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(ratesApiMock.getUsdSellRateForDate).toHaveBeenCalledWith('2026-08-15', 'mock-token')
+    expect(wrapper.emitted('update:rate')?.[0]).toEqual([26330])
+    // Emit đầu là 'Ngày nhận trong quá khứ'/'manual_past' (đặt ngay khi bắt
+    // đầu fetch để UI phản hồi tức thì) — emit CUỐI mới là kết quả fetch thật.
+    expect(wrapper.emitted('update:source')?.at(-1)).toEqual(['Vietcombank USD bán ra'])
+    expect(wrapper.emitted('update:sourceMode')?.at(-1)).toEqual(['auto'])
+  })
+
+  it('shows an inline error and keeps manual entry when the past-date fetch fails', async () => {
+    ratesApiMock.getUsdSellRateForDate.mockRejectedValue(new Error('boom'))
+
+    const wrapper = mount(ExchangeRateField, {
+      props: {
+        receivedDate: '2020-01-01',
+        rate: null,
+        source: 'Ngày nhận trong quá khứ',
+        sourceMode: 'manual_past',
+        manualReason: '',
+      },
+      global: {
+        stubs: {
+          InputNumber: true,
+        },
+      },
+    })
+
+    const fetchButton = wrapper.find(
+      '[aria-label="Lấy tỷ giá Vietcombank theo ngày nhận báo giá"]',
+    )
+    await fetchButton.trigger('click')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await nextTick()
+
+    // Vẫn ở manual_past (mode chỉ chuyển 'auto' khi fetch thành công)
+    const sourceModeEmits = wrapper.emitted('update:sourceMode') ?? []
+    expect(sourceModeEmits.every((emitted) => emitted[0] === 'manual_past')).toBe(true)
+    expect(wrapper.text()).toContain('Vui lòng nhập tay tỷ giá')
   })
 })

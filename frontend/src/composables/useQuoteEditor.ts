@@ -150,6 +150,7 @@ export function useQuoteEditor(accessToken: string | null) {
     const today = getTodayString()
     if (receivedDate.value > today) {
       line.rateSourceMode = null
+      line.exchangeRate = null
       line.exchangeRateSource = ''
       return
     }
@@ -162,14 +163,25 @@ export function useQuoteEditor(accessToken: string | null) {
         line.exchangeRateManualReason = null
       } else if (systemUsdRateError.value) {
         line.rateSourceMode = 'manual_fallback'
+        line.exchangeRate = null
         line.exchangeRateSource = 'Không lấy được tỷ giá tự động'
-        if (line.rateSourceMode !== 'manual_fallback') {
-          line.exchangeRate = null
-        }
       }
     } else {
-      line.rateSourceMode = 'manual_past'
-      line.exchangeRateSource = 'Ngày nhận trong quá khứ'
+      // Ngày nhận trong quá khứ: KHÔNG tự đặt rateSourceMode/source ở đây —
+      // để ExchangeRateField.vue (nơi thật sự có logic gọi API tỷ giá lịch
+      // sử) tự phát hiện qua onMounted/watcher receivedDate của chính nó rồi
+      // tự fetch. Nếu đặt sẵn 'manual_past' ở đây, nó chạy TRƯỚC khi field
+      // kịp mount (đổi currency/unit trigger watcher này trước khi Vue render
+      // field), khiến điều kiện "chưa có sourceMode" trong field bị vô hiệu
+      // và tự động lấy tỷ giá không bao giờ chạy — bug thật đã gặp: chọn
+      // ngày nhận trong quá khứ trước, rồi mới chọn USD/MT, tỷ giá không tự
+      // lấy được, phải bấm nút thủ công.
+      //
+      // Vẫn phải XÓA tỷ giá cũ (nếu trước đó đang ở chế độ 'auto' của ngày
+      // hôm nay) để không giữ lại nhầm tỷ giá của ngày/chế độ trước đó — bug
+      // thật khác đã gặp: đổi ngày nhận từ hôm nay sang quá khứ vẫn giữ
+      // nguyên tỷ giá tự động đã lấy trước đó.
+      line.exchangeRate = null
       line.exchangeRateManualReason = null
     }
   }

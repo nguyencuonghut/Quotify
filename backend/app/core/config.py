@@ -159,6 +159,23 @@ class Settings(BaseSettings):
         default=1,
         alias="VIETCOMBANK_EXCHANGE_RATE_RETRY_COUNT",
     )
+    # API JSON không chính thức đứng sau trang chọn ngày của Vietcombank
+    # (https://www.vietcombank.com.vn/vi-VN/KHCN/Cong-cu-Tien-ich/Ty-gia) —
+    # feed pXML.aspx ở trên chỉ trả tỷ giá NGÀY HIỆN TẠI, không nhận tham số
+    # ngày. Vì không có tài liệu chính thức, endpoint này có thể đổi/ngừng
+    # hoạt động bất kỳ lúc nào — luôn có phương án dự phòng nhập tay.
+    vietcombank_historical_exchange_rate_url: str = Field(
+        default="https://www.vietcombank.com.vn/api/exchangerates",
+        alias="VIETCOMBANK_HISTORICAL_EXCHANGE_RATE_URL",
+    )
+    vietcombank_historical_exchange_rate_timeout_seconds: float = Field(
+        default=5.0,
+        alias="VIETCOMBANK_HISTORICAL_EXCHANGE_RATE_TIMEOUT_SECONDS",
+    )
+    vietcombank_historical_exchange_rate_retry_count: int = Field(
+        default=1,
+        alias="VIETCOMBANK_HISTORICAL_EXCHANGE_RATE_RETRY_COUNT",
+    )
     observability_enabled: bool = Field(default=True, alias="OBSERVABILITY_ENABLED")
     metrics_enabled: bool = Field(default=True, alias="METRICS_ENABLED")
     metrics_path: str = Field(default="/metrics", alias="METRICS_PATH")
