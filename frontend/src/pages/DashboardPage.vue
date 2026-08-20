@@ -1,7 +1,7 @@
 <template>
   <AdminLayout section-label="Phân tích báo giá" title="Bảng điều khiển">
     <div class="dashboard-page">
-      <Tabs v-model:value="activeMainTab" class="dashboard-page__tabs">
+      <Tabs v-model:value="activeMainTab" class="dashboard-page__tabs" lazy>
         <TabList>
           <Tab value="overview">Tổng quan</Tab>
           <Tab value="charts">Phân tích giá</Tab>
@@ -171,7 +171,7 @@
           </div>
           <Tag
             :severity="hasTrendData ? 'success' : 'secondary'"
-            :value="hasTrendData ? `${deliveryMonthBuckets.length} tháng` : 'Chưa có dữ liệu'"
+            :value="hasTrendData ? `${periodDailyPoints.length} ngày có báo giá` : 'Chưa có dữ liệu'"
           />
         </div>
 
@@ -246,19 +246,48 @@
           <span>Giá CNF (chỉ tính báo giá USD/MT, trục Y hiện giá USD)</span>
         </label>
 
+        <div class="dashboard-page__period-toolbar">
+          <SelectButton
+            :model-value="periodRangeKey"
+            :options="periodRangeOptions"
+            option-label="label"
+            option-value="value"
+            :allow-empty="false"
+            @update:model-value="applyPeriodRange"
+          />
+        </div>
+
         <div v-if="errorMessage" class="dashboard-page__message" role="alert">
           <i class="pi pi-exclamation-triangle" aria-hidden="true" />
           <span>{{ errorMessage }}</span>
         </div>
 
-        <div v-if="hasTrendData" class="dashboard-page__chart-frame">
-          <Chart
-            class="dashboard-page__chart"
-            type="line"
-            :data="chartData"
-            :options="chartOptions"
-          />
-        </div>
+        <template v-if="hasTrendData">
+          <div class="dashboard-page__period-stats">
+            <div class="dashboard-page__period-stat">
+              <span>Cao nhất</span>
+              <strong>{{ periodStatsFormatted.max }}</strong>
+            </div>
+            <div class="dashboard-page__period-stat">
+              <span>Thấp nhất</span>
+              <strong>{{ periodStatsFormatted.min }}</strong>
+            </div>
+            <div class="dashboard-page__period-stat">
+              <span>Trung bình</span>
+              <strong>{{ periodStatsFormatted.avg }}</strong>
+            </div>
+          </div>
+
+          <div class="dashboard-page__chart-frame">
+            <Chart
+              class="dashboard-page__chart"
+              type="line"
+              :data="chartData"
+              :options="chartOptions"
+              :plugins="chartPlugins"
+            />
+          </div>
+        </template>
         <div v-else class="dashboard-page__empty">
           <i class="pi pi-chart-line" aria-hidden="true" />
           <span>Chưa có dữ liệu phù hợp với bộ lọc hiện tại.</span>
@@ -479,6 +508,11 @@ const {
   receivedDateStart,
   receivedDateEnd,
   showCnfOnly,
+  periodRangeKey,
+  periodRangeOptions,
+  applyPeriodRange,
+  periodDailyPoints,
+  periodStatsFormatted,
   selectedWeek,
   selectedWeeklyUserId,
   historyDeliveryMonth,
@@ -505,11 +539,11 @@ const {
   weeklyUserActivities,
   weeklyWarningUsers,
   weeklyEntryMetricCards,
-  deliveryMonthBuckets,
   hasTrendData,
   hasWeeklyEntryData,
   chartData,
   chartOptions,
+  chartPlugins,
   weeklyEntryChartData,
   weeklyEntryChartOptions,
   bootstrap,

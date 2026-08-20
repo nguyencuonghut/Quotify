@@ -12,7 +12,6 @@ import { useThemeStore } from '@/stores/theme.store'
 import type { MaterialDomain } from '@/types/materials'
 import type {
   QuotifyDashboardQuery,
-  QuotifyDashboardSupplierType,
   QuotifyEntryKpis,
   QuotifyPriceTrendPoint,
   QuotifyPriceTrends,
@@ -34,19 +33,30 @@ interface DashboardUserOption {
   value: string
 }
 
-interface DeliveryMonthBucket {
-  // Tháng NHẬN báo giá (không phải kỳ giao hàng — kỳ giao hàng giờ luôn cố
-  // định qua bộ lọc "Kỳ giao hàng", xem `getDefaultDeliveryMonth`), dạng
-  // "YYYY-MM-01".
-  receivedMonth: string
-  label: string
-  minPrice: number
-  maxPrice: number
-  avgPrice: number
-  pointCount: number
-  purchasedPrice: number | null
-  points: QuotifyPriceTrendPoint[]
+/** 1 điểm/ngày trên chart "Giá theo kỳ hàng về" — báo giá THẤP NHẤT nhận
+ * trong ngày đó (xem `buildDailyMinPoints`). */
+export interface DailyMinPricePoint {
+  date: string
+  price: number
+  point: QuotifyPriceTrendPoint
 }
+
+export type PeriodRangeKey = '1w' | '1m' | '3m' | '6m' | '1y'
+
+export interface PeriodRangeOption {
+  label: string
+  value: PeriodRangeKey
+}
+
+const PERIOD_RANGE_OPTIONS: PeriodRangeOption[] = [
+  { label: '1 tuần', value: '1w' },
+  { label: '1 tháng', value: '1m' },
+  { label: '3 tháng', value: '3m' },
+  { label: '6 tháng', value: '6m' },
+  { label: '1 năm', value: '1y' },
+]
+
+const DEFAULT_PERIOD_RANGE_KEY: PeriodRangeKey = '6m'
 
 const MAX_COMPARISON_MATERIALS = 3
 const MAX_COMPARISON_YEARS = 5
@@ -107,13 +117,27 @@ function formatMonthLabel(value: string): string {
   return month && year ? `${month}/${year}` : value
 }
 
-/** Ngày cuối cùng của tháng `monthStart` ("YYYY-MM-01"), dạng "YYYY-MM-DD" —
- * dùng cho `receivedDateEnd` khi click-through từ chart "Giá theo kỳ hàng
- * về" (trục X giờ là tháng nhận báo giá, xem `buildDeliveryMonthBuckets`). */
-function getMonthEnd(monthStart: string): string {
-  const [year, month] = monthStart.split('-').map(Number)
-  const lastDay = new Date(year, month, 0).getDate()
-  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+/** Khoảng ngày nhận báo giá [start, end] cho 1 nút bấm nhanh trên chart "Giá
+ * theo kỳ hàng về" — end luôn là HÔM NAY, start lùi lại theo khoảng đã chọn.
+ * Dùng các hàm `setDate`/`setMonth`/`setFullYear` của `Date` (không phải
+ * cộng/trừ số mili-giây cố định) để tự xử lý đúng số ngày/tháng thiếu và năm
+ * nhuận như lịch thật. */
+function computePeriodRangeDates(key: PeriodRangeKey): { start: Date; end: Date } {
+  const end = new Date()
+  end.setHours(0, 0, 0, 0)
+  const start = new Date(end)
+  if (key === '1w') {
+    start.setDate(start.getDate() - 7)
+  } else if (key === '1m') {
+    start.setMonth(start.getMonth() - 1)
+  } else if (key === '3m') {
+    start.setMonth(start.getMonth() - 3)
+  } else if (key === '6m') {
+    start.setMonth(start.getMonth() - 6)
+  } else {
+    start.setFullYear(start.getFullYear() - 1)
+  }
+  return { start, end }
 }
 
 /** Số tháng `receivedDate` cách kỳ hàng về `deliveryMonth` — dùng làm trục X
@@ -255,13 +279,6 @@ function normalizeLookupText(value: string): string {
     .trim()
 }
 
-function formatSupplierType(value: QuotifyDashboardSupplierType): string {
-  return value
-    .split(',')
-    .map((type) => (type === 'domestic' ? 'Nội địa' : 'Quốc tế'))
-    .join(', ')
-}
-
 function formatDateTimeLabel(value: string | null): string {
   if (!value) {
     return '-'
@@ -308,20 +325,6 @@ function cssVar(name: string, fallback: string): string {
   )
 }
 
-function buildTooltipLabel(
-  point: QuotifyPriceTrendPoint,
-  getPrice: (point: QuotifyPriceTrendPoint) => number = (point) => point.convertedPriceVndPerKg,
-  formatPrice: (value: number | null) => string = formatMoney,
-): string {
-  return [
-    point.supplierLabel,
-    formatSupplierType(point.supplierType),
-    formatDateLabel(point.receivedDate),
-    formatMonthLabel(point.deliveryMonth),
-    formatPrice(getPrice(point)),
-  ].join(' | ')
-}
-
 /** Tooltip HTML dùng chung 1 phần tử, tái sử dụng giữa các lần render thay
  * vì tạo/xóa DOM mỗi lần hover — theo đúng ví dụ chính thức của Chart.js cho
  * external tooltip. */
@@ -351,108 +354,168 @@ function buildTooltipRowElement(text: string, swatchColor: string): HTMLDivEleme
   return row
 }
 
-const TOOLTIP_SAMPLE_SIZE = 5
-
-interface RepresentativeTooltipPoint {
-  point: QuotifyPriceTrendPoint
-  role: string | null
-}
-
-/** Chọn tối đa 5 báo giá tiêu biểu nhất cho tooltip (thay vì 5 dòng đầu theo
- * thứ tự ngẫu nhiên): giá thấp nhất, giá cao nhất, báo giá mới nhất, và các
- * báo giá gần giá trung bình nhất (ưu tiên NCC khác nhau để đa dạng nguồn).
- * Mỗi dòng được gắn nhãn vai trò (`role`) để người dùng thấy ngay dòng nào
- * là giá thấp nhất/cao nhất — không chỉ ngầm định qua vị trí — theo phản hồi
- * người dùng ngày 12/08/2026 ("báo giá có giá thấp nhất nên được hiển thị"). */
-function pickRepresentativeTooltipPoints(
-  points: QuotifyPriceTrendPoint[],
-  avgPrice: number,
-  getPrice: (point: QuotifyPriceTrendPoint) => number = (point) => point.convertedPriceVndPerKg,
-): RepresentativeTooltipPoint[] {
-  const selected: RepresentativeTooltipPoint[] = []
-  const usedIds = new Set<string>()
-  const usedSupplierIds = new Set<string>()
-
-  const take = (point: QuotifyPriceTrendPoint | undefined, role: string | null) => {
-    if (!point || usedIds.has(point.lineId)) {
-      return
-    }
-    selected.push({ point, role })
-    usedIds.add(point.lineId)
-    usedSupplierIds.add(point.supplierId)
-  }
-
-  const byPriceAsc = [...points].sort((left, right) => getPrice(left) - getPrice(right))
-  take(byPriceAsc[0], 'Giá thấp nhất')
-  take(byPriceAsc[byPriceAsc.length - 1], 'Giá cao nhất')
-
-  if (points.length <= TOOLTIP_SAMPLE_SIZE) {
-    for (const point of points) {
-      take(point, null)
-    }
-    return selected
-  }
-
-  const byReceivedDateDesc = [...points].sort((left, right) =>
-    right.receivedDate.localeCompare(left.receivedDate),
-  )
-  take(byReceivedDateDesc[0], 'Mới nhất')
-
-  const byDistanceToAvg = [...points].sort(
-    (left, right) =>
-      Math.abs(getPrice(left) - avgPrice) - Math.abs(getPrice(right) - avgPrice),
-  )
-  for (const point of byDistanceToAvg) {
-    if (selected.length >= TOOLTIP_SAMPLE_SIZE) {
-      break
-    }
-    if (!usedSupplierIds.has(point.supplierId)) {
-      take(point, 'Gần giá trung bình')
-    }
-  }
-  for (const point of byDistanceToAvg) {
-    if (selected.length >= TOOLTIP_SAMPLE_SIZE) {
-      break
-    }
-    take(point, 'Gần giá trung bình')
-  }
-
-  return selected
-}
-
-function buildDeliveryMonthBuckets(
+/** Mỗi ngày nhận báo giá chỉ lấy 1 điểm trên chart "Giá theo kỳ hàng về" —
+ * báo giá THẤP NHẤT trong ngày đó, rồi nối các điểm theo ngày thành 1 đường
+ * duy nhất (theo yêu cầu người dùng ngày 20/08/2026: "tôi chỉ quan tâm tới
+ * MIN"). */
+function buildDailyMinPoints(
   points: QuotifyPriceTrendPoint[],
   // Mặc định lấy giá quy đổi VNĐ/KG; chế độ "Giá CNF" truyền vào
   // `(point) => point.priceOriginal` để dùng giá gốc USD thay thế.
   getPrice: (point: QuotifyPriceTrendPoint) => number = (point) => point.convertedPriceVndPerKg,
-): DeliveryMonthBucket[] {
-  const bucketMap = new Map<string, QuotifyPriceTrendPoint[]>()
+): DailyMinPricePoint[] {
+  const byDate = new Map<string, QuotifyPriceTrendPoint>()
   for (const point of points) {
-    const receivedMonthKey = `${point.receivedDate.slice(0, 7)}-01`
-    bucketMap.set(receivedMonthKey, [
-      ...(bucketMap.get(receivedMonthKey) ?? []),
-      point,
-    ])
+    const day = point.receivedDate.slice(0, 10)
+    const current = byDate.get(day)
+    if (!current || getPrice(point) < getPrice(current)) {
+      byDate.set(day, point)
+    }
   }
 
-  return Array.from(bucketMap.entries())
+  return Array.from(byDate.entries())
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([receivedMonthKey, bucketPoints]) => {
-      const prices = bucketPoints.map(getPrice)
-      const purchasedPoint = bucketPoints.find((point) => point.purchased)
+    .map(([date, point]) => ({ date, price: getPrice(point), point }))
+}
 
-      return {
-        receivedMonth: receivedMonthKey,
-        label: formatMonthLabel(receivedMonthKey),
-        minPrice: Math.min(...prices),
-        maxPrice: Math.max(...prices),
-        avgPrice:
-          prices.reduce((total, current) => total + current, 0) / prices.length,
-        pointCount: bucketPoints.length,
-        purchasedPrice: purchasedPoint ? getPrice(purchasedPoint) : null,
-        points: bucketPoints,
+interface CrosshairChartElement {
+  x: number
+  y: number
+}
+
+interface CrosshairActiveElement {
+  element: CrosshairChartElement
+  index: number
+}
+
+interface CrosshairChartArea {
+  top: number
+  bottom: number
+  left: number
+  right: number
+}
+
+interface CrosshairYScale {
+  getValueForPixel(pixel: number): number | undefined
+}
+
+interface CrosshairChart {
+  ctx: CanvasRenderingContext2D
+  chartArea: CrosshairChartArea
+  scales: { y: CrosshairYScale }
+  getActiveElements(): CrosshairActiveElement[]
+}
+
+interface CrosshairEventArgs {
+  event: { type: string; x: number | null; y: number | null }
+}
+
+/** Vẽ 1 ô nhãn bo góc (nền đặc + chữ trắng) canh giữa tại `(centerX,
+ * centerY)` — dùng cho nhãn giá trị trục Y của crosshair. `roundRect` không
+ * có trên mọi trình duyệt cũ nên fallback về `rect` vuông góc nếu thiếu. */
+function drawCrosshairLabel(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  centerX: number,
+  centerY: number,
+  backgroundColor: string,
+  textColor: string,
+) {
+  ctx.save()
+  ctx.font = '600 11px sans-serif'
+  const paddingX = 6
+  const boxHeight = 18
+  const boxWidth = ctx.measureText(text).width + paddingX * 2
+  const x = centerX - boxWidth / 2
+  const y = centerY - boxHeight / 2
+
+  ctx.fillStyle = backgroundColor
+  ctx.beginPath()
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, boxWidth, boxHeight, 3)
+  } else {
+    ctx.rect(x, y, boxWidth, boxHeight)
+  }
+  ctx.fill()
+
+  ctx.fillStyle = textColor
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, centerX, centerY + 1)
+  ctx.restore()
+}
+
+/** Plugin Chart.js tự vẽ "đường gióng" (crosshair) khi trỏ chuột vào chart
+ * "Giá theo kỳ hàng về", mô phỏng các chart giá chứng khoán — theo yêu cầu
+ * người dùng ngày 20/08/2026. Đường gióng trục X chỉ để định vị ngày (không
+ * hiện giá trị — đã có trong box thông tin ngày/giá, xem `tooltip.external`
+ * trong `chartOptions`); đường gióng trục Y bám theo ĐÚNG tọa độ con trỏ
+ * chuột (không snap về giá của điểm gần nhất) và hiện giá trị thực tại tọa
+ * độ đó — theo phản hồi người dùng ngày 20/08/2026 ("hiển thị giá trị thực
+ * tế ở tọa độ chuột"). Vị trí X vẫn snap về điểm dữ liệu gần nhất (qua
+ * `getActiveElements()`, đồng bộ với `interaction.mode: 'index'`), còn vị
+ * trí Y phải tự theo dõi qua `afterEvent` vì Chart.js không có sẵn API lấy
+ * tọa độ chuột thô ở `afterDraw`. */
+function buildCrosshairPlugin(
+  formatPrice: (value: number | null) => string,
+  lineColor: string,
+  labelBackground: string,
+  labelTextColor: string,
+) {
+  let hoverY: number | null = null
+
+  return {
+    id: 'quotifyPeriodCrosshair',
+    afterEvent(chart: CrosshairChart, args: CrosshairEventArgs) {
+      const { event } = args
+      if (event.type === 'mouseout' || event.y === null) {
+        hoverY = null
+        return
       }
-    })
+      if (event.y >= chart.chartArea.top && event.y <= chart.chartArea.bottom) {
+        hoverY = event.y
+      } else {
+        hoverY = null
+      }
+    },
+    afterDraw(chart: CrosshairChart) {
+      const active = chart.getActiveElements()
+      if (active.length === 0 || hoverY === null) {
+        return
+      }
+
+      const { ctx, chartArea } = chart
+      const { x } = active[0].element
+
+      ctx.save()
+      ctx.setLineDash([4, 4])
+      ctx.strokeStyle = lineColor
+      ctx.lineWidth = 1
+
+      ctx.beginPath()
+      ctx.moveTo(x, chartArea.top)
+      ctx.lineTo(x, chartArea.bottom)
+      ctx.stroke()
+
+      ctx.beginPath()
+      ctx.moveTo(chartArea.left, hoverY)
+      ctx.lineTo(chartArea.right, hoverY)
+      ctx.stroke()
+      ctx.restore()
+
+      const valueAtCursor = chart.scales.y.getValueForPixel(hoverY)
+      if (valueAtCursor !== undefined) {
+        drawCrosshairLabel(
+          ctx,
+          formatPrice(valueAtCursor),
+          chartArea.right + 34,
+          hoverY,
+          labelBackground,
+          labelTextColor,
+        )
+      }
+    },
+  }
 }
 
 export interface MaterialTrendResult {
@@ -630,8 +693,15 @@ export function useDashboardPage() {
 
   const selectedMaterialId = ref<string | null>(null)
   const deliveryMonth = ref<Date | null>(getDefaultDeliveryMonth())
-  const receivedDateStart = ref<Date | null>(null)
-  const receivedDateEnd = ref<Date | null>(null)
+  // Khoảng ngày nhận báo giá mặc định = 6 tháng gần nhất (xem
+  // `computePeriodRangeDates`/`periodRangeKey`), theo yêu cầu người dùng
+  // ngày 20/08/2026 ("Mặc định 6 tháng") — không còn để trống/không giới hạn
+  // như trước.
+  const defaultPeriodRange = computePeriodRangeDates(DEFAULT_PERIOD_RANGE_KEY)
+  const periodRangeKey = ref<PeriodRangeKey>(DEFAULT_PERIOD_RANGE_KEY)
+  const periodRangeOptions = PERIOD_RANGE_OPTIONS
+  const receivedDateStart = ref<Date | null>(defaultPeriodRange.start)
+  const receivedDateEnd = ref<Date | null>(defaultPeriodRange.end)
   // "Giá CNF": chỉ tính các báo giá USD/MT và hiển thị giá gốc (USD) thay vì
   // giá quy đổi VNĐ/KG — mặc định untick (vẫn dùng VNĐ/KG như trước).
   const showCnfOnly = ref(false)
@@ -831,16 +901,43 @@ export function useDashboardPage() {
     filterCnfPoints(priceTrends.value?.points ?? [], showCnfOnly.value),
   )
   const hasTrendData = computed(() => trendPoints.value.length > 0)
-  const deliveryMonthBuckets = computed(() =>
-    buildDeliveryMonthBuckets(
-      trendPoints.value,
-      showCnfOnly.value ? (point) => point.priceOriginal : undefined,
-    ),
+
+  const periodGetPrice = computed(() =>
+    showCnfOnly.value
+      ? (point: QuotifyPriceTrendPoint) => point.priceOriginal
+      : (point: QuotifyPriceTrendPoint) => point.convertedPriceVndPerKg,
+  )
+  const periodFormatPrice = computed(() => (showCnfOnly.value ? formatUsdPerMt : formatMoney))
+
+  const periodDailyPoints = computed(() =>
+    buildDailyMinPoints(trendPoints.value, periodGetPrice.value),
   )
 
-  const chartLabels = computed(() =>
-    deliveryMonthBuckets.value.map((bucket) => bucket.label),
-  )
+  // MAX/MIN/Trung bình hiển thị ở giữa-trên chart, tính trên chính chuỗi
+  // giá MIN-theo-ngày đang vẽ (không phải trên toàn bộ báo giá thô) — khớp
+  // với những gì trục Y thực sự đang thể hiện, theo yêu cầu người dùng ngày
+  // 20/08/2026 ("MAX, MIN, Trung Bình trong toàn bộ khoảng thời gian đã lọc").
+  const periodStats = computed(() => {
+    const prices = periodDailyPoints.value.map((entry) => entry.price)
+    if (prices.length === 0) {
+      return { min: null, max: null, avg: null } as {
+        min: number | null
+        max: number | null
+        avg: number | null
+      }
+    }
+    return {
+      min: Math.min(...prices),
+      max: Math.max(...prices),
+      avg: prices.reduce((total, current) => total + current, 0) / prices.length,
+    }
+  })
+
+  const periodStatsFormatted = computed(() => ({
+    min: periodFormatPrice.value(periodStats.value.min),
+    max: periodFormatPrice.value(periodStats.value.max),
+    avg: periodFormatPrice.value(periodStats.value.avg),
+  }))
 
   // Màu đại diện MẶT HÀNG (hoặc NĂM, ở chart mùa vụ) — không phải vai trò
   // thống kê như chart đơn 1 mặt hàng, nên không tái dùng accent/success/
@@ -949,56 +1046,21 @@ export function useDashboardPage() {
   const chartData = computed(() => {
     const panel = cssVar('--app-surface-panel', '#ffffff')
     const accent = cssVar('--app-accent', '#7c3aed')
-    const success = cssVar('--app-success', '#16a34a')
-    const warning = cssVar('--app-warning', '#f59e0b')
-    const danger = cssVar('--app-danger', '#ef4444')
 
     return {
-      labels: chartLabels.value,
+      labels: periodDailyPoints.value.map((entry) => entry.date),
       datasets: [
         {
-          label: 'Giá trung bình',
-          data: deliveryMonthBuckets.value.map((bucket) => bucket.avgPrice),
+          label: 'Giá thấp nhất trong ngày',
+          data: periodDailyPoints.value.map((entry) => entry.price),
           borderColor: accent,
           backgroundColor: `${accent}24`,
           pointBackgroundColor: accent,
           pointBorderColor: panel,
-          pointRadius: 4,
-          tension: 0.28,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          tension: 0.2,
           fill: true,
-        },
-        {
-          label: 'Giá thấp nhất',
-          data: deliveryMonthBuckets.value.map((bucket) => bucket.minPrice),
-          borderColor: success,
-          backgroundColor: 'transparent',
-          pointBackgroundColor: success,
-          pointBorderColor: panel,
-          pointRadius: 3,
-          borderDash: [6, 4],
-          tension: 0.2,
-        },
-        {
-          label: 'Giá cao nhất',
-          data: deliveryMonthBuckets.value.map((bucket) => bucket.maxPrice),
-          borderColor: warning,
-          backgroundColor: 'transparent',
-          pointBackgroundColor: warning,
-          pointBorderColor: panel,
-          pointRadius: 3,
-          borderDash: [6, 4],
-          tension: 0.2,
-        },
-        {
-          label: 'Đã chốt mua',
-          data: deliveryMonthBuckets.value.map((bucket) => bucket.purchasedPrice),
-          borderColor: danger,
-          backgroundColor: danger,
-          pointBackgroundColor: danger,
-          pointBorderColor: panel,
-          pointRadius: 7,
-          pointHoverRadius: 9,
-          showLine: false,
         },
       ],
     }
@@ -1010,37 +1072,35 @@ export function useDashboardPage() {
         ? cssVar('--app-border-strong', '#334155')
         : cssVar('--app-border-soft', '#e2e8f0')
     const textColor = cssVar('--app-text-secondary', '#64748b')
-    const roleColors: Record<string, string> = {
-      'Giá thấp nhất': cssVar('--app-success', '#16a34a'),
-      'Giá cao nhất': cssVar('--app-warning', '#f59e0b'),
-      'Gần giá trung bình': cssVar('--app-accent', '#7c3aed'),
-    }
-    const neutralColor = cssVar('--app-text-muted', '#94a3b8')
-    // "Giá CNF": bucket đã tính sẵn theo giá gốc USD (xem `deliveryMonthBuckets`),
-    // ở đây chỉ cần đổi formatter hiển thị + cách chọn giá đại diện cho từng
-    // báo giá mẫu trong tooltip (`getPrice`) sang cùng field USD đó.
-    const formatPrice = showCnfOnly.value ? formatUsdPerMt : formatMoney
-    const getPrice = showCnfOnly.value
-      ? (point: QuotifyPriceTrendPoint) => point.priceOriginal
-      : (point: QuotifyPriceTrendPoint) => point.convertedPriceVndPerKg
+    const accent = cssVar('--app-accent', '#7c3aed')
+    const formatPrice = periodFormatPrice.value
 
     return {
       maintainAspectRatio: false,
       responsive: true,
+      // Chừa lề phải cho ô nhãn giá trị trục Y của crosshair (xem
+      // `buildCrosshairPlugin`), và lề trên đủ chỗ cho box ngày/giá (xem
+      // `tooltip.external` bên dưới) — box này giờ LUÔN neo trong dải lề
+      // trên, không nằm trong phần thân chart, để không bao giờ che đường
+      // biểu đồ dù điểm hover ở vị trí nào, theo yêu cầu người dùng ngày
+      // 20/08/2026 ("không được che vào chart dù nó ở bất kỳ vị trí nào").
+      layout: {
+        padding: { top: 64, right: 64 },
+      },
       interaction: {
         intersect: false,
         mode: 'index',
       },
       onClick(_event: unknown, elements: { index: number }[]) {
-        const bucket = deliveryMonthBuckets.value[elements[0]?.index ?? -1]
+        const entry = periodDailyPoints.value[elements[0]?.index ?? -1]
         const fixedDeliveryMonth = toDateInputValue(deliveryMonth.value)
-        if (!bucket || !fixedDeliveryMonth) {
+        if (!entry || !fixedDeliveryMonth) {
           return
         }
         const query: Record<string, string> = {
           deliveryMonth: fixedDeliveryMonth,
-          receivedDateStart: bucket.receivedMonth,
-          receivedDateEnd: getMonthEnd(bucket.receivedMonth),
+          receivedDateStart: entry.date,
+          receivedDateEnd: entry.date,
         }
         if (selectedMaterialId.value) {
           query.materialId = selectedMaterialId.value
@@ -1049,50 +1109,18 @@ export function useDashboardPage() {
       },
       plugins: {
         legend: {
-          labels: {
-            color: textColor,
-            boxWidth: 12,
-            boxHeight: 12,
-          },
+          display: false,
         },
         tooltip: {
           enabled: false,
-          callbacks: {
-            label(context: { dataIndex: number; dataset: { label?: string } }) {
-              const prefix = context.dataset.label ?? 'Giá'
-              const bucket = deliveryMonthBuckets.value[context.dataIndex]
-              if (!bucket) {
-                return prefix
-              }
-
-              if (prefix === 'Đã chốt mua') {
-                return bucket.purchasedPrice === null
-                  ? ''
-                  : `${prefix}: ${formatPrice(bucket.purchasedPrice)}`
-              }
-
-              const value =
-                prefix === 'Giá thấp nhất'
-                  ? bucket.minPrice
-                  : prefix === 'Giá cao nhất'
-                    ? bucket.maxPrice
-                    : bucket.avgPrice
-              return `${prefix}: ${formatPrice(value)}`
-            },
-          },
-          // Tooltip mặc định của Chart.js vẽ trên canvas, mỗi dòng chỉ có 1
-          // màu chữ — không thể tô màu ô vuông khớp màu đường trên chart cho
-          // từng báo giá tiêu biểu. Dùng "external" tooltip (render bằng
-          // HTML/CSS thật) để mỗi dòng có ô màu khớp đúng màu series tương
-          // ứng (xanh = thấp nhất, cam = cao nhất, tím = gần trung bình) —
-          // theo phản hồi người dùng ngày 12/08/2026.
+          // Box thông tin ngày chào giá + giá đã chào tại điểm đang hover —
+          // đường gióng trục X chỉ cần định vị (không tự hiện giá trị ngày,
+          // xem `buildCrosshairPlugin`), thông tin ngày/giá nằm hết ở đây,
+          // theo yêu cầu người dùng ngày 20/08/2026.
           external(context: {
             chart: { canvas: HTMLCanvasElement }
             tooltip: {
               opacity: number
-              title?: string[]
-              body: { lines: string[] }[]
-              labelColors: { backgroundColor: string; borderColor: string }[]
               dataPoints: { dataIndex: number }[]
               caretX: number
               caretY: number
@@ -1101,7 +1129,8 @@ export function useDashboardPage() {
             const { chart, tooltip } = context
             const tooltipEl = getOrCreateChartTooltipElement(chart.canvas)
 
-            if (tooltip.opacity === 0) {
+            const entry = periodDailyPoints.value[tooltip.dataPoints[0]?.dataIndex ?? -1]
+            if (tooltip.opacity === 0 || !entry) {
               tooltipEl.style.opacity = '0'
               return
             }
@@ -1110,68 +1139,31 @@ export function useDashboardPage() {
 
             const titleEl = document.createElement('div')
             titleEl.className = 'quotify-chart-tooltip__title'
-            titleEl.textContent = tooltip.title?.[0] ?? ''
+            titleEl.textContent = formatDateLabel(entry.date)
             tooltipEl.appendChild(titleEl)
 
-            tooltip.body.forEach((bodyItem, index) => {
-              const line = bodyItem.lines[0]
-              if (!line) {
-                return
-              }
-              const colors = tooltip.labelColors[index]
-              tooltipEl.appendChild(
-                buildTooltipRowElement(line, colors?.backgroundColor ?? neutralColor),
-              )
-            })
-
-            const bucket = deliveryMonthBuckets.value[tooltip.dataPoints[0]?.dataIndex ?? -1]
-            if (bucket) {
-              const countEl = document.createElement('div')
-              countEl.className = 'quotify-chart-tooltip__count'
-              countEl.textContent = `${bucket.pointCount} báo giá nhận trong tháng ${bucket.label}`
-              tooltipEl.appendChild(countEl)
-
-              const sample = pickRepresentativeTooltipPoints(bucket.points, bucket.avgPrice, getPrice)
-              for (const entry of sample) {
-                const swatchColor = entry.role ? roleColors[entry.role] ?? neutralColor : neutralColor
-                tooltipEl.appendChild(
-                  buildTooltipRowElement(
-                    buildTooltipLabel(entry.point, getPrice, formatPrice),
-                    swatchColor,
-                  ),
-                )
-              }
-
-              const remaining = bucket.pointCount - sample.length
-              if (remaining > 0) {
-                const moreEl = document.createElement('div')
-                moreEl.className = 'quotify-chart-tooltip__more'
-                moreEl.textContent = `... và ${remaining} báo giá khác`
-                tooltipEl.appendChild(moreEl)
-              }
-
-              const hintEl = document.createElement('div')
-              hintEl.className = 'quotify-chart-tooltip__hint'
-              hintEl.textContent = 'Nhấp để xem tất cả trong Bảng báo giá'
-              tooltipEl.appendChild(hintEl)
-            }
+            tooltipEl.appendChild(
+              buildTooltipRowElement(`Giá ${formatPrice(entry.price)}`, accent),
+            )
 
             // Đo kích thước tooltip SAU khi đã đổ nội dung, rồi kẹp vị trí
-            // trong phạm vi canvas — nếu chỉ căn giữa theo caretX (translateX
-            // -50%) như trước, tooltip ở gần 2 đầu chart sẽ bị lồi ra ngoài
-            // và bị viewport cắt mất nội dung (ảnh báo lỗi ngày 12/08/2026).
+            // theo chiều ngang trong phạm vi canvas — cùng cách làm với
+            // tooltip của 2 chart so sánh (xem `buildComparisonChartOptions`).
+            // Chiều dọc KHÔNG bám theo `caretY` như 2 chart kia — luôn neo cố
+            // định trong dải lề trên đã chừa sẵn (`layout.padding.top`), để
+            // box không bao giờ đè lên đường biểu đồ dù điểm hover ở đâu,
+            // theo yêu cầu người dùng ngày 20/08/2026.
             const { offsetLeft, offsetTop, offsetWidth: canvasWidth } = chart.canvas
             tooltipEl.style.opacity = '1'
             tooltipEl.style.left = '0px'
             tooltipEl.style.top = '0px'
             const tooltipWidth = tooltipEl.offsetWidth
-            const tooltipHeight = tooltipEl.offsetHeight
             const idealLeft = offsetLeft + tooltip.caretX - tooltipWidth / 2
             const minLeft = offsetLeft
             const maxLeft = offsetLeft + canvasWidth - tooltipWidth
             const clampedLeft = Math.max(minLeft, Math.min(idealLeft, maxLeft))
             tooltipEl.style.left = `${clampedLeft}px`
-            tooltipEl.style.top = `${offsetTop + tooltip.caretY - tooltipHeight - 12}px`
+            tooltipEl.style.top = `${offsetTop + 6}px`
           },
         },
       },
@@ -1180,6 +1172,10 @@ export function useDashboardPage() {
           ticks: {
             color: textColor,
             maxRotation: 0,
+            callback: (_value: unknown, index: number) => {
+              const entry = periodDailyPoints.value[index]
+              return entry ? formatDateLabel(entry.date) : ''
+            },
           },
           grid: {
             color: grid,
@@ -1195,6 +1191,17 @@ export function useDashboardPage() {
         },
       },
     }
+  })
+
+  // Plugin Chart.js riêng cho crosshair (xem `buildCrosshairPlugin`) — tách
+  // khỏi `chartOptions` vì phải truyền qua prop `plugins` riêng của
+  // `<Chart>` (PrimeVue), không phải qua `options.plugins`.
+  const chartPlugins = computed(() => {
+    const panel = cssVar('--app-surface-panel', '#ffffff')
+    const accent = cssVar('--app-accent', '#7c3aed')
+    const crosshairLine = cssVar('--app-text-muted', '#94a3b8')
+
+    return [buildCrosshairPlugin(periodFormatPrice.value, crosshairLine, accent, panel)]
   })
 
   // Dùng chung cho cả 2 chart — chỉ khác nhau ở query điều hướng khi click
@@ -1551,11 +1558,25 @@ export function useDashboardPage() {
     await loadDashboard()
   }
 
+  /** Nút bấm nhanh (1 tuần/1 tháng/3 tháng/6 tháng/1 năm) — ghi thẳng vào
+   * `receivedDateStart`/`receivedDateEnd` (CÙNG 2 ref đã gắn sẵn cho 2
+   * `DatePicker` "Từ ngày nhận"/"Đến ngày nhận") rồi tải lại, theo yêu cầu
+   * người dùng ngày 20/08/2026 ("giữ nguyên các filter như hiện tại"). */
+  async function applyPeriodRange(key: PeriodRangeKey) {
+    periodRangeKey.value = key
+    const { start, end } = computePeriodRangeDates(key)
+    receivedDateStart.value = start
+    receivedDateEnd.value = end
+    await loadDashboard()
+  }
+
   async function resetFilters() {
     selectedMaterialId.value = findDefaultMaterialId(materials.value)
     deliveryMonth.value = getDefaultDeliveryMonth()
-    receivedDateStart.value = null
-    receivedDateEnd.value = null
+    periodRangeKey.value = DEFAULT_PERIOD_RANGE_KEY
+    const { start, end } = computePeriodRangeDates(DEFAULT_PERIOD_RANGE_KEY)
+    receivedDateStart.value = start
+    receivedDateEnd.value = end
     showCnfOnly.value = false
     await loadDashboard()
   }
@@ -1589,6 +1610,12 @@ export function useDashboardPage() {
     receivedDateStart,
     receivedDateEnd,
     showCnfOnly,
+    periodRangeKey,
+    periodRangeOptions,
+    applyPeriodRange,
+    periodDailyPoints,
+    periodStats,
+    periodStatsFormatted,
     selectedWeek,
     selectedWeeklyUserId,
     historyDeliveryMonth,
@@ -1617,11 +1644,11 @@ export function useDashboardPage() {
     weeklyEntryMetricCards,
     weeklyEntryPeriodLabel,
     trendPoints,
-    deliveryMonthBuckets,
     hasTrendData,
     hasWeeklyEntryData,
     chartData,
     chartOptions,
+    chartPlugins,
     weeklyEntryChartData,
     weeklyEntryChartOptions,
     bootstrap,

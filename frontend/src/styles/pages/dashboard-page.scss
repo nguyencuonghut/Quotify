@@ -281,6 +281,51 @@
   background: color-mix(in srgb, var(--app-warning) 12%, transparent);
 }
 
+.dashboard-page__period-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+
+  // Cùng quy ước tô màu accent cho trạng thái checked như
+  // `.dashboard-page__chart-switcher`, để 2 SelectButton trong trang dùng
+  // chung 1 kiểu thay vì tông xám/trắng mặc định của PrimeVue.
+  .p-togglebutton.p-togglebutton-checked {
+    .p-togglebutton-content {
+      background: var(--app-accent);
+    }
+
+    .p-togglebutton-label {
+      color: #fff;
+      font-weight: 600;
+    }
+  }
+}
+
+.dashboard-page__period-stats {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 1rem;
+}
+
+.dashboard-page__period-stat {
+  display: grid;
+  gap: 0.2rem;
+  text-align: center;
+
+  span {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--app-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  strong {
+    font-size: 1.1rem;
+  }
+}
+
 .dashboard-page__chart-frame {
   position: relative;
   min-height: 22rem;

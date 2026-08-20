@@ -190,8 +190,10 @@ describe('useDashboardPage', () => {
         // Mặc định "kỳ giao hàng" = tháng hiện tại + 2 (hôm nay 08/2026 →
         // 10/2026) — chart này giờ luôn cần 1 kỳ giao hàng cố định.
         deliveryMonth: '2026-10-01',
-        receivedDateStart: null,
-        receivedDateEnd: null,
+        // Mặc định khoảng ngày nhận báo giá = 6 tháng gần nhất (hôm nay
+        // 13/08/2026 → từ 13/02/2026), không còn để trống như trước.
+        receivedDateStart: '2026-02-13',
+        receivedDateEnd: '2026-08-13',
       },
       'mock-access-token',
     )
@@ -208,30 +210,25 @@ describe('useDashboardPage', () => {
     expect(page.selectedMaterialId.value).toBe('material-1')
     expect(page.userKpis.value[0].quoteCount).toBe(7)
     expect(page.hasTrendData.value).toBe(true)
-    // Trục X giờ là THÁNG NHẬN BÁO GIÁ (không phải kỳ giao hàng) cho 1 kỳ
-    // giao hàng cố định — cả 3 điểm mẫu đều nhận trong 07/2026 (dù thuộc 2
-    // kỳ giao hàng 08/2026 và 09/2026 khác nhau) nên gộp chung 1 bucket.
-    expect(page.deliveryMonthBuckets.value.map((bucket) => bucket.label)).toEqual(
-      ['07/2026'],
-    )
-    expect(page.deliveryMonthBuckets.value[0]).toMatchObject({
-      minPrice: 10500,
-      maxPrice: 12000,
-      avgPrice: 34000 / 3,
-      pointCount: 3,
-      purchasedPrice: 10500,
-    })
-    expect(page.chartData.value.labels).toEqual(['07/2026'])
-    expect(page.chartData.value.datasets.map((dataset) => dataset.label)).toEqual(
-      ['Giá trung bình', 'Giá thấp nhất', 'Giá cao nhất', 'Đã chốt mua'],
-    )
-    expect(
-      page.chartData.value.datasets.find((dataset) => dataset.label === 'Đã chốt mua'),
-    ).toMatchObject({
-      borderColor: '#ef4444',
-      backgroundColor: '#ef4444',
-      pointBackgroundColor: '#ef4444',
-    })
+    // Mỗi ngày nhận báo giá riêng biệt là 1 điểm (giá THẤP NHẤT trong ngày
+    // đó) — 3 điểm mẫu ở 3 ngày khác nhau (07-20, 07-22, 07-25) nên ra 3
+    // điểm, sắp theo thứ tự thời gian tăng dần.
+    expect(page.periodDailyPoints.value.map((entry) => entry.date)).toEqual([
+      '2026-07-20',
+      '2026-07-22',
+      '2026-07-25',
+    ])
+    expect(page.periodDailyPoints.value.map((entry) => entry.price)).toEqual([
+      10500, 11500, 12000,
+    ])
+    expect(page.chartData.value.labels).toEqual([
+      '2026-07-20',
+      '2026-07-22',
+      '2026-07-25',
+    ])
+    expect(page.chartData.value.datasets.map((dataset) => dataset.label)).toEqual([
+      'Giá thấp nhất trong ngày',
+    ])
     expect(page.weeklyEntryMetricCards.value.map((card) => card.label)).toEqual([
       'Báo giá tuần',
       'User đã nhập',
@@ -245,7 +242,7 @@ describe('useDashboardPage', () => {
     expect(page.weeklyEntryChartData.value.datasets[0].data).toEqual([7, 0])
   })
 
-  it('clicking a point on the "Giá theo kỳ hàng về" chart navigates to /quotes with the fixed delivery month and the clicked received-date month range', async () => {
+  it('clicking a point on the "Giá theo kỳ hàng về" chart navigates to /quotes with the fixed delivery month and the clicked day', async () => {
     const page = useDashboardPage()
     page.selectedMaterialId.value = 'material-1'
     page.deliveryMonth.value = new Date(2026, 9, 1)
@@ -259,8 +256,8 @@ describe('useDashboardPage', () => {
       query: {
         materialId: 'material-1',
         deliveryMonth: '2026-10-01',
-        receivedDateStart: '2026-07-01',
-        receivedDateEnd: '2026-07-31',
+        receivedDateStart: '2026-07-20',
+        receivedDateEnd: '2026-07-20',
       },
     })
   })
@@ -301,23 +298,22 @@ describe('useDashboardPage', () => {
     const page = useDashboardPage()
     await page.bootstrap()
 
-    // Chưa tick: vẫn dùng giá quy đổi VNĐ/KG, gồm cả điểm VND/KG.
-    expect(page.deliveryMonthBuckets.value[0]).toMatchObject({ pointCount: 3 })
+    // Cả 3 điểm mẫu cùng nhận 1 ngày (đều spread từ `priceTrends.points[0]`)
+    // — chưa tick "Giá CNF" thì lấy giá quy đổi VNĐ/KG, MIN trong ngày là
+    // điểm VND/KG (7000).
+    expect(page.periodDailyPoints.value).toHaveLength(1)
+    expect(page.periodDailyPoints.value[0]).toMatchObject({ price: 7000 })
 
     // Tick "Giá CNF" chỉ lọc lại dữ liệu ĐÃ CÓ ở client — không cần gọi lại
-    // API — nên bucket phải đổi ngay, phản ứng thuần theo `showCnfOnly`.
+    // API — nên điểm MIN trong ngày phải đổi ngay, phản ứng thuần theo
+    // `showCnfOnly` (giờ chỉ còn 2 điểm USD/MT, MIN là giá gốc 400).
     page.showCnfOnly.value = true
 
-    expect(page.deliveryMonthBuckets.value).toHaveLength(1)
-    expect(page.deliveryMonthBuckets.value[0]).toMatchObject({
-      pointCount: 2,
-      minPrice: 400,
-      maxPrice: 420,
-      avgPrice: 410,
-    })
+    expect(page.periodDailyPoints.value).toHaveLength(1)
+    expect(page.periodDailyPoints.value[0]).toMatchObject({ price: 400 })
   })
 
-  it('formats the "Giá theo kỳ hàng về" tooltip and Y-axis values in USD when "Giá CNF" is ticked', async () => {
+  it('formats the "Giá theo kỳ hàng về" period stats and chart data in USD when "Giá CNF" is ticked', async () => {
     dashboardApiMock.getQuotifyPriceTrends.mockResolvedValue({
       ...priceTrends,
       points: [
@@ -337,11 +333,13 @@ describe('useDashboardPage', () => {
     await page.bootstrap()
     page.showCnfOnly.value = true
 
-    const avgLabel = page.chartOptions.value.plugins.tooltip.callbacks.label({
-      dataIndex: 0,
-      dataset: { label: 'Giá trung bình' },
-    })
-    expect(avgLabel).toBe('Giá trung bình: $400.00 USD/MT')
+    expect(page.periodStatsFormatted.value.avg).toBe('$400.00 USD/MT')
+    expect(page.chartData.value.datasets[0].data).toEqual([400])
+  })
+
+  it('shows a floating box with the received date and price when hovering a point on the "Giá theo kỳ hàng về" chart', async () => {
+    const page = useDashboardPage()
+    await page.bootstrap()
 
     const canvas = document.createElement('canvas')
     document.createElement('div').appendChild(canvas)
@@ -349,17 +347,17 @@ describe('useDashboardPage', () => {
       chart: { canvas },
       tooltip: {
         opacity: 1,
-        title: ['07/2026'],
-        body: [{ lines: ['Giá trung bình: $400.00 USD/MT'] }],
-        labelColors: [{ backgroundColor: '#000', borderColor: '#000' }],
         dataPoints: [{ dataIndex: 0 }],
         caretX: 10,
         caretY: 10,
       },
     })
+
     const tooltipText = canvas.parentElement?.querySelector('.quotify-chart-tooltip')?.textContent
-    expect(tooltipText).toContain('USD/MT')
-    expect(tooltipText).not.toContain('VNĐ/KG')
+    // Điểm đầu tiên (index 0) là ngày 20/07/2026, giá thấp nhất trong ngày
+    // 10500 — xem `periodDailyPoints` ở test bootstrap phía trên.
+    expect(tooltipText).toContain('20/07/2026')
+    expect(tooltipText).toContain('10,500.00 VNĐ/KG')
   })
 
   it('sends selected material, month and received date filters to dashboard APIs', async () => {
@@ -417,12 +415,41 @@ describe('useDashboardPage', () => {
     // "Xóa lọc" đưa kỳ giao hàng về lại mặc định (tháng hiện tại + 2), không
     // phải rỗng — chart này luôn cần 1 kỳ giao hàng cố định.
     expect(page.deliveryMonth.value).toEqual(new Date(2026, 9, 1))
+    // "Xóa lọc" cũng đưa khoảng ngày nhận báo giá về lại mặc định 6 tháng
+    // gần nhất, không phải để trống như trước.
+    expect(page.periodRangeKey.value).toBe('6m')
     expect(dashboardApiMock.getQuotifyEntryKpis).toHaveBeenCalledWith(
       {
         materialId: 'material-1',
         deliveryMonth: '2026-10-01',
-        receivedDateStart: null,
-        receivedDateEnd: null,
+        receivedDateStart: '2026-02-13',
+        receivedDateEnd: '2026-08-13',
+      },
+      'mock-access-token',
+    )
+
+    vi.useRealTimers()
+  })
+
+  it('clicking a period-range quick button sets the received-date filters to that range and reloads', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 20))
+
+    const page = useDashboardPage()
+    page.selectedMaterialId.value = 'material-1'
+    page.deliveryMonth.value = new Date(2026, 9, 1)
+
+    await page.applyPeriodRange('1m')
+
+    expect(page.periodRangeKey.value).toBe('1m')
+    expect(page.receivedDateStart.value).toEqual(new Date(2026, 6, 20))
+    expect(page.receivedDateEnd.value).toEqual(new Date(2026, 7, 20))
+    expect(dashboardApiMock.getQuotifyEntryKpis).toHaveBeenCalledWith(
+      {
+        materialId: 'material-1',
+        deliveryMonth: '2026-10-01',
+        receivedDateStart: '2026-07-20',
+        receivedDateEnd: '2026-08-20',
       },
       'mock-access-token',
     )
