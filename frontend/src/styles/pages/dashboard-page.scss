@@ -149,6 +149,20 @@
 
 .dashboard-page__chart-switcher {
   margin-bottom: 1.25rem;
+
+  // PrimeVue SelectButton mặc định tô nền trạng thái checked bằng tông
+  // surface (xám/trắng), không theo màu primary như Tabs — đổi lại để dùng
+  // chung màu accent của hệ thống cho đồng nhất giữa 2 nơi.
+  .p-togglebutton.p-togglebutton-checked {
+    .p-togglebutton-content {
+      background: var(--app-accent);
+    }
+
+    .p-togglebutton-label {
+      color: #fff;
+      font-weight: 600;
+    }
+  }
 }
 
 .dashboard-page__panel-header {
