@@ -35,7 +35,7 @@ describe('useQuotesPage', () => {
     expect(page.globalSearch.value).toBe('')
     expect(page.supplierId.value).toBeNull()
     expect(page.materialId.value).toBeNull()
-    expect(page.sortField.value).toBe('created_at')
+    expect(page.sortField.value).toBe('received_date')
     expect(page.sortOrder.value).toBe('desc')
   })
 
@@ -90,7 +90,7 @@ describe('useQuotesPage', () => {
         purchased: true,
         limit: 10,
         offset: 0,
-        sortBy: 'created_at',
+        sortBy: 'received_date',
         sortOrder: 'desc',
       }),
       'mock-token',
@@ -115,7 +115,7 @@ describe('useQuotesPage', () => {
       expect.objectContaining({
         limit: 10,
         offset: 0,
-        sortBy: 'created_at',
+        sortBy: 'received_date',
         sortOrder: 'desc',
       }),
       'mock-token',

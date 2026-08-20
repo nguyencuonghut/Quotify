@@ -180,7 +180,7 @@
           :rows-per-page-options="[10, 20, 30, 50]"
           paginator-template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
           current-page-report-template="Hiển thị {first} đến {last} của {totalRecords} dòng"
-          sort-field="created_at"
+          sort-field="received_date"
           :sort-order="-1"
           class="p-datatable-sm"
           :row-class="() => 'quotes-page__row-clickable'"

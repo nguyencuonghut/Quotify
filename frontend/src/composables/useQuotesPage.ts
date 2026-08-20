@@ -57,7 +57,14 @@ export function useQuotesPage(getAccessToken: () => string | null) {
   // Pagination & Sorting
   const limit = ref<number>(10)
   const offset = ref<number>(0)
-  const sortField = ref<string>('created_at')
+  // Mặc định sort theo "Ngày nhận" gần nhất — khớp với cột "Ngày nhận" trong
+  // bảng (field `received_date`) và với sort-field ban đầu của DataTable
+  // (xem QuotesPage.vue) để mũi tên sort hiện đúng cột ngay từ lần tải đầu.
+  // Tie-break theo `Quote.sequence_number`/`line_order` (backend
+  // `QuoteQueryService`) đảm bảo các dòng cùng nhà cung cấp, cùng ngày nhận
+  // vẫn đứng liền kề nhau theo đúng thứ tự nhập thực tế — theo phản hồi
+  // người dùng ngày 20/08/2026.
+  const sortField = ref<string>('received_date')
   const sortOrder = ref<string>('desc')
 
   const queryParams = computed(() => {
@@ -134,7 +141,7 @@ export function useQuotesPage(getAccessToken: () => string | null) {
 
   const handleSortChange = (event: QuotesSortChangeEvent) => {
     sortField.value =
-      typeof event.sortField === 'string' ? event.sortField : 'created_at'
+      typeof event.sortField === 'string' ? event.sortField : 'received_date'
     sortOrder.value = event.sortOrder === 1 ? 'asc' : 'desc'
     loadQuotesData()
   }
