@@ -830,7 +830,6 @@ export function useDashboardPage() {
   const trendPoints = computed(() =>
     filterCnfPoints(priceTrends.value?.points ?? [], showCnfOnly.value),
   )
-  const purchaseContexts = computed(() => priceTrends.value?.purchaseContexts ?? [])
   const hasTrendData = computed(() => trendPoints.value.length > 0)
   const deliveryMonthBuckets = computed(() =>
     buildDeliveryMonthBuckets(
@@ -1619,7 +1618,6 @@ export function useDashboardPage() {
     weeklyEntryPeriodLabel,
     trendPoints,
     deliveryMonthBuckets,
-    purchaseContexts,
     hasTrendData,
     hasWeeklyEntryData,
     chartData,
@@ -1634,9 +1632,6 @@ export function useDashboardPage() {
     applyWeeklyEntryFilters,
     resetWeeklyEntryFilters,
     getWeeklyEntryRowClass,
-    formatMoney,
-    formatDateLabel,
     formatDateTimeLabel,
-    formatMonthLabel,
   }
 }

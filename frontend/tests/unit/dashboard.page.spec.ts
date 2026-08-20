@@ -154,6 +154,12 @@ describe('DashboardPage', () => {
           DatePicker: true,
           MultiSelect: true,
           Select: true,
+          SelectButton: true,
+          Tab: passthroughStub,
+          TabList: passthroughStub,
+          TabPanel: passthroughStub,
+          TabPanels: passthroughStub,
+          Tabs: passthroughStub,
           Tag: true,
         },
       },
@@ -169,6 +175,5 @@ describe('DashboardPage', () => {
     expect(wrapper.text()).toContain('Giá theo kỳ hàng về')
     expect(wrapper.text()).toContain('Kỳ giao hàng (bắt buộc chọn)')
     expect(wrapper.text()).toContain('Số phiếu báo giá')
-    expect(wrapper.text()).toContain('Góc nhìn tại và sau thời điểm đánh dấu')
   })
 })

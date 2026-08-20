@@ -1,6 +1,14 @@
 <template>
   <AdminLayout section-label="Phân tích báo giá" title="Bảng điều khiển">
     <div class="dashboard-page">
+      <Tabs v-model:value="activeMainTab" class="dashboard-page__tabs">
+        <TabList>
+          <Tab value="overview">Tổng quan</Tab>
+          <Tab value="charts">Phân tích giá</Tab>
+        </TabList>
+
+        <TabPanels>
+          <TabPanel value="overview">
       <section class="dashboard-page__hero">
         <div>
           <p class="dashboard-page__eyebrow">Dashboard Quotify</p>
@@ -139,8 +147,23 @@
           </DataTable>
         </div>
       </section>
+          </TabPanel>
 
-      <section class="dashboard-page__panel dashboard-page__panel--chart">
+          <TabPanel value="charts">
+      <div class="dashboard-page__chart-switcher">
+        <SelectButton
+          v-model="activeChartKey"
+          :allow-empty="false"
+          option-label="label"
+          option-value="value"
+          :options="chartSwitcherOptions"
+        />
+      </div>
+
+      <section
+        v-show="activeChartKey === 'period'"
+        class="dashboard-page__panel dashboard-page__panel--chart"
+      >
         <div class="dashboard-page__panel-header">
           <div>
             <p class="dashboard-page__eyebrow">Kỳ hàng về</p>
@@ -242,7 +265,10 @@
         </div>
       </section>
 
-      <section class="dashboard-page__panel dashboard-page__panel--chart">
+      <section
+        v-show="activeChartKey === 'history'"
+        class="dashboard-page__panel dashboard-page__panel--chart"
+      >
         <div class="dashboard-page__panel-header">
           <div>
             <p class="dashboard-page__eyebrow">Diễn biến giá</p>
@@ -318,7 +344,10 @@
         </div>
       </section>
 
-      <section class="dashboard-page__panel dashboard-page__panel--chart">
+      <section
+        v-show="activeChartKey === 'seasonal'"
+        class="dashboard-page__panel dashboard-page__panel--chart"
+      >
         <div class="dashboard-page__panel-header">
           <div>
             <p class="dashboard-page__eyebrow">So sánh mùa vụ</p>
@@ -411,54 +440,15 @@
           </span>
         </div>
       </section>
-
-      <section class="dashboard-page__panel">
-        <div class="dashboard-page__panel-header">
-          <div>
-            <p class="dashboard-page__eyebrow">Chốt mua</p>
-            <h3 class="dashboard-page__panel-title">Góc nhìn tại và sau thời điểm đánh dấu</h3>
-          </div>
-        </div>
-
-        <DataTable
-          :value="purchaseContexts"
-          data-key="purchasedLineId"
-          responsive-layout="scroll"
-          size="small"
-        >
-          <Column header="Kỳ giao hàng">
-            <template #body="{ data }">
-              {{ formatMonthLabel(data.deliveryMonth) }}
-            </template>
-          </Column>
-          <Column header="Đánh dấu lúc">
-            <template #body="{ data }">
-              {{ formatDateLabel(data.purchaseMarkedAt.slice(0, 10)) }}
-            </template>
-          </Column>
-          <Column header="Tại thời điểm chốt">
-            <template #body="{ data }">
-              {{ formatMoney(data.atPurchase.avgPrice) }}
-            </template>
-          </Column>
-          <Column header="Sau thời điểm chốt">
-            <template #body="{ data }">
-              {{ formatMoney(data.afterPurchase.avgPrice) }}
-            </template>
-          </Column>
-          <template #empty>
-            <span class="dashboard-page__table-empty">
-              Chưa có dòng nào được đánh dấu chốt mua.
-            </span>
-          </template>
-        </DataTable>
-      </section>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
     </div>
   </AdminLayout>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import Chart from 'primevue/chart'
 import Checkbox from 'primevue/checkbox'
@@ -467,6 +457,12 @@ import DataTable from 'primevue/datatable'
 import DatePicker from 'primevue/datepicker'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
+import SelectButton from 'primevue/selectbutton'
+import Tab from 'primevue/tab'
+import TabList from 'primevue/tablist'
+import TabPanel from 'primevue/tabpanel'
+import TabPanels from 'primevue/tabpanels'
+import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
 
 import { useDashboardPage } from '@/composables/useDashboardPage'
@@ -510,7 +506,6 @@ const {
   weeklyWarningUsers,
   weeklyEntryMetricCards,
   deliveryMonthBuckets,
-  purchaseContexts,
   hasTrendData,
   hasWeeklyEntryData,
   chartData,
@@ -523,13 +518,20 @@ const {
   applyWeeklyEntryFilters,
   resetWeeklyEntryFilters,
   getWeeklyEntryRowClass,
-  formatMoney,
-  formatDateLabel,
   formatDateTimeLabel,
-  formatMonthLabel,
 } = useDashboardPage()
 
 const seasonalMonthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
+
+const activeMainTab = ref<'overview' | 'charts'>('overview')
+
+// Mặc định hiện chart "Giá theo kỳ hàng về" khi vào tab Phân tích giá.
+const activeChartKey = ref<'period' | 'history' | 'seasonal'>('period')
+const chartSwitcherOptions = [
+  { label: 'Giá theo kỳ hàng về', value: 'period' },
+  { label: 'Diễn biến giá theo thời gian chào giá', value: 'history' },
+  { label: 'So sánh giá theo mùa vụ qua các năm', value: 'seasonal' },
+]
 
 onMounted(() => {
   bootstrap()

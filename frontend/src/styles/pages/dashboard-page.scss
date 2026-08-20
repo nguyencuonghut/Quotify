@@ -135,6 +135,22 @@
   border-radius: 0.9rem;
 }
 
+// Panel/hero giờ nằm trong TabPanel (không còn là direct child của
+// `.dashboard-page`) nên không tự có `gap` từ grid gốc nữa — thêm margin
+// riêng để giữ khoảng cách giữa các section trong cùng 1 tab.
+.dashboard-page__hero,
+.dashboard-page__panel {
+  margin-bottom: 1.25rem;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.dashboard-page__chart-switcher {
+  margin-bottom: 1.25rem;
+}
+
 .dashboard-page__panel-header {
   display: flex;
   align-items: flex-start;
