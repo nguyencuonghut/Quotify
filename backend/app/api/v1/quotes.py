@@ -8,6 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -107,6 +108,20 @@ def _build_line_response(line: QuoteLine) -> QuoteLineResponse:
     )
 
 
+def _loaded_full_name(instance: object, relationship_name: str) -> str | None:
+    """Đọc `.full_name` từ 1 quan hệ User (vd. `created_by`) một cách an toàn:
+    `_build_version_response` dùng chung cho nhiều endpoint, không phải chỗ
+    nào cũng `selectinload` quan hệ này — truy cập trực tiếp khi chưa nạp sẽ
+    kích hoạt lazy-load và crash (AsyncSession không hỗ trợ lazy-load ngầm).
+    Kiểm tra qua `inspect(...).unloaded` trước để bỏ qua an toàn nếu chưa nạp."""
+    state = sa_inspect(instance)
+    assert state is not None  # noqa: S101 — luôn có InstanceState cho object đã map ORM
+    if relationship_name in state.unloaded:
+        return None
+    user = getattr(instance, relationship_name)
+    return user.full_name if user else None
+
+
 def _build_version_response(version: QuoteVersion) -> QuoteVersionResponse:
     return QuoteVersionResponse(
         id=version.id,
@@ -119,6 +134,7 @@ def _build_version_response(version: QuoteVersion) -> QuoteVersionResponse:
         backfill_reason=version.backfill_reason,
         correction_reason=version.correction_reason,
         created_by_id=version.created_by_id,
+        created_by_name=_loaded_full_name(version, "created_by"),
         confirmed_at=version.confirmed_at,
         confirmed_by_id=version.confirmed_by_id,
         superseded_at=version.superseded_at,

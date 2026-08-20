@@ -71,6 +71,7 @@ class QuoteVersionResponse(BaseModel):
     backfill_reason: str | None = None
     correction_reason: str | None = None
     created_by_id: UUID | None = None
+    created_by_name: str | None = None
     confirmed_at: datetime | None = None
     confirmed_by_id: UUID | None = None
     superseded_at: datetime | None = None

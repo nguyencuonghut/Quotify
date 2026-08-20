@@ -57,6 +57,7 @@ export interface QuoteVersionDto {
   backfill_reason: string | null
   correction_reason: string | null
   created_by_id: string | null
+  created_by_name: string | null
   confirmed_at: string | null
   confirmed_by_id: string | null
   superseded_at: string | null
@@ -78,6 +79,7 @@ export interface QuoteVersionDomain {
   backfillReason: string | null
   correctionReason: string | null
   createdById: string | null
+  createdByName: string | null
   confirmedAt: string | null
   confirmedById: string | null
   supersededAt: string | null

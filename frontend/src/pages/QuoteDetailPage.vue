@@ -79,6 +79,10 @@
               <span>Ngày nhận báo giá</span>
               <strong>{{ activeVersion.receivedDate }}</strong>
             </div>
+            <div v-if="activeVersion.createdByName" class="quote-detail-page__meta-item">
+              <span>Người nhập báo giá</span>
+              <strong>{{ activeVersion.createdByName }}</strong>
+            </div>
             <div class="quote-detail-page__meta-item">
               <span>Trạng thái nhập lùi</span>
               <strong>{{ activeVersion.isBackfilled ? 'Có (Nhập bù)' : 'Không' }}</strong>

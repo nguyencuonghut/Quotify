@@ -737,8 +737,11 @@ class QuoteService:
 
     async def get_quote_by_id(self, quote_id: UUID) -> Quote | None:
         stmt = select(Quote).options(
-            selectinload(Quote.versions).selectinload(QuoteVersion.lines).selectinload(QuoteLine.material),
-            selectinload(Quote.supplier)
+            selectinload(Quote.versions)
+            .selectinload(QuoteVersion.lines)
+            .selectinload(QuoteLine.material),
+            selectinload(Quote.versions).selectinload(QuoteVersion.created_by),
+            selectinload(Quote.supplier),
         ).where(Quote.id == quote_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()

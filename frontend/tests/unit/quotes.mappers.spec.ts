@@ -93,6 +93,7 @@ describe('quotes.mappers', () => {
         is_backfilled: false,
         backfill_reason: null,
         created_by_id: 'user-1',
+        created_by_name: 'Nguyễn Văn A',
         confirmed_at: null,
         confirmed_by_id: null,
         created_at: '2026-07-28T02:00:00Z',
@@ -128,6 +129,7 @@ describe('quotes.mappers', () => {
 
       expect(domain.id).toBe('v-1')
       expect(domain.versionNumber).toBe(1)
+      expect(domain.createdByName).toBe('Nguyễn Văn A')
       expect(domain.lines).toHaveLength(1)
       expect(domain.lines[0].priceOriginal).toBe(500)
     })

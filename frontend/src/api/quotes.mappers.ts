@@ -55,6 +55,7 @@ export function mapQuoteVersionDtoToDomain(dto: QuoteVersionDto): QuoteVersionDo
     backfillReason: dto.backfill_reason,
     correctionReason: dto.correction_reason,
     createdById: dto.created_by_id,
+    createdByName: dto.created_by_name,
     confirmedAt: dto.confirmed_at,
     confirmedById: dto.confirmed_by_id,
     supersededAt: dto.superseded_at,
