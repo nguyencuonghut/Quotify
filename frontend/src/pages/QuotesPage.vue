@@ -491,8 +491,8 @@ import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
 import { useQuotesPage } from '@/composables/useQuotesPage'
 import { useQuoteBackfillImport } from '@/composables/useQuoteBackfillImport'
-import { listSuppliers } from '@/api/suppliers.api'
-import { listMaterials, listMaterialTypesLookup } from '@/api/materials.api'
+import { lookupActiveSuppliers } from '@/api/suppliers.api'
+import { listMaterialsLookup, listMaterialTypesLookup } from '@/api/materials.api'
 import type { SupplierDomain } from '@/types/suppliers'
 import type { MaterialDomain, MaterialTypeDomain } from '@/types/materials'
 import Button from 'primevue/button'
@@ -567,14 +567,17 @@ const purchasedOptions = [
 
 const fetchLookups = async () => {
   try {
-    const [suppRes, matRes, typeRes] = await Promise.all([
-      listSuppliers({ limit: 100, offset: 0, sort_by: 'name', sort_order: 'asc' }, authStore.accessToken),
-      listMaterials({ limit: 100, offset: 0, sort_by: 'name', sort_order: 'asc' }, authStore.accessToken),
+    // Dùng lookup không phân trang cho cả 3 (không phải listSuppliers/
+    // listMaterials, bị giới hạn limit<=100 của bảng quản trị — từng làm
+    // NCC/vật tư xếp sau vị trí 100 theo tên "biến mất" khỏi bộ lọc).
+    const [suppliers, materials, types] = await Promise.all([
+      lookupActiveSuppliers(authStore.accessToken),
+      listMaterialsLookup(authStore.accessToken),
       listMaterialTypesLookup(authStore.accessToken),
     ])
-    suppliersList.value = suppRes.items
-    materialsList.value = matRes.items
-    materialTypesList.value = typeRes
+    suppliersList.value = suppliers
+    materialsList.value = materials
+    materialTypesList.value = types
   } catch (err) {
     console.error('Failed to load lookups', err)
   }

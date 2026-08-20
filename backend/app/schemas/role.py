@@ -31,3 +31,7 @@ class RoleResponse(BaseModel):
 class RoleListResponse(BaseModel):
     items: list[RoleResponse]
     total: int
+
+
+class RoleLookupResponse(BaseModel):
+    items: list[RoleResponse]

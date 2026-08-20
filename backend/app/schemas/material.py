@@ -41,3 +41,7 @@ class MaterialResponse(BaseModel):
 class MaterialListResponse(BaseModel):
     items: list[MaterialResponse]
     total: int
+
+
+class MaterialLookupResponse(BaseModel):
+    items: list[MaterialResponse]

@@ -43,6 +43,10 @@ export interface RoleListDto {
   total: number
 }
 
+export interface RoleLookupDto {
+  items: RoleDto[]
+}
+
 export interface RoleListDomain {
   items: RoleDomain[]
   total: number

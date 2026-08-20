@@ -163,6 +163,17 @@ async def test_list_roles() -> None:
 
 
 @pytest.mark.asyncio
+async def test_lookup_all_roles_returns_every_role_unpaginated() -> None:
+    roles_by_id = {uuid4(): Role(id=uuid4(), name=f"r{i}") for i in range(150)}
+    session = FakeAsyncSession(roles_by_id=roles_by_id)
+    service = RoleAdminService(session)  # type: ignore[arg-type]
+
+    roles = await service.lookup_all_roles()
+
+    assert len(roles) == 150
+
+
+@pytest.mark.asyncio
 async def test_update_role_details_and_permissions() -> None:
     role = Role(id=uuid4(), name="old_name", description="old description", is_system=False)
     p1 = Permission(id=uuid4(), code="users.read")

@@ -81,6 +81,10 @@ export interface MaterialTypeListDomain {
   total: number
 }
 
+export interface MaterialTypeLookupDto {
+  items: MaterialTypeDto[]
+}
+
 export interface MaterialListDto {
   items: MaterialDto[]
   total: number
@@ -89,4 +93,8 @@ export interface MaterialListDto {
 export interface MaterialListDomain {
   items: MaterialDomain[]
   total: number
+}
+
+export interface MaterialLookupDto {
+  items: MaterialDto[]
 }

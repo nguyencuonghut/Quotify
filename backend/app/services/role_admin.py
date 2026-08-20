@@ -91,6 +91,15 @@ class RoleAdminService:
         roles = result.scalars().all()
         return roles, total
 
+    async def lookup_all_roles(self) -> Sequence[Role]:
+        """Toàn bộ role, không phân trang — dùng cho MultiSelect gán vai trò
+        (vd. form tạo/sửa user), khác `list_roles` (có phân trang, dùng cho
+        bảng quản trị). Xem cùng lý do ở
+        `SupplierAdminService.lookup_suppliers_by_material`."""
+        stmt = select(Role).options(selectinload(Role.permissions)).order_by(Role.name.asc())
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def update_role(
         self,
         *,

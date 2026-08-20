@@ -13,6 +13,7 @@ import type {
   RoleListDto,
   RoleListDomain,
   RoleListQueryParams,
+  RoleLookupDto,
   RoleUpdatePayload,
 } from '@/types/roles'
 
@@ -34,15 +35,13 @@ export function listRoles(
   }).then(mapRoleListDtoToDomain)
 }
 
-export function listRolesLookup(
-  accessToken?: string | null,
-): Promise<RoleDomain[]> {
-  return apiRequest<RoleListDto>(
-    '/roles?limit=100&sort_by=name&sort_order=asc',
-    {
-      accessToken,
-    },
-  ).then((dto) => dto.items.map(mapRoleDtoToDomain))
+// Toàn bộ role, không phân trang — dùng cho MultiSelect gán vai trò (vd.
+// form tạo/sửa user). KHÔNG dùng `listRoles` (bị giới hạn `limit<=100` của
+// bảng quản trị) — cùng nhóm bug với dropdown NCC ở QuoteEditorPage.vue.
+export function listRolesLookup(accessToken?: string | null): Promise<RoleDomain[]> {
+  return apiRequest<RoleLookupDto>('/roles/lookup', { accessToken }).then((dto) =>
+    dto.items.map(mapRoleDtoToDomain),
+  )
 }
 
 export function getRole(

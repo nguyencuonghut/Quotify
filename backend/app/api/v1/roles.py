@@ -12,6 +12,7 @@ from app.models import Role, User
 from app.schemas import (
     RoleCreateRequest,
     RoleListResponse,
+    RoleLookupResponse,
     RoleResponse,
     RoleUpdateRequest,
 )
@@ -73,6 +74,15 @@ async def list_roles(
         items=[_build_role_response(r) for r in roles],
         total=total,
     )
+
+
+@router.get("/lookup", response_model=RoleLookupResponse)
+async def lookup_roles(
+    current_user: Annotated[User, Depends(require_permission("roles.read"))],
+    role_admin_service: Annotated[RoleAdminService, Depends(get_role_admin_service)],
+) -> RoleLookupResponse:
+    roles = await role_admin_service.lookup_all_roles()
+    return RoleLookupResponse(items=[_build_role_response(r) for r in roles])
 
 
 @router.get("/{role_id}", response_model=RoleResponse)

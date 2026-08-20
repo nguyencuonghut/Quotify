@@ -12,6 +12,7 @@ from app.models import Material, User
 from app.schemas import (
     MaterialCreateRequest,
     MaterialListResponse,
+    MaterialLookupResponse,
     MaterialResponse,
     MaterialUpdateRequest,
 )
@@ -111,6 +112,17 @@ async def list_materials(
     return MaterialListResponse(
         items=[_build_material_response(item) for item in items],
         total=total,
+    )
+
+
+@router.get("/lookup", response_model=MaterialLookupResponse)
+async def lookup_materials(
+    current_user: Annotated[User, Depends(require_permission("materials.read"))],
+    material_admin_service: Annotated[MaterialAdminService, Depends(get_material_admin_service)],
+) -> MaterialLookupResponse:
+    materials = await material_admin_service.lookup_active_materials()
+    return MaterialLookupResponse(
+        items=[_build_material_response(material) for material in materials],
     )
 
 

@@ -39,6 +39,9 @@ class MockRoleAdminService:
     async def list_roles(self, **kwargs: Any) -> tuple[list[Role], int]:
         return list(self.roles.values()), len(self.roles)
 
+    async def lookup_all_roles(self) -> list[Role]:
+        return list(self.roles.values())
+
     async def get_role_by_id(self, role_id: UUID) -> Role:
         role = self.roles.get(role_id)
         if role is None:
@@ -147,6 +150,16 @@ async def test_list_roles_api(
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 2
+    assert len(data["items"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_lookup_roles_api_returns_every_role_unpaginated(
+    app: FastAPI, client: AsyncClient, override_dependencies: MockRoleAdminService
+) -> None:
+    response = await client.get("/api/v1/roles/lookup")
+    assert response.status_code == 200
+    data = response.json()
     assert len(data["items"]) == 2
 
 

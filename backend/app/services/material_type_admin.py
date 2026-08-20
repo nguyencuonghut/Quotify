@@ -96,6 +96,19 @@ class MaterialTypeAdminService:
         result = await self.session.execute(stmt)
         return result.scalars().all(), total
 
+    async def lookup_active_material_types(self) -> Sequence[MaterialType]:
+        """Toàn bộ loại vật tư active, không phân trang — dùng cho dropdown
+        lọc/gán loại vật tư, khác `list_material_types` (có phân trang, dùng
+        cho bảng quản trị). Xem cùng lý do ở
+        `SupplierAdminService.lookup_suppliers_by_material`."""
+        stmt = (
+            select(MaterialType)
+            .where(MaterialType.status == "active")
+            .order_by(MaterialType.name.asc())
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def update_material_type(
         self,
         *,

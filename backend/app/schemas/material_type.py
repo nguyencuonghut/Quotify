@@ -36,3 +36,7 @@ class MaterialTypeResponse(BaseModel):
 class MaterialTypeListResponse(BaseModel):
     items: list[MaterialTypeResponse]
     total: int
+
+
+class MaterialTypeLookupResponse(BaseModel):
+    items: list[MaterialTypeResponse]

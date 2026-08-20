@@ -13,12 +13,14 @@ from app.schemas.job import (
 from app.schemas.material import (
     MaterialCreateRequest,
     MaterialListResponse,
+    MaterialLookupResponse,
     MaterialResponse,
     MaterialUpdateRequest,
 )
 from app.schemas.material_type import (
     MaterialTypeCreateRequest,
     MaterialTypeListResponse,
+    MaterialTypeLookupResponse,
     MaterialTypeResponse,
     MaterialTypeUpdateRequest,
 )
@@ -30,6 +32,7 @@ from app.schemas.quotify_settings import (
 from app.schemas.role import (
     RoleCreateRequest,
     RoleListResponse,
+    RoleLookupResponse,
     RoleResponse,
     RoleUpdateRequest,
 )
@@ -63,9 +66,11 @@ __all__ = [
     "LoginRequest",
     "MaterialCreateRequest",
     "MaterialListResponse",
+    "MaterialLookupResponse",
     "MaterialResponse",
     "MaterialTypeCreateRequest",
     "MaterialTypeListResponse",
+    "MaterialTypeLookupResponse",
     "MaterialTypeResponse",
     "MaterialTypeUpdateRequest",
     "MaterialUpdateRequest",
@@ -79,6 +84,7 @@ __all__ = [
     "QuotifySettingsResponse",
     "RoleCreateRequest",
     "RoleListResponse",
+    "RoleLookupResponse",
     "RoleResponse",
     "RoleUpdateRequest",
     "SupplierContactRequest",

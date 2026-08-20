@@ -11,11 +11,13 @@ import type {
   MaterialDto,
   MaterialListDto,
   MaterialListDomain,
+  MaterialLookupDto,
   MaterialPayload,
   MaterialTypeDomain,
   MaterialTypeDto,
   MaterialTypeListDto,
   MaterialTypeListDomain,
+  MaterialTypeLookupDto,
   MaterialTypePayload,
 } from '@/types/materials'
 
@@ -47,13 +49,15 @@ export function listMaterialTypes(
   ).then(mapMaterialTypeListDtoToDomain)
 }
 
+// Toàn bộ loại vật tư active, không phân trang — dùng cho dropdown lọc/gán
+// loại vật tư. KHÔNG dùng `listMaterialTypes` (bị giới hạn `limit<=100` của
+// bảng quản trị) — cùng nhóm bug với dropdown NCC ở QuoteEditorPage.vue.
 export function listMaterialTypesLookup(
   accessToken?: string | null,
 ): Promise<MaterialTypeDomain[]> {
-  return apiRequest<MaterialTypeListDto>(
-    '/material-types?limit=100&sort_by=code&sort_order=asc',
-    { accessToken },
-  ).then((dto) => dto.items.map(mapMaterialTypeDtoToDomain))
+  return apiRequest<MaterialTypeLookupDto>('/material-types/lookup', { accessToken }).then(
+    (dto) => dto.items.map(mapMaterialTypeDtoToDomain),
+  )
 }
 
 export function createMaterialType(
@@ -98,21 +102,15 @@ export function listMaterials(
   }).then(mapMaterialListDtoToDomain)
 }
 
-export function listMaterialsLookup(
-  accessToken?: string | null,
-  search = '',
-): Promise<MaterialDomain[]> {
-  const params: CatalogListQueryParams = {
-    limit: 100,
-    offset: 0,
-    search,
-    status: 'active',
-    sort_by: 'code',
-    sort_order: 'asc',
-  }
-  return apiRequest<MaterialListDto>(`/materials?${buildCatalogQuery(params)}`, {
-    accessToken,
-  }).then((dto) => dto.items.map(mapMaterialDtoToDomain))
+// Toàn bộ vật tư active, không phân trang — dùng cho dropdown chọn vật tư
+// (vd. bộ lọc, form gán vật tư cho NCC). KHÔNG dùng `listMaterials` (bị giới
+// hạn `limit<=100` của bảng quản trị) — cùng nhóm bug với dropdown NCC ở
+// QuoteEditorPage.vue (NCC xếp sau vị trí 100 theo tên "biến mất" khỏi
+// dropdown dù đang active).
+export function listMaterialsLookup(accessToken?: string | null): Promise<MaterialDomain[]> {
+  return apiRequest<MaterialLookupDto>('/materials/lookup', { accessToken }).then((dto) =>
+    dto.items.map(mapMaterialDtoToDomain),
+  )
 }
 
 export function createMaterial(
