@@ -42,7 +42,9 @@ class MockSupplierAdminService:
     async def list_suppliers(self, **kwargs: Any) -> tuple[list[Supplier], int]:
         return [self.supplier], 1
 
-    async def lookup_suppliers_by_material(self, material_id: UUID) -> list[Supplier]:
+    async def lookup_suppliers_by_material(self, material_id: UUID | None = None) -> list[Supplier]:
+        if material_id is None:
+            return [self.supplier]
         if self.supplier.supplier_materials[0].material_id == material_id:
             return [self.supplier]
         return []
@@ -150,6 +152,17 @@ async def test_lookup_suppliers_api_filters_by_material(
     material_id = override_dependencies.supplier.supplier_materials[0].material_id
 
     response = await client.get(f"/api/v1/suppliers/lookup?material_id={material_id}")
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["code"] == "SUP-01"
+
+
+@pytest.mark.asyncio
+async def test_lookup_suppliers_api_without_material_id_returns_all_active(
+    client: AsyncClient,
+    override_dependencies: MockSupplierAdminService,
+) -> None:
+    response = await client.get("/api/v1/suppliers/lookup")
 
     assert response.status_code == 200
     assert response.json()["items"][0]["code"] == "SUP-01"

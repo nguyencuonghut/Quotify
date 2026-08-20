@@ -50,6 +50,16 @@ export function lookupSuppliersByMaterial(
   }).then(mapSupplierLookupDtoToDomain)
 }
 
+// Toàn bộ NCC active, không phân trang — dùng cho dropdown chọn NCC (vd. màn
+// hình nhập báo giá). KHÔNG dùng `listSuppliers` (bị giới hạn `limit<=100`
+// của bảng quản trị) — từng gây bug thật: NCC xếp sau vị trí 100 theo tên
+// "biến mất" khỏi dropdown dù đang active.
+export function lookupActiveSuppliers(accessToken?: string | null): Promise<SupplierDomain[]> {
+  return apiRequest<SupplierLookupDto>('/suppliers/lookup', {
+    accessToken,
+  }).then(mapSupplierLookupDtoToDomain)
+}
+
 export function createSupplier(
   payload: SupplierPayload,
   accessToken?: string | null,

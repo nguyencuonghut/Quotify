@@ -380,7 +380,7 @@ import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
 
 import { useAuthStore } from '@/stores/auth.store'
-import { listSuppliers } from '@/api/suppliers.api'
+import { lookupActiveSuppliers } from '@/api/suppliers.api'
 import { getQuote, createQuote, updateDraft, createVersion } from '@/api/quotes.api'
 import type { SupplierDomain } from '@/types/suppliers'
 import type { QuoteDomain } from '@/types/quotes'
@@ -461,14 +461,12 @@ onMounted(async () => {
   await fetchUsdRateToday()
 
   if (isNewQuote.value) {
-    // Load suppliers list for selection
+    // Load suppliers list for selection — dùng lookup không phân trang
+    // (không phải listSuppliers, bị giới hạn limit<=100 của bảng quản trị và
+    // từng làm "biến mất" NCC xếp sau vị trí 100 theo tên khỏi dropdown).
     isSupplierListLoading.value = true
     try {
-      const result = await listSuppliers(
-        { limit: 100, offset: 0, status: 'active', sort_by: 'name', sort_order: 'asc' },
-        authStore.accessToken
-      )
-      activeSuppliers.value = result.items
+      activeSuppliers.value = await lookupActiveSuppliers(authStore.accessToken)
     } catch {
       // ignore
     } finally {

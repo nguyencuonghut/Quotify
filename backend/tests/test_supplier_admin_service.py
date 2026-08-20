@@ -75,6 +75,14 @@ class FakeSupplierSession:
                 return FakeScalarResult(self.suppliers_by_id.get(params["id_1"]))
             if "code_1" in params:
                 return FakeScalarResult(self.suppliers_by_code.get(params["code_1"]))
+            if "status_1" in params:
+                return FakeScalarResult(
+                    [
+                        supplier
+                        for supplier in self.suppliers_by_id.values()
+                        if supplier.status == params["status_1"]
+                    ],
+                )
             return FakeScalarResult(list(self.suppliers_by_id.values()))
 
         if "FROM materials" in compiled:
@@ -244,6 +252,31 @@ async def test_lookup_suppliers_by_material_returns_active_suppliers() -> None:
     suppliers = await service.lookup_suppliers_by_material(material_id)
 
     assert [supplier.code for supplier in suppliers] == ["SUP-01"]
+
+
+@pytest.mark.asyncio
+async def test_lookup_suppliers_without_material_id_returns_every_active_supplier() -> None:
+    # Regression: bảng NCC không phân trang cho dropdown — trước đây bị giới
+    # hạn `.limit(100)`, khiến NCC xếp sau vị trí 100 theo tên "biến mất" khỏi
+    # dropdown dù đang active (bug thật gặp phải: "Công ty TNHH thương mại
+    # Agrimex Việt Nam" báo not found dù tồn tại và active).
+    active_suppliers = [
+        Supplier(id=uuid4(), code=f"SUP-{i:03d}", name=f"NCC {i}", status="active")
+        for i in range(150)
+    ]
+    inactive_supplier = Supplier(id=uuid4(), code="SUP-INACTIVE", name="NCC ẩn", status="inactive")
+    session = FakeSupplierSession(
+        suppliers_by_id={
+            **{supplier.id: supplier for supplier in active_suppliers},
+            inactive_supplier.id: inactive_supplier,
+        },
+    )
+    service = SupplierAdminService(session)  # type: ignore[arg-type]
+
+    suppliers = await service.lookup_suppliers_by_material()
+
+    assert len(suppliers) == 150
+    assert all(supplier.status == "active" for supplier in suppliers)
 
 
 def test_supplier_type_filter_matches_canonical_multi_type_value() -> None:

@@ -161,7 +161,7 @@ async def list_suppliers(
 async def lookup_suppliers(
     current_user: Annotated[User, Depends(require_permission("suppliers.read"))],
     supplier_admin_service: Annotated[SupplierAdminService, Depends(get_supplier_admin_service)],
-    material_id: UUID,
+    material_id: UUID | None = None,
 ) -> SupplierLookupResponse:
     suppliers = await supplier_admin_service.lookup_suppliers_by_material(material_id)
     return SupplierLookupResponse(

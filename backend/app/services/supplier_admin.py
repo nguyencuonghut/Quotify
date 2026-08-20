@@ -128,18 +128,28 @@ class SupplierAdminService:
         result = await self.session.execute(stmt)
         return result.scalars().all(), total
 
-    async def lookup_suppliers_by_material(self, material_id: UUID) -> Sequence[Supplier]:
+    async def lookup_suppliers_by_material(
+        self,
+        material_id: UUID | None = None,
+    ) -> Sequence[Supplier]:
+        """Trả về toàn bộ NCC active, không phân trang — dùng cho dropdown chọn
+        NCC (vd. màn hình nhập báo giá), khác `list_suppliers` (có phân trang,
+        dùng cho bảng quản trị). Không giới hạn `.limit(...)` vì số lượng NCC
+        active nhỏ (vài trăm) và bị cắt bớt ở đây từng gây bug thật: NCC xếp
+        sau vị trí 100 theo tên bị "biến mất" khỏi dropdown dù đang active.
+        `material_id` tùy chọn — truyền vào để lọc thêm theo NCC có cung cấp
+        vật tư đó (join `SupplierMaterial`); bỏ trống để lấy toàn bộ NCC active."""
         stmt = (
             select(Supplier)
-            .join(SupplierMaterial)
-            .where(Supplier.status == "active", SupplierMaterial.material_id == material_id)
+            .where(Supplier.status == "active")
             .options(
                 selectinload(Supplier.contacts),
                 selectinload(Supplier.supplier_materials).selectinload(SupplierMaterial.material),
             )
-            .order_by(Supplier.code.asc())
-            .limit(100)
+            .order_by(Supplier.name.asc())
         )
+        if material_id is not None:
+            stmt = stmt.join(SupplierMaterial).where(SupplierMaterial.material_id == material_id)
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
