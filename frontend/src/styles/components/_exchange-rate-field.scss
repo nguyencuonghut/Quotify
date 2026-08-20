@@ -102,10 +102,6 @@
   background: color-mix(in srgb, var(--app-text-info) 12%, transparent);
 }
 
-.exchange-rate-field__reason-field {
-  width: 100%;
-}
-
 @media (max-width: 640px) {
   .exchange-rate-field__grid {
     grid-template-columns: 1fr;

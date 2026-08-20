@@ -75,34 +75,6 @@
       </div>
     </div>
 
-    <!-- Trường Lý do nhập tay (bắt buộc khi là manual_fallback) -->
-    <div
-      v-if="sourceMode === 'manual_fallback' || sourceMode === 'manual_past'"
-      class="exchange-rate-field__form-field exchange-rate-field__reason-field"
-    >
-      <label
-        v-if="!hideLabels"
-        class="exchange-rate-field__form-label"
-        :class="{ required: sourceMode === 'manual_fallback' }"
-        for="exchange-rate-reason"
-      >
-        Lý do nhập tay tỷ giá
-      </label>
-      <InputText
-        id="exchange-rate-reason"
-        :disabled="disabled"
-        :invalid="sourceMode === 'manual_fallback' && !manualReason"
-        :model-value="manualReason"
-        :placeholder="hideLabels ? 'Nhập lý do tỷ giá bắt buộc...' : 'Nhập lý do bắt buộc...'"
-        @update:model-value="onReasonChange"
-      />
-      <small
-        v-if="sourceMode === 'manual_fallback' && !manualReason"
-        class="exchange-rate-field__field-error"
-      >
-        Lý do nhập tay là bắt buộc khi hệ thống không lấy được tỷ giá tự động.
-      </small>
-    </div>
   </div>
 </template>
 
@@ -110,7 +82,6 @@
 import { computed, ref, watch, onMounted } from 'vue'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
-import InputText from 'primevue/inputtext'
 
 import { getUsdSellRateToday } from '@/api/exchange-rates.api'
 import { useAuthStore } from '@/stores/auth.store'
@@ -182,9 +153,9 @@ const triggerFetchTodayRate = async () => {
     emit('update:sourceMode', 'auto')
     emit('update:manualReason', '')
   } catch {
-    fetchError.value = 'Không thể lấy tỷ giá tự động từ Vietcombank. Vui lòng nhập tay tỷ giá và lý do.'
+    fetchError.value = 'Không thể lấy tỷ giá tự động từ Vietcombank. Vui lòng nhập tay tỷ giá.'
     emit('update:sourceMode', 'manual_fallback')
-    emit('update:source', 'Nhập tay do không lấy được tỷ giá tự động')
+    emit('update:source', 'Không lấy được tỷ giá tự động')
   } finally {
     loading.value = false
   }
@@ -203,7 +174,7 @@ const handleDateChange = () => {
   } else if (props.receivedDate < todayStr) {
     // Ngày trong quá khứ
     emit('update:sourceMode', 'manual_past')
-    emit('update:source', 'Nhập tay')
+    emit('update:source', 'Ngày nhận trong quá khứ')
     // Reset lý do nhập tay cho quá khứ nếu trước đó ở chế độ fallback
     if (props.sourceMode === 'manual_fallback') {
       emit('update:manualReason', '')
@@ -219,15 +190,11 @@ onMounted(() => {
     triggerFetchTodayRate()
   } else if (props.receivedDate && props.receivedDate < getTodayString() && !props.sourceMode) {
     emit('update:sourceMode', 'manual_past')
-    emit('update:source', 'Nhập tay')
+    emit('update:source', 'Ngày nhận trong quá khứ')
   }
 })
 
 const onRateChange = (val: number | null) => {
   emit('update:rate', val)
-}
-
-const onReasonChange = (val: string | undefined) => {
-  emit('update:manualReason', val ?? '')
 }
 </script>

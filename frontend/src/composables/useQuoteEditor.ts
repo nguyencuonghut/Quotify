@@ -162,14 +162,14 @@ export function useQuoteEditor(accessToken: string | null) {
         line.exchangeRateManualReason = null
       } else if (systemUsdRateError.value) {
         line.rateSourceMode = 'manual_fallback'
-        line.exchangeRateSource = 'Nhập tay do không lấy được tỷ giá tự động'
+        line.exchangeRateSource = 'Không lấy được tỷ giá tự động'
         if (line.rateSourceMode !== 'manual_fallback') {
           line.exchangeRate = null
         }
       }
     } else {
       line.rateSourceMode = 'manual_past'
-      line.exchangeRateSource = 'Nhập tay'
+      line.exchangeRateSource = 'Ngày nhận trong quá khứ'
       line.exchangeRateManualReason = null
     }
   }
@@ -372,10 +372,6 @@ export function useQuoteEditor(accessToken: string | null) {
       if (line.currency.toUpperCase() === 'USD' && line.unit.toUpperCase() === 'MT') {
         if (line.exchangeRate === null || line.exchangeRate <= 0) {
           errorMsg.value = `Dòng #${i + 1} (USD/MT) thiếu thông tin tỷ giá quy đổi.`
-          return false
-        }
-        if (line.rateSourceMode === 'manual_fallback' && (!line.exchangeRateManualReason || !line.exchangeRateManualReason.trim())) {
-          errorMsg.value = `Dòng #${i + 1} đang nhập tỷ giá thủ công do lỗi hệ thống, vui lòng nhập lý do.`
           return false
         }
       } else {

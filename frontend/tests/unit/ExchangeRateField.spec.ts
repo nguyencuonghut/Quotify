@@ -133,7 +133,7 @@ describe('ExchangeRateField', () => {
     const sourceEmitted = wrapper.emitted('update:source')
 
     expect(modeEmitted?.[0]).toEqual(['manual_fallback'])
-    expect(sourceEmitted?.[0]).toEqual(['Nhập tay do không lấy được tỷ giá tự động'])
+    expect(sourceEmitted?.[0]).toEqual(['Không lấy được tỷ giá tự động'])
   })
 
   it('sets manual_past mode when receivedDate is in the past', async () => {
@@ -158,17 +158,17 @@ describe('ExchangeRateField', () => {
 
     expect(ratesApiMock.getUsdSellRateToday).not.toHaveBeenCalled()
     expect(wrapper.emitted('update:sourceMode')?.[0]).toEqual(['manual_past'])
-    expect(wrapper.emitted('update:source')?.[0]).toEqual(['Nhập tay'])
+    expect(wrapper.emitted('update:source')?.[0]).toEqual(['Ngày nhận trong quá khứ'])
   })
 
-  it('emits changes when rate and reason are modified', async () => {
+  it('emits changes when rate is modified', async () => {
     const wrapper = mount(ExchangeRateField, {
       props: {
         receivedDate: '2020-01-01',
         rate: 26000,
-        source: 'Nhập tay',
+        source: 'Ngày nhận trong quá khứ',
         sourceMode: 'manual_past',
-        manualReason: 'Lý do cũ',
+        manualReason: '',
       },
       global: {
         stubs: {
@@ -176,34 +176,24 @@ describe('ExchangeRateField', () => {
             props: ['modelValue'],
             template: '<input type="number" :value="modelValue" @input="$emit(\'update:modelValue\', Number($event.target.value))" />',
           },
-          InputText: {
-            props: ['modelValue'],
-            template: '<input type="text" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
-          },
           Button: true,
         },
       },
     })
 
-    // Modify rate
     const rateInput = wrapper.find('input[type="number"]')
     await rateInput.setValue(26200)
     expect(wrapper.emitted('update:rate')?.[0]).toEqual([26200])
-
-    // Modify reason
-    const reasonInput = wrapper.find('input[type="text"]')
-    await reasonInput.setValue('Lý do mới')
-    expect(wrapper.emitted('update:manualReason')?.[0]).toEqual(['Lý do mới'])
   })
 
-  it('respects disabled property by disabling all inputs', () => {
+  it('respects disabled property by disabling the rate input', () => {
     const wrapper = mount(ExchangeRateField, {
       props: {
         receivedDate: '2026-07-28',
         rate: 26000,
-        source: 'Nhập tay',
+        source: 'Không lấy được tỷ giá tự động',
         sourceMode: 'manual_fallback',
-        manualReason: 'Lỗi',
+        manualReason: '',
         disabled: true,
       },
       global: {
@@ -212,19 +202,13 @@ describe('ExchangeRateField', () => {
             props: ['disabled'],
             template: '<input class="rate-input" :disabled="disabled" />',
           },
-          InputText: {
-            props: ['disabled'],
-            template: '<input class="reason-input" :disabled="disabled" />',
-          },
           Button: true,
         },
       },
     })
 
     const rateInput = wrapper.find('.rate-input')
-    const reasonInput = wrapper.find('.reason-input')
 
     expect(rateInput.attributes('disabled')).toBeDefined()
-    expect(reasonInput.attributes('disabled')).toBeDefined()
   })
 })
