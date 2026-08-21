@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -153,6 +154,8 @@ const passthroughStub = defineComponent({
 
 describe('DashboardPage', () => {
   it('renders the Quotify price analysis dashboard shell', () => {
+    setActivePinia(createPinia())
+
     const wrapper = mount(DashboardPage, {
       global: {
         stubs: {

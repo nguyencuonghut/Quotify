@@ -361,7 +361,10 @@
         </div>
 
         <div v-if="historyBuckets.length > 0" class="dashboard-page__chart-frame">
-          <div class="dashboard-page__chart-hover-info">
+          <div
+            class="dashboard-page__chart-hover-info"
+            :style="{ minHeight: historyHoverInfoMinHeight }"
+          >
             <template v-if="historyHoverInfo">
               <div class="dashboard-page__chart-hover-info-title">{{ historyHoverInfo.title }}</div>
               <div
@@ -384,12 +387,21 @@
                   <template v-else>Chưa có báo giá</template>
                 </span>
               </div>
+              <!-- Luôn vẽ đủ (số mặt hàng đã chọn - 1) dòng chênh lệch giá —
+              kể cả khi điểm đang hover có ÍT dòng chênh lệch hơn mức tối đa
+              (một số mặt hàng chưa có báo giá tại điểm đó) — để số dòng
+              không đổi giữa các điểm hover, tránh box co giãn liên tục. -->
               <div
-                v-for="(line, lineIndex) in historyHoverInfo.differenceLines"
-                :key="lineIndex"
+                v-for="slotIndex in Math.max(historyTrendResults.length - 1, 0)"
+                :key="slotIndex"
                 class="dashboard-page__chart-hover-info-diff"
               >
-                {{ line.label }}: <strong>{{ line.diffValue }}</strong> (<strong>{{ line.percent }}</strong>)
+                <template v-if="historyHoverInfo.differenceLines[slotIndex - 1]">
+                  {{ historyHoverInfo.differenceLines[slotIndex - 1].label }}:
+                  <strong>{{ historyHoverInfo.differenceLines[slotIndex - 1].diffValue }}</strong>
+                  (<strong>{{ historyHoverInfo.differenceLines[slotIndex - 1].percent }}</strong>)
+                </template>
+                <template v-else>&nbsp;</template>
               </div>
             </template>
             <span v-else class="dashboard-page__chart-hover-info-placeholder">
@@ -497,7 +509,10 @@
         </div>
 
         <div v-if="seasonalBuckets.length > 0" class="dashboard-page__chart-frame">
-          <div class="dashboard-page__chart-hover-info">
+          <div
+            class="dashboard-page__chart-hover-info"
+            :style="{ minHeight: seasonalHoverInfoMinHeight }"
+          >
             <template v-if="seasonalHoverInfo">
               <div class="dashboard-page__chart-hover-info-title">{{ seasonalHoverInfo.title }}</div>
               <div
@@ -520,12 +535,19 @@
                   <template v-else>Chưa có báo giá</template>
                 </span>
               </div>
+              <!-- Luôn vẽ đủ (số năm đã chọn - 1) dòng chênh lệch giá — xem
+              chú thích tương tự ở chart "Diễn biến giá" phía trên. -->
               <div
-                v-for="(line, lineIndex) in seasonalHoverInfo.differenceLines"
-                :key="lineIndex"
+                v-for="slotIndex in Math.max(seasonalTrendResults.length - 1, 0)"
+                :key="slotIndex"
                 class="dashboard-page__chart-hover-info-diff"
               >
-                {{ line.label }}: <strong>{{ line.diffValue }}</strong> (<strong>{{ line.percent }}</strong>)
+                <template v-if="seasonalHoverInfo.differenceLines[slotIndex - 1]">
+                  {{ seasonalHoverInfo.differenceLines[slotIndex - 1].label }}:
+                  <strong>{{ seasonalHoverInfo.differenceLines[slotIndex - 1].diffValue }}</strong>
+                  (<strong>{{ seasonalHoverInfo.differenceLines[slotIndex - 1].percent }}</strong>)
+                </template>
+                <template v-else>&nbsp;</template>
               </div>
             </template>
             <span v-else class="dashboard-page__chart-hover-info-placeholder">
@@ -558,7 +580,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import Button from 'primevue/button'
 import Chart from 'primevue/chart'
 import Checkbox from 'primevue/checkbox'
@@ -575,8 +597,9 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
 
-import { useDashboardPage } from '@/composables/useDashboardPage'
+import { useDashboardPage, type PeriodRangeKey } from '@/composables/useDashboardPage'
 import AdminLayout from '@/layouts/AdminLayout.vue'
+import { useDashboardViewStore } from '@/stores/dashboard-view.store'
 
 const {
   materials,
@@ -642,6 +665,38 @@ const {
 
 const seasonalMonthOptions = Array.from({ length: 12 }, (_, index) => index + 1)
 
+// Chiều cao tối thiểu của box hover ("Diễn biến giá"/"So sánh mùa vụ") được
+// TÍNH TRƯỚC theo số mặt hàng/năm ĐANG CHỌN (chỉ đổi khi người dùng thay bộ
+// lọc, không đổi mỗi lần hover) — không phải theo nội dung điểm đang hover.
+// Nếu để box tự co giãn theo nội dung (số dòng chênh lệch giá dao động 0..N
+// tùy điểm, hoặc trạng thái "chưa hover" chỉ có 1 dòng gợi ý), chiều cao
+// trang thay đổi liên tục theo từng vị trí chuột, khiến toàn bộ layout bên
+// dưới (và cả sidebar/topbar do trình duyệt tính lại vị trí scrollbar) bị
+// "nháy" mỗi khi rê chuột — lỗi thật gặp ngày 20/08/2026. Số dòng chênh
+// lệch giá tối đa luôn là (số mặt hàng/năm đã chọn - 1) (xem
+// `buildPriceDifferenceLines`), nên tính đủ chỗ cho trường hợp NHIỀU dòng
+// nhất là đủ để box không bao giờ phải co giãn giữa các điểm hover.
+function estimateHoverInfoMinHeight(selectedCount: number): string {
+  if (selectedCount === 0) {
+    return '4.5rem'
+  }
+  const maxDifferenceLineCount = Math.max(selectedCount - 1, 0)
+  const paddingRem = 1.3
+  const titleRem = 1.4
+  const rowRem = 1.2
+  const diffLineRem = 1.3
+  const totalRem =
+    paddingRem + titleRem + selectedCount * rowRem + maxDifferenceLineCount * diffLineRem
+  return `${totalRem.toFixed(2)}rem`
+}
+
+const historyHoverInfoMinHeight = computed(() =>
+  estimateHoverInfoMinHeight(historyTrendResults.value.length),
+)
+const seasonalHoverInfoMinHeight = computed(() =>
+  estimateHoverInfoMinHeight(seasonalTrendResults.value.length),
+)
+
 const activeMainTab = ref<'overview' | 'charts'>('overview')
 
 // Mặc định hiện chart "Giá theo kỳ hàng về" khi vào tab Phân tích giá.
@@ -652,7 +707,110 @@ const chartSwitcherOptions = [
   { label: 'So sánh giá theo mùa vụ qua các năm', value: 'seasonal' },
 ]
 
-onMounted(() => {
-  bootstrap()
+function serializeDate(value: Date | null): string | null {
+  if (!value) {
+    return null
+  }
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function deserializeDate(value: string | null | undefined): Date | null {
+  if (!value) {
+    return null
+  }
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) {
+    return null
+  }
+  return new Date(year, month - 1, day)
+}
+
+// Khôi phục lại đúng tab/chart/bộ lọc đang xem dở khi bấm nút back của
+// trình duyệt sau khi click-through 1 điểm trên chart sang trang "Bảng báo
+// giá" — điều hướng bằng router.push hủy mất toàn bộ state cục bộ của
+// component này khi unmount, nên phải đọc lại từ `dashboardViewStore`
+// (backed bởi sessionStorage, sống sót qua cả F5) TRƯỚC khi `bootstrap()`
+// chạy, theo phản hồi người dùng ngày 20/08/2026. Gán TRƯỚC bootstrap() để
+// `loadLookups()` (chỉ tự chọn vật tư mặc định khi `selectedMaterialId`
+// đang rỗng) không ghi đè lựa chọn đã khôi phục.
+const dashboardViewStore = useDashboardViewStore()
+const restoredSnapshot = dashboardViewStore.snapshot
+
+if (restoredSnapshot) {
+  activeMainTab.value = restoredSnapshot.activeMainTab
+  activeChartKey.value = restoredSnapshot.activeChartKey
+
+  selectedMaterialId.value = restoredSnapshot.period.selectedMaterialId
+  deliveryMonth.value =
+    deserializeDate(restoredSnapshot.period.deliveryMonth) ?? deliveryMonth.value
+  receivedDateStart.value = deserializeDate(restoredSnapshot.period.receivedDateStart)
+  receivedDateEnd.value = deserializeDate(restoredSnapshot.period.receivedDateEnd)
+  showCnfOnly.value = restoredSnapshot.period.showCnfOnly
+  periodRangeKey.value = restoredSnapshot.period.periodRangeKey as PeriodRangeKey
+
+  historyDeliveryMonth.value = deserializeDate(restoredSnapshot.history.historyDeliveryMonth)
+  historyMaterialIds.value = [...restoredSnapshot.history.historyMaterialIds]
+  historyShowCnfOnly.value = restoredSnapshot.history.historyShowCnfOnly
+
+  seasonalMaterialId.value = restoredSnapshot.seasonal.seasonalMaterialId
+  seasonalMonth.value = restoredSnapshot.seasonal.seasonalMonth
+  seasonalYears.value = [...restoredSnapshot.seasonal.seasonalYears]
+  seasonalShowCnfOnly.value = restoredSnapshot.seasonal.seasonalShowCnfOnly
+}
+
+// Ghi lại state hiện tại mỗi khi tab/chart/bộ lọc thay đổi — không chỉ lúc
+// điều hướng đi, để luôn có sẵn snapshot mới nhất phòng khi người dùng rời
+// trang theo cách khác (đóng tab, gõ URL khác) rồi quay lại bằng back.
+const currentViewSnapshot = computed(() => ({
+  activeMainTab: activeMainTab.value,
+  activeChartKey: activeChartKey.value,
+  period: {
+    selectedMaterialId: selectedMaterialId.value,
+    deliveryMonth: serializeDate(deliveryMonth.value),
+    receivedDateStart: serializeDate(receivedDateStart.value),
+    receivedDateEnd: serializeDate(receivedDateEnd.value),
+    showCnfOnly: showCnfOnly.value,
+    periodRangeKey: periodRangeKey.value,
+  },
+  history: {
+    historyDeliveryMonth: serializeDate(historyDeliveryMonth.value),
+    historyMaterialIds: historyMaterialIds.value,
+    historyShowCnfOnly: historyShowCnfOnly.value,
+  },
+  seasonal: {
+    seasonalMaterialId: seasonalMaterialId.value,
+    seasonalMonth: seasonalMonth.value,
+    seasonalYears: seasonalYears.value,
+    seasonalShowCnfOnly: seasonalShowCnfOnly.value,
+  },
+}))
+
+watch(
+  currentViewSnapshot,
+  (snapshot) => {
+    dashboardViewStore.save(snapshot)
+  },
+  { deep: true },
+)
+
+onMounted(async () => {
+  await bootstrap()
+  // Chart "Diễn biến giá"/"So sánh mùa vụ" chỉ fetch khi người dùng chủ
+  // động thao tác bộ lọc (không tự fetch trong bootstrap() như chart "Giá
+  // theo kỳ hàng về") — nếu đang khôi phục lại đúng 1 trong 2 chart này với
+  // bộ lọc đã đủ điều kiện, phải tự gọi lại để có dữ liệu ngay, không đợi
+  // người dùng bấm lại filter.
+  if (restoredSnapshot?.history.historyMaterialIds.length) {
+    await loadPriceHistory()
+  }
+  if (
+    restoredSnapshot?.seasonal.seasonalMaterialId &&
+    restoredSnapshot.seasonal.seasonalYears.length > 0
+  ) {
+    await loadSeasonalComparison()
+  }
 })
 </script>
