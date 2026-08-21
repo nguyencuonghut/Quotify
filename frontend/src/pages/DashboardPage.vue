@@ -167,7 +167,10 @@
         <div class="dashboard-page__panel-header">
           <div>
             <p class="dashboard-page__eyebrow">Kỳ hàng về</p>
-            <h3 class="dashboard-page__panel-title">Giá theo kỳ hàng về</h3>
+            <h3 class="dashboard-page__panel-title">
+              Giá theo kỳ hàng về
+              <span class="dashboard-page__panel-title-highlight">Giá tại cảng</span>
+            </h3>
           </div>
           <Tag
             :severity="hasTrendData ? 'success' : 'secondary'"
@@ -301,7 +304,10 @@
         <div class="dashboard-page__panel-header">
           <div>
             <p class="dashboard-page__eyebrow">Diễn biến giá</p>
-            <h3 class="dashboard-page__panel-title">Diễn biến giá theo thời gian chào giá</h3>
+            <h3 class="dashboard-page__panel-title">
+              Diễn biến giá theo thời gian chào giá
+              <span class="dashboard-page__panel-title-highlight">Giá tại cảng</span>
+            </h3>
           </div>
         </div>
 
@@ -416,7 +422,10 @@
         <div class="dashboard-page__panel-header">
           <div>
             <p class="dashboard-page__eyebrow">So sánh mùa vụ</p>
-            <h3 class="dashboard-page__panel-title">So sánh giá theo mùa vụ qua các năm</h3>
+            <h3 class="dashboard-page__panel-title">
+              So sánh giá theo mùa vụ qua các năm
+              <span class="dashboard-page__panel-title-highlight">Giá tại cảng</span>
+            </h3>
           </div>
         </div>
 
