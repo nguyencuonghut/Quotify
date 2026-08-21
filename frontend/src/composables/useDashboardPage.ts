@@ -445,14 +445,16 @@ function drawCrosshairLabel(
   ctx.restore()
 }
 
-/** Plugin Chart.js tự vẽ "đường gióng" (crosshair) khi trỏ chuột vào chart
- * "Giá theo kỳ hàng về", mô phỏng các chart giá chứng khoán — theo yêu cầu
- * người dùng ngày 20/08/2026. Đường gióng trục X chỉ để định vị ngày (không
- * hiện giá trị — đã có trong box thông tin ngày/giá, xem `tooltip.external`
- * trong `chartOptions`); đường gióng trục Y bám theo ĐÚNG tọa độ con trỏ
- * chuột (không snap về giá của điểm gần nhất) và hiện giá trị thực tại tọa
- * độ đó — theo phản hồi người dùng ngày 20/08/2026 ("hiển thị giá trị thực
- * tế ở tọa độ chuột"). Vị trí X vẫn snap về điểm dữ liệu gần nhất (qua
+/** Plugin Chart.js tự vẽ "đường gióng" (crosshair) khi trỏ chuột vào các
+ * chart line của dashboard (dùng chung cho cả 3 chart: "Giá theo kỳ hàng
+ * về", "Diễn biến giá theo thời gian chào giá", "So sánh giá theo mùa vụ"),
+ * mô phỏng các chart giá chứng khoán — theo yêu cầu người dùng ngày
+ * 20/08/2026. Đường gióng trục X chỉ để định vị (không hiện giá trị ngày —
+ * thông tin chi tiết đã có trong box tooltip riêng của từng chart, xem
+ * `tooltip.external`); đường gióng trục Y bám theo ĐÚNG tọa độ con trỏ chuột
+ * (không snap về giá của điểm gần nhất) và hiện giá trị thực tại tọa độ đó —
+ * theo phản hồi người dùng ngày 20/08/2026 ("hiển thị giá trị thực tế ở tọa
+ * độ chuột"). Vị trí X vẫn snap về điểm dữ liệu gần nhất (qua
  * `getActiveElements()`, đồng bộ với `interaction.mode: 'index'`), còn vị
  * trí Y phải tự theo dõi qua `afterEvent` vì Chart.js không có sẵn API lấy
  * tọa độ chuột thô ở `afterDraw`. */
@@ -465,7 +467,7 @@ function buildCrosshairPlugin(
   let hoverY: number | null = null
 
   return {
-    id: 'quotifyPeriodCrosshair',
+    id: 'quotifyChartCrosshair',
     afterEvent(chart: CrosshairChart, args: CrosshairEventArgs) {
       const { event } = args
       if (event.type === 'mouseout' || event.y === null) {
@@ -533,6 +535,16 @@ interface MaterialComparisonSeriesPoint {
   pointCount: number
 }
 
+/** 1 dòng "X cao hơn Y" trong box hover — dạng CÓ CẤU TRÚC (không phải 1
+ * chuỗi đã ghép sẵn) để template tô đậm riêng phần giá trị chênh lệch và
+ * phần trăm chênh lệch (`DashboardPage.vue`), theo phản hồi người dùng ngày
+ * 20/08/2026. */
+export interface ComparisonDifferenceLine {
+  label: string
+  diffValue: string
+  percent: string
+}
+
 interface MaterialComparisonBucket {
   // Khóa nhóm dùng chung cho cả 2 chart: chart "theo kỳ hàng về" nhóm theo
   // deliveryMonth, chart "diễn biến theo ngày báo giá" nhóm theo tháng của
@@ -540,7 +552,26 @@ interface MaterialComparisonBucket {
   groupKey: string
   label: string
   series: MaterialComparisonSeriesPoint[]
-  differenceLines: string[]
+  differenceLines: ComparisonDifferenceLine[]
+}
+
+export interface ComparisonHoverInfoRow {
+  label: string
+  color: string
+  // null khi mặt hàng/năm này chưa có báo giá nào trong bucket đang hover.
+  metrics: ComparisonHoverMetrics | null
+}
+
+/** Nội dung hiển thị khi hover vào 1 điểm trên chart "Diễn biến giá theo
+ * thời gian chào giá"/"So sánh giá theo mùa vụ" — hiện trong 1 khối nằm
+ * trong luồng tài liệu (xem `DashboardPage.vue`), không phải tooltip
+ * absolute-positioned, để không bao giờ đè lên chart hay bộ lọc phía trên
+ * dù nội dung dài ngắn thế nào (số dòng phụ thuộc số mặt hàng/năm đang so
+ * sánh). */
+export interface ComparisonHoverInfo {
+  title: string
+  rows: ComparisonHoverInfoRow[]
+  differenceLines: ComparisonDifferenceLine[]
 }
 
 function formatPercent(value: number): string {
@@ -557,7 +588,7 @@ function buildPriceDifferenceLines(
   // `buildGroupedComparisonBuckets`) — chỉ cần đổi formatter hiển thị sang
   // `formatUsdPerMt` để đơn vị khớp với phần còn lại của tooltip.
   formatPrice: (value: number) => string = formatMoney,
-): string[] {
+): ComparisonDifferenceLine[] {
   const priced = series.filter(
     (entry): entry is MaterialComparisonSeriesPoint & { avgPrice: number } =>
       entry.avgPrice !== null,
@@ -575,7 +606,11 @@ function buildPriceDifferenceLines(
     .map((entry) => {
       const diff = entry.avgPrice - cheapest.avgPrice
       const percent = (diff / cheapest.avgPrice) * 100
-      return `${entry.materialName} cao hơn ${cheapest.materialName}: +${formatPrice(diff)} (+${formatPercent(percent)})`
+      return {
+        label: `${entry.materialName} cao hơn ${cheapest.materialName}`,
+        diffValue: `+${formatPrice(diff)}`,
+        percent: `+${formatPercent(percent)}`,
+      }
     })
 }
 
@@ -660,20 +695,36 @@ function filterCnfPoints(
   )
 }
 
-/** Định dạng dòng tóm tắt TB/Thấp/Cao trong tooltip của 2 chart so sánh
- * nhiều mặt hàng/năm — chuyển sang giá gốc USD/MT khi "Giá CNF" bật (giá trị
- * trong `entry` đã được tính đúng theo field USD nhờ `getPrice` truyền vào
+/** TB/Thấp/Cao của box thông tin hover trong 2 chart so sánh nhiều mặt
+ * hàng/năm, dạng CÓ CẤU TRÚC (không phải 1 chuỗi đã ghép sẵn) — để template
+ * tô đậm riêng giá TB, tô đậm + xanh riêng giá Thấp, tô đậm + đỏ riêng giá
+ * Cao (`DashboardPage.vue`), theo yêu cầu người dùng ngày 20/08/2026.
+ * Chuyển sang giá gốc USD/MT khi "Giá CNF" bật (giá trị trong `entry` đã
+ * được tính đúng theo field USD nhờ `getPrice` truyền vào
  * `buildGroupedComparisonBuckets`, ở đây chỉ cần đổi cách hiển thị). */
-function formatComparisonPriceTriplet(
+export interface ComparisonHoverMetrics {
+  avg: string
+  min: string
+  max: string
+  unitLabel: string
+  pointCount: number
+}
+
+function buildComparisonHoverMetrics(
   entry: MaterialComparisonSeriesPoint,
   onlyCnf: boolean,
-): string {
+): ComparisonHoverMetrics | null {
   if (entry.avgPrice === null || entry.minPrice === null || entry.maxPrice === null) {
-    return 'Chưa có báo giá'
+    return null
   }
   const formatValue = onlyCnf ? (value: number) => `$${formatNumber(value)}` : formatNumber
-  const unitLabel = onlyCnf ? 'USD/MT' : 'VNĐ/KG'
-  return `TB ${formatValue(entry.avgPrice)} (Thấp ${formatValue(entry.minPrice)} – Cao ${formatValue(entry.maxPrice)}) ${unitLabel} (${entry.pointCount} báo giá)`
+  return {
+    avg: formatValue(entry.avgPrice),
+    min: formatValue(entry.minPrice),
+    max: formatValue(entry.maxPrice),
+    unitLabel: onlyCnf ? 'USD/MT' : 'VNĐ/KG',
+    pointCount: entry.pointCount,
+  }
 }
 
 export function useDashboardPage() {
@@ -718,6 +769,9 @@ export function useDashboardPage() {
   // "Giá CNF" riêng cho chart này — panel độc lập với bộ lọc chung Dashboard,
   // nên không dùng chung `showCnfOnly` ở trên.
   const historyShowCnfOnly = ref(false)
+  // Nội dung box hiển thị khi hover — xem `ComparisonHoverInfo`/
+  // `buildComparisonChartOptions`.
+  const historyHoverInfo = ref<ComparisonHoverInfo | null>(null)
 
   const historyBuckets = computed(() => {
     const results = historyShowCnfOnly.value
@@ -780,6 +834,7 @@ export function useDashboardPage() {
   // "Giá CNF" riêng cho chart này — panel độc lập với bộ lọc chung Dashboard,
   // nên không dùng chung `showCnfOnly` ở trên.
   const seasonalShowCnfOnly = ref(false)
+  const seasonalHoverInfo = ref<ComparisonHoverInfo | null>(null)
 
   const seasonalAvailableYears = computed<number[]>(() => {
     const currentYear = new Date().getFullYear()
@@ -1227,11 +1282,23 @@ export function useDashboardPage() {
       entry: MaterialComparisonSeriesPoint,
       bucket: MaterialComparisonBucket,
     ) => string = (entry) => entry.materialName,
-    // "Giá CNF": dòng tóm tắt TB/Thấp/Cao trong tooltip đổi sang giá gốc
-    // USD/MT — 2 chart chưa có CNF (chart so sánh theo kỳ hàng về) giữ
-    // nguyên mặc định VNĐ/KG nên không cần đổi gì ở lời gọi của chúng.
-    formatPriceTriplet: (entry: MaterialComparisonSeriesPoint) => string = (entry) =>
-      formatComparisonPriceTriplet(entry, false),
+    // "Giá CNF": TB/Thấp/Cao trong box hover đổi sang giá gốc USD/MT — 2
+    // chart chưa có CNF (chart so sánh theo kỳ hàng về) giữ nguyên mặc định
+    // VNĐ/KG nên không cần đổi gì ở lời gọi của chúng.
+    buildMetrics: (
+      entry: MaterialComparisonSeriesPoint,
+    ) => ComparisonHoverMetrics | null = (entry) => buildComparisonHoverMetrics(entry, false),
+    // Nội dung hover được ghi vào ref này thay vì vẽ trực tiếp 1 tooltip
+    // absolute-positioned đè lên canvas — nội dung chart này (nhiều dòng
+    // mặt hàng/năm + chênh lệch giá) dài ngắn thất thường, không có vị trí
+    // "an toàn" nào trong/quanh canvas để đặt 1 box đè lên mà chắc chắn
+    // không che mất phần khác (dữ liệu chart HOẶC bộ lọc phía trên) — xem
+    // template `DashboardPage.vue`, nơi ref này được hiển thị trong 1 khối
+    // NẰM TRONG LUỒNG TÀI LIỆU (không absolute), có chiều cao cố định +
+    // cuộn riêng, nên không bao giờ đè lên bất cứ thứ gì, theo phản hồi
+    // người dùng ngày 20/08/2026 ("box đang chèn vào các phần khác ở trên
+    // chart").
+    hoverInfo?: { value: ComparisonHoverInfo | null },
   ) {
     const grid =
       themeStore.mode === 'dark'
@@ -1242,6 +1309,12 @@ export function useDashboardPage() {
     return {
       maintainAspectRatio: false,
       responsive: true,
+      // Chừa lề phải cho ô nhãn giá trị trục Y của crosshair (xem
+      // `buildCrosshairPlugin`) — nếu không, ô nhãn bị vẽ lồi ra khỏi phần
+      // thân chart khi hover gần rìa phải.
+      layout: {
+        padding: { right: 64 },
+      },
       interaction: {
         intersect: false,
         mode: 'index',
@@ -1274,75 +1347,37 @@ export function useDashboardPage() {
         tooltip: {
           enabled: false,
           external(context: {
-            chart: { canvas: HTMLCanvasElement }
             tooltip: {
               opacity: number
               title?: string[]
               dataPoints: { dataIndex: number }[]
-              caretX: number
-              caretY: number
             }
           }) {
-            const { chart, tooltip } = context
-            const tooltipEl = getOrCreateChartTooltipElement(chart.canvas)
-
-            if (tooltip.opacity === 0) {
-              tooltipEl.style.opacity = '0'
+            if (!hoverInfo) {
               return
             }
 
-            tooltipEl.replaceChildren()
+            const { tooltip } = context
+            if (tooltip.opacity === 0) {
+              hoverInfo.value = null
+              return
+            }
 
             const bucket = buckets[tooltip.dataPoints[0]?.dataIndex ?? -1]
             if (!bucket) {
-              tooltipEl.style.opacity = '0'
+              hoverInfo.value = null
               return
             }
 
-            const titleEl = document.createElement('div')
-            titleEl.className = 'quotify-chart-tooltip__title'
-            titleEl.textContent = tooltip.title?.[0] ?? bucket.label
-            tooltipEl.appendChild(titleEl)
-
-            bucket.series.forEach((entry, index) => {
-              const color =
-                MATERIAL_COMPARISON_COLORS[index % MATERIAL_COMPARISON_COLORS.length]
-              const priceLabel = formatPriceTriplet(entry)
-              tooltipEl.appendChild(
-                buildTooltipRowElement(`${formatSeriesRowLabel(entry, bucket)}: ${priceLabel}`, color),
-              )
-            })
-
-            if (bucket.differenceLines.length > 0) {
-              const spacerEl = document.createElement('div')
-              spacerEl.className = 'quotify-chart-tooltip__count'
-              spacerEl.textContent = bucket.differenceLines[0]
-              tooltipEl.appendChild(spacerEl)
-              for (const line of bucket.differenceLines.slice(1)) {
-                const lineEl = document.createElement('div')
-                lineEl.className = 'quotify-chart-tooltip__count'
-                lineEl.textContent = line
-                tooltipEl.appendChild(lineEl)
-              }
+            hoverInfo.value = {
+              title: tooltip.title?.[0] ?? bucket.label,
+              rows: bucket.series.map((entry, index) => ({
+                label: formatSeriesRowLabel(entry, bucket),
+                color: MATERIAL_COMPARISON_COLORS[index % MATERIAL_COMPARISON_COLORS.length],
+                metrics: buildMetrics(entry),
+              })),
+              differenceLines: bucket.differenceLines,
             }
-
-            const hintEl = document.createElement('div')
-            hintEl.className = 'quotify-chart-tooltip__hint'
-            hintEl.textContent = 'Nhấp vào 1 đường để xem báo giá tương ứng trong Bảng báo giá'
-            tooltipEl.appendChild(hintEl)
-
-            const { offsetLeft, offsetTop, offsetWidth: canvasWidth } = chart.canvas
-            tooltipEl.style.opacity = '1'
-            tooltipEl.style.left = '0px'
-            tooltipEl.style.top = '0px'
-            const tooltipWidth = tooltipEl.offsetWidth
-            const tooltipHeight = tooltipEl.offsetHeight
-            const idealLeft = offsetLeft + tooltip.caretX - tooltipWidth / 2
-            const minLeft = offsetLeft
-            const maxLeft = offsetLeft + canvasWidth - tooltipWidth
-            const clampedLeft = Math.max(minLeft, Math.min(idealLeft, maxLeft))
-            tooltipEl.style.left = `${clampedLeft}px`
-            tooltipEl.style.top = `${offsetTop + tooltip.caretY - tooltipHeight - 12}px`
           },
         },
       },
@@ -1380,8 +1415,22 @@ export function useDashboardPage() {
         receivedDateEnd: getThirdPeriodEnd(bucket.groupKey),
       }),
       undefined,
-      (entry) => formatComparisonPriceTriplet(entry, historyShowCnfOnly.value),
+      (entry) => buildComparisonHoverMetrics(entry, historyShowCnfOnly.value),
+      historyHoverInfo,
     )
+  })
+
+  // Plugin crosshair dùng chung (xem `buildCrosshairPlugin`) — tách khỏi
+  // `historyChartOptions`/`seasonalChartOptions` vì phải truyền qua prop
+  // `plugins` riêng của `<Chart>` (PrimeVue), không phải qua
+  // `options.plugins`.
+  const historyChartPlugins = computed(() => {
+    const panel = cssVar('--app-surface-panel', '#ffffff')
+    const accent = cssVar('--app-accent', '#7c3aed')
+    const crosshairLine = cssVar('--app-text-muted', '#94a3b8')
+    const formatPrice = historyShowCnfOnly.value ? formatUsdPerMt : formatMoney
+
+    return [buildCrosshairPlugin(formatPrice, crosshairLine, accent, panel)]
   })
 
   const seasonalChartOptions = computed(() => {
@@ -1420,8 +1469,18 @@ export function useDashboardPage() {
         const { actualMonth, third } = resolveBucketDateInfo(entry.materialId, bucket)
         return `${entry.materialName} (${formatMonthLabel(actualMonth)}, kỳ ${third + 1})`
       },
-      (entry) => formatComparisonPriceTriplet(entry, seasonalShowCnfOnly.value),
+      (entry) => buildComparisonHoverMetrics(entry, seasonalShowCnfOnly.value),
+      seasonalHoverInfo,
     )
+  })
+
+  const seasonalChartPlugins = computed(() => {
+    const panel = cssVar('--app-surface-panel', '#ffffff')
+    const accent = cssVar('--app-accent', '#7c3aed')
+    const crosshairLine = cssVar('--app-text-muted', '#94a3b8')
+    const formatPrice = seasonalShowCnfOnly.value ? formatUsdPerMt : formatMoney
+
+    return [buildCrosshairPlugin(formatPrice, crosshairLine, accent, panel)]
   })
 
   const weeklyEntryChartData = computed(() => {
@@ -1629,8 +1688,10 @@ export function useDashboardPage() {
     historyTrendResults,
     historyBandVisibility,
     historyShowCnfOnly,
+    historyHoverInfo,
     historyChartData,
     historyChartOptions,
+    historyChartPlugins,
     loadPriceHistory,
     seasonalMaterialId,
     seasonalMonth,
@@ -1640,8 +1701,10 @@ export function useDashboardPage() {
     seasonalTrendResults,
     seasonalBandVisibility,
     seasonalShowCnfOnly,
+    seasonalHoverInfo,
     seasonalChartData,
     seasonalChartOptions,
+    seasonalChartPlugins,
     loadSeasonalComparison,
     userKpis,
     weeklyUserActivities,

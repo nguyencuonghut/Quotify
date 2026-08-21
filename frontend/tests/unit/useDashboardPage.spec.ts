@@ -668,22 +668,17 @@ describe('useDashboardPage', () => {
       await page.loadPriceHistory()
       page.historyShowCnfOnly.value = true
 
-      const canvas = document.createElement('canvas')
-      document.createElement('div').appendChild(canvas)
       page.historyChartOptions.value.plugins.tooltip.external({
-        chart: { canvas },
         tooltip: {
           opacity: 1,
           title: ['01/2026'],
           dataPoints: [{ dataIndex: 0 }],
-          caretX: 10,
-          caretY: 10,
         },
       })
 
-      const tooltipText = canvas.parentElement?.querySelector('.quotify-chart-tooltip')?.textContent
-      expect(tooltipText).toContain('USD/MT')
-      expect(tooltipText).not.toContain('VNĐ/KG')
+      const unitLabels = page.historyHoverInfo.value?.rows.map((row) => row.metrics?.unitLabel)
+      expect(unitLabels).toContain('USD/MT')
+      expect(unitLabels).not.toContain('VNĐ/KG')
     })
 
     it('reuses the price-difference callout for the received-date buckets', async () => {
@@ -709,7 +704,11 @@ describe('useDashboardPage', () => {
       await page.loadPriceHistory()
 
       expect(page.historyBuckets.value[0].differenceLines).toEqual([
-        'Khô đậu nành cao hơn Ngô hạt: +2,250.00 VNĐ/KG (+31.25%)',
+        {
+          label: 'Khô đậu nành cao hơn Ngô hạt',
+          diffValue: '+2,250.00 VNĐ/KG',
+          percent: '+31.25%',
+        },
       ])
     })
 
@@ -769,22 +768,17 @@ describe('useDashboardPage', () => {
       page.historyDeliveryMonth.value = new Date(2026, 11, 1)
       await page.loadPriceHistory()
 
-      const canvas = document.createElement('canvas')
-      document.createElement('div').appendChild(canvas)
       page.historyChartOptions.value.plugins.tooltip.external({
-        chart: { canvas },
         tooltip: {
           opacity: 1,
           title: ['01/2026'],
           dataPoints: [{ dataIndex: 0 }],
-          caretX: 10,
-          caretY: 10,
         },
       })
 
-      const tooltipEl = canvas.parentElement?.querySelector('.quotify-chart-tooltip')
-      expect(tooltipEl?.textContent).toContain('Ngô hạt')
-      expect(tooltipEl?.textContent).toContain('Khô đậu nành')
+      const hoverText = page.historyHoverInfo.value?.rows.map((row) => row.label).join(' ')
+      expect(hoverText).toContain('Ngô hạt')
+      expect(hoverText).toContain('Khô đậu nành')
     })
 
     it('clicking a point navigates to /quotes with the ~10-day received-date range of that kỳ, not the whole month', async () => {
@@ -969,7 +963,9 @@ describe('useDashboardPage', () => {
 
       await page.loadSeasonalComparison()
 
-      expect(page.seasonalBuckets.value[0].differenceLines).toEqual(['2026 cao hơn 2025: +400.00 VNĐ/KG (+5.88%)'])
+      expect(page.seasonalBuckets.value[0].differenceLines).toEqual([
+        { label: '2026 cao hơn 2025', diffValue: '+400.00 VNĐ/KG', percent: '+5.88%' },
+      ])
     })
 
     it('builds one chart dataset per selected year, labeled by year', async () => {
@@ -1043,22 +1039,17 @@ describe('useDashboardPage', () => {
       // (đọc nhầm state chart khác sau khi tổng quát hóa).
       expect(page.historyBuckets.value).toEqual([])
 
-      const canvas = document.createElement('canvas')
-      document.createElement('div').appendChild(canvas)
       page.seasonalChartOptions.value.plugins.tooltip.external({
-        chart: { canvas },
         tooltip: {
           opacity: 1,
           title: ['T-1'],
           dataPoints: [{ dataIndex: 0 }],
-          caretX: 10,
-          caretY: 10,
         },
       })
 
-      const tooltipText = canvas.parentElement?.querySelector('.quotify-chart-tooltip')?.textContent
-      expect(tooltipText).toContain('2025 (09/2025, kỳ 1)')
-      expect(tooltipText).toContain('2026 (09/2026, kỳ 1)')
+      const hoverText = page.seasonalHoverInfo.value?.rows.map((row) => row.label).join(' ')
+      expect(hoverText).toContain('2025 (09/2025, kỳ 1)')
+      expect(hoverText).toContain('2026 (09/2026, kỳ 1)')
     })
 
     it('clicking a point navigates to /quotes with the fixed material, that year\'s delivery month, and the real received-date range for that offset', async () => {

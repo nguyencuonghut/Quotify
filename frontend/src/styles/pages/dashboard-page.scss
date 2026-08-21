@@ -329,8 +329,10 @@
 .dashboard-page__chart-frame {
   position: relative;
   min-height: 22rem;
-  // overflow: visible (không dùng hidden) để tooltip tùy biến của chart
-  // "Giá theo kỳ hàng về" không bị cắt khi hiện gần rìa khung.
+  // overflow: visible (không dùng hidden) để box thông tin ngày/giá tự vẽ
+  // của chart "Giá theo kỳ hàng về" (neo trong dải lề trên đã chừa sẵn,
+  // xem `chartOptions` trong useDashboardPage.ts) không bị cắt khi hiện
+  // gần rìa khung.
   overflow: visible;
 }
 
@@ -338,6 +340,84 @@
   display: block;
   width: 100%;
   height: 22rem;
+}
+
+// Box thông tin hover cho 2 chart so sánh nhiều mặt hàng/năm ("Diễn biến
+// giá theo thời gian chào giá", "So sánh giá theo mùa vụ") — nằm TRONG
+// LUỒNG TÀI LIỆU (không absolute-positioned) ngay phía trên canvas, chiều
+// cao cố định + cuộn riêng khi nội dung dài (nhiều mặt hàng/năm + nhiều
+// dòng chênh lệch giá), để KHÔNG BAO GIỜ đè lên chart hay bộ lọc phía trên
+// dù hover ở vị trí nào — khác với `.quotify-chart-tooltip` (absolute, theo
+// con trỏ) vẫn dùng riêng cho chart "Giá theo kỳ hàng về" (nội dung ngắn,
+// cố định 2 dòng, không có nguy cơ đè lấn), theo phản hồi người dùng ngày
+// 20/08/2026 ("box đang chèn vào các phần khác ở trên chart").
+.dashboard-page__chart-hover-info {
+  min-height: 4.5rem;
+  // KHÔNG giới hạn max-height/overflow-y nữa — với 5 năm/mặt hàng so sánh +
+  // nhiều dòng chênh lệch giá, nội dung box có thể dài hơn khung cuộn cũ
+  // (7.5rem), khiến người dùng phải cuộn mới thấy hết — box giờ tự cao theo
+  // đúng nội dung, luôn hiện đầy đủ ngay khi hover, theo phản hồi người
+  // dùng ngày 20/08/2026 ("cần hiển thị full nội dung của box, tránh phải
+  // cuộn xuống").
+  // Cách xa hẳn hàng checkbox "Giá CNF"/"Hiện khoảng giá thấp-cao" phía
+  // trên (thay vì chỉ dựa vào margin-bottom mặc định của label trước đó),
+  // theo phản hồi người dùng ngày 20/08/2026.
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--app-accent) 35%, var(--app-border-soft));
+  border-left: 3px solid var(--app-accent);
+  border-radius: 0.65rem;
+  // Nền tint theo accent (không hard-code 1 màu cố định) để nổi bật rõ so
+  // với nền panel xung quanh ở CẢ light lẫn dark mode — `color-mix` tính
+  // tương đối theo `--app-surface-panel` của từng theme nên tự đúng ở cả 2,
+  // theo phản hồi người dùng ngày 20/08/2026 ("set màu cho background...
+  // nổi bật hơn").
+  background: color-mix(in srgb, var(--app-accent) 10%, var(--app-surface-panel));
+  box-shadow: var(--app-shadow-sm);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.dashboard-page__chart-hover-info-title {
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  color: var(--app-text-primary);
+}
+
+.dashboard-page__chart-hover-info-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--app-text-primary);
+}
+
+// Giá Thấp (Min) tô đậm + xanh, giá Cao (Max) tô đậm + đỏ — giúp phân biệt
+// ngay giá trị nào là thấp/cao trong dòng TB/Thấp/Cao, theo phản hồi người
+// dùng ngày 20/08/2026. Giá TB (avg) chỉ cần `<strong>` không màu riêng
+// (xem template `DashboardPage.vue`).
+.dashboard-page__chart-hover-info-min {
+  color: var(--app-success);
+}
+
+.dashboard-page__chart-hover-info-max {
+  color: var(--app-danger);
+}
+
+.dashboard-page__chart-hover-info-swatch {
+  flex: 0 0 auto;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 0.15rem;
+}
+
+.dashboard-page__chart-hover-info-diff {
+  margin-top: 0.15rem;
+  color: var(--app-text-secondary);
+}
+
+.dashboard-page__chart-hover-info-placeholder {
+  color: var(--app-text-muted);
 }
 
 .quotify-chart-tooltip {

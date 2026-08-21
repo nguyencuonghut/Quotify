@@ -355,11 +355,47 @@
         </div>
 
         <div v-if="historyBuckets.length > 0" class="dashboard-page__chart-frame">
+          <div class="dashboard-page__chart-hover-info">
+            <template v-if="historyHoverInfo">
+              <div class="dashboard-page__chart-hover-info-title">{{ historyHoverInfo.title }}</div>
+              <div
+                v-for="(row, rowIndex) in historyHoverInfo.rows"
+                :key="rowIndex"
+                class="dashboard-page__chart-hover-info-row"
+              >
+                <span
+                  class="dashboard-page__chart-hover-info-swatch"
+                  :style="{ backgroundColor: row.color }"
+                />
+                <span>
+                  {{ row.label }}:
+                  <template v-if="row.metrics">
+                    TB <strong>{{ row.metrics.avg }}</strong>
+                    (Thấp <strong class="dashboard-page__chart-hover-info-min">{{ row.metrics.min }}</strong>
+                    – Cao <strong class="dashboard-page__chart-hover-info-max">{{ row.metrics.max }}</strong>)
+                    {{ row.metrics.unitLabel }} ({{ row.metrics.pointCount }} báo giá)
+                  </template>
+                  <template v-else>Chưa có báo giá</template>
+                </span>
+              </div>
+              <div
+                v-for="(line, lineIndex) in historyHoverInfo.differenceLines"
+                :key="lineIndex"
+                class="dashboard-page__chart-hover-info-diff"
+              >
+                {{ line.label }}: <strong>{{ line.diffValue }}</strong> (<strong>{{ line.percent }}</strong>)
+              </div>
+            </template>
+            <span v-else class="dashboard-page__chart-hover-info-placeholder">
+              Di chuột vào biểu đồ để xem chi tiết từng điểm.
+            </span>
+          </div>
           <Chart
             class="dashboard-page__chart"
             type="line"
             :data="historyChartData"
             :options="historyChartOptions"
+            :plugins="historyChartPlugins"
           />
         </div>
         <div v-else class="dashboard-page__empty">
@@ -452,11 +488,47 @@
         </div>
 
         <div v-if="seasonalBuckets.length > 0" class="dashboard-page__chart-frame">
+          <div class="dashboard-page__chart-hover-info">
+            <template v-if="seasonalHoverInfo">
+              <div class="dashboard-page__chart-hover-info-title">{{ seasonalHoverInfo.title }}</div>
+              <div
+                v-for="(row, rowIndex) in seasonalHoverInfo.rows"
+                :key="rowIndex"
+                class="dashboard-page__chart-hover-info-row"
+              >
+                <span
+                  class="dashboard-page__chart-hover-info-swatch"
+                  :style="{ backgroundColor: row.color }"
+                />
+                <span>
+                  {{ row.label }}:
+                  <template v-if="row.metrics">
+                    TB <strong>{{ row.metrics.avg }}</strong>
+                    (Thấp <strong class="dashboard-page__chart-hover-info-min">{{ row.metrics.min }}</strong>
+                    – Cao <strong class="dashboard-page__chart-hover-info-max">{{ row.metrics.max }}</strong>)
+                    {{ row.metrics.unitLabel }} ({{ row.metrics.pointCount }} báo giá)
+                  </template>
+                  <template v-else>Chưa có báo giá</template>
+                </span>
+              </div>
+              <div
+                v-for="(line, lineIndex) in seasonalHoverInfo.differenceLines"
+                :key="lineIndex"
+                class="dashboard-page__chart-hover-info-diff"
+              >
+                {{ line.label }}: <strong>{{ line.diffValue }}</strong> (<strong>{{ line.percent }}</strong>)
+              </div>
+            </template>
+            <span v-else class="dashboard-page__chart-hover-info-placeholder">
+              Di chuột vào biểu đồ để xem chi tiết từng điểm.
+            </span>
+          </div>
           <Chart
             class="dashboard-page__chart"
             type="line"
             :data="seasonalChartData"
             :options="seasonalChartOptions"
+            :plugins="seasonalChartPlugins"
           />
         </div>
         <div v-else class="dashboard-page__empty">
@@ -521,8 +593,10 @@ const {
   historyBandVisibility,
   historyTrendResults,
   historyShowCnfOnly,
+  historyHoverInfo,
   historyChartData,
   historyChartOptions,
+  historyChartPlugins,
   loadPriceHistory,
   seasonalMaterialId,
   seasonalMonth,
@@ -532,8 +606,10 @@ const {
   seasonalBandVisibility,
   seasonalTrendResults,
   seasonalShowCnfOnly,
+  seasonalHoverInfo,
   seasonalChartData,
   seasonalChartOptions,
+  seasonalChartPlugins,
   loadSeasonalComparison,
   weeklyUserOptions,
   weeklyUserActivities,
