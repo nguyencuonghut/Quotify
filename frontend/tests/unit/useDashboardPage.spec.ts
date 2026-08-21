@@ -1015,6 +1015,45 @@ describe('useDashboardPage', () => {
       expect(new Set(colors).size).toBe(5)
     })
 
+    it('only assigns an X-axis tick label to the first (kỳ) bucket of each relative month, not every kỳ-bucket', async () => {
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async () => ({
+        ...priceTrends,
+        points: [
+          // Tháng T-2 (08/2026): chỉ 1 kỳ (kỳ 1, ngày 05).
+          { ...priceTrends.points[0], receivedDate: '2026-08-05', deliveryMonth: '2026-10-01' },
+          // Tháng T-1 (09/2026): 2 kỳ khác nhau (kỳ 1 ngày 05, kỳ 2 ngày 15)
+          // — trước đây cả 2 bucket này đều "vô tình" hiện tick trùng nhãn
+          // "T-1" khi autoSkip lệch bước nhảy (lỗi thật gặp ngày 20/08/2026).
+          { ...priceTrends.points[0], receivedDate: '2026-09-05', deliveryMonth: '2026-10-01' },
+          { ...priceTrends.points[0], receivedDate: '2026-09-15', deliveryMonth: '2026-10-01' },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.seasonalMaterialId.value = 'material-1'
+      page.seasonalMonth.value = 10
+      // `loadSeasonalComparison` bỏ qua nếu chọn dưới 2 năm — chọn thêm 1
+      // năm nữa (mock trả cùng dữ liệu bất kể deliveryMonth) chỉ để đủ điều
+      // kiện fetch, không ảnh hưởng gì tới assertion về nhãn trục X.
+      page.seasonalYears.value = [2025, 2026]
+      await page.loadSeasonalComparison()
+
+      // 3 bucket riêng biệt: T-2 (1 kỳ), T-1 kỳ 1, T-1 kỳ 2 — sắp theo đúng
+      // thứ tự combinedOffset tăng dần.
+      expect(page.seasonalBuckets.value.map((bucket) => bucket.label)).toEqual([
+        'T-2',
+        'T-1',
+        'T-1',
+      ])
+
+      const tickCallback = page.seasonalChartOptions.value.scales.x.ticks.callback
+      expect(tickCallback(null, 0)).toBe('T-2')
+      expect(tickCallback(null, 1)).toBe('T-1')
+      // Bucket thứ 2 của cùng tháng T-1 (kỳ 2) không được hiện label nữa —
+      // chỉ bucket ĐẦU TIÊN (kỳ nhỏ nhất) của mỗi tháng mới có label.
+      expect(tickCallback(null, 2)).toBe('')
+    })
+
     it('renders the tooltip from its own seasonal buckets, showing each year with its real calendar month', async () => {
       dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
         ...priceTrends,

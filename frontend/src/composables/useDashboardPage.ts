@@ -182,11 +182,14 @@ function decomposeThirdOffset(combinedOffset: number): { monthOffset: number; th
 
 /** Nhãn trục X CHỈ hiện tháng tương đối (`T-11`, `T0 (giao hàng)`), KHÔNG hiện
  * kỳ trong tháng — dù mỗi tháng có 3 bucket (`computeThirdsBeforeDelivery`),
- * ghi thêm "(kỳ N)" vào label khiến tick nào cũng hiện thông tin kỳ, và vì
- * Chart.js tự bỏ bớt tick để tránh chật (autoSkip), bước nhảy ~3 khớp đúng số
- * bucket/tháng nên MỌI tick còn hiện ra vô tình rơi vào cùng 1 kỳ tương đối
- * (luôn "kỳ 2") — trông như lỗi dù dữ liệu bên dưới vẫn đúng (mỗi điểm trên
- * đường vẫn đúng vị trí, tooltip hover từng điểm vẫn đúng kỳ của điểm đó).
+ * ghi thêm "(kỳ N)" vào label khiến tick nào cũng hiện thông tin kỳ. Vì 3
+ * bucket/tháng dùng CHUNG 1 label như nhau, việc chọn ĐÚNG 1 bucket/tháng để
+ * thực sự hiện tick không được giao cho Chart.js tự bỏ bớt (autoSkip) nữa —
+ * autoSkip tính theo pixel nên chỉ cần đổi bề rộng khả dụng của chart (thêm
+ * `layout.padding`, resize cửa sổ...) là có thể lệch, khiến có tháng hiện 2
+ * tick trùng label (lỗi thật gặp ngày 20/08/2026). `seasonalChartOptions`
+ * giờ tự tính trước, DETERMINISTIC, bucket nào (luôn là kỳ nhỏ nhất) được
+ * hiện label qua tham số `getTickLabel` của `buildComparisonChartOptions`.
  * Kỳ cụ thể vẫn hiện đầy đủ trong tooltip qua `formatSeriesRowLabel`. */
 function formatThirdOffsetLabel(offsetKey: string): string {
   const { monthOffset } = decomposeThirdOffset(Number(offsetKey))
@@ -1299,6 +1302,19 @@ export function useDashboardPage() {
     // người dùng ngày 20/08/2026 ("box đang chèn vào các phần khác ở trên
     // chart").
     hoverInfo?: { value: ComparisonHoverInfo | null },
+    // Nhãn trục X cho TỪNG bucket (theo index, khớp thứ tự `buckets`) — mặc
+    // định `undefined` (dùng tick tự sinh từ `labels` như chart theo kỳ
+    // hàng về, mỗi bucket 1 nhãn riêng biệt). Chart mùa vụ (series = năm)
+    // cần override: 3 bucket liền nhau dùng CHUNG 1 label "T-N" (không hiện
+    // kỳ trong tháng, xem `formatThirdOffsetLabel`) — trước đây dựa vào
+    // Chart.js tự bỏ bớt tick (autoSkip) "may mắn" rơi đúng vào bước nhảy 3
+    // để mỗi tháng chỉ hiện 1 tick, nhưng autoSkip tính theo PIXEL nên chỉ
+    // cần đổi bề rộng khả dụng của chart (ví dụ thêm `layout.padding.right`
+    // cho nhãn crosshair) là lệch mất sự "may mắn" đó, khiến có tháng hiện
+    // 2 tick trùng label — lỗi thật gặp ngày 20/08/2026. Truyền hàm này vào
+    // để CHỦ ĐỘNG chỉ định đúng 1 bucket/tháng được hiện label, không phụ
+    // thuộc autoSkip nữa.
+    getTickLabel?: (bucket: MaterialComparisonBucket, index: number) => string,
   ) {
     const grid =
       themeStore.mode === 'dark'
@@ -1386,6 +1402,18 @@ export function useDashboardPage() {
           ticks: {
             color: textColor,
             maxRotation: 0,
+            // Khi có `getTickLabel`, tự tính đúng 1 nhãn/bucket cần hiện —
+            // tắt autoSkip để Chart.js không tự ý bỏ bớt/chọn lại tick theo
+            // pixel nữa (xem chú thích ở tham số `getTickLabel`).
+            ...(getTickLabel
+              ? {
+                  autoSkip: false,
+                  callback: (_value: unknown, index: number) => {
+                    const bucket = buckets[index]
+                    return bucket ? getTickLabel(bucket, index) : ''
+                  },
+                }
+              : {}),
           },
           grid: {
             color: grid,
@@ -1452,6 +1480,22 @@ export function useDashboardPage() {
       return { actualMonth, third, range: getThirdOfMonthDateRange(actualMonth, third) }
     }
 
+    // Chỉ bucket ĐẦU TIÊN (kỳ nhỏ nhất) của mỗi tháng tương đối được gán
+    // label — `seasonalBuckets` đã sắp đúng thứ tự tăng dần theo combinedOffset
+    // (compareKeys số học, xem `loadSeasonalComparison`) nên các bucket cùng
+    // tháng luôn liền kề nhau, chỉ cần so với tháng của bucket liền trước.
+    // Tính SẴN thành mảng (không tính trong lúc Chart.js gọi callback) để
+    // không phụ thuộc thứ tự/số lần Chart.js thực sự gọi tick callback.
+    let previousMonthOffset: number | null = null
+    const tickLabels = seasonalBuckets.value.map((bucket) => {
+      const { monthOffset } = decomposeThirdOffset(Number(bucket.groupKey))
+      if (monthOffset === previousMonthOffset) {
+        return ''
+      }
+      previousMonthOffset = monthOffset
+      return formatThirdOffsetLabel(bucket.groupKey)
+    })
+
     return buildComparisonChartOptions(
       seasonalBuckets.value,
       seasonalTrendResults.value,
@@ -1471,6 +1515,7 @@ export function useDashboardPage() {
       },
       (entry) => buildComparisonHoverMetrics(entry, seasonalShowCnfOnly.value),
       seasonalHoverInfo,
+      (_bucket, index) => tickLabels[index] ?? '',
     )
   })
 
