@@ -61,9 +61,42 @@
       <span>Đang tải phiếu báo giá...</span>
     </div>
 
-    <!-- Main Grid Split -->
-    <div v-if="quote" class="quote-detail-page__grid">
-      <!-- Cột chính: Chi tiết version active -->
+    <!-- Main Layout -->
+    <div v-if="quote" class="quote-detail-page__layout">
+      <!-- Dải phiên bản: hiển thị ngang, cuộn được — chỉ hiện khi có từ 2
+           phiên bản trở lên, vì phần lớn phiếu báo giá chỉ có 1 phiên bản
+           (không đáng chiếm chỗ cố định). -->
+      <div
+        v-if="sortedVersions.length > 1"
+        class="quote-detail-page__card quote-detail-page__timeline-strip-card"
+      >
+        <h3 class="quote-detail-page__timeline-title">
+          <i class="pi pi-history" />
+          Lịch sử phiên bản
+        </h3>
+
+        <div class="quote-detail-page__timeline-strip">
+          <div
+            v-for="v in sortedVersions"
+            :key="v.id"
+            class="quote-detail-page__timeline-chip"
+            :class="{ 'quote-detail-page__timeline-chip--active': v.id === activeVersionId }"
+            @click="activeVersionId = v.id"
+          >
+            <div class="quote-detail-page__timeline-chip-header">
+              <span>Phiên bản V{{ v.versionNumber }}</span>
+              <span :class="['quote-status-badge', 'quote-status-badge--sm', `quote-status-badge--${v.status}`]">
+                {{ getVersionStatusLabel(v.status) }}
+              </span>
+            </div>
+            <div class="quote-detail-page__timeline-chip-date">
+              Nhận ngày: {{ v.receivedDate }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chi tiết version active -->
       <div class="quote-detail-page__main-content">
         <div class="quote-detail-page__card">
           <div class="quote-detail-page__section-header">
@@ -434,37 +467,6 @@
               </div>
               <div v-else class="quote-detail-page__empty-hint" style="padding: 0.5rem 0">
                 Chưa có ghi chú thị trường nào cho báo giá này.
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Cột phụ: Timeline lịch sử phiên bản -->
-      <div class="quote-detail-page__timeline-sidebar">
-        <div class="quote-detail-page__card">
-          <h3 class="quote-detail-page__timeline-title">
-            <i class="pi pi-history" />
-            Lịch sử phiên bản
-          </h3>
-          
-          <div class="quote-detail-page__timeline">
-            <div
-              v-for="v in sortedVersions"
-              :key="v.id"
-              class="quote-detail-page__timeline-item"
-              :class="{ active: v.id === activeVersionId }"
-              @click="activeVersionId = v.id"
-            >
-              <div class="quote-detail-page__timeline-dot" />
-              <div class="quote-detail-page__timeline-header">
-                <span>Phiên bản V{{ v.versionNumber }}</span>
-                <span :class="['quote-status-badge', 'quote-status-badge--sm', `quote-status-badge--${v.status}`]">
-                  {{ getVersionStatusLabel(v.status) }}
-                </span>
-              </div>
-              <div class="quote-detail-page__timeline-date">
-                Nhận ngày: {{ v.receivedDate }}
               </div>
             </div>
           </div>

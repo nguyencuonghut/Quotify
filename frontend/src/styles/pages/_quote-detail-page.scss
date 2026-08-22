@@ -62,12 +62,14 @@
     }
   }
 
-  // Layout grid split: main lines editor, version timeline sidebar
-  .quote-detail-page__grid {
-    display: grid;
-    grid-template-columns: 1fr 320px;
+  // Layout dọc: dải phiên bản (nếu có ≥2) nằm trên, nội dung chính full
+  // width bên dưới — trước đây dùng grid 2 cột `1fr 320px` khiến sidebar
+  // lịch sử phiên bản luôn chiếm cố định 320px dù đa số phiếu chỉ có 1
+  // phiên bản, làm bảng dòng vật tư (nhiều cột) bị bóp hẹp không cần thiết.
+  .quote-detail-page__layout {
+    display: flex;
+    flex-direction: column;
     gap: 1.5rem;
-    align-items: start;
   }
 
   .quote-detail-page__card {
@@ -141,65 +143,60 @@
     gap: 0.5rem;
   }
 
-  .quote-detail-page__timeline {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    position: relative;
-    padding-left: 1.25rem;
-    border-left: 2px solid var(--app-border-soft);
+  // Card bọc dải phiên bản không cần margin-bottom riêng của
+  // `.quote-detail-page__card` (đã có `gap` từ `.quote-detail-page__layout`).
+  .quote-detail-page__timeline-strip-card {
+    margin-bottom: 0;
   }
 
-  .quote-detail-page__timeline-item {
-    position: relative;
+  // Dải ngang cuộn được, thay cho cột dọc cố định 320px trước đây — mỗi
+  // phiên bản là 1 chip có thể co giãn theo nội dung, không ép full width
+  // khi ít phiên bản.
+  .quote-detail-page__timeline-strip {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .quote-detail-page__timeline-chip {
     cursor: pointer;
-    padding: 0.75rem;
+    padding: 0.75rem 1rem;
     border-radius: 8px;
-    border: 1px solid transparent;
+    border: 1px solid var(--app-border-soft);
     background: transparent;
     transition: all 0.2s ease-in-out;
-    
+    flex: 0 0 auto;
+    min-width: 12rem;
+
     &:hover {
       background: var(--app-surface-panel-alt);
     }
-    
-    &.active {
+
+    &.quote-detail-page__timeline-chip--active {
       background: color-mix(in srgb, var(--app-brand-primary, var(--p-primary-color)) 8%, transparent);
       border-color: var(--app-brand-primary, var(--p-primary-color));
-      
-      .quote-detail-page__timeline-dot {
-        background: var(--app-brand-primary, var(--p-primary-color));
-        box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-brand-primary, var(--p-primary-color)) 20%, transparent);
-      }
     }
   }
 
-  .quote-detail-page__timeline-dot {
-    position: absolute;
-    left: -1.7rem;
-    top: 1rem;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--app-border-soft);
-    transition: all 0.2s;
-  }
-
-  .quote-detail-page__timeline-header {
+  .quote-detail-page__timeline-chip-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
     margin-bottom: 0.25rem;
-    
+
     span {
       font-weight: 600;
       color: var(--text-color);
+      white-space: nowrap;
     }
   }
 
-  .quote-detail-page__timeline-date {
+  .quote-detail-page__timeline-chip-date {
     font-size: 0.75rem;
     color: var(--text-color-secondary);
+    white-space: nowrap;
   }
 
   // File association styling
@@ -428,13 +425,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-  }
-
-  // Responsive breakpoints
-  @media (max-width: 992px) {
-    .quote-detail-page__grid {
-      grid-template-columns: 1fr; // Stack version history to bottom
-    }
   }
 
   @media (max-width: 768px) {
