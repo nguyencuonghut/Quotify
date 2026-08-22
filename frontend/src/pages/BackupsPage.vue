@@ -131,15 +131,19 @@
               <template #body="{ data }">
                 <div class="backups-page__row-actions">
                   <Button
-                    v-if="
-                      permissionStore.can('backups.read') &&
-                      data.status === 'completed'
+                    v-if="data.status === 'completed'"
+                    :disabled="!permissionStore.can('backups.read')"
+                    :title="
+                      permissionStore.can('backups.read')
+                        ? 'Tải xuống'
+                        : 'Bạn không có quyền tải xuống tập tin sao lưu.'
                     "
                     icon="pi pi-download"
                     severity="secondary"
                     text
                     rounded
                     aria-label="Tải xuống"
+                    data-testid="backups-page-download-log"
                     @click="downloadBackupFile(data)"
                   />
                   <Button
@@ -234,21 +238,33 @@
               <template #body="{ data }">
                 <div class="backups-page__row-actions">
                   <Button
-                    v-if="permissionStore.can('backups.write')"
+                    :disabled="!permissionStore.can('backups.write')"
+                    :title="
+                      permissionStore.can('backups.write')
+                        ? 'Chỉnh sửa'
+                        : 'Bạn không có quyền chỉnh sửa lịch trình sao lưu.'
+                    "
                     icon="pi pi-pencil"
                     severity="secondary"
                     text
                     rounded
                     aria-label="Chỉnh sửa"
+                    data-testid="backups-page-edit-schedule"
                     @click="openEditDialog(data)"
                   />
                   <Button
-                    v-if="permissionStore.can('backups.write')"
+                    :disabled="!permissionStore.can('backups.write')"
+                    :title="
+                      permissionStore.can('backups.write')
+                        ? 'Xóa'
+                        : 'Bạn không có quyền xóa lịch trình sao lưu.'
+                    "
                     icon="pi pi-trash"
                     severity="danger"
                     text
                     rounded
                     aria-label="Xóa"
+                    data-testid="backups-page-delete-schedule"
                     @click="confirmDelete(data)"
                   />
                 </div>

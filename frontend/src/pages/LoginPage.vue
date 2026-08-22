@@ -10,6 +10,11 @@
         </div>
       </header>
 
+      <div v-if="generalError" class="login-page__general-error">
+        <i class="pi pi-exclamation-triangle" aria-hidden="true" />
+        <span>{{ generalError }}</span>
+      </div>
+
       <form class="login-page__form" @submit.prevent="submitLogin">
         <div class="login-page__field">
           <label class="login-page__label required" for="email">Email</label>
@@ -77,6 +82,7 @@ const {
   email,
   emailProps,
   errors,
+  generalError,
   isSubmitting,
   password,
   passwordProps,

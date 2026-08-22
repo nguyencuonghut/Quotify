@@ -217,6 +217,18 @@
   color: var(--app-text-secondary);
 }
 
+// NCC có nhiều vật tư (chuỗi tên nối bằng dấu phẩy) có thể dài tuỳ ý và đẩy
+// bảng tràn ngang — giới hạn 1 dòng + ellipsis, xem đầy đủ qua `title`
+// (tooltip trình duyệt gắn ở template).
+.suppliers-page__materials-cell {
+  display: inline-block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 @media (max-width: 1024px) {
   .suppliers-page__contact-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));

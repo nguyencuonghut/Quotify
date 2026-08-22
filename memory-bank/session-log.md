@@ -971,3 +971,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Fix frontend Docker build TS errors
 - Tom tat: vue-tsc build failed in Dockerfile due to type errors in exchange-rates/quotes mappers, ExchangeRateField props, useQuoteEditor, QuoteDetailPage (receivedDate lives on version not quote), and QuoteEditorPage DatePicker handlers (val union needs instanceof Date guard). Fixed all, verified with docker build --target build.
+
+## 2026-08-22 11:51:30Z - claude
+
+- Tieu de: UI/UX improvement plan Slice 1-14
+- Tom tat: Hoan tat 14/15 slice ke hoach cai tien UI/UX toan frontend theo TDD: don dead CSS Tailwind-style, doi v-if permission sang disabled+title, gop badge trang thai dung chung token, AdminLayout them skip-link/tooltip nav/dich chuoi tieng Anh, useLoginPage khong con throw loi khong bat duoc, Suppliers truncate cot vat tu. Slice 15 (dashboard chart parity) de lai cho quyet dinh san pham.

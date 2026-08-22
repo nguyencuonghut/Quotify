@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import { toTypedSchema } from '@vee-validate/zod'
 import { useForm } from 'vee-validate'
@@ -31,26 +31,26 @@ export function useLoginPage(onSuccess: () => Promise<void> | void) {
 
   const [email, emailProps] = defineField('email')
   const [password, passwordProps] = defineField('password')
+  const generalError = ref<string | null>(null)
 
   const submitLogin = handleSubmit(async (values) => {
+    generalError.value = null
+
     try {
       await authStore.login(values)
       await onSuccess()
     } catch (error) {
-      if (
-        (error instanceof ApiError && error.status === 401) ||
-        error instanceof TypeError
-      ) {
-        setErrors({
-          password:
-            error instanceof TypeError
-              ? 'Không thể kết nối tới dịch vụ xác thực.'
-              : 'Thông tin đăng nhập không hợp lệ.',
-        })
+      if (error instanceof ApiError && error.status === 401) {
+        setErrors({ password: 'Thông tin đăng nhập không hợp lệ.' })
         return
       }
 
-      throw error
+      if (error instanceof TypeError) {
+        generalError.value = 'Không thể kết nối tới dịch vụ xác thực.'
+        return
+      }
+
+      generalError.value = 'Đã có lỗi xảy ra, vui lòng thử lại sau.'
     }
   })
 
@@ -62,6 +62,7 @@ export function useLoginPage(onSuccess: () => Promise<void> | void) {
     email,
     emailProps,
     errors,
+    generalError,
     isSubmitting,
     password,
     passwordProps,

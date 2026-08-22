@@ -8,9 +8,13 @@
       },
     ]"
   >
+    <a href="#admin-layout-main" class="admin-layout__skip-link"
+      >Bỏ qua đến nội dung</a
+    >
+
     <button
       v-if="layoutStore.mobileSidebarOpen"
-      aria-label="Close menu"
+      aria-label="Đóng menu"
       class="admin-layout__backdrop"
       type="button"
       @click="layoutStore.closeMobileSidebar"
@@ -50,6 +54,7 @@
             class="admin-layout__nav-link"
             :class="{ 'router-link-active': isItemActive(item) }"
             :to="item.to"
+            :title="item.label"
             @click="layoutStore.closeMobileSidebar"
           >
             <i
@@ -68,8 +73,8 @@
           <Button
             :aria-label="
               layoutStore.sidebarCollapsed
-                ? 'Expand sidebar'
-                : 'Collapse sidebar'
+                ? 'Mở rộng sidebar'
+                : 'Thu gọn sidebar'
             "
             class="admin-layout__sidebar-toggle"
             icon="pi pi-bars"
@@ -116,7 +121,7 @@
         <h2 class="admin-layout__page-title">{{ title }}</h2>
       </section>
 
-      <main class="admin-layout__content">
+      <main id="admin-layout-main" class="admin-layout__content">
         <slot />
       </main>
 
@@ -319,7 +324,7 @@ const profileMenuItems = [
     },
   },
   {
-    label: 'Logout',
+    label: 'Đăng xuất',
     icon: 'pi pi-sign-out',
     command: async () => {
       await handleLogout()

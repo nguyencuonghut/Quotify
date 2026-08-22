@@ -1,0 +1,41 @@
+// Badge trạng thái báo giá (draft/confirmed/superseded) — dùng chung cho
+// QuoteDetailPage và QuotesPage. Trước đây mỗi trang tự định nghĩa badge
+// riêng (`.quote-detail-page__status-badge` với `rgba()`/`--orange-600`
+// hard-code, `.quotes-page__status-badge` với `color-mix()`/`--p-orange-500`)
+// nên cùng 3 trạng thái lại hiện 2 tông màu khác nhau giữa 2 trang người
+// dùng qua lại liên tục — phát hiện ngày 22/08/2026, hợp nhất về đúng token
+// ngữ nghĩa `--app-warning`/`--app-success`/`--app-text-muted` đã dùng ở
+// Dashboard.
+.quote-status-badge {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+
+  &--sm {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.65rem;
+  }
+
+  &--draft {
+    background: color-mix(in srgb, var(--app-warning) 12%, transparent);
+    color: var(--app-warning);
+    border: 1px solid color-mix(in srgb, var(--app-warning) 30%, transparent);
+  }
+
+  &--confirmed {
+    background: color-mix(in srgb, var(--app-success) 12%, transparent);
+    color: var(--app-success);
+    border: 1px solid color-mix(in srgb, var(--app-success) 30%, transparent);
+  }
+
+  &--superseded {
+    background: color-mix(in srgb, var(--app-text-muted) 12%, transparent);
+    color: var(--app-text-muted);
+    border: 1px solid color-mix(in srgb, var(--app-text-muted) 24%, transparent);
+  }
+}

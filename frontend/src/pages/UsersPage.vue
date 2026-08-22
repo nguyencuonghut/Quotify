@@ -124,22 +124,31 @@
             <template #body="{ data }">
               <div class="users-page__row-actions">
                 <Button
-                  v-if="permissionStore.can('users.update')"
+                  :disabled="!permissionStore.can('users.update')"
+                  :title="permissionStore.can('users.update') ? 'Chỉnh sửa' : 'Bạn không có quyền chỉnh sửa tài khoản.'"
                   icon="pi pi-pencil"
                   severity="secondary"
                   text
                   rounded
                   aria-label="Chỉnh sửa"
+                  data-testid="users-page-edit-user"
                   @click="openEditDialog(data)"
                 />
                 <Button
-                  v-if="permissionStore.can('users.delete')"
-                  :disabled="data.id === authStore.currentUser?.id"
+                  :disabled="!permissionStore.can('users.delete') || data.id === authStore.currentUser?.id"
+                  :title="
+                    !permissionStore.can('users.delete')
+                      ? 'Bạn không có quyền xóa tài khoản.'
+                      : data.id === authStore.currentUser?.id
+                        ? 'Không thể tự xóa tài khoản của chính mình.'
+                        : 'Xóa'
+                  "
                   icon="pi pi-trash"
                   severity="danger"
                   text
                   rounded
                   aria-label="Xóa"
+                  data-testid="users-page-delete-user"
                   @click="openDeleteDialog(data)"
                 />
               </div>

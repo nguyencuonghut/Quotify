@@ -72,8 +72,7 @@
             </h3>
             <span
               v-if="activeVersion"
-              class="quote-detail-page__status-badge"
-              :class="activeVersion.status"
+              :class="['quote-status-badge', `quote-status-badge--${activeVersion.status}`]"
             >
               {{ getVersionStatusLabel(activeVersion.status) }}
             </span>
@@ -460,7 +459,7 @@
               <div class="quote-detail-page__timeline-dot" />
               <div class="quote-detail-page__timeline-header">
                 <span>Phiên bản V{{ v.versionNumber }}</span>
-                <span class="quote-detail-page__status-badge scale-75" :class="v.status">
+                <span :class="['quote-status-badge', 'quote-status-badge--sm', `quote-status-badge--${v.status}`]">
                   {{ getVersionStatusLabel(v.status) }}
                 </span>
               </div>

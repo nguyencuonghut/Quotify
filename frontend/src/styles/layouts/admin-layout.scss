@@ -19,6 +19,27 @@
   color: var(--app-text-primary);
 }
 
+// Ẩn thị giác nhưng vẫn đọc được bởi trình đọc màn hình / điều hướng bàn
+// phím — hiện ra khi nhận focus (Tab đầu tiên khi vào trang) để nhảy thẳng
+// tới #admin-layout-main, bỏ qua toàn bộ sidebar nav.
+.admin-layout__skip-link {
+  position: absolute;
+  top: -3rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--app-accent);
+  color: var(--app-surface-panel);
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.15s ease;
+
+  &:focus-visible {
+    top: 0.5rem;
+  }
+}
+
 .admin-layout__backdrop {
   display: none;
 }
@@ -310,23 +331,6 @@
   object-fit: cover;
 }
 
-.admin-layout__profile-avatar-fallback {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  font-size: 0.88rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--app-text-primary);
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--app-accent) 55%, transparent),
-    color-mix(in srgb, var(--app-accent-strong) 72%, transparent)
-  );
-}
-
 .admin-layout__profile-menu {
   min-width: 11rem;
 }
@@ -407,8 +411,7 @@
   color: var(--app-border-soft);
 }
 
-.admin-layout__footer-version,
-.admin-layout__footer-timezone {
+.admin-layout__footer-version {
   font-family: monospace;
   color: var(--app-text-muted);
 }

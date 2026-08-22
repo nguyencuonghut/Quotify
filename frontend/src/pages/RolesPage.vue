@@ -74,22 +74,31 @@
             <template #body="{ data }">
               <div class="roles-page__row-actions">
                 <Button
-                  v-if="permissionStore.can('roles.update')"
+                  :disabled="!permissionStore.can('roles.update')"
+                  :title="permissionStore.can('roles.update') ? 'Chỉnh sửa' : 'Bạn không có quyền chỉnh sửa vai trò.'"
                   icon="pi pi-pencil"
                   severity="secondary"
                   text
                   rounded
                   aria-label="Chỉnh sửa"
+                  data-testid="roles-page-edit-role"
                   @click="openEditDialog(data)"
                 />
                 <Button
-                  v-if="permissionStore.can('roles.delete')"
-                  :disabled="data.isSystem"
+                  :disabled="!permissionStore.can('roles.delete') || data.isSystem"
+                  :title="
+                    data.isSystem
+                      ? 'Vai trò hệ thống không thể xóa.'
+                      : !permissionStore.can('roles.delete')
+                        ? 'Bạn không có quyền xóa vai trò.'
+                        : 'Xóa'
+                  "
                   icon="pi pi-trash"
                   severity="danger"
                   text
                   rounded
                   aria-label="Xóa"
+                  data-testid="roles-page-delete-role"
                   @click="openDeleteDialog(data)"
                 />
               </div>
@@ -203,6 +212,7 @@
               v-bind="editNameProps"
               fluid
               :disabled="selectedRole?.isSystem"
+              :title="selectedRole?.isSystem ? 'Không thể đổi tên vai trò hệ thống.' : undefined"
               placeholder="Ví dụ: hr_manager"
             />
             <small class="roles-page__field-error">{{ editErrors.name }}</small>

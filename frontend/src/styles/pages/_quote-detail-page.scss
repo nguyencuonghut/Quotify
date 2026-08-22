@@ -95,32 +95,9 @@
     color: var(--app-text-primary);
   }
 
-  .quote-detail-page__status-badge {
-    padding: 0.35rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-
-    &.draft {
-      background: rgba(245, 158, 11, 0.12);
-      color: var(--orange-600, #d97706);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-    }
-    
-    &.confirmed {
-      background: rgba(16, 185, 129, 0.12);
-      color: var(--green-600, #059669);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-
-    &.superseded {
-      background: color-mix(in srgb, var(--app-text-muted) 12%, transparent);
-      color: var(--app-text-muted);
-      border: 1px solid color-mix(in srgb, var(--app-text-muted) 24%, transparent);
-    }
-  }
+  // Badge trạng thái dùng chung `.quote-status-badge` (xem
+  // styles/components/shared/quote-status-badge.scss) — không còn định
+  // nghĩa riêng ở đây.
 
   .quote-detail-page__meta-grid {
     display: grid;

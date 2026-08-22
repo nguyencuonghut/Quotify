@@ -227,32 +227,9 @@
     }
   }
 
-  .quotes-page__status-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    display: inline-block;
-
-    &.status-draft {
-      background-color: color-mix(in srgb, var(--p-orange-500, #f59e0b) 12%, transparent);
-      color: var(--p-orange-700, #b45309);
-      border: 1px solid color-mix(in srgb, var(--p-orange-500, #f59e0b) 20%, transparent);
-    }
-
-    &.status-confirmed {
-      background-color: color-mix(in srgb, var(--p-green-500, #10b981) 12%, transparent);
-      color: var(--p-green-700, #047857);
-      border: 1px solid color-mix(in srgb, var(--p-green-500, #10b981) 20%, transparent);
-    }
-
-    &.status-superseded {
-      background-color: color-mix(in srgb, var(--app-text-muted) 12%, transparent);
-      color: var(--app-text-muted);
-      border: 1px solid color-mix(in srgb, var(--app-text-muted) 24%, transparent);
-    }
-  }
+  // Badge trạng thái dùng chung `.quote-status-badge` (xem
+  // styles/components/shared/quote-status-badge.scss) — không còn định
+  // nghĩa riêng ở đây.
 
   .quotes-page__purchased-indicator {
     display: inline-flex;

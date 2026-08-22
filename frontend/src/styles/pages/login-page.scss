@@ -64,6 +64,19 @@
   gap: 1.55rem;
 }
 
+.login-page__general-error {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0.5rem;
+  background-color: color-mix(in srgb, var(--app-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-danger) 42%, var(--app-border-soft));
+  color: var(--app-danger);
+  font-size: 0.85rem;
+}
+
 .login-page__field {
   display: grid;
   gap: 0.45rem;

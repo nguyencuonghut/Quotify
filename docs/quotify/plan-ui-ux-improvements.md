@@ -81,7 +81,94 @@
     `activeWrapper` + `afterEach(() => activeWrapper?.unmount())`) — áp
     dụng cho MỌI test file dùng chung pattern module-level ref mock từ giờ
     trở đi.
-  - Slice 7 trở đi: chưa bắt đầu.
+  - **Slice 7 — DONE (22/08/2026)**: gộp badge trạng thái báo giá
+    (`QuotesPage.vue`, `QuoteDetailPage.vue`) về 1 class dùng chung
+    `.quote-status-badge` (file mới
+    `styles/components/shared/quote-status-badge.scss`, thêm `@use` vào
+    `main.scss`), dùng token `--app-warning/--app-success/--app-text-muted`
+    thay 2 bộ định nghĩa `&.draft/&.confirmed/&.superseded` và
+    `&.status-draft/...` trùng lặp trước đó (đã xoá cả 2 block cũ). Xác minh
+    bằng `vue-tsc`/`vite build`/`vitest run` toàn bộ (không có test mount
+    riêng vì đây thuần đổi class/token CSS, không có nhánh hành vi mới —
+    theo điều chỉnh phương pháp kiểm thử bên dưới).
+  - **Slice 8 + 9 — DONE (22/08/2026)**: đổi nút Sửa/Xoá theo quyền từ
+    `v-if` (ẩn hẳn) sang luôn hiển thị + `:disabled` + `:title` giải thích
+    lý do, áp dụng cho `UsersPage.vue`, `RolesPage.vue`, `BackupsPage.vue`
+    (bảng lịch trình sao lưu + nút tải xuống nhật ký sao lưu). `RolesPage.vue`
+    gộp thêm Slice 9 (nút Xoá vai trò hệ thống luôn disable kèm title "Vai
+    trò hệ thống không thể xóa.", input đổi tên vai trò hệ thống trong dialog
+    Sửa cũng thêm `title` giải thích). Test mount thật cho cả 3 trang
+    (`UsersPage.spec.ts` 2 test, `RolesPage.spec.ts` 4 test,
+    `BackupsPage.spec.ts` 4 test), dùng `DataTable`/`Column`/`Button` THẬT +
+    `global.plugins:[PrimeVue]` + polyfill `window.matchMedia` (Paginator nội
+    bộ cần) + `activeWrapper`/`afterEach` unmount. Phát hiện thêm khi viết
+    test `BackupsPage.spec.ts`: mock `scheduleSchema` (Zod) bằng object giả
+    làm `toTypedSchema` lỗi `zodSchema.safeParseAsync is not a function` —
+    phải dùng `vi.importActual` để giữ nguyên `scheduleSchema` thật, chỉ mock
+    phần còn lại của composable; và bảng lịch trình chỉ render sau khi test
+    tự bấm chuyển sang tab "Lịch trình tự động" (mặc định là tab "logs").
+    aria-label PrimeVue Button vẫn không dùng được để tìm phần tử trong test
+    (đã ghi nhận từ Slice 8/UsersPage) — dùng `data-testid` cho mọi nút mới.
+  - **Slice 10 + 11 + 13 — DONE (22/08/2026)**: gộp 3 slice vì cùng sửa
+    `AdminLayout.vue`/`admin-layout.scss`. (10) mỗi nav-link thêm
+    `:title="item.label"` để hiện tên mục khi hover/sidebar thu gọn. (11)
+    dịch "Close menu" → "Đóng menu", "Expand sidebar"/"Collapse sidebar" →
+    "Mở rộng sidebar"/"Thu gọn sidebar", "Logout" → "Đăng xuất"; xoá 2 class
+    CSS chết `.admin-layout__profile-avatar-fallback` (rule đứng riêng) và
+    `.admin-layout__footer-timezone` (gộp chung selector với
+    `.admin-layout__footer-version`, chỉ xoá phần tên class, giữ rule) —
+    xác nhận cả 2 không xuất hiện ở bất kỳ đâu trong `template` bằng `grep`
+    trước khi xoá. (13) thêm skip-link `<a href="#admin-layout-main">Bỏ qua
+    đến nội dung</a>` làm phần tử con đầu tiên của layout, `id=
+    "admin-layout-main"` cho `<main>`, CSS ẩn bằng `position:absolute;
+    top:-3rem` + hiện khi `:focus-visible` (dự án chưa có sẵn class tiện ích
+    kiểu `.sr-only` dùng chung, nên viết riêng cho layout này thay vì tạo
+    tiện ích mới ngoài phạm vi yêu cầu). 3 test mount thật
+    (`tests/unit/AdminLayout.spec.ts`) — phải mock `vue-router`
+    (`useRoute`→`{path:'/'}`, `useRouter`→`{push,replace}`) vì
+    `isItemActive()` đọc `route.path` trực tiếp lúc render, không có
+    `<RouterLink>` thật (stub `to`→`<a>`) nên thiếu router context sẽ throw;
+    cũng phải `vi.stubGlobal('fetch', ...)` vì `onMounted` gọi
+    `checkSystemHealth()` fetch `/api/v1/health` thật. Xác nhận thêm:
+    `profileMenuItems` (biến `<script setup>` không `defineExpose`) vẫn đọc
+    được qua `wrapper.vm` trong Vue Test Utils — không cần expose thủ công.
+  - **Slice 12 — DONE (22/08/2026)**: `useLoginPage.ts` thêm state
+    `generalError` (ref riêng, tách khỏi lỗi field mật khẩu qua
+    `setErrors`); catch giờ có 3 nhánh: 401 → lỗi field mật khẩu như cũ,
+    `TypeError` (lỗi mạng) → `generalError` (trước đây gắn nhầm vào field
+    mật khẩu), còn lại (vd. lỗi 500) → `generalError` thông báo chung thay vì
+    `throw` không bắt (rơi thành unhandled rejection, không hiện gì cho
+    người dùng). `LoginPage.vue` thêm banner `.login-page__general-error`
+    (cùng pattern icon+span với `roles-page__general-error`). 3 test ở cấp
+    composable (`tests/unit/useLoginPage.spec.ts`, mock `authStore.login`
+    reject với từng loại lỗi) — không cần mount component vì toàn bộ logic
+    nằm ở composable, đúng theo điều chỉnh phương pháp kiểm thử.
+  - **Slice 14 — DONE (22/08/2026)**: cột "Vật tư cung cấp"
+    (`SuppliersPage.vue`) thêm class `.suppliers-page__materials-cell`
+    (`max-width:16rem; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap`) + `:title="formatMaterialNames(data.materials)"`
+    để xem đầy đủ qua tooltip trình duyệt khi hover — không cần dialog vì
+    tooltip đã đủ, giữ tối giản. 1 test mount thật
+    (`tests/unit/SuppliersPage.spec.ts`, describe thứ 2). Phát hiện quan
+    trọng: DataTable/Column THẬT (pattern dùng ở Users/Roles/Backups) gây
+    lỗi `Maximum recursive updates exceeded in component <DataTable>` khi
+    mount `SuppliersPage` cụ thể (không tái hiện ở 3 trang kia dù cấu hình
+    lazy+paginator tương tự — nguyên nhân gốc chưa rõ, không đáng công điều
+    tra sâu chỉ để test 1 cột hiển thị) — đổi sang stub tự viết
+    (`RowStub` dùng `provide()` truyền dữ liệu dòng qua injection cho từng
+    `<tr>`, `columnBodyStub` dùng `inject()` lấy lại rồi tự gọi slot
+    `#body`), tránh hoàn toàn Paginator thật nên không cần
+    `global.plugins:[PrimeVue]` hay polyfill `matchMedia` cho riêng test
+    này.
+  - **Slice 1 → 14: HOÀN TẤT (22/08/2026)**. Chỉ còn Slice 15, đang chờ
+    quyết định sản phẩm từ người yêu cầu (không tự ý code). Toàn bộ đã xác
+    minh: `vue-tsc --noEmit` sạch, `vite build` compile SCSS/TS thành công
+    (lỗi `EACCES` ở bước xoá `dist/assets` là môi trường cục bộ, không liên
+    quan code, luôn xảy ra kể cả trước khi bắt đầu task này), `vitest run`
+    toàn bộ chỉ còn đúng 4 lỗi đã biết từ trước, không liên quan (1 ở
+    `audit-logs.page.spec.ts`, 3 ở `useQuotifySettingsPage.spec.ts` — đã xác
+    nhận qua `git status` các file này không đổi trong suốt quá trình làm
+    15 slice).
 
 ### Điều chỉnh phương pháp kiểm thử (so với "Nguyên Tắc Chia Slice + TDD")
 

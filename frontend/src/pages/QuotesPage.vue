@@ -279,7 +279,7 @@
 
           <Column field="version_status" header="Trạng thái">
             <template #body="{ data }">
-              <span :class="['quotes-page__status-badge', `status-${data.versionStatus}`]">
+              <span :class="['quote-status-badge', `quote-status-badge--${data.versionStatus}`]">
                 {{ getVersionStatusLabel(data.versionStatus) }}
               </span>
             </template>
@@ -372,7 +372,7 @@
                 <h3 class="quotes-page__mobile-title">{{ item.materialName }}</h3>
                 <p class="quotes-page__mobile-subtitle">{{ item.supplierName }}</p>
               </div>
-              <span :class="['quotes-page__status-badge', `status-${item.versionStatus}`]">
+              <span :class="['quote-status-badge', `quote-status-badge--${item.versionStatus}`]">
                 {{ getVersionStatusLabel(item.versionStatus) }}
               </span>
             </div>

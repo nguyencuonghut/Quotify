@@ -94,7 +94,11 @@
           </Column>
           <Column header="Vật tư cung cấp">
             <template #body="{ data }">
-              <span>{{ formatMaterialNames(data.materials) }}</span>
+              <span
+                class="suppliers-page__materials-cell"
+                :title="formatMaterialNames(data.materials)"
+                >{{ formatMaterialNames(data.materials) }}</span
+              >
             </template>
           </Column>
           <Column field="status" header="Trạng thái" sortable>
