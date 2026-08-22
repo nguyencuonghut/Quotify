@@ -120,6 +120,11 @@
               </div>
             </template>
           </Column>
+          <template #empty>
+            <span class="materials-page__table-empty">
+              Không tìm thấy vật tư phù hợp với bộ lọc hiện tại.
+            </span>
+          </template>
         </DataTable>
       </section>
 

@@ -129,6 +129,11 @@
               </div>
             </template>
           </Column>
+          <template #empty>
+            <span class="suppliers-page__table-empty">
+              Không tìm thấy nhà cung cấp phù hợp với bộ lọc hiện tại.
+            </span>
+          </template>
         </DataTable>
       </section>
 

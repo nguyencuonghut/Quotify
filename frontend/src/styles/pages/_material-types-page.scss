@@ -166,6 +166,10 @@
   color: var(--app-text-danger);
 }
 
+.material-types-page__table-empty {
+  color: var(--app-text-secondary);
+}
+
 @media (max-width: 768px) {
   .material-types-page__header,
   .material-types-page__filters,

@@ -101,6 +101,11 @@
               </div>
             </template>
           </Column>
+          <template #empty>
+            <span class="material-types-page__table-empty">
+              Không tìm thấy loại vật tư phù hợp với bộ lọc hiện tại.
+            </span>
+          </template>
         </DataTable>
       </section>
 

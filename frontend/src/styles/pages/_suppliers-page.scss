@@ -213,6 +213,10 @@
   color: var(--app-text-danger);
 }
 
+.suppliers-page__table-empty {
+  color: var(--app-text-secondary);
+}
+
 @media (max-width: 1024px) {
   .suppliers-page__contact-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));

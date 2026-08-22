@@ -22,6 +22,24 @@
   font-size: 1rem;
 }
 
+// "Giá quy đổi" là con số quyết định mua/không mua — cần nổi bật hơn "Giá
+// gốc" (dùng chung `.quotes-page__price-cell` nhưng KHÔNG có modifier này).
+// Trước đây gắn `text-primary font-bold` (không có tác dụng gì, dự án không
+// cài Tailwind/PrimeFlex) nên 2 cột trông giống hệt nhau dù ý định là khác.
+.quotes-page__price-cell--highlight .quotes-page__price-value {
+  color: var(--app-accent);
+}
+
+// Thay `font-semibold` (dead — không cài Tailwind/PrimeFlex, phát hiện ngày
+// 22/08/2026) cho tên NCC/vật tư trong bảng.
+.quotes-page__cell-strong {
+  font-weight: 600;
+}
+
+.quotes-page__table-empty {
+  color: var(--app-text-secondary);
+}
+
 .quotes-page__price-unit {
   display: block;
   font-size: 0.72rem;

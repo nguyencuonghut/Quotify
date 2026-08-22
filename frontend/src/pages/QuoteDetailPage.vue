@@ -51,8 +51,14 @@
     </div>
 
     <!-- Error message -->
-    <div v-if="errorMsg" class="mb-4">
+    <div v-if="errorMsg" style="margin-bottom: 1rem">
       <Message severity="error" @close="errorMsg = null">{{ errorMsg }}</Message>
+    </div>
+
+    <!-- Loading state -->
+    <div v-if="isLoading && !quote" class="quote-detail-page__loading">
+      <i class="pi pi-spin pi-spinner" aria-hidden="true" />
+      <span>Đang tải phiếu báo giá...</span>
     </div>
 
     <!-- Main Grid Split -->
@@ -103,7 +109,7 @@
 
           <!-- Source File Section -->
           <div v-if="activeVersion">
-            <h4 class="font-semibold text-sm mb-2 text-gray-700">Tệp tin báo giá gốc</h4>
+            <h4 class="quote-detail-page__subsection-title" style="margin-bottom: 0.5rem">Tệp tin báo giá gốc</h4>
             
             <!-- Confirmed Version / Draft with associated file -->
             <div v-if="activeVersion.fileId" class="quote-detail-page__file-card">
@@ -124,7 +130,7 @@
             
             <!-- Draft Version without associated file -> show uploader -->
             <div v-else-if="activeVersion.status === 'draft' && canUpdateQuote" class="quote-detail-page__file-upload-section">
-              <i class="pi pi-cloud-upload text-3xl text-gray-400" />
+              <i class="pi pi-cloud-upload quote-detail-page__upload-icon" />
               <p>Đính kèm tệp tin gốc (.xlsx, .pdf, .docx, .png)</p>
               <FileUpload
                 mode="basic"
@@ -138,14 +144,14 @@
                 choose-label="Chọn tệp tin"
               />
             </div>
-            <div v-else class="text-sm text-gray-500 italic mb-4">
+            <div v-else class="quote-detail-page__empty-hint" style="margin-bottom: 1rem">
               Không có tệp tin đính kèm.
             </div>
           </div>
 
           <!-- Lines DataTable -->
           <div class="quote-detail-page__lines-header">
-            <h4 class="font-semibold text-sm text-gray-700">Danh sách dòng vật tư</h4>
+            <h4 class="quote-detail-page__subsection-title">Danh sách dòng vật tư</h4>
             <span class="quote-detail-page__lines-count">
               {{ filteredQuoteLines.length }}/{{ activeVersion?.lines.length || 0 }} dòng
             </span>
@@ -222,22 +228,22 @@
               <template #header>
                 <div style="display: flex; flex-direction: column; line-height: 1.3;">
                   <span>Tỷ giá quy đổi</span>
-                  <span class="text-xs text-gray-400 font-normal">(VNĐ/USD)</span>
+                  <span class="quote-detail-page__price-unit">(VNĐ/USD)</span>
                 </div>
               </template>
               <template #body="slotProps">
                 <div v-if="slotProps.data.currency.toUpperCase() === 'USD'">
-                  <span class="font-bold text-primary">{{ formatMoney(slotProps.data.exchangeRate) }}</span>
-                  <div v-if="slotProps.data.exchangeRateManualReason" class="text-xs text-orange-600 italic">
+                  <span class="quote-detail-page__price-value quote-detail-page__price-value--highlight">{{ formatMoney(slotProps.data.exchangeRate) }}</span>
+                  <div v-if="slotProps.data.exchangeRateManualReason" class="quote-detail-page__price-unit quote-detail-page__manual-reason">
                     Lý do: {{ slotProps.data.exchangeRateManualReason }}
                   </div>
                 </div>
-                <span v-else class="text-xs text-gray-400">-</span>
+                <span v-else class="quote-detail-page__price-unit">-</span>
               </template>
             </Column>
             <Column header="Giá quy đổi (VNĐ/KG)" style="width: 180px">
               <template #body="slotProps">
-                <span class="font-bold text-primary">
+                <span class="quote-detail-page__price-value quote-detail-page__price-value--highlight">
                   {{ formatMoney(slotProps.data.priceConvertedVndPer_kg || slotProps.data.priceConvertedVndPerKg) }}
                 </span>
               </template>
@@ -247,7 +253,7 @@
                 <span v-if="slotProps.data.currency.toUpperCase() === 'USD'">
                   {{ formatMoney(slotProps.data.importTaxRatePercent) }}%
                 </span>
-                <span v-else class="text-xs text-gray-400">-</span>
+                <span v-else class="quote-detail-page__price-unit">-</span>
               </template>
             </Column>
             <Column header="Chi phí làm hàng" style="width: 150px">
@@ -266,8 +272,8 @@
             </Column>
             <Column header="Ghi chú" style="width: 200px">
               <template #body="slotProps">
-                <span v-if="slotProps.data.note" class="text-xs">{{ slotProps.data.note }}</span>
-                <span v-else class="text-xs text-gray-400">-</span>
+                <span v-if="slotProps.data.note" class="quote-detail-page__small-text">{{ slotProps.data.note }}</span>
+                <span v-else class="quote-detail-page__price-unit">-</span>
               </template>
             </Column>
             <Column header="Chốt mua" style="width: 160px; text-align: left">
@@ -296,7 +302,7 @@
         <div class="quote-detail-page__card">
           <div class="quote-detail-page__section-header">
             <h3 class="quote-detail-page__section-title">
-              <i class="pi pi-file-edit mr-2 text-primary" />
+              <i class="pi pi-file-edit quote-detail-page__section-icon" style="margin-right: 0.5rem" />
               Ghi chú thị trường
             </h3>
             <Button
@@ -308,9 +314,9 @@
             />
           </div>
 
-          <div class="quote-detail-page__note-body mt-3">
+          <div class="quote-detail-page__note-body" style="margin-top: 0.75rem">
             <!-- Edit mode (adding new note) -->
-            <div v-if="isEditingNote" class="flex flex-column gap-3">
+            <div v-if="isEditingNote" style="display: flex; flex-direction: column; gap: 0.75rem">
               <Editor
                 v-model="editingContent"
                 editor-style="height: 200px"
@@ -333,7 +339,7 @@
                   :loading="isSavingNote"
                 />
               </div>
-              <div v-if="noteErrorMsg" class="text-xs text-red-600">
+              <div v-if="noteErrorMsg" class="quote-detail-page__field-error">
                 {{ noteErrorMsg }}
               </div>
             </div>
@@ -350,7 +356,7 @@
                   class="quote-detail-page__comment-card"
                 >
                   <!-- Edit mode for specific revision -->
-                  <div v-if="isEditingRevisionId === rev.id" class="flex flex-column gap-3">
+                  <div v-if="isEditingRevisionId === rev.id" style="display: flex; flex-direction: column; gap: 0.75rem">
                     <Editor
                       v-model="editingRevisionContent"
                       editor-style="height: 150px"
@@ -391,7 +397,7 @@
                           <span class="quote-detail-page__comment-time">{{ formatDateTime(rev.createdAt) }}</span>
                         </div>
                       </div>
-                      <div class="flex align-items-center gap-2">
+                      <div style="display: flex; align-items: center; gap: 0.5rem">
                         <span 
                           v-if="idx === chronologicalRevisions.length - 1" 
                           class="quote-detail-page__current-badge"
@@ -415,7 +421,7 @@
                             rounded
                             size="small"
                             title="Xóa"
-                            @click="confirmDeleteRevision(rev.id)"
+                            @click="requestDeleteRevision(rev.id)"
                           />
                         </div>
                       </div>
@@ -427,7 +433,7 @@
                   </div>
                 </div>
               </div>
-              <div v-else class="text-gray-500 italic text-sm py-2">
+              <div v-else class="quote-detail-page__empty-hint" style="padding: 0.5rem 0">
                 Chưa có ghi chú thị trường nào cho báo giá này.
               </div>
             </div>
@@ -474,8 +480,8 @@
       :modal="true"
       :style="{ width: '450px' }"
     >
-      <div class="flex align-items-center gap-3">
-        <i class="pi pi-exclamation-triangle text-orange-500 text-3xl" />
+      <div style="display: flex; align-items: center; gap: 0.75rem">
+        <i class="pi pi-exclamation-triangle quote-detail-page__warning-icon quote-detail-page__warning-icon--warning" />
         <span>
           Sau khi xác nhận, toàn bộ giá gốc và tỷ giá của
           <strong>Phiên bản #{{ activeVersion?.versionNumber }}</strong>
@@ -509,8 +515,8 @@
       :modal="true"
       :style="{ width: '450px' }"
     >
-      <div class="flex align-items-center gap-3">
-        <i class="pi pi-exclamation-triangle text-red-500 text-3xl" />
+      <div style="display: flex; align-items: center; gap: 0.75rem">
+        <i class="pi pi-exclamation-triangle quote-detail-page__warning-icon quote-detail-page__warning-icon--danger" />
         <span>
           Bản nháp sẽ bị xóa vĩnh viễn.
           <template v-if="sortedVersions.length === 1">
@@ -549,13 +555,13 @@
     >
       <div class="quote-detail-page__purchase-dialog-content" style="display: flex; flex-direction: column; gap: 1rem; padding: 0.5rem 0; width: 100%;">
         <div class="quote-detail-page__purchase-dialog-field" style="display: flex; flex-direction: column; gap: 0.75rem; width: 100%;">
-          <label class="text-sm font-semibold text-gray-700" style="display: block; margin-bottom: 0.25rem;">Ngày chốt mua</label>
+          <label class="quote-detail-page__subsection-title" style="display: block; margin-bottom: 0.25rem;">Ngày chốt mua</label>
           <DatePicker
             v-model="selectedPurchaseDate"
             dateFormat="yy-mm-dd"
             placeholder="YYYY-MM-DD"
             showIcon
-            class="w-full"
+            class="quote-detail-page__purchase-date-input"
           />
         </div>
       </div>
@@ -583,12 +589,12 @@
       :modal="true"
       :style="{ width: '600px' }"
     >
-      <div v-if="selectedRevision" class="flex flex-column gap-3">
-        <div class="text-xs text-gray-500 bg-gray-50 p-2 border-round">
+      <div v-if="selectedRevision" style="display: flex; flex-direction: column; gap: 0.75rem">
+        <div class="quote-detail-page__revision-meta">
           <span>Người viết: <strong>{{ selectedRevision.authorName || 'Hệ thống' }}</strong></span>
-          <span class="ml-4">Thời gian: <strong>{{ formatDateTime(selectedRevision.createdAt) }}</strong></span>
+          <span>Thời gian: <strong>{{ formatDateTime(selectedRevision.createdAt) }}</strong></span>
         </div>
-        <div class="quote-detail-page__note-html-content max-h-20rem overflow-y-auto p-2 border-1 border-gray-200 border-round" v-html="selectedRevision.content" />
+        <div class="quote-detail-page__note-html-content quote-detail-page__note-html-content--scrollable" v-html="selectedRevision.content" />
       </div>
       <template #footer>
         <Button
@@ -596,6 +602,34 @@
           icon="pi pi-times"
           severity="secondary"
           @click="showRevisionDialog = false"
+        />
+      </template>
+    </Dialog>
+
+    <!-- Delete Note Revision Dialog -->
+    <Dialog
+      :visible="pendingDeleteRevisionId !== null"
+      header="Xóa ghi chú"
+      :modal="true"
+      :style="{ width: '400px' }"
+      @update:visible="cancelDeleteRevision"
+    >
+      <p>Bạn có chắc chắn muốn xóa ghi chú này không?</p>
+      <template #footer>
+        <Button
+          label="Hủy"
+          icon="pi pi-times"
+          severity="secondary"
+          outlined
+          data-testid="quote-detail-cancel-delete-revision"
+          @click="cancelDeleteRevision"
+        />
+        <Button
+          label="Xóa"
+          icon="pi pi-trash"
+          severity="danger"
+          data-testid="quote-detail-confirm-delete-revision"
+          @click="confirmDeleteRevision"
         />
       </template>
     </Dialog>
@@ -635,6 +669,7 @@ const quoteId = route.params.quoteId as string
 const {
   quote,
   activeVersionId,
+  isLoading,
   errorMsg,
   isConfirming,
   isFileUploading,
@@ -827,13 +862,30 @@ const saveRevision = async (revId: string) => {
   }
 }
 
-const confirmDeleteRevision = async (revId: string) => {
-  if (confirm('Bạn có chắc chắn muốn xóa ghi chú này không?')) {
-    try {
-      await handleDeleteNoteRevision(quoteId, revId)
-    } catch {
-      // handled by composable errorMsg
-    }
+// Trước đây dùng `confirm()` gốc của trình duyệt — vỡ giao diện dark mode
+// và không nhất quán với các hành động xoá khác trong cùng trang (đều dùng
+// Dialog PrimeVue riêng, ví dụ `showDeleteDraftDialog`), theo phản hồi
+// người dùng ngày 22/08/2026.
+const pendingDeleteRevisionId = ref<string | null>(null)
+
+const requestDeleteRevision = (revId: string) => {
+  pendingDeleteRevisionId.value = revId
+}
+
+const cancelDeleteRevision = () => {
+  pendingDeleteRevisionId.value = null
+}
+
+const confirmDeleteRevision = async () => {
+  const revId = pendingDeleteRevisionId.value
+  if (!revId) {
+    return
+  }
+  pendingDeleteRevisionId.value = null
+  try {
+    await handleDeleteNoteRevision(quoteId, revId)
+  } catch {
+    // handled by composable errorMsg
   }
 }
 

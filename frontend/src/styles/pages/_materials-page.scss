@@ -167,6 +167,10 @@
   color: var(--app-text-danger);
 }
 
+.materials-page__table-empty {
+  color: var(--app-text-secondary);
+}
+
 @media (max-width: 768px) {
   .materials-page__header,
   .materials-page__filters,

@@ -636,12 +636,12 @@
             <Button
               label="Bắt đầu xuất dữ liệu"
               icon="pi pi-download"
-              class="w-full mt-3"
+              class="users-page__export-trigger"
               @click="handleExportTrigger"
             />
           </div>
 
-          <h5 class="users-page__section-title mt-4">Danh sách tệp đã xuất</h5>
+          <h5 class="users-page__section-title">Danh sách tệp đã xuất</h5>
           <DataTable
             :rows="10"
             :value="exportJobs"
@@ -680,7 +680,7 @@
                   severity="success"
                   @click="downloadJobFile(data.file)"
                 />
-                <span v-else-if="data.status === 'failed'" class="text-danger"
+                <span v-else-if="data.status === 'failed'" class="users-page__error-text"
                   >Lỗi: {{ data.errorSummary }}</span
                 >
                 <span v-else-if="data.status === 'processing'"

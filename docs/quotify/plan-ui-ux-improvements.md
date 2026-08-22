@@ -11,8 +11,95 @@
   `QuoteEditorPage.vue` do flex `min-width: auto`). Không phải toàn bộ phát
   hiện dưới đây đã được double-check bằng cách chạy app — những gì CHƯA
   verify trực tiếp được ghi rõ trong từng slice.
-- Trạng thái: kế hoạch chưa triển khai, đang chờ duyệt trước khi tách thành
-  các commit/slice riêng.
+- Trạng thái: đang triển khai theo đúng thứ tự ưu tiên đề xuất.
+  - **Slice 1 — DONE (22/08/2026)**: khôi phục nhấn mạnh "Giá quy đổi" trên
+    `QuoteDetailPage.vue`/`QuotesPage.vue` — thêm class thật
+    `quote-detail-page__price-value(--highlight)`/
+    `quotes-page__price-cell--highlight`, bỏ `font-bold text-primary`. Phát
+    hiện thêm: `.quote-detail-page__price-value` trước đây hoàn toàn KHÔNG
+    có định nghĩa CSS (không chỉ thiếu accent, thiếu cả bold) — đã bổ sung.
+    Không viết test mount component mới (xem ghi chú "Điều chỉnh phương
+    pháp kiểm thử" bên dưới) — verify bằng grep + `vue-tsc` + `vite build` +
+    `vitest run` toàn bộ (129 test, 4 fail sẵn có không liên quan).
+  - **Slice 2 — DONE (22/08/2026)**: dọn TOÀN BỘ class chết còn lại ở
+    `QuoteDetailPage.vue`, `QuotesPage.vue`, `BackupsPage.vue`,
+    `UsersPage.vue` — phạm vi rộng hơn danh sách dòng ban đầu trong tài liệu
+    này (agent rà soát chỉ SAMPLE một phần, không exhaustive). Grep lại toàn
+    file mới phát hiện thêm nhiều class PrimeFlex chết dạng layout
+    (`flex flex-column gap-3`, `flex align-items-center gap-2/3`) ảnh hưởng
+    thật tới bố cục (icon+text trong dialog xác nhận xoá trước đó xếp
+    CHỒNG DỌC thay vì nằm ngang có khoảng cách) — đã sửa bằng inline
+    `style="display:flex;..."` (nhất quán với cách file này đã dùng inline
+    style cho layout một-lần ở nhiều chỗ khác), phần text/màu lặp lại dùng
+    class BEM thật. Cũng phát hiện `.quote-detail-page__note-html-content`
+    trước đây CHỈ có style khi đi kèm `.quote-detail-page__comment-body`
+    (compound selector) — nơi dùng riêng 1 mình (dialog xem revision) không
+    nhận style nào; đã tách thành class độc lập.
+  - **Slice 3 — DONE (22/08/2026)**: thêm `#empty` cho `DataTable` chính ở
+    `QuotesPage.vue` (bảng desktop), `MaterialsPage.vue`,
+    `MaterialTypesPage.vue`, `SuppliersPage.vue`. Có viết test mount thật
+    (4 file `tests/unit/{MaterialsPage,MaterialTypesPage,SuppliersPage,
+    QuotesPage}.spec.ts`) — RED trước khi thêm `#empty`, GREEN sau. Phát
+    hiện quan trọng khi viết test: `tests/setup.ts` có stub `DataTable`
+    TOÀN CỤC (dùng cho mọi test khác) chỉ render `<slot/>` mặc định +
+    số dòng, KHÔNG gọi slot `#empty` — phải override `DataTable` cục bộ
+    trong từng test bằng 1 stub tương đương có thêm nhánh `#empty`, nếu
+    không test sẽ luôn PASS giả (không phát hiện được thiếu empty-state).
+    Với `QuotesPage.vue` còn phát hiện thêm 1 bẫy tương tự: trang có CẢ
+    bảng desktop lẫn danh sách card mobile cùng lúc trong DOM (ẩn/hiện qua
+    CSS media query) — jsdom không áp dụng media query nên
+    `wrapper.text()` toàn trang "ăn gian" khớp được message rỗng có sẵn của
+    bản mobile dù bảng desktop chưa có `#empty`; phải scope assertion vào
+    đúng `.quotes-page__table-wrapper`.
+  - **Slice 4 — DONE (22/08/2026)**: thêm loading state cho
+    `QuoteDetailPage.vue` — trước đây `isLoading` có trong composable
+    `useQuoteDetail` nhưng KHÔNG được destructure/dùng ở trang này. Thêm
+    `isLoading` vào destructure + khối `<div v-if="isLoading && !quote"
+    class="quote-detail-page__loading">`. Test mount thật
+    (`tests/unit/QuoteDetailPage.spec.ts`, 2 case: đang tải / đã tải xong).
+  - **Slice 5 — DONE (22/08/2026)**: `QuoteEditorPage.vue` — thêm Dialog xác
+    nhận trước khi xoá dòng vật tư (`pendingRemoveLineIndex` +
+    `requestRemoveLine`/`cancelRemoveLine`/`confirmRemoveLine`), thay cho
+    `removeLine(index)` gọi thẳng khi click. 3 test mount thật
+    (`tests/unit/QuoteEditorPage.spec.ts`): không xoá ngay khi click / xoá
+    sau khi xác nhận / giữ nguyên khi huỷ. Phát hiện khi viết test: Dialog
+    THẬT của PrimeVue cần `app.use(PrimeVue)` (đọc `$primevue` lúc render),
+    không có sẵn trong `mount()` trần — phải tự viết 1 stub Dialog nhẹ (chỉ
+    render nội dung + slot `#footer` khi `visible=true`) thay vì dùng
+    component thật hay stub `true` mặc định (không render slot).
+  - **Slice 6 — DONE (22/08/2026)**: `QuoteDetailPage.vue` — thay
+    `confirm()` gốc trình duyệt (xoá 1 revision ghi chú) bằng Dialog cùng
+    kiểu với xoá draft/xác nhận version đã có sẵn trong file
+    (`pendingDeleteRevisionId` + `requestDeleteRevision`/
+    `cancelDeleteRevision`/`confirmDeleteRevision`). 5 test mount thật
+    (`tests/unit/QuoteDetailPage.spec.ts`, gộp cả Slice 4). Phát hiện quan
+    trọng khi viết test: các `ref` mock composable ở MODULE-LEVEL dùng
+    chung cho mọi test trong file — nếu không `unmount()` wrapper cũ trước
+    khi mount wrapper mới ở test tiếp theo, instance cũ vẫn subscribe vào
+    các ref đó và có thể gây test PASS/FAIL không ổn định tuỳ chạy riêng lẻ
+    hay chạy chung cả file (đã gặp thật, sửa bằng cách theo dõi
+    `activeWrapper` + `afterEach(() => activeWrapper?.unmount())`) — áp
+    dụng cho MỌI test file dùng chung pattern module-level ref mock từ giờ
+    trở đi.
+  - Slice 7 trở đi: chưa bắt đầu.
+
+### Điều chỉnh phương pháp kiểm thử (so với "Nguyên Tắc Chia Slice + TDD")
+
+Khi thực thi Slice 1, phát hiện `QuotesPage.vue` và `QuoteDetailPage.vue`
+**chưa có bất kỳ test mount component nào** (chỉ có test cấp composable:
+`useQuotesPage.spec.ts`) — mount đầy đủ 2 trang này đòi hỏi mock router +
+2 Pinia store + 1-2 composable + nhiều API lookup, tốn công thiết lập không
+tương xứng với 1 thay đổi thuần class CSS. Với các slice chỉ đổi
+class/token CSS (không có nhánh hành vi mới), đã CHUYỂN sang xác minh bằng:
+`grep` xác nhận class chết đã hết + class mới có CSS thật (không rỗng) +
+`vue-tsc --noEmit` + `vite build` (SCSS hợp lệ) + `vitest run` toàn bộ
+(không hồi quy). Test mount component đầy đủ (TDD đúng nghĩa theo kế hoạch
+gốc) chỉ áp dụng cho các slice có NHÁNH HÀNH VI thật để kiểm — ví dụ Slice 3
+(empty state hiện/ẩn theo điều kiện), Slice 5/6 (dialog xác nhận chặn hành
+động xoá), Slice 8 (disabled+tooltip theo quyền). Việc thiếu bộ test mount
+cho `QuotesPage.vue`/`QuoteDetailPage.vue` tự nó là một khoảng trống đáng
+ghi nhận, có thể cân nhắc đầu tư riêng nếu muốn có regression safety net
+lâu dài cho 2 trang này.
 
 ## Vấn Đề (Từ Góc Nhìn Người Dùng)
 

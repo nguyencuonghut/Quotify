@@ -107,7 +107,6 @@
             option-value="id"
             placeholder="Tất cả"
             show-clear
-            class="w-full"
             @change="loadQuotesData"
           />
         </label>
@@ -119,7 +118,6 @@
             date-format="yy-mm-dd"
             placeholder="YYYY-MM-DD"
             show-icon
-            class="w-full"
             @update:model-value="loadQuotesData"
           />
         </label>
@@ -131,7 +129,6 @@
             date-format="yy-mm-dd"
             placeholder="YYYY-MM-DD"
             show-icon
-            class="w-full"
             @update:model-value="loadQuotesData"
           />
         </label>
@@ -144,7 +141,6 @@
             date-format="yy-mm"
             placeholder="YYYY-MM"
             show-icon
-            class="w-full"
             @update:model-value="loadQuotesData"
           />
         </label>
@@ -157,7 +153,6 @@
             option-label="label"
             option-value="value"
             placeholder="Tất cả"
-            class="w-full"
             @change="loadQuotesData"
           />
         </label>
@@ -196,13 +191,13 @@
 
           <Column field="supplier_name" header="Nhà cung cấp" sortable>
             <template #body="{ data }">
-              <span class="font-semibold">{{ data.supplierName }}</span>
+              <span class="quotes-page__cell-strong">{{ data.supplierName }}</span>
             </template>
           </Column>
 
           <Column field="material_name" header="Vật tư" sortable>
             <template #body="{ data }">
-              <span class="font-semibold">{{ data.materialName }}</span>
+              <span class="quotes-page__cell-strong">{{ data.materialName }}</span>
             </template>
           </Column>
 
@@ -239,7 +234,7 @@
 
           <Column field="price_converted_vnd_per_kg" header="Giá quy đổi" sortable>
             <template #body="{ data }">
-              <span class="quotes-page__price-cell text-primary font-bold">
+              <span class="quotes-page__price-cell quotes-page__price-cell--highlight">
                 <span class="quotes-page__price-value">{{
                   formatVndPerKg(data.priceConvertedVndPerKg).value
                 }}</span>
@@ -289,6 +284,11 @@
               </span>
             </template>
           </Column>
+          <template #empty>
+            <span class="quotes-page__table-empty">
+              Chưa có dữ liệu báo giá phù hợp với bộ lọc hiện tại.
+            </span>
+          </template>
         </DataTable>
       </section>
 
@@ -380,7 +380,7 @@
             <dl class="quotes-page__mobile-facts">
               <div>
                 <dt>Giá quy đổi</dt>
-                <dd class="quotes-page__mobile-price quotes-page__price-cell">
+                <dd class="quotes-page__mobile-price quotes-page__price-cell quotes-page__price-cell--highlight">
                   <span class="quotes-page__price-value">{{
                     formatVndPerKg(item.priceConvertedVndPerKg).value
                   }}</span>

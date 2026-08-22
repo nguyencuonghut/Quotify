@@ -50,6 +50,59 @@
   gap: 1rem;
   width: 100%;
   max-width: 100%;
+  margin-bottom: 1rem;
+}
+
+// Class thay thế cho hàng loạt class kiểu Tailwind/PrimeFlex chết
+// (`text-xl font-bold`, `text-sm text-muted`, `flex align-items-center
+// gap-2`, `cursor-pointer select-none`, `p-3`, `text-danger`, `font-mono
+// text-sm`, `border-round surface-100 border-1 border-300`...) — dự án
+// không cài Tailwind/PrimeFlex nên các class đó chưa từng có tác dụng (dead
+// code, phát hiện ngày 22/08/2026).
+.backups-page__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--app-text-primary);
+}
+
+.backups-page__subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--app-text-muted);
+}
+
+.backups-page__filename {
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+}
+
+.backups-page__checkbox-label {
+  cursor: pointer;
+  user-select: none;
+}
+
+.backups-page__dialog-body {
+  padding: 0.75rem;
+}
+
+.backups-page__dialog-danger-note {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--app-danger);
+}
+
+.backups-page__error-detail {
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--app-surface-muted);
+  color: var(--app-danger);
+  border: 1px solid var(--app-border-soft);
+  overflow: auto;
+  max-height: 20rem;
 }
 
 .backups-page__actions {
@@ -117,6 +170,13 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+
+  &--checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
 }
 
 .backups-page__form-label {

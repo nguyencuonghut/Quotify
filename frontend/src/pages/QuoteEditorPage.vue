@@ -210,7 +210,7 @@
                       rounded
                       title="Xóa dòng"
                       aria-label="Xóa dòng"
-                      @click="removeLine(index)"
+                      @click="requestRemoveLine(index)"
                     />
                   </div>
                 </td>
@@ -245,7 +245,7 @@
                   rounded
                   title="Xóa dòng"
                   aria-label="Xóa dòng"
-                  @click="removeLine(index)"
+                  @click="requestRemoveLine(index)"
                 />
               </div>
             </div>
@@ -365,6 +365,33 @@
         />
       </div>
     </form>
+
+    <Dialog
+      :visible="pendingRemoveLineIndex !== null"
+      header="Xóa dòng vật tư"
+      :modal="true"
+      :style="{ width: '400px' }"
+      @update:visible="cancelRemoveLine"
+    >
+      <p>Dòng vật tư này sẽ bị xóa khỏi phiếu báo giá. Bạn có chắc chắn?</p>
+      <template #footer>
+        <Button
+          label="Hủy"
+          icon="pi pi-times"
+          severity="secondary"
+          outlined
+          data-testid="quote-editor-cancel-remove-line"
+          @click="cancelRemoveLine"
+        />
+        <Button
+          label="Xóa dòng"
+          icon="pi pi-trash"
+          severity="danger"
+          data-testid="quote-editor-confirm-remove-line"
+          @click="confirmRemoveLine"
+        />
+      </template>
+    </Dialog>
   </div>
   </AdminLayout>
 </template>
@@ -378,6 +405,7 @@ import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
+import Dialog from 'primevue/dialog'
 
 import { useAuthStore } from '@/stores/auth.store'
 import { lookupActiveSuppliers } from '@/api/suppliers.api'
@@ -402,6 +430,28 @@ const isNewVersion = computed(() => !!quoteId && !versionId)
 const activeSuppliers = ref<SupplierDomain[]>([])
 const isSupplierListLoading = ref<boolean>(false)
 const quoteDetail = ref<QuoteDomain | null>(null)
+
+// Xác nhận trước khi xoá 1 dòng vật tư — trước đây `removeLine(index)` xoá
+// ngay khi click, không hỏi lại, chỉ phân biệt với nút nhân bản bằng icon +
+// màu (rủi ro mất dữ liệu do lỡ tay), theo phản hồi người dùng ngày
+// 22/08/2026.
+const pendingRemoveLineIndex = ref<number | null>(null)
+
+function requestRemoveLine(index: number) {
+  pendingRemoveLineIndex.value = index
+}
+
+function cancelRemoveLine() {
+  pendingRemoveLineIndex.value = null
+}
+
+function confirmRemoveLine() {
+  if (pendingRemoveLineIndex.value === null) {
+    return
+  }
+  removeLine(pendingRemoveLineIndex.value)
+  pendingRemoveLineIndex.value = null
+}
 
 const {
   supplierId,

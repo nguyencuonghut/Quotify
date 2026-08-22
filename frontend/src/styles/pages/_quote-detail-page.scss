@@ -47,6 +47,21 @@
     gap: 0.75rem;
   }
 
+  .quote-detail-page__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 3rem 0;
+    color: var(--app-text-muted);
+    font-size: 0.95rem;
+
+    i {
+      font-size: 1.25rem;
+      color: var(--app-accent);
+    }
+  }
+
   // Layout grid split: main lines editor, version timeline sidebar
   .quote-detail-page__grid {
     display: grid;
@@ -329,6 +344,89 @@
     color: var(--app-text-secondary);
   }
 
+  // Trước đây template dùng class `quote-detail-page__price-value` nhưng
+  // KHÔNG có định nghĩa CSS nào ở đây — giá trị hiển thị không in đậm, không
+  // khác gì text thường (bug thật, ngày 22/08/2026). Bổ sung định nghĩa thật
+  // + modifier `--highlight` (tô màu accent) dùng cho "Tỷ giá quy đổi" và
+  // "Giá quy đổi (VNĐ/KG)" — 2 giá trị quan trọng nhất trong bảng dòng vật
+  // tư, trước đây gắn `font-bold text-primary` (không có tác dụng gì vì
+  // không cài Tailwind/PrimeFlex).
+  .quote-detail-page__price-value {
+    font-weight: 700;
+    font-size: 1rem;
+  }
+
+  .quote-detail-page__price-value--highlight {
+    color: var(--app-accent);
+  }
+
+  .quote-detail-page__manual-reason {
+    font-style: italic;
+    color: var(--app-warning);
+  }
+
+  // Class thay thế cho hàng loạt class kiểu Tailwind/PrimeFlex chết
+  // (`font-semibold text-sm text-gray-700`, `text-gray-400/500`,
+  // `text-xs`, `text-red-600`, `bg-gray-50`, `border-round`...) rải rác
+  // khắp trang — dự án không cài Tailwind/PrimeFlex nên các class đó chưa
+  // từng có tác dụng (dead code, phát hiện ngày 22/08/2026).
+  .quote-detail-page__subsection-title {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--app-text-secondary);
+  }
+
+  .quote-detail-page__upload-icon {
+    font-size: 1.75rem;
+    color: var(--app-text-muted);
+  }
+
+  .quote-detail-page__empty-hint {
+    font-size: 0.875rem;
+    color: var(--app-text-muted);
+    font-style: italic;
+  }
+
+  .quote-detail-page__small-text {
+    font-size: 0.75rem;
+  }
+
+  .quote-detail-page__field-error {
+    font-size: 0.75rem;
+    color: var(--app-danger);
+  }
+
+  .quote-detail-page__section-icon {
+    color: var(--app-accent);
+  }
+
+  .quote-detail-page__warning-icon {
+    font-size: 1.75rem;
+
+    &--warning {
+      color: var(--app-warning);
+    }
+
+    &--danger {
+      color: var(--app-danger);
+    }
+  }
+
+  .quote-detail-page__revision-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+    color: var(--app-text-muted);
+    background: var(--app-surface-muted);
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+  }
+
+  .quote-detail-page__purchase-date-input {
+    width: 100%;
+  }
+
   .quote-detail-page__line-purchase-marked {
     font-size: 0.75rem;
     color: var(--green-600, #10b981);
@@ -506,41 +604,52 @@
     }
   }
 
-  .quote-detail-page__comment-body {
-    &.quote-detail-page__note-html-content {
-      font-size: 0.95rem;
-      line-height: 1.6;
-      color: var(--app-text-primary);
-      padding: 0.25rem 0;
-      
-      p {
-        margin-top: 0;
-        margin-bottom: 0.75rem;
-        
-        &:last-child {
-          margin-bottom: 0;
-        }
-      }
+  // Trước đây chỉ style khi đi kèm `.quote-detail-page__comment-body`
+  // (`&.quote-detail-page__note-html-content` lồng trong khối đó) — nơi dùng
+  // riêng class này một mình (dialog "Xem phiên bản ghi chú") không nhận
+  // được style nào (dead ở ngữ cảnh đó, phát hiện ngày 22/08/2026). Tách
+  // thành class độc lập để dùng được ở cả 2 nơi.
+  .quote-detail-page__note-html-content {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--app-text-primary);
+    padding: 0.25rem 0;
 
-      ul, ol {
-        margin-top: 0;
-        margin-bottom: 0.75rem;
-        padding-left: 1.5rem;
-      }
+    p {
+      margin-top: 0;
+      margin-bottom: 0.75rem;
 
-      li {
-        margin-bottom: 0.25rem;
-      }
-
-      a {
-        color: var(--app-brand-primary, var(--p-primary-color));
-        text-decoration: underline;
-        
-        &:hover {
-          opacity: 0.8;
-        }
+      &:last-child {
+        margin-bottom: 0;
       }
     }
+
+    ul, ol {
+      margin-top: 0;
+      margin-bottom: 0.75rem;
+      padding-left: 1.5rem;
+    }
+
+    li {
+      margin-bottom: 0.25rem;
+    }
+
+    a {
+      color: var(--app-brand-primary, var(--p-primary-color));
+      text-decoration: underline;
+
+      &:hover {
+        opacity: 0.8;
+      }
+    }
+  }
+
+  .quote-detail-page__note-html-content--scrollable {
+    max-height: 20rem;
+    overflow-y: auto;
+    padding: 0.5rem;
+    border: 1px solid var(--app-border-soft);
+    border-radius: 0.5rem;
   }
 
 }

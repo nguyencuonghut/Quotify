@@ -38,10 +38,10 @@
 
       <!-- LOGS TAB -->
       <div v-if="activeTab === 'logs'" class="backups-page__tab-content">
-        <section class="backups-page__header mb-4">
+        <section class="backups-page__header">
           <div>
-            <h3 class="text-xl font-bold">Lịch sử thực thi sao lưu</h3>
-            <p class="text-sm text-muted">
+            <h3 class="backups-page__title">Lịch sử thực thi sao lưu</h3>
+            <p class="backups-page__subtitle">
               Xem nhật ký các lần sao lưu thủ công hoặc tự động.
             </p>
           </div>
@@ -101,7 +101,7 @@
 
             <Column field="filename" header="Tên tập tin">
               <template #body="{ data }">
-                <span class="font-mono text-sm">{{
+                <span class="backups-page__filename">{{
                   data.filename || 'Đang xử lý...'
                 }}</span>
               </template>
@@ -160,10 +160,10 @@
 
       <!-- SCHEDULES TAB -->
       <div v-if="activeTab === 'schedules'" class="backups-page__tab-content">
-        <section class="backups-page__header mb-4">
+        <section class="backups-page__header">
           <div>
-            <h3 class="text-xl font-bold">Danh sách lịch trình sao lưu</h3>
-            <p class="text-sm text-muted">
+            <h3 class="backups-page__title">Danh sách lịch trình sao lưu</h3>
+            <p class="backups-page__subtitle">
               Quản lý lịch cấu hình sao lưu cơ sở dữ liệu định kỳ.
             </p>
           </div>
@@ -367,10 +367,10 @@
           </div>
 
           <div
-            class="backups-page__form-field backups-page__form-field--checkbox flex align-items-center gap-2 mt-2"
+            class="backups-page__form-field backups-page__form-field--checkbox"
           >
             <Checkbox id="schedule-active" v-model="isActive" :binary="true" />
-            <label for="schedule-active" class="cursor-pointer select-none"
+            <label for="schedule-active" class="backups-page__checkbox-label"
               >Kích hoạt lịch trình này</label
             >
           </div>
@@ -394,13 +394,13 @@
         modal
         class="backups-page__dialog"
       >
-        <div class="p-3">
+        <div class="backups-page__dialog-body">
           <p>
             Bạn có chắc chắn muốn xóa lịch trình sao lưu
             <strong>{{ selectedSchedule?.name }}</strong
             >?
           </p>
-          <p class="text-sm text-danger mt-1">
+          <p class="backups-page__dialog-danger-note">
             Hành động này không thể hoàn tác.
           </p>
         </div>
@@ -427,9 +427,9 @@
         modal
         class="backups-page__dialog"
       >
-        <div class="p-3">
+        <div class="backups-page__dialog-body">
           <pre
-            class="font-mono text-sm white-space-pre-wrap p-2 border-round surface-100 text-danger border-1 border-300 overflow-auto max-h-20rem"
+            class="backups-page__error-detail"
             >{{ activeErrorMessage }}</pre
           >
         </div>
