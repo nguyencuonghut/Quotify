@@ -296,8 +296,16 @@
 
 .dashboard-page__period-toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   margin-bottom: 1rem;
+
+  // Từ 5 lên 7 lựa chọn (thêm "2 tuần"/"3 tuần") không còn vừa 1 hàng trên
+  // màn hình hẹp — cho phép `.p-selectbutton` tự xuống dòng thay vì tràn
+  // ngang, không đổi hành vi trên desktop rộng.
+  .p-selectbutton {
+    flex-wrap: wrap;
+  }
 
   // Cùng quy ước tô màu accent cho trạng thái checked như
   // `.dashboard-page__chart-switcher`, để 2 SelectButton trong trang dùng

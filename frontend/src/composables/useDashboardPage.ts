@@ -41,7 +41,7 @@ export interface DailyMinPricePoint {
   point: QuotifyPriceTrendPoint
 }
 
-export type PeriodRangeKey = '1w' | '1m' | '3m' | '6m' | '1y'
+export type PeriodRangeKey = '1w' | '2w' | '3w' | '1m' | '3m' | '6m' | '1y'
 
 export interface PeriodRangeOption {
   label: string
@@ -50,6 +50,8 @@ export interface PeriodRangeOption {
 
 const PERIOD_RANGE_OPTIONS: PeriodRangeOption[] = [
   { label: '1 tuần', value: '1w' },
+  { label: '2 tuần', value: '2w' },
+  { label: '3 tuần', value: '3w' },
   { label: '1 tháng', value: '1m' },
   { label: '3 tháng', value: '3m' },
   { label: '6 tháng', value: '6m' },
@@ -128,6 +130,10 @@ function computePeriodRangeDates(key: PeriodRangeKey): { start: Date; end: Date 
   const start = new Date(end)
   if (key === '1w') {
     start.setDate(start.getDate() - 7)
+  } else if (key === '2w') {
+    start.setDate(start.getDate() - 14)
+  } else if (key === '3w') {
+    start.setDate(start.getDate() - 21)
   } else if (key === '1m') {
     start.setMonth(start.getMonth() - 1)
   } else if (key === '3m') {

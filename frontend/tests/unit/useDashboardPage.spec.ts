@@ -457,6 +457,32 @@ describe('useDashboardPage', () => {
     vi.useRealTimers()
   })
 
+  it('supports 2-week and 3-week quick period-range options', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 20))
+
+    const page = useDashboardPage()
+
+    await page.applyPeriodRange('2w')
+    expect(page.periodRangeKey.value).toBe('2w')
+    expect(page.receivedDateStart.value).toEqual(new Date(2026, 7, 6))
+    expect(page.receivedDateEnd.value).toEqual(new Date(2026, 7, 20))
+
+    await page.applyPeriodRange('3w')
+    expect(page.periodRangeKey.value).toBe('3w')
+    expect(page.receivedDateStart.value).toEqual(new Date(2026, 6, 30))
+    expect(page.receivedDateEnd.value).toEqual(new Date(2026, 7, 20))
+
+    vi.useRealTimers()
+  })
+
+  it('places "2 tuần" and "3 tuần" options right after "1 tuần"', () => {
+    const page = useDashboardPage()
+
+    const labels = page.periodRangeOptions.map((option) => option.label)
+    expect(labels.slice(0, 3)).toEqual(['1 tuần', '2 tuần', '3 tuần'])
+  })
+
   it('loads weekly entry activity with selected week and user filters', async () => {
     const page = useDashboardPage()
 
