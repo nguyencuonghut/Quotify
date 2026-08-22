@@ -103,8 +103,8 @@
               <tr>
                 <th style="width: 50px; text-align: center">STT</th>
                 <th style="width: 250px">Vật tư <span class="required-marker">*</span></th>
-                <th style="width: 150px">Giá gốc <span class="required-marker">*</span></th>
-                <th style="width: 150px">Tiền tệ / Đơn vị <span class="required-marker">*</span></th>
+                <th style="width: 170px">Giá gốc <span class="required-marker">*</span></th>
+                <th style="width: 190px">Tiền tệ / Đơn vị <span class="required-marker">*</span></th>
                 <th style="width: 140px">Tháng giao hàng <span class="required-marker">*</span></th>
                 <th>Quy đổi & Preview</th>
                 <th style="width: 110px; text-align: center">Hành động</th>

@@ -66,9 +66,25 @@
 
   .quote-editor-page__input-w {
     width: 100%;
-    
+
     &.p-inputtext, &.p-dropdown, &.p-calendar {
       width: 100%;
+    }
+
+    // `.p-inputnumber` root là flex container, input bên trong chỉ có
+    // `flex: 1 1 auto` (không có `width` cụ thể — PrimeVue chỉ thêm `width:
+    // 1%` khi bật prop `fluid`, xem @primeuix/styles/inputnumber). Flex-item
+    // mặc định có `min-width: auto`, với `<input>` thì "auto" lại resolve về
+    // kích thước intrinsic khá rộng (~227px thực đo), LỚN HƠN cột "Giá gốc"
+    // (138px nội dung) — nên input không co lại theo `width:100%` của
+    // wrapper mà tràn ngang qua cột "Tiền tệ / Đơn vị" bên cạnh, dù wrapper
+    // ngoài vẫn đúng width — lỗi thật gặp ngày 20/08/2026 ("form input đè
+    // lên nhau", đã xác nhận qua DevTools: input rộng 227px trong khi ô chỉ
+    // có 138px). Ép `width: 1%` (giống cách PrimeVue tự làm cho biến thể
+    // `fluid`) để flex-basis không còn phụ thuộc kích thước intrinsic của
+    // input, buộc nó co đúng theo phần còn lại mà flex-grow phân bổ.
+    &.p-inputnumber .p-inputnumber-input {
+      width: 1%;
     }
   }
 
@@ -120,7 +136,12 @@
   .quote-editor-page__table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 900px;
+    // Tổng width khai báo trên các <th> cố định (STT+Vật tư+Giá gốc+Tiền
+    // tệ/Đơn vị+Tháng giao hàng+Hành động) = 910px — min-width phải LỚN HƠN
+    // tổng đó, chừa thêm chỗ cho cột "Quy đổi & Preview" (không khai báo
+    // width, tự nhận phần còn lại), nếu không cột này sẽ gần như bằng 0
+    // dưới `table-layout: fixed` (xem chú thích bên dưới).
+    min-width: 1100px;
     // Không có `table-layout: fixed`, trình duyệt dùng auto-layout: các ô
     // input PrimeVue (Select/DatePicker) render input bên trong với
     // `overflow: hidden` + ellipsis, khiến min-content của cột đó gần như
@@ -129,8 +150,8 @@
     // bóp riêng các cột "rỗng min-content" này xuống rất nhỏ (ví dụ cột
     // "Tháng giao hàng" chỉ còn vài px, DatePicker chỉ hiện được 1-2 ký tự)
     // thay vì tôn trọng width đã khai báo — trong khi bảng CHỈ NÊN cuộn
-    // ngang (đã có `overflow-x: auto` + `min-width: 900px` ở trên) chứ
-    // không được bóp méo cột. `table-layout: fixed` buộc trình duyệt lấy
+    // ngang (đã có `overflow-x: auto` + `min-width` ở trên) chứ không được
+    // bóp méo cột. `table-layout: fixed` buộc trình duyệt lấy
     // đúng width khai báo trên `<th>` của dòng đầu làm width cột cố định,
     // không phụ thuộc content bên trong nữa — lỗi thật gặp ngày 20/08/2026
     // trên màn hình 16:9 (ít chiều cao hơn 16:10 cùng độ phân giải ngang
