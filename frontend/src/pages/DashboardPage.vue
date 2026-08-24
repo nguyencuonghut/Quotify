@@ -267,6 +267,20 @@
 
         <template v-if="hasTrendData">
           <div class="dashboard-page__period-stats">
+            <div class="dashboard-page__period-stat dashboard-page__period-stat--purchased">
+              <span>Chốt mua</span>
+              <strong v-if="periodPurchasedPricesFormatted.length === 0">—</strong>
+              <div v-else class="dashboard-page__period-stat-purchased-list">
+                <strong
+                  v-for="entry in periodPurchasedPricesFormatted"
+                  :key="entry.date"
+                  class="dashboard-page__period-stat-purchased-price"
+                  :title="entry.date"
+                >
+                  {{ entry.price }}
+                </strong>
+              </div>
+            </div>
             <div class="dashboard-page__period-stat">
               <span>Cao nhất</span>
               <strong>{{ periodStatsFormatted.max }}</strong>
@@ -616,6 +630,7 @@ const {
   periodRangeOptions,
   applyPeriodRange,
   periodDailyPoints,
+  periodPurchasedPricesFormatted,
   periodStatsFormatted,
   selectedWeek,
   selectedWeeklyUserId,

@@ -977,6 +977,20 @@ export function useDashboardPage() {
     buildDailyMinPoints(trendPoints.value, periodGetPrice.value),
   )
 
+  // Liệt kê TẤT CẢ các giá đã "Chốt mua" khớp bộ lọc hiện tại — khác với
+  // `periodDailyPoints` (chỉ giữ 1 điểm MIN mỗi ngày để vẽ đường trên
+  // chart), một dòng báo giá đã chốt mua vẫn phải hiện ở đây dù không phải
+  // giá thấp nhất trong ngày đó.
+  const periodPurchasedPricesFormatted = computed(() =>
+    trendPoints.value
+      .filter((point) => point.purchased)
+      .map((point) => ({
+        date: point.receivedDate.slice(0, 10),
+        price: periodFormatPrice.value(periodGetPrice.value(point)),
+      }))
+      .sort((left, right) => left.date.localeCompare(right.date)),
+  )
+
   // MAX/MIN/Trung bình hiển thị ở giữa-trên chart, tính trên chính chuỗi
   // giá MIN-theo-ngày đang vẽ (không phải trên toàn bộ báo giá thô) — khớp
   // với những gì trục Y thực sự đang thể hiện, theo yêu cầu người dùng ngày
@@ -1110,6 +1124,21 @@ export function useDashboardPage() {
   const chartData = computed(() => {
     const panel = cssVar('--app-surface-panel', '#ffffff')
     const accent = cssVar('--app-accent', '#7c3aed')
+    const danger = cssVar('--app-danger', '#ef4444')
+
+    // Điểm ứng với dòng báo giá đã "Chốt mua" tô màu đỏ (`--app-danger`) và
+    // vẽ lớn hơn hẳn (radius 6/9 so với 2/5 của điểm thường) để nổi bật trên
+    // chart — trước đó chỉ là 1 chấm nhỏ rất khó nhìn, theo phản hồi người
+    // dùng ngày 24/08/2026.
+    const pointColors = periodDailyPoints.value.map((entry) =>
+      entry.point.purchased ? danger : accent,
+    )
+    const pointRadii = periodDailyPoints.value.map((entry) =>
+      entry.point.purchased ? 6 : 2,
+    )
+    const pointHoverRadii = periodDailyPoints.value.map((entry) =>
+      entry.point.purchased ? 9 : 5,
+    )
 
     return {
       labels: periodDailyPoints.value.map((entry) => entry.date),
@@ -1119,10 +1148,10 @@ export function useDashboardPage() {
           data: periodDailyPoints.value.map((entry) => entry.price),
           borderColor: accent,
           backgroundColor: `${accent}24`,
-          pointBackgroundColor: accent,
+          pointBackgroundColor: pointColors,
           pointBorderColor: panel,
-          pointRadius: 2,
-          pointHoverRadius: 5,
+          pointRadius: pointRadii,
+          pointHoverRadius: pointHoverRadii,
           tension: 0.2,
           fill: true,
         },
@@ -1729,6 +1758,7 @@ export function useDashboardPage() {
     periodRangeOptions,
     applyPeriodRange,
     periodDailyPoints,
+    periodPurchasedPricesFormatted,
     periodStats,
     periodStatsFormatted,
     selectedWeek,

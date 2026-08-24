@@ -347,6 +347,23 @@
   }
 }
 
+.dashboard-page__period-stat-purchased-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.2rem 0.5rem;
+}
+
+.dashboard-page__period-stat-purchased-price {
+  color: var(--app-danger);
+  white-space: nowrap;
+
+  &:not(:last-child)::after {
+    content: ',';
+    color: var(--app-text-muted);
+  }
+}
+
 .dashboard-page__chart-frame {
   position: relative;
   min-height: 22rem;

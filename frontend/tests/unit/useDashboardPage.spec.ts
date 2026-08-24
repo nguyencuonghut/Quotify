@@ -221,6 +221,12 @@ describe('useDashboardPage', () => {
     expect(page.periodDailyPoints.value.map((entry) => entry.price)).toEqual([
       10500, 11500, 12000,
     ])
+    // Mục "Chốt mua" liệt kê TẤT CẢ giá đã chốt mua khớp bộ lọc hiện tại
+    // (không chỉ những điểm đang là MIN-trong-ngày trên chart) — chỉ
+    // `line-1` (07-20) có `purchased: true` trong fixture.
+    expect(page.periodPurchasedPricesFormatted.value).toEqual([
+      { date: '2026-07-20', price: '10,500.00 VNĐ/KG' },
+    ])
     expect(page.chartData.value.labels).toEqual([
       '2026-07-20',
       '2026-07-22',
@@ -229,6 +235,18 @@ describe('useDashboardPage', () => {
     expect(page.chartData.value.datasets.map((dataset) => dataset.label)).toEqual([
       'Giá thấp nhất trong ngày',
     ])
+    // Điểm ngày 07-20 (line-1) đã "Chốt mua" (`purchased: true`) phải tô đỏ
+    // (`--app-danger`) để phân biệt trực quan trên chart, 2 điểm còn lại
+    // (chưa chốt mua) giữ màu accent như trước.
+    expect(page.chartData.value.datasets[0].pointBackgroundColor).toEqual([
+      '#ef4444',
+      '#7c3aed',
+      '#7c3aed',
+    ])
+    // Điểm chốt mua vẽ lớn hơn hẳn điểm thường — trước đó chỉ 1 chấm nhỏ
+    // (radius 2) rất khó nhìn trên chart, theo phản hồi người dùng.
+    expect(page.chartData.value.datasets[0].pointRadius).toEqual([6, 2, 2])
+    expect(page.chartData.value.datasets[0].pointHoverRadius).toEqual([9, 5, 5])
     expect(page.weeklyEntryMetricCards.value.map((card) => card.label)).toEqual([
       'Báo giá tuần',
       'User đã nhập',

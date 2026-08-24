@@ -43,6 +43,7 @@ vi.mock('@/composables/useDashboardPage', async () => {
       ],
       applyPeriodRange: vi.fn(),
       periodDailyPoints: computed(() => [{ date: '2026-08-01', price: 10500 }]),
+      periodPurchasedPricesFormatted: computed(() => []),
       periodStatsFormatted: computed(() => ({
         min: '10,500.00 VNĐ/KG',
         max: '10,500.00 VNĐ/KG',
