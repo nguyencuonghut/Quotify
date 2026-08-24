@@ -139,7 +139,7 @@
           data-key="id"
           lazy
           paginator
-          paginator-template="RowsPerPageDropdown PrevPageLink CurrentPageReport NextPageLink"
+          paginator-template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
           responsive-layout="scroll"
           @page="onPageChange"
         >
