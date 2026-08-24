@@ -181,14 +181,15 @@
           :value="items"
           lazy
           paginator
+          :first="offset"
           :rows="limit"
           :total-records="total"
           :loading="isLoading"
           :rows-per-page-options="[10, 20, 30, 50]"
           paginator-template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
           current-page-report-template="Hiển thị {first} đến {last} của {totalRecords} dòng"
-          sort-field="received_date"
-          :sort-order="-1"
+          :sort-field="sortField"
+          :sort-order="sortOrder === 'asc' ? 1 : -1"
           class="p-datatable-sm"
           :row-class="() => 'quotes-page__row-clickable'"
           @page="handlePageChange"
@@ -503,10 +504,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
+import { useQuotesViewStore } from '@/stores/quotes-view.store'
 import { useQuotesPage } from '@/composables/useQuotesPage'
 import { useQuoteBackfillImport } from '@/composables/useQuoteBackfillImport'
 import { lookupActiveSuppliers } from '@/api/suppliers.api'
@@ -554,6 +556,8 @@ const {
   cancelled,
   limit,
   offset,
+  sortField,
+  sortOrder,
   loadQuotesData,
   exportQuotes,
   handlePageChange,
@@ -608,6 +612,92 @@ const fetchLookups = async () => {
     console.error('Failed to load lookups', err)
   }
 }
+
+function serializeDate(value: Date | null): string | null {
+  if (!value) {
+    return null
+  }
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function deserializeDate(value: string | null | undefined): Date | null {
+  if (!value) {
+    return null
+  }
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) {
+    return null
+  }
+  return new Date(year, month - 1, day)
+}
+
+// Khôi phục lại đúng bộ lọc/trang/sắp xếp đang xem dở khi bấm nút back của
+// trình duyệt sau khi click vào 1 dòng để xem chi tiết phiếu báo giá —
+// `router.push` hủy mất toàn bộ state cục bộ của component này khi unmount
+// (không có `<KeepAlive>` bọc `<RouterView>`), nên phải đọc lại từ
+// `quotesViewStore` (backed bởi sessionStorage) TRƯỚC khi tải dữ liệu, theo
+// phản hồi người dùng ngày 24/08/2026. Gán TRƯỚC khối đọc `route.query` bên
+// dưới để lượt điều hướng có chủ đích từ Dashboard (kèm query cụ thể) vẫn
+// được ưu tiên đè lên, không bị snapshot cũ lấn.
+const quotesViewStore = useQuotesViewStore()
+const restoredSnapshot = quotesViewStore.snapshot
+
+if (restoredSnapshot) {
+  globalSearch.value = restoredSnapshot.globalSearch
+  supplierId.value = restoredSnapshot.supplierId
+  materialId.value = restoredSnapshot.materialId
+  materialTypeId.value = restoredSnapshot.materialTypeId
+  receivedDateStart.value = deserializeDate(restoredSnapshot.receivedDateStart)
+  receivedDateEnd.value = deserializeDate(restoredSnapshot.receivedDateEnd)
+  deliveryMonth.value = deserializeDate(restoredSnapshot.deliveryMonth)
+  purchased.value = restoredSnapshot.purchased
+  cancelled.value = restoredSnapshot.cancelled
+  limit.value = restoredSnapshot.limit
+  offset.value = restoredSnapshot.offset
+  sortField.value = restoredSnapshot.sortField
+  sortOrder.value = restoredSnapshot.sortOrder
+
+  if (
+    restoredSnapshot.materialTypeId
+    || restoredSnapshot.receivedDateStart
+    || restoredSnapshot.receivedDateEnd
+    || restoredSnapshot.deliveryMonth
+    || restoredSnapshot.purchased !== null
+    || restoredSnapshot.cancelled !== null
+  ) {
+    showAdvancedFilters.value = true
+  }
+}
+
+// Ghi lại state hiện tại mỗi khi bộ lọc/trang/sắp xếp thay đổi — không chỉ
+// lúc điều hướng đi, để luôn có sẵn snapshot mới nhất phòng khi người dùng
+// rời trang theo cách khác (đóng tab, gõ URL khác) rồi quay lại bằng back.
+const currentViewSnapshot = computed(() => ({
+  globalSearch: globalSearch.value,
+  supplierId: supplierId.value,
+  materialId: materialId.value,
+  materialTypeId: materialTypeId.value,
+  receivedDateStart: serializeDate(receivedDateStart.value),
+  receivedDateEnd: serializeDate(receivedDateEnd.value),
+  deliveryMonth: serializeDate(deliveryMonth.value),
+  purchased: purchased.value,
+  cancelled: cancelled.value,
+  limit: limit.value,
+  offset: offset.value,
+  sortField: sortField.value,
+  sortOrder: sortOrder.value,
+}))
+
+watch(
+  currentViewSnapshot,
+  (snapshot) => {
+    quotesViewStore.save(snapshot)
+  },
+  { deep: true },
+)
 
 onMounted(() => {
   const deliveryMonthQuery = route.query.deliveryMonth
