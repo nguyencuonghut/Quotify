@@ -192,7 +192,13 @@
     gap: 0.75rem;
     margin-bottom: 0.25rem;
 
-    span {
+    // `:not(.quote-status-badge)` — nếu không loại trừ, selector `span` ở
+    // đây (specificity 0-1-1) đè lên `color` của badge trạng thái bên trong
+    // (`.quote-status-badge--confirmed` chỉ 0-1-0), khiến badge "Đã xác
+    // nhận" trong thẻ lịch sử phiên bản luôn hiện màu chữ thường (gần đen/
+    // xám) thay vì màu xanh ngữ nghĩa — phát hiện ngày 24/08/2026 khi màu
+    // badge này bị chê "khó nhìn" dù CSS màu nền/viền đã đúng.
+    span:not(.quote-status-badge) {
       font-weight: 600;
       color: var(--text-color);
       white-space: nowrap;

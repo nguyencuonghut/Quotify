@@ -21,30 +21,38 @@
     font-size: 0.65rem;
   }
 
+  // Mix với `--app-surface-panel` (không phải `transparent`) — badge này
+  // được đặt trong nhiều loại khung khác nhau (thẻ lịch sử phiên bản, header
+  // trang, bảng danh sách), mỗi khung có nền/viền riêng; mix với transparent
+  // khiến độ tương phản thực tế phụ thuộc vào những gì NẰM SAU nó, có lúc
+  // chữ gần như lẫn vào nền (phản hồi người dùng ngày 24/08/2026 — badge
+  // "Đã xác nhận" khó đọc ở cả 2 theme khi đặt trong thẻ phiên bản). Mix với
+  // surface-panel neo về 1 nền biết trước, khớp pattern đã dùng ổn ở các
+  // badge khác trong app (`_materials-page.scss`, `_suppliers-page.scss`).
   &--draft {
-    background: color-mix(in srgb, var(--app-warning) 12%, transparent);
+    background: color-mix(in srgb, var(--app-warning) 18%, var(--app-surface-panel));
     color: var(--app-warning);
-    border: 1px solid color-mix(in srgb, var(--app-warning) 30%, transparent);
+    border: 1px solid color-mix(in srgb, var(--app-warning) 42%, var(--app-border-soft));
   }
 
   &--confirmed {
-    background: color-mix(in srgb, var(--app-success) 12%, transparent);
+    background: color-mix(in srgb, var(--app-success) 18%, var(--app-surface-panel));
     color: var(--app-success);
-    border: 1px solid color-mix(in srgb, var(--app-success) 30%, transparent);
+    border: 1px solid color-mix(in srgb, var(--app-success) 42%, var(--app-border-soft));
   }
 
   &--superseded {
-    background: color-mix(in srgb, var(--app-text-muted) 12%, transparent);
+    background: color-mix(in srgb, var(--app-text-muted) 18%, var(--app-surface-panel));
     color: var(--app-text-muted);
-    border: 1px solid color-mix(in srgb, var(--app-text-muted) 24%, transparent);
+    border: 1px solid color-mix(in srgb, var(--app-text-muted) 36%, var(--app-border-soft));
   }
 
   // "Hủy phiếu" ở cấp Quote (khác trạng thái version) — dùng luôn tông đỏ
   // --app-danger đã dùng cho các hành động xóa/cảnh báo khác trong trang.
   &--cancelled {
-    background: color-mix(in srgb, var(--app-danger) 12%, transparent);
+    background: color-mix(in srgb, var(--app-danger) 18%, var(--app-surface-panel));
     color: var(--app-danger);
-    border: 1px solid color-mix(in srgb, var(--app-danger) 30%, transparent);
+    border: 1px solid color-mix(in srgb, var(--app-danger) 42%, var(--app-border-soft));
     margin-left: 0.5rem;
     vertical-align: middle;
   }
