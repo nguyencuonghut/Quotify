@@ -93,6 +93,9 @@ class QuoteResponse(BaseModel):
     created_by_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
+    cancelled_at: datetime | None = None
+    cancelled_by_id: UUID | None = None
+    cancel_reason: str | None = None
     versions: list[QuoteVersionResponse]
 
     class Config:
@@ -102,3 +105,11 @@ class QuoteResponse(BaseModel):
 class QuoteLinePurchaseToggleRequest(BaseModel):
     purchase: bool
     purchase_date: datetime | None = None
+
+
+class QuoteLineDeleteRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class QuoteCancelRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)

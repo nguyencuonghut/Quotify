@@ -53,6 +53,9 @@ export function useQuotesPage(getAccessToken: () => string | null) {
   const receivedDateEnd = ref<Date | null>(null)
   const deliveryMonth = ref<Date | null>(null)
   const purchased = ref<boolean | null>(null)
+  // null (mặc định) = ẩn phiếu đã hủy (hành vi cũ); true = CHỈ hiện phiếu đã
+  // hủy — dùng để tra soát lịch sử (xem `QuoteQueryService._apply_filters`).
+  const cancelled = ref<boolean | null>(null)
 
   // Pagination & Sorting
   const limit = ref<number>(10)
@@ -102,6 +105,9 @@ export function useQuotesPage(getAccessToken: () => string | null) {
     }
     if (purchased.value !== null) {
       params.purchased = purchased.value
+    }
+    if (cancelled.value !== null) {
+      params.cancelled = cancelled.value
     }
 
     return params
@@ -155,6 +161,7 @@ export function useQuotesPage(getAccessToken: () => string | null) {
     receivedDateEnd.value = null
     deliveryMonth.value = null
     purchased.value = null
+    cancelled.value = null
     offset.value = 0
     loadQuotesData()
   }
@@ -173,6 +180,7 @@ export function useQuotesPage(getAccessToken: () => string | null) {
     receivedDateEnd,
     deliveryMonth,
     purchased,
+    cancelled,
     limit,
     offset,
     sortField,

@@ -21,8 +21,10 @@ from app.auth.permissions import has_role
 from app.db.session import get_db_session
 from app.models import Quote, QuoteLine, QuoteNoteRevision, QuoteVersion, User
 from app.schemas.quote import (
+    QuoteCancelRequest,
     QuoteCreateRequest,
     QuoteDraftUpdateRequest,
+    QuoteLineDeleteRequest,
     QuoteLinePurchaseToggleRequest,
     QuoteLineResponse,
     QuoteResponse,
@@ -155,6 +157,9 @@ def _build_quote_response(quote: Quote) -> QuoteResponse:
         created_by_id=quote.created_by_id,
         created_at=quote.created_at,
         updated_at=quote.updated_at,
+        cancelled_at=quote.cancelled_at,
+        cancelled_by_id=quote.cancelled_by_id,
+        cancel_reason=quote.cancel_reason,
         versions=[_build_version_response(v) for v in quote.versions],
     )
 
@@ -169,18 +174,30 @@ async def _ensure_quote_mutation_allowed(
     quote_id: UUID,
     current_user: User,
 ) -> None:
-    if _is_admin_user(current_user):
-        return
     quote = await session.get(Quote, quote_id)
     if not quote:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Không tìm thấy phiếu báo giá.",
         )
+    # Phiếu đã hủy bị khóa mutation cho MỌI người dùng, kể cả admin — khác
+    # với check ownership ngay dưới (admin bypass được ownership nhưng
+    # không bypass được trạng thái hủy).
+    _ensure_quote_not_cancelled(quote)
+    if _is_admin_user(current_user):
+        return
     if quote.created_by_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=QUOTE_OWNER_DENIED_DETAIL,
+        )
+
+
+def _ensure_quote_not_cancelled(quote: Quote) -> None:
+    if quote.cancelled_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Phiếu báo giá đã bị hủy.",
         )
 
 
@@ -190,7 +207,11 @@ async def _ensure_line_belongs_to_quote(
     quote_id: UUID,
     line_id: UUID,
 ) -> QuoteLine:
-    stmt = select(QuoteLine).options(selectinload(QuoteLine.version)).where(QuoteLine.id == line_id)
+    stmt = (
+        select(QuoteLine)
+        .options(selectinload(QuoteLine.version), selectinload(QuoteLine.material))
+        .where(QuoteLine.id == line_id)
+    )
     line = (await session.execute(stmt)).scalar_one_or_none()
     if not line or not line.version or line.version.quote_id != quote_id:
         raise HTTPException(
@@ -250,6 +271,7 @@ async def list_quotes(
     delivery_month: date | None = None,
     currency: str | None = None,
     purchased: bool | None = None,
+    cancelled: bool | None = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
     limit: int = Query(default=10, ge=1, le=100),
@@ -266,6 +288,7 @@ async def list_quotes(
         delivery_month=delivery_month,
         currency=currency,
         purchased=purchased,
+        cancelled=cancelled,
         sort_by=sort_by,
         sort_order=sort_order,
         limit=limit,
@@ -307,6 +330,7 @@ async def export_quotes(
     delivery_month: date | None = None,
     currency: str | None = None,
     purchased: bool | None = None,
+    cancelled: bool | None = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
 ) -> Response:
@@ -324,6 +348,7 @@ async def export_quotes(
         delivery_month=delivery_month,
         currency=currency,
         purchased=purchased,
+        cancelled=cancelled,
         sort_by=sort_by,
         sort_order=sort_order,
     )
@@ -755,6 +780,176 @@ async def toggle_purchase(
     )
     await session.commit()
     return _build_line_response(line)
+
+
+@router.post("/{id}/lines/{line_id}/delete", response_model=QuoteVersionResponse)
+async def delete_confirmed_line(
+    id: UUID,
+    line_id: UUID,
+    request: Request,
+    payload: QuoteLineDeleteRequest,
+    current_user: Annotated[User, Depends(require_permission("quotes.update"))],
+    quote_service: Annotated[QuoteService, Depends(get_quote_service)],
+    audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> QuoteVersionResponse:
+    """Rút gọn luồng "Tạo bản điều chỉnh" thành 1 hành động cho trường hợp
+    nhập nhầm 1 dòng trong phiếu đã xác nhận — xem `QuoteService.delete_confirmed_line`."""
+    await _ensure_quote_mutation_allowed(
+        session=session,
+        quote_id=id,
+        current_user=current_user,
+    )
+    old_line = await _ensure_line_belongs_to_quote(
+        session=session,
+        quote_id=id,
+        line_id=line_id,
+    )
+    old_material_id = old_line.material_id
+    old_material_code = old_line.material.code if old_line.material else None
+    old_price = old_line.price_converted_vnd_per_kg
+    old_version_id = old_line.quote_version_id
+
+    try:
+        new_version = await quote_service.delete_confirmed_line(
+            quote_id=id,
+            line_id=line_id,
+            current_user_id=current_user.id,
+            reason=payload.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    await audit_service.log_event(
+        action="quotes.line_deleted_from_confirmed",
+        entity_type="quote_line",
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+            entity_id=str(line_id),
+            metadata_json={
+                "quote_id": str(id),
+                "version_id": str(old_version_id),
+                "new_version_id": str(new_version.id),
+                "material_id": str(old_material_id),
+                "material_code": old_material_code,
+                "price_original": float(old_price),
+                "reason": new_version.correction_reason,
+            },
+        ),
+    )
+    await session.commit()
+    return _build_version_response(new_version)
+
+
+@router.post("/{id}/cancel", response_model=QuoteResponse)
+async def cancel_quote(
+    id: UUID,
+    request: Request,
+    payload: QuoteCancelRequest,
+    current_user: Annotated[User, Depends(require_permission("quotes.update"))],
+    quote_service: Annotated[QuoteService, Depends(get_quote_service)],
+    audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> QuoteResponse:
+    if not _is_admin_user(current_user):
+        existing = await session.get(Quote, id)
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Không tìm thấy phiếu báo giá.",
+            )
+        if existing.created_by_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=QUOTE_OWNER_DENIED_DETAIL,
+            )
+
+    try:
+        await quote_service.cancel_quote(
+            quote_id=id,
+            current_user_id=current_user.id,
+            reason=payload.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    quote = await quote_service.get_quote_by_id(id)
+    if not quote:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy phiếu báo giá.",
+        )
+
+    await audit_service.log_event(
+        action="quotes.cancelled",
+        entity_type="quote",
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+            entity_id=str(id),
+            metadata_json={"quote_id": str(id), "reason": quote.cancel_reason},
+        ),
+    )
+    await session.commit()
+    return _build_quote_response(quote)
+
+
+@router.post("/{id}/reactivate", response_model=QuoteResponse)
+async def reactivate_quote(
+    id: UUID,
+    request: Request,
+    current_user: Annotated[User, Depends(require_permission("quotes.update"))],
+    quote_service: Annotated[QuoteService, Depends(get_quote_service)],
+    audit_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> QuoteResponse:
+    if not _is_admin_user(current_user):
+        existing = await session.get(Quote, id)
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Không tìm thấy phiếu báo giá.",
+            )
+        if existing.created_by_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=QUOTE_OWNER_DENIED_DETAIL,
+            )
+
+    try:
+        await quote_service.reactivate_quote(quote_id=id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    quote = await quote_service.get_quote_by_id(id)
+    if not quote:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy phiếu báo giá.",
+        )
+
+    await audit_service.log_event(
+        action="quotes.reactivated",
+        entity_type="quote",
+        context=AuditLogContext.from_request(
+            request=request,
+            current_user=current_user,
+            entity_id=str(id),
+            metadata_json={"quote_id": str(id)},
+        ),
+    )
+    await session.commit()
+    return _build_quote_response(quote)
 
 
 @router.post("/{id}/versions/{version_id}/source-file", response_model=QuoteVersionResponse)

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity, String, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -56,9 +56,21 @@ class Quote(Base):
         onupdate=func.now(),
         nullable=False,
     )
+    # "Hủy phiếu" ở cấp Quote — KHÔNG đụng tới QuoteVersion/QuoteLine (giữ
+    # nguyên audit trail bất biến của version), chỉ đánh dấu để loại phiếu
+    # khỏi Bảng báo giá/Dashboard trong khi vẫn xem được lịch sử qua URL chi
+    # tiết. Dùng cho trường hợp nhập nhầm cả phiếu (vd. sai NCC).
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_by_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    cancel_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     supplier: Mapped[Supplier] = relationship()
-    created_by: Mapped[User | None] = relationship()
+    created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_id])
+    cancelled_by: Mapped[User | None] = relationship(foreign_keys=[cancelled_by_id])
     versions: Mapped[list[QuoteVersion]] = relationship(
         back_populates="quote",
         cascade="all, delete-orphan",

@@ -98,6 +98,9 @@ export interface QuoteDto {
   created_by_id: string | null
   created_at: string
   updated_at: string
+  cancelled_at: string | null
+  cancelled_by_id: string | null
+  cancel_reason: string | null
   versions: QuoteVersionDto[]
 }
 
@@ -109,6 +112,9 @@ export interface QuoteDomain {
   createdById: string | null
   createdAt: string
   updatedAt: string
+  cancelledAt: string | null
+  cancelledById: string | null
+  cancelReason: string | null
   versions: QuoteVersionDomain[]
 }
 
@@ -206,6 +212,7 @@ export interface QuoteFlattenedDto {
   version_status: string
   created_by_name: string | null
   created_at: string
+  is_cancelled: boolean
 }
 
 export interface QuoteFlattenedDomain {
@@ -235,4 +242,5 @@ export interface QuoteFlattenedDomain {
   versionStatus: string
   createdByName: string | null
   createdAt: string
+  isCancelled: boolean
 }

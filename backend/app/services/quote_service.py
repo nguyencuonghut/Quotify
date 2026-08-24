@@ -735,6 +735,141 @@ class QuoteService:
             deleted_scope="draft_quote" if delete_whole_quote else "draft_version",
         )
 
+    async def delete_confirmed_line(
+        self,
+        *,
+        quote_id: UUID,
+        line_id: UUID,
+        current_user_id: UUID,
+        reason: str | None,
+    ) -> QuoteVersion:
+        """Rút gọn luồng "Tạo bản điều chỉnh" thành 1 hành động: xóa 1 dòng
+        khỏi phiên bản đã xác nhận bằng cách tự tạo 1 bản điều chỉnh (clone
+        toàn bộ dòng trừ dòng bị xóa) rồi tự xác nhận luôn — không hard-delete
+        dữ liệu đã confirmed (giữ đúng chính sách audit trail hiện có, xem
+        `create_version`/`confirm_version`)."""
+        quote = await self.session.get(Quote, quote_id)
+        if not quote:
+            raise ValueError("Báo giá không tồn tại.")
+        if quote.cancelled_at is not None:
+            raise ValueError("Phiếu báo giá đã bị hủy.")
+
+        confirmed_stmt = (
+            select(QuoteVersion)
+            .options(selectinload(QuoteVersion.lines))
+            .where(
+                QuoteVersion.quote_id == quote_id,
+                QuoteVersion.status == "confirmed",
+            )
+            .with_for_update()
+        )
+        version = (await self.session.execute(confirmed_stmt)).scalar_one_or_none()
+        if not version:
+            raise ValueError("Không tìm thấy phiên bản báo giá đã xác nhận.")
+
+        draft_stmt = select(QuoteVersion).where(
+            QuoteVersion.quote_id == quote_id,
+            QuoteVersion.status == "draft",
+        )
+        existing_draft = (await self.session.execute(draft_stmt)).scalar_one_or_none()
+        if existing_draft:
+            raise ValueError(
+                "Báo giá đang có một bản nháp chưa xử lý. "
+                "Vui lòng xác nhận hoặc xóa bản nháp đó trước."
+            )
+
+        if len(version.lines) <= 1:
+            raise ValueError(
+                "Không thể xóa dòng cuối cùng của phiếu — hãy dùng chức năng "
+                "\"Hủy phiếu\" nếu muốn xóa toàn bộ."
+            )
+
+        target_line = next((line for line in version.lines if line.id == line_id), None)
+        if target_line is None:
+            raise ValueError("Không tìm thấy dòng báo giá trong phiên bản này.")
+
+        lines_data: list[dict[str, object]] = [
+            {
+                "material_id": line.material_id,
+                "price_original": line.price_original,
+                "currency": line.currency,
+                "unit": line.unit,
+                "delivery_month": line.delivery_month,
+                "exchange_rate": line.exchange_rate,
+                "exchange_rate_manual_reason": line.exchange_rate_manual_reason,
+                "import_tax_rate_percent": line.import_tax_rate_percent,
+                "processing_cost_vnd_per_kg": line.processing_cost_vnd_per_kg,
+                "note": line.note,
+            }
+            for line in sorted(version.lines, key=lambda item: item.line_order)
+            if line.id != line_id
+        ]
+
+        correction_reason = (reason or "").strip() or (
+            f"Xóa dòng vật tư {target_line.material_id} "
+            f"(giá {target_line.price_converted_vnd_per_kg}) khỏi phiếu đã xác nhận."
+        )
+
+        new_version = await self.create_version(
+            quote_id=quote_id,
+            received_date=version.received_date,
+            is_backfilled=version.is_backfilled,
+            backfill_reason=version.backfill_reason,
+            lines_data=lines_data,
+            created_by_id=current_user_id,
+            correction_reason=correction_reason,
+        )
+        return await self.confirm_version(
+            quote_id=quote_id,
+            version_id=new_version.id,
+            confirmed_by_id=current_user_id,
+        )
+
+    async def cancel_quote(
+        self,
+        *,
+        quote_id: UUID,
+        current_user_id: UUID,
+        reason: str,
+    ) -> Quote:
+        stmt = select(Quote).where(Quote.id == quote_id).with_for_update()
+        quote = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not quote:
+            raise ValueError("Báo giá không tồn tại.")
+        if quote.cancelled_at is not None:
+            raise ValueError("Phiếu báo giá đã bị hủy.")
+
+        draft_stmt = select(QuoteVersion).where(
+            QuoteVersion.quote_id == quote_id,
+            QuoteVersion.status == "draft",
+        )
+        existing_draft = (await self.session.execute(draft_stmt)).scalar_one_or_none()
+        if existing_draft:
+            raise ValueError(
+                "Báo giá đang có một bản nháp chưa xử lý. "
+                "Vui lòng xác nhận hoặc xóa bản nháp đó trước khi hủy phiếu."
+            )
+
+        quote.cancelled_at = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
+        quote.cancelled_by_id = current_user_id
+        quote.cancel_reason = reason.strip()
+        await self.session.flush()
+        return quote
+
+    async def reactivate_quote(self, *, quote_id: UUID) -> Quote:
+        stmt = select(Quote).where(Quote.id == quote_id).with_for_update()
+        quote = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not quote:
+            raise ValueError("Báo giá không tồn tại.")
+        if quote.cancelled_at is None:
+            raise ValueError("Báo giá chưa bị hủy.")
+
+        quote.cancelled_at = None
+        quote.cancelled_by_id = None
+        quote.cancel_reason = None
+        await self.session.flush()
+        return quote
+
     async def get_quote_by_id(self, quote_id: UUID) -> Quote | None:
         stmt = select(Quote).options(
             selectinload(Quote.versions)

@@ -1156,3 +1156,297 @@ async def test_toggle_line_purchase_validation(test_setup: Any) -> None:
     )
     assert line.purchase_marked_at is None
     assert line.purchase_marked_by_id is None
+
+
+async def _create_confirmed_quote_with_lines(
+    quote_service: QuoteService,
+    *,
+    supplier_id: UUID,
+    material_id: UUID,
+    user_id: UUID,
+    prices: list[Decimal],
+) -> Quote:
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[
+            {
+                "material_id": material_id,
+                "price_original": price,
+                "currency": "VND",
+                "unit": "KG",
+                "delivery_month": date(2026, 8, 1),
+            }
+            for price in prices
+        ],
+        created_by_id=user_id,
+    )
+    await quote_service.confirm_version(
+        quote_id=quote.id,
+        version_id=quote.versions[0].id,
+        confirmed_by_id=user_id,
+    )
+    return quote
+
+
+@pytest.mark.asyncio
+async def test_delete_confirmed_line_creates_and_confirms_correction_version(
+    test_setup: Any,
+) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await _create_confirmed_quote_with_lines(
+        quote_service,
+        supplier_id=supplier_id,
+        material_id=material_id,
+        user_id=user_id,
+        prices=[Decimal("15000.00"), Decimal("16000.00")],
+    )
+    confirmed_version = quote.versions[0]
+    line_to_delete = confirmed_version.lines[0]
+
+    new_version = await quote_service.delete_confirmed_line(
+        quote_id=quote.id,
+        line_id=line_to_delete.id,
+        current_user_id=user_id,
+        reason="Nhập nhầm giá dòng 1.",
+    )
+
+    assert new_version.status == "confirmed"
+    assert new_version.version_number == 2
+    assert new_version.correction_reason == "Nhập nhầm giá dòng 1."
+    # Dòng còn lại là QuoteLine MỚI (id khác dòng cũ — bản chất là clone qua
+    # correction version, không phải sửa tại chỗ) nhưng cùng giá gốc.
+    assert [line.price_original for line in new_version.lines] == [Decimal("16000.00")]
+    assert confirmed_version.status == "superseded"
+    assert confirmed_version.superseded_by_version_id == new_version.id
+
+
+@pytest.mark.asyncio
+async def test_delete_confirmed_line_generates_reason_when_not_provided(
+    test_setup: Any,
+) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await _create_confirmed_quote_with_lines(
+        quote_service,
+        supplier_id=supplier_id,
+        material_id=material_id,
+        user_id=user_id,
+        prices=[Decimal("15000.00"), Decimal("16000.00")],
+    )
+    line_to_delete = quote.versions[0].lines[0]
+
+    new_version = await quote_service.delete_confirmed_line(
+        quote_id=quote.id,
+        line_id=line_to_delete.id,
+        current_user_id=user_id,
+        reason=None,
+    )
+
+    assert new_version.correction_reason
+    assert new_version.correction_reason.startswith("Xóa dòng vật tư")
+
+
+@pytest.mark.asyncio
+async def test_delete_confirmed_line_rejects_last_remaining_line(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await _create_confirmed_quote_with_lines(
+        quote_service,
+        supplier_id=supplier_id,
+        material_id=material_id,
+        user_id=user_id,
+        prices=[Decimal("15000.00")],
+    )
+    line_id = quote.versions[0].lines[0].id
+
+    with pytest.raises(ValueError, match="Không thể xóa dòng cuối cùng"):
+        await quote_service.delete_confirmed_line(
+            quote_id=quote.id,
+            line_id=line_id,
+            current_user_id=user_id,
+            reason="Nhập nhầm.",
+        )
+
+
+@pytest.mark.asyncio
+async def test_delete_confirmed_line_rejects_when_draft_pending(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await _create_confirmed_quote_with_lines(
+        quote_service,
+        supplier_id=supplier_id,
+        material_id=material_id,
+        user_id=user_id,
+        prices=[Decimal("15000.00"), Decimal("16000.00")],
+    )
+    await quote_service.create_version(
+        quote_id=quote.id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[
+            {
+                "material_id": material_id,
+                "price_original": Decimal("17000.00"),
+                "currency": "VND",
+                "unit": "KG",
+                "delivery_month": date(2026, 8, 1),
+            }
+        ],
+        created_by_id=user_id,
+        correction_reason="Đang sửa báo giá.",
+    )
+
+    line_id = quote.versions[0].lines[0].id
+    with pytest.raises(ValueError, match="đang có một bản nháp chưa xử lý"):
+        await quote_service.delete_confirmed_line(
+            quote_id=quote.id,
+            line_id=line_id,
+            current_user_id=user_id,
+            reason="Nhập nhầm.",
+        )
+
+
+@pytest.mark.asyncio
+async def test_delete_confirmed_line_rejects_when_quote_cancelled(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await _create_confirmed_quote_with_lines(
+        quote_service,
+        supplier_id=supplier_id,
+        material_id=material_id,
+        user_id=user_id,
+        prices=[Decimal("15000.00"), Decimal("16000.00")],
+    )
+    await quote_service.cancel_quote(
+        quote_id=quote.id,
+        current_user_id=user_id,
+        reason="Nhập nhầm cả phiếu.",
+    )
+
+    line_id = quote.versions[0].lines[0].id
+    with pytest.raises(ValueError, match="Phiếu báo giá đã bị hủy"):
+        await quote_service.delete_confirmed_line(
+            quote_id=quote.id,
+            line_id=line_id,
+            current_user_id=user_id,
+            reason="Nhập nhầm.",
+        )
+
+
+@pytest.mark.asyncio
+async def test_cancel_quote_success_and_idempotency(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await _create_confirmed_quote_with_lines(
+        quote_service,
+        supplier_id=supplier_id,
+        material_id=material_id,
+        user_id=user_id,
+        prices=[Decimal("15000.00")],
+    )
+
+    cancelled = await quote_service.cancel_quote(
+        quote_id=quote.id,
+        current_user_id=user_id,
+        reason="Nhập nhầm nhà cung cấp.",
+    )
+    assert cancelled.cancelled_at is not None
+    assert cancelled.cancelled_by_id == user_id
+    assert cancelled.cancel_reason == "Nhập nhầm nhà cung cấp."
+
+    with pytest.raises(ValueError, match="Phiếu báo giá đã bị hủy"):
+        await quote_service.cancel_quote(
+            quote_id=quote.id,
+            current_user_id=user_id,
+            reason="Hủy lần 2.",
+        )
+
+
+@pytest.mark.asyncio
+async def test_cancel_quote_rejects_when_draft_pending(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[{
+            "material_id": material_id,
+            "price_original": Decimal("15000.00"),
+            "currency": "VND",
+            "unit": "KG",
+            "delivery_month": date(2026, 8, 1),
+        }],
+        created_by_id=user_id,
+    )
+
+    with pytest.raises(ValueError, match="đang có một bản nháp chưa xử lý"):
+        await quote_service.cancel_quote(
+            quote_id=quote.id,
+            current_user_id=user_id,
+            reason="Nhập nhầm.",
+        )
+
+
+@pytest.mark.asyncio
+async def test_reactivate_quote_success_and_rejects_when_not_cancelled(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+
+    quote = await _create_confirmed_quote_with_lines(
+        quote_service,
+        supplier_id=supplier_id,
+        material_id=material_id,
+        user_id=user_id,
+        prices=[Decimal("15000.00")],
+    )
+
+    with pytest.raises(ValueError, match="Báo giá chưa bị hủy"):
+        await quote_service.reactivate_quote(quote_id=quote.id)
+
+    await quote_service.cancel_quote(
+        quote_id=quote.id,
+        current_user_id=user_id,
+        reason="Nhập nhầm.",
+    )
+    reactivated = await quote_service.reactivate_quote(quote_id=quote.id)
+    assert reactivated.cancelled_at is None
+    assert reactivated.cancelled_by_id is None
+    assert reactivated.cancel_reason is None

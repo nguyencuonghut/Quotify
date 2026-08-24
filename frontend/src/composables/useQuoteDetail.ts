@@ -3,6 +3,9 @@ import {
   getQuote,
   confirmVersion,
   deleteDraftVersion,
+  deleteConfirmedLine,
+  cancelQuote,
+  reactivateQuote,
   toggleLinePurchase,
   uploadSourceFile,
   getQuoteNote,
@@ -162,6 +165,60 @@ export function useQuoteDetail(accessToken: string | null) {
     }
   }
 
+  // Rút gọn luồng "Tạo bản điều chỉnh" thành 1 hành động cho trường hợp
+  // nhập nhầm 1 dòng trong phiếu đã xác nhận — xem `deleteConfirmedLine`
+  // (quotes.api.ts) và `QuoteService.delete_confirmed_line` (backend).
+  const handleDeleteLine = async (lineId: string, reason: string | null) => {
+    if (!quote.value) {
+      return
+    }
+    isConfirming.value = true
+    errorMsg.value = null
+    try {
+      await deleteConfirmedLine(quote.value.id, lineId, reason, accessToken)
+      await loadQuote(quote.value.id)
+    } catch (err: unknown) {
+      errorMsg.value = getErrorMessage(err, 'Không thể xóa dòng báo giá.')
+      throw err
+    } finally {
+      isConfirming.value = false
+    }
+  }
+
+  const handleCancelQuote = async (reason: string) => {
+    if (!quote.value) {
+      return
+    }
+    isConfirming.value = true
+    errorMsg.value = null
+    try {
+      await cancelQuote(quote.value.id, reason, accessToken)
+      await loadQuote(quote.value.id)
+    } catch (err: unknown) {
+      errorMsg.value = getErrorMessage(err, 'Không thể hủy phiếu báo giá.')
+      throw err
+    } finally {
+      isConfirming.value = false
+    }
+  }
+
+  const handleReactivateQuote = async () => {
+    if (!quote.value) {
+      return
+    }
+    isConfirming.value = true
+    errorMsg.value = null
+    try {
+      await reactivateQuote(quote.value.id, accessToken)
+      await loadQuote(quote.value.id)
+    } catch (err: unknown) {
+      errorMsg.value = getErrorMessage(err, 'Không thể khôi phục phiếu báo giá.')
+      throw err
+    } finally {
+      isConfirming.value = false
+    }
+  }
+
   const handleTogglePurchase = async (lineId: string, currentPurchaseVal: boolean, purchaseDate?: string | null) => {
     if (!quote.value) {
       return
@@ -261,6 +318,9 @@ export function useQuoteDetail(accessToken: string | null) {
     loadQuote,
     handleConfirm,
     handleDeleteDraftVersion,
+    handleDeleteLine,
+    handleCancelQuote,
+    handleReactivateQuote,
     handleTogglePurchase,
     handleUploadSourceFile,
     getSourceFileDownloadUrl,

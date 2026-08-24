@@ -20,11 +20,22 @@ class MockSession:
     def __init__(self, quote: Quote) -> None:
         self.quote = quote
         self.committed = False
+        self.line_to_return: Any = None
 
     async def get(self, model_class: type[Any], id: UUID) -> Any:
         if model_class is Quote and id == self.quote.id:
             return self.quote
         return None
+
+    async def execute(self, statement: object) -> Any:
+        class _Result:
+            def __init__(self, value: Any) -> None:
+                self._value = value
+
+            def scalar_one_or_none(self) -> Any:
+                return self._value
+
+        return _Result(self.line_to_return)
 
     async def commit(self) -> None:
         self.committed = True
@@ -43,6 +54,41 @@ class MockQuoteService:
         self.quote_id = quote_id
         self.create_version_calls: list[dict[str, Any]] = []
         self.delete_draft_version_calls: list[dict[str, Any]] = []
+        self.delete_confirmed_line_calls: list[dict[str, Any]] = []
+        self.cancel_quote_calls: list[dict[str, Any]] = []
+        self.reactivate_quote_calls: list[dict[str, Any]] = []
+        self.quote_to_return: Quote | None = None
+
+    async def delete_confirmed_line(self, **kwargs: Any) -> QuoteVersion:
+        self.delete_confirmed_line_calls.append(kwargs)
+        version = QuoteVersion(
+            id=uuid4(),
+            quote_id=self.quote_id,
+            version_number=2,
+            received_date=date(2026, 7, 31),
+            status="confirmed",
+            is_backfilled=False,
+            backfill_reason=None,
+            correction_reason=kwargs.get("reason") or "Xóa dòng nhập nhầm.",
+            created_by_id=kwargs["current_user_id"],
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        version.lines = []
+        return version
+
+    async def cancel_quote(self, **kwargs: Any) -> Quote:
+        self.cancel_quote_calls.append(kwargs)
+        if self.quote_to_return is not None:
+            self.quote_to_return.cancel_reason = kwargs["reason"]
+        return self.quote_to_return  # type: ignore[return-value]
+
+    async def reactivate_quote(self, **kwargs: Any) -> Quote:
+        self.reactivate_quote_calls.append(kwargs)
+        return self.quote_to_return  # type: ignore[return-value]
+
+    async def get_quote_by_id(self, quote_id: UUID) -> Quote | None:
+        return self.quote_to_return
 
     async def create_version(self, **kwargs: Any) -> QuoteVersion:
         self.create_version_calls.append(kwargs)
@@ -121,11 +167,14 @@ def ownership_dependencies(
         id=uuid4(),
         supplier_id=uuid4(),
         created_by_id=owner_id,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     quote.supplier = Supplier(id=quote.supplier_id, code="SUP-A", name="Supplier A", status="active")
 
     current_user = make_user(role_name="user")
     quote_service = MockQuoteService(quote.id)
+    quote_service.quote_to_return = quote
     session = MockSession(quote)
     audit_service = MockAuditLogService()
 
@@ -245,3 +294,122 @@ async def test_admin_can_delete_draft_version_for_any_quote(
         "source_file_id": None,
         "source_file_cleanup": "not_applicable",
     }
+
+
+def _make_line(*, quote_id: UUID) -> Any:
+    from app.models import Material, QuoteLine, QuoteVersion as QV
+
+    line = QuoteLine(
+        id=uuid4(),
+        quote_version_id=uuid4(),
+        material_id=uuid4(),
+        price_original=15000,
+        currency="VND",
+        unit="KG",
+        delivery_month=date(2026, 8, 1),
+        price_converted_vnd_per_kg=15000,
+    )
+    line.version = QV(id=line.quote_version_id, quote_id=quote_id, version_number=1, received_date=date(2026, 7, 28))
+    line.material = Material(id=line.material_id, code="MAT-1", name="Material 1", status="active")
+    return line
+
+
+@pytest.mark.asyncio
+async def test_user_cannot_delete_confirmed_line_for_another_users_quote(
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    line_id = uuid4()
+
+    response = await client.post(
+        f"/api/v1/quotes/{quote.id}/lines/{line_id}/delete",
+        json={"reason": "Nhập nhầm."},
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert quote_service.delete_confirmed_line_calls == []
+    assert session.committed is False
+    assert audit_service.events == []
+
+
+@pytest.mark.asyncio
+async def test_admin_can_delete_confirmed_line_for_any_quote(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    admin_user = make_user(role_name="admin")
+    app.dependency_overrides[get_current_user] = lambda: admin_user
+    line = _make_line(quote_id=quote.id)
+    session.line_to_return = line
+
+    response = await client.post(
+        f"/api/v1/quotes/{quote.id}/lines/{line.id}/delete",
+        json={"reason": "Nhập nhầm giá."},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert quote_service.delete_confirmed_line_calls[0]["current_user_id"] == admin_user.id
+    assert quote_service.delete_confirmed_line_calls[0]["reason"] == "Nhập nhầm giá."
+    assert session.committed is True
+    assert len(audit_service.events) == 1
+
+
+@pytest.mark.asyncio
+async def test_user_cannot_cancel_another_users_quote(
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+
+    response = await client.post(
+        f"/api/v1/quotes/{quote.id}/cancel",
+        json={"reason": "Nhập nhầm cả phiếu."},
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert quote_service.cancel_quote_calls == []
+    assert session.committed is False
+    assert audit_service.events == []
+
+
+@pytest.mark.asyncio
+async def test_owner_can_cancel_own_quote(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    owner_user = make_user(role_name="user", user_id=quote.created_by_id)
+    app.dependency_overrides[get_current_user] = lambda: owner_user
+
+    response = await client.post(
+        f"/api/v1/quotes/{quote.id}/cancel",
+        json={"reason": "Nhập nhầm nhà cung cấp."},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert quote_service.cancel_quote_calls[0]["reason"] == "Nhập nhầm nhà cung cấp."
+    assert session.committed is True
+    assert len(audit_service.events) == 1
+    assert audit_service.events[0]["action"] == "quotes.cancelled"
+
+
+@pytest.mark.asyncio
+async def test_admin_can_reactivate_any_quote(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    admin_user = make_user(role_name="admin")
+    app.dependency_overrides[get_current_user] = lambda: admin_user
+
+    response = await client.post(f"/api/v1/quotes/{quote.id}/reactivate")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert quote_service.reactivate_quote_calls[0]["quote_id"] == quote.id
+    assert session.committed is True
+    assert audit_service.events[0]["action"] == "quotes.reactivated"

@@ -76,6 +76,9 @@ export function mapQuoteDtoToDomain(dto: QuoteDto): QuoteDomain {
     createdById: dto.created_by_id,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
+    cancelledAt: dto.cancelled_at,
+    cancelledById: dto.cancelled_by_id,
+    cancelReason: dto.cancel_reason,
     versions: Array.isArray(dto.versions)
       ? dto.versions.map(mapQuoteVersionDtoToDomain)
       : [],
@@ -130,5 +133,6 @@ export function mapQuoteFlattenedDtoToDomain(dto: QuoteFlattenedDto): QuoteFlatt
     versionStatus: dto.version_status,
     createdByName: dto.created_by_name,
     createdAt: dto.created_at,
+    isCancelled: dto.is_cancelled,
   }
 }

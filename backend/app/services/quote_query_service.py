@@ -36,6 +36,7 @@ class QuoteQueryService:
         delivery_month: date | None = None,
         currency: str | None = None,
         purchased: bool | None = None,
+        cancelled: bool | None = None,
     ) -> Any:
         filters = []
 
@@ -80,6 +81,15 @@ class QuoteQueryService:
             else:
                 filters.append(QuoteLine.purchase_marked_at.is_(None))
 
+        # Mặc định (cancelled=None) ẩn phiếu đã hủy khỏi Bảng báo giá/export —
+        # giữ đúng hành vi cũ. `cancelled=True` đảo lại để tra soát các phiếu
+        # đã hủy (mục "Trạng thái" trên UI); `cancelled=False` tương đương
+        # mặc định, chỉ tường minh hơn.
+        if cancelled:
+            filters.append(Quote.cancelled_at.is_not(None))
+        else:
+            filters.append(Quote.cancelled_at.is_(None))
+
         if filters:
             stmt = stmt.where(*filters)
 
@@ -99,6 +109,7 @@ class QuoteQueryService:
         delivery_month: date | None = None,
         currency: str | None = None,
         purchased: bool | None = None,
+        cancelled: bool | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
         limit: int = 10,
@@ -136,6 +147,7 @@ class QuoteQueryService:
                 QuoteVersion.status.label("version_status"),
                 User.full_name.label("created_by_name"),
                 QuoteLine.created_at,
+                Quote.cancelled_at,
             )
             .join(QuoteVersion, QuoteLine.quote_version_id == QuoteVersion.id)
             .join(Quote, QuoteVersion.quote_id == Quote.id)
@@ -157,6 +169,7 @@ class QuoteQueryService:
             delivery_month=delivery_month,
             currency=currency,
             purchased=purchased,
+            cancelled=cancelled,
         )
 
         count_stmt = (
@@ -179,6 +192,7 @@ class QuoteQueryService:
             delivery_month=delivery_month,
             currency=currency,
             purchased=purchased,
+            cancelled=cancelled,
         )
         total = (await self.db.execute(count_stmt)).scalar() or 0
 
@@ -238,6 +252,7 @@ class QuoteQueryService:
                 "version_status": row.version_status,
                 "created_by_name": row.created_by_name,
                 "created_at": row.created_at,
+                "is_cancelled": row.cancelled_at is not None,
             })
 
         return items, total
@@ -255,6 +270,7 @@ class QuoteQueryService:
         delivery_month: date | None = None,
         currency: str | None = None,
         purchased: bool | None = None,
+        cancelled: bool | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
     ) -> list[dict[str, Any]]:
@@ -321,6 +337,7 @@ class QuoteQueryService:
                 latest_revision.c.content.label("note_content"),
                 latest_revision.c.author_name.label("note_author_name"),
                 latest_revision.c.created_at.label("note_created_at"),
+                Quote.cancelled_at,
             )
             .join(QuoteVersion, QuoteLine.quote_version_id == QuoteVersion.id)
             .join(Quote, QuoteVersion.quote_id == Quote.id)
@@ -344,6 +361,7 @@ class QuoteQueryService:
             delivery_month=delivery_month,
             currency=currency,
             purchased=purchased,
+            cancelled=cancelled,
         )
 
         sort_by_map = {
@@ -399,6 +417,7 @@ class QuoteQueryService:
                 "note_content": row.note_content,
                 "note_author_name": row.note_author_name,
                 "note_created_at": row.note_created_at,
+                "is_cancelled": row.cancelled_at is not None,
             })
 
         return items

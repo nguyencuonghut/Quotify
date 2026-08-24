@@ -34,6 +34,7 @@ class QuoteFlattenedResponse(BaseModel):
     version_status: str
     created_by_name: str | None = None
     created_at: datetime
+    is_cancelled: bool = False
 
     class Config:
         from_attributes = True

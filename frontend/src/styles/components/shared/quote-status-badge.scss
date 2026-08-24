@@ -38,4 +38,14 @@
     color: var(--app-text-muted);
     border: 1px solid color-mix(in srgb, var(--app-text-muted) 24%, transparent);
   }
+
+  // "Hủy phiếu" ở cấp Quote (khác trạng thái version) — dùng luôn tông đỏ
+  // --app-danger đã dùng cho các hành động xóa/cảnh báo khác trong trang.
+  &--cancelled {
+    background: color-mix(in srgb, var(--app-danger) 12%, transparent);
+    color: var(--app-danger);
+    border: 1px solid color-mix(in srgb, var(--app-danger) 30%, transparent);
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
 }

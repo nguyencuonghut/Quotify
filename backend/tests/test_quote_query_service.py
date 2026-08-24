@@ -120,6 +120,10 @@ async def test_query_flattened_quotes_uses_lightweight_count(
     assert "anon_1" not in count_sql
     assert "supplier_name" not in count_sql
     assert "quote_versions.status != :status_1" in count_sql
+    # Phiếu đã "Hủy phiếu" (Quote.cancelled_at) phải bị loại khỏi cả count và
+    # select — cùng 1 điểm filter `_apply_filters` dùng chung cho 2 câu.
+    assert "quotes.cancelled_at is null" in count_sql
+    assert "quotes.cancelled_at is null" in select_sql
     assert "limit" in select_sql
     assert "offset" in select_sql
     # Tie-break phải theo Quote.sequence_number rồi line_order — KHÔNG theo
@@ -127,6 +131,23 @@ async def test_query_flattened_quotes_uses_lightweight_count(
     # bị xen kẽ với NCC khác khi cột đang sort (created_at) bị trùng giá trị.
     assert "order by quote_lines.created_at desc, quotes.sequence_number asc" in select_sql
     assert "quote_lines.id" not in select_sql.split("order by", 1)[1]
+
+
+@pytest.mark.asyncio
+async def test_query_flattened_quotes_cancelled_true_shows_only_cancelled_rows(
+    mock_rows: list[FakeResultRow],
+) -> None:
+    fake_db = FakeDbSession(mock_rows)
+    service = QuoteQueryService(cast(Any, fake_db))
+
+    await service.query_flattened_quotes(cancelled=True, limit=10, offset=0)
+
+    count_sql = str(fake_db.queries[0]).lower()
+    select_sql = str(fake_db.queries[1]).lower()
+    # `cancelled=True` đảo filter mặc định để CHỈ hiện phiếu đã hủy (tra soát
+    # lịch sử) — khác với mặc định (cancelled=None) luôn ẩn chúng.
+    assert "quotes.cancelled_at is not null" in count_sql
+    assert "quotes.cancelled_at is not null" in select_sql
 
 
 @pytest.mark.asyncio
@@ -146,6 +167,7 @@ async def test_query_flattened_quotes_for_export_returns_every_matching_row_with
     select_sql = str(fake_db.queries[0]).lower()
     assert "limit" not in select_sql
     assert "offset" not in select_sql
+    assert "quotes.cancelled_at is null" in select_sql
 
 
 @pytest.mark.asyncio

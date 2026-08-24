@@ -162,6 +162,7 @@ class QuotifyDashboardService:
             .join(QuoteVersion, QuoteVersion.quote_id == Quote.id)
             .where(
                 QuoteVersion.status == "confirmed",
+                Quote.cancelled_at.is_(None),
                 Quote.created_at >= start_at,
                 Quote.created_at < end_exclusive,
             )
@@ -231,6 +232,7 @@ class QuotifyDashboardService:
         filters: list[Any] = [
             QuoteVersion.status == "confirmed",
             QuoteVersion.confirmed_at.is_not(None),
+            Quote.cancelled_at.is_(None),
         ]
         if material_id is not None:
             filters.append(QuoteLine.material_id == material_id)

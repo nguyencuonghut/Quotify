@@ -106,11 +106,13 @@ describe('useQuotesPage', () => {
     const page = useQuotesPage(() => 'mock-token')
     page.globalSearch.value = 'Text'
     page.purchased.value = true
+    page.cancelled.value = true
 
     page.resetFilters()
 
     expect(page.globalSearch.value).toBe('')
     expect(page.purchased.value).toBeNull()
+    expect(page.cancelled.value).toBeNull()
     expect(quotesApiMock.getQuotesList).toHaveBeenCalledWith(
       expect.objectContaining({
         limit: 10,
@@ -118,6 +120,28 @@ describe('useQuotesPage', () => {
         sortBy: 'received_date',
         sortOrder: 'desc',
       }),
+      'mock-token',
+    )
+  })
+
+  it('defaults to hiding cancelled quotes, and can switch to show only cancelled ones', async () => {
+    quotesApiMock.getQuotesList.mockResolvedValue({ items: [], total: 0 })
+
+    const page = useQuotesPage(() => 'mock-token')
+    await page.loadQuotesData()
+
+    // Mặc định (`cancelled` chưa set) không gửi tham số này lên API — backend
+    // tự ẩn phiếu đã hủy, khớp hành vi trước khi có tính năng "Hủy phiếu".
+    expect(quotesApiMock.getQuotesList).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ cancelled: expect.anything() }),
+      'mock-token',
+    )
+
+    page.cancelled.value = true
+    await page.loadQuotesData()
+
+    expect(quotesApiMock.getQuotesList).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cancelled: true }),
       'mock-token',
     )
   })

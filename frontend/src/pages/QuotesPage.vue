@@ -156,6 +156,18 @@
             @change="loadQuotesData"
           />
         </label>
+
+        <label class="quotes-page__filter-field">
+          <span class="quotes-page__filter-label">Trạng thái phiếu</span>
+          <Select
+            v-model="cancelled"
+            :options="cancelledOptions"
+            option-label="label"
+            option-value="value"
+            placeholder="Tất cả (ẩn đã hủy)"
+            @change="loadQuotesData"
+          />
+        </label>
       </section>
 
       <!-- General Error Alert -->
@@ -282,6 +294,9 @@
               <span :class="['quote-status-badge', `quote-status-badge--${data.versionStatus}`]">
                 {{ getVersionStatusLabel(data.versionStatus) }}
               </span>
+              <span v-if="data.isCancelled" class="quote-status-badge quote-status-badge--cancelled">
+                Đã hủy
+              </span>
             </template>
           </Column>
           <template #empty>
@@ -374,6 +389,9 @@
               </div>
               <span :class="['quote-status-badge', `quote-status-badge--${item.versionStatus}`]">
                 {{ getVersionStatusLabel(item.versionStatus) }}
+              </span>
+              <span v-if="item.isCancelled" class="quote-status-badge quote-status-badge--cancelled">
+                Đã hủy
               </span>
             </div>
 
@@ -533,6 +551,7 @@ const {
   receivedDateEnd,
   deliveryMonth,
   purchased,
+  cancelled,
   limit,
   offset,
   loadQuotesData,
@@ -563,6 +582,13 @@ const purchasedOptions = [
   { label: 'Tất cả trạng thái chốt', value: null },
   { label: 'Đã chốt mua', value: true },
   { label: 'Chưa chốt mua', value: false },
+]
+
+// `null` (mặc định) ẩn phiếu đã hủy — giữ đúng hành vi trước khi có tính
+// năng "Hủy phiếu"; `true` đảo lại để tra soát các phiếu đã hủy.
+const cancelledOptions = [
+  { label: 'Tất cả (ẩn đã hủy)', value: null },
+  { label: 'Đã hủy', value: true },
 ]
 
 const fetchLookups = async () => {

@@ -92,6 +92,44 @@ export function deleteDraftVersion(
   })
 }
 
+// Rút gọn luồng "Tạo bản điều chỉnh" thành 1 hành động cho trường hợp nhập
+// nhầm 1 dòng trong phiếu đã xác nhận — backend tự tạo + tự xác nhận 1 bản
+// điều chỉnh loại trừ dòng này (xem `QuoteService.delete_confirmed_line`).
+export function deleteConfirmedLine(
+  id: string,
+  lineId: string,
+  reason: string | null,
+  accessToken?: string | null,
+): Promise<QuoteVersionDomain> {
+  return apiRequest<QuoteVersionDto>(`/quotes/${id}/lines/${lineId}/delete`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+    accessToken,
+  }).then(mapQuoteVersionDtoToDomain)
+}
+
+export function cancelQuote(
+  id: string,
+  reason: string,
+  accessToken?: string | null,
+): Promise<QuoteDomain> {
+  return apiRequest<QuoteDto>(`/quotes/${id}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+    accessToken,
+  }).then(mapQuoteDtoToDomain)
+}
+
+export function reactivateQuote(
+  id: string,
+  accessToken?: string | null,
+): Promise<QuoteDomain> {
+  return apiRequest<QuoteDto>(`/quotes/${id}/reactivate`, {
+    method: 'POST',
+    accessToken,
+  }).then(mapQuoteDtoToDomain)
+}
+
 export function toggleLinePurchase(
   id: string,
   lineId: string,

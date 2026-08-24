@@ -29,6 +29,12 @@
     color: var(--app-text-primary);
   }
 
+  .quote-detail-page__cancelled-note {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--app-danger);
+  }
+
   .quote-detail-page__supplier-tag {
     display: inline-flex;
     align-items: center;

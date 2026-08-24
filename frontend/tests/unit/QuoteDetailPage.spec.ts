@@ -9,6 +9,9 @@ const quoteDetailMock = vi.hoisted(() => ({
   loadQuote: vi.fn(),
   handleConfirm: vi.fn(),
   handleDeleteDraftVersion: vi.fn(),
+  handleDeleteLine: vi.fn(),
+  handleCancelQuote: vi.fn(),
+  handleReactivateQuote: vi.fn(),
   handleTogglePurchase: vi.fn(),
   handleUploadSourceFile: vi.fn(),
   getSourceFileDownloadUrl: vi.fn(),
@@ -85,6 +88,7 @@ function mountQuoteDetailPage() {
         DatePicker: true,
         InputText: true,
         Select: true,
+        Textarea: true,
       },
     },
   })
@@ -157,11 +161,154 @@ function mountQuoteDetailPageForRevisionActions() {
         DatePicker: true,
         InputText: true,
         Select: true,
+        Textarea: true,
       },
     },
   })
   return activeWrapper
 }
+
+const textareaStub = {
+  props: ['modelValue'],
+  emits: ['update:modelValue'],
+  template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+}
+
+function mountQuoteDetailPageForCancelAndDeleteLineActions() {
+  activeWrapper = mount(QuoteDetailPage, {
+    global: {
+      stubs: {
+        AdminLayout: passthroughStub,
+        Button: false,
+        DataTable: false,
+        Column: false,
+        FileUpload: true,
+        Checkbox: true,
+        Dialog: dialogStubWithFooterSlot,
+        Message: true,
+        Editor: true,
+        DatePicker: true,
+        InputText: true,
+        Select: true,
+        Textarea: textareaStub,
+      },
+    },
+  })
+  return activeWrapper
+}
+
+describe('QuoteDetailPage cancel quote and delete confirmed line', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    const authStore = useAuthStore()
+    authStore.currentUser = {
+      id: 'user-1',
+      email: 'admin@quotify.local',
+      status: 'active',
+      roles: ['admin'],
+      permissions: ['quotes.update'],
+      lastLoginAt: null,
+    }
+
+    quote.value = {
+      id: 'quote-1',
+      supplierId: 'supplier-1',
+      supplierName: 'Supplier A',
+      supplierCode: 'SUPA',
+      createdById: 'user-1',
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-01T00:00:00Z',
+      cancelledAt: null,
+      cancelledById: null,
+      cancelReason: null,
+      versions: [],
+    }
+    isLoading.value = false
+    activeVersion.value = {
+      id: 'version-1',
+      status: 'confirmed',
+      versionNumber: 1,
+      receivedDate: '2026-08-01',
+      lines: [
+        {
+          id: 'line-1',
+          materialCode: 'MAT-1',
+          materialName: 'Ngô hạt',
+          priceOriginal: 15000,
+          currency: 'VND',
+          unit: 'KG',
+          deliveryMonth: '2026-08-01',
+          priceConvertedVndPerKg: 15000,
+          purchaseMarkedAt: null,
+        },
+      ],
+    }
+    sortedVersions.value = [activeVersion.value]
+    note.value = null
+    quoteDetailMock.handleCancelQuote.mockClear()
+    quoteDetailMock.handleReactivateQuote.mockClear()
+    quoteDetailMock.handleDeleteLine.mockClear()
+  })
+
+  it('shows the "Hủy phiếu" button and requires a reason before confirming', async () => {
+    const wrapper = mountQuoteDetailPageForCancelAndDeleteLineActions()
+
+    const cancelButton = wrapper.findAll('button').find((b) => b.text().includes('Hủy phiếu'))
+    expect(cancelButton).toBeTruthy()
+    await cancelButton!.trigger('click')
+
+    // Dialog xác nhận được render SAU nút mở dialog trong template — lấy nút
+    // cuối cùng khớp text để tránh nhầm với nút "Hủy phiếu" ở header.
+    const matchingButtons = () => wrapper.findAll('button').filter((b) => b.text() === 'Hủy phiếu')
+    expect(matchingButtons().length).toBe(2)
+    const confirmButton = matchingButtons()[1]
+    expect(confirmButton.attributes('disabled')).not.toBeUndefined()
+
+    await wrapper.find('textarea').setValue('Nhập nhầm nhà cung cấp.')
+    const confirmButtonEnabled = matchingButtons()[1]
+    expect(confirmButtonEnabled.attributes('disabled')).toBeUndefined()
+    await confirmButtonEnabled.trigger('click')
+
+    expect(quoteDetailMock.handleCancelQuote).toHaveBeenCalledWith('Nhập nhầm nhà cung cấp.')
+  })
+
+  it('shows a cancelled badge and a "Khôi phục phiếu" button instead of mutation actions once cancelled', async () => {
+    quote.value = {
+      ...quote.value,
+      cancelledAt: '2026-08-24T03:00:00Z',
+      cancelledById: 'user-1',
+      cancelReason: 'Nhập nhầm nhà cung cấp.',
+    }
+
+    const wrapper = mountQuoteDetailPageForCancelAndDeleteLineActions()
+
+    expect(wrapper.text()).toContain('Đã hủy')
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Tạo bản điều chỉnh'))).toBe(false)
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Hủy phiếu'))).toBe(false)
+
+    const reactivateButton = wrapper.findAll('button').find((b) => b.text().includes('Khôi phục phiếu'))
+    expect(reactivateButton).toBeTruthy()
+    await reactivateButton!.trigger('click')
+
+    expect(quoteDetailMock.handleReactivateQuote).toHaveBeenCalled()
+  })
+
+  it('deletes a confirmed line via the correction shortcut with an optional reason', async () => {
+    const wrapper = mountQuoteDetailPageForCancelAndDeleteLineActions()
+
+    const deleteLineButton = wrapper.find('[title="Xóa dòng này (nhập nhầm)"]')
+    expect(deleteLineButton.exists()).toBe(true)
+    await deleteLineButton.trigger('click')
+
+    await wrapper.find('textarea').setValue('Nhập nhầm giá dòng này.')
+    const confirmDeleteButton = wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Xóa dòng')
+    await confirmDeleteButton!.trigger('click')
+
+    expect(quoteDetailMock.handleDeleteLine).toHaveBeenCalledWith('line-1', 'Nhập nhầm giá dòng này.')
+  })
+})
 
 describe('QuoteDetailPage note revision deletion', () => {
   beforeEach(() => {

@@ -8,7 +8,15 @@
           <i class="pi pi-truck" />
           <span>{{ quote?.supplierCode }} - {{ quote?.supplierName }}</span>
         </div>
-        <h2 class="quote-detail-page__title">Phiếu báo giá nguyên liệu</h2>
+        <h2 class="quote-detail-page__title">
+          Phiếu báo giá nguyên liệu
+          <span v-if="quote?.cancelledAt" class="quote-status-badge quote-status-badge--cancelled">
+            Đã hủy
+          </span>
+        </h2>
+        <p v-if="quote?.cancelledAt" class="quote-detail-page__cancelled-note">
+          Lý do: {{ quote.cancelReason }} — {{ formatDateTime(quote.cancelledAt) }}
+        </p>
       </div>
 
       <div class="quote-detail-page__actions">
@@ -19,33 +27,52 @@
           outlined
           @click="goBack"
         />
+        <template v-if="!quote?.cancelledAt">
+          <Button
+            v-if="canUpdateQuote && activeVersion?.status !== 'draft'"
+            label="Tạo bản điều chỉnh"
+            icon="pi pi-copy"
+            @click="createNewVersion"
+          />
+          <Button
+            v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
+            label="Sửa bản nháp"
+            icon="pi pi-pencil"
+            outlined
+            @click="editDraft"
+          />
+          <Button
+            v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
+            label="Xác nhận phiên bản"
+            icon="pi pi-check"
+            severity="primary"
+            @click="showConfirmDialog = true"
+          />
+          <Button
+            v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
+            label="Xóa bản nháp"
+            icon="pi pi-trash"
+            severity="danger"
+            outlined
+            @click="showDeleteDraftDialog = true"
+          />
+          <Button
+            v-if="canUpdateQuote"
+            label="Hủy phiếu"
+            icon="pi pi-ban"
+            severity="danger"
+            outlined
+            @click="openCancelQuoteDialog"
+          />
+        </template>
         <Button
-          v-if="canUpdateQuote && activeVersion?.status !== 'draft'"
-          label="Tạo bản điều chỉnh"
-          icon="pi pi-copy"
-          @click="createNewVersion"
-        />
-        <Button
-          v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
-          label="Sửa bản nháp"
-          icon="pi pi-pencil"
+          v-else-if="canUpdateQuote"
+          label="Khôi phục phiếu"
+          icon="pi pi-refresh"
+          severity="secondary"
           outlined
-          @click="editDraft"
-        />
-        <Button
-          v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
-          label="Xác nhận phiên bản"
-          icon="pi pi-check"
-          severity="primary"
-          @click="showConfirmDialog = true"
-        />
-        <Button
-          v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
-          label="Xóa bản nháp"
-          icon="pi pi-trash"
-          severity="danger"
-          outlined
-          @click="showDeleteDraftDialog = true"
+          @click="reactivateQuoteFromDetail"
+          :loading="isConfirming"
         />
       </div>
     </div>
@@ -314,7 +341,7 @@
                   <Checkbox
                     :model-value="Boolean(slotProps.data.purchaseMarkedAt)"
                     binary
-                    :disabled="!canMarkPurchase || activeVersion?.status !== 'confirmed'"
+                    :disabled="!canMarkPurchase || activeVersion?.status !== 'confirmed' || Boolean(quote?.cancelledAt)"
                     @click="togglePurchase(slotProps.data)"
                   />
                   <div
@@ -325,6 +352,22 @@
                     <span>Chốt: {{ formatOnlyDate(slotProps.data.purchaseMarkedAt) }}</span>
                   </div>
                 </div>
+              </template>
+            </Column>
+            <Column
+              v-if="canUpdateQuote && activeVersion?.status === 'confirmed' && !quote?.cancelledAt"
+              header="Xóa dòng"
+              style="width: 90px; text-align: center"
+            >
+              <template #body="slotProps">
+                <Button
+                  icon="pi pi-trash"
+                  severity="danger"
+                  text
+                  rounded
+                  title="Xóa dòng này (nhập nhầm)"
+                  @click="openDeleteLineDialog(slotProps.data)"
+                />
               </template>
             </Column>
           </DataTable>
@@ -547,6 +590,96 @@
       </template>
     </Dialog>
 
+    <!-- Delete Line Dialog -->
+    <Dialog
+      :visible="pendingDeleteLine !== null"
+      header="Xóa dòng báo giá"
+      :modal="true"
+      :style="{ width: '480px' }"
+      @update:visible="cancelDeleteLineDialog"
+    >
+      <div style="display: flex; flex-direction: column; gap: 0.75rem">
+        <div style="display: flex; align-items: center; gap: 0.75rem">
+          <i class="pi pi-exclamation-triangle quote-detail-page__warning-icon quote-detail-page__warning-icon--danger" />
+          <span>
+            Hệ thống sẽ tự tạo và xác nhận 1 bản điều chỉnh loại trừ dòng
+            <strong>{{ pendingDeleteLine?.materialName }}</strong> — phiên bản hiện tại
+            sẽ chuyển sang trạng thái <strong>Đã bị thay thế</strong> (không mất dữ liệu lịch sử).
+          </span>
+        </div>
+        <div v-if="pendingDeleteLine?.purchaseMarkedAt" class="quote-detail-page__field-error">
+          Dòng này đã được đánh dấu "Chốt mua" — xóa sẽ loại khỏi các báo cáo/dashboard.
+        </div>
+        <label class="quote-detail-page__subsection-title">Lý do xóa (không bắt buộc)</label>
+        <Textarea
+          v-model="deleteLineReason"
+          rows="3"
+          auto-resize
+          placeholder="Ví dụ: Nhập nhầm giá dòng này..."
+        />
+      </div>
+      <template #footer>
+        <Button
+          label="Hủy"
+          icon="pi pi-times"
+          severity="secondary"
+          outlined
+          :disabled="isConfirming"
+          @click="cancelDeleteLineDialog"
+        />
+        <Button
+          label="Xóa dòng"
+          icon="pi pi-trash"
+          severity="danger"
+          :loading="isConfirming"
+          @click="confirmDeleteLine"
+        />
+      </template>
+    </Dialog>
+
+    <!-- Cancel Quote Dialog -->
+    <Dialog
+      v-model:visible="showCancelQuoteDialog"
+      header="Hủy phiếu báo giá"
+      :modal="true"
+      :style="{ width: '480px' }"
+    >
+      <div style="display: flex; flex-direction: column; gap: 0.75rem">
+        <div style="display: flex; align-items: center; gap: 0.75rem">
+          <i class="pi pi-exclamation-triangle quote-detail-page__warning-icon quote-detail-page__warning-icon--danger" />
+          <span>
+            Phiếu sẽ bị ẩn khỏi Bảng báo giá và Dashboard (không tính vào thống kê/giá),
+            nhưng vẫn xem lại được qua đường dẫn chi tiết. Có thể khôi phục sau nếu cần.
+          </span>
+        </div>
+        <label class="quote-detail-page__subsection-title">Lý do hủy <span style="color: var(--app-danger)">*</span></label>
+        <Textarea
+          v-model="cancelQuoteReason"
+          rows="3"
+          auto-resize
+          placeholder="Ví dụ: Nhập nhầm nhà cung cấp..."
+        />
+      </div>
+      <template #footer>
+        <Button
+          label="Đóng"
+          icon="pi pi-times"
+          severity="secondary"
+          outlined
+          :disabled="isConfirming"
+          @click="showCancelQuoteDialog = false"
+        />
+        <Button
+          label="Hủy phiếu"
+          icon="pi pi-ban"
+          severity="danger"
+          :loading="isConfirming"
+          :disabled="!cancelQuoteReason.trim()"
+          @click="confirmCancelQuote"
+        />
+      </template>
+    </Dialog>
+
     <!-- Purchase Dialog -->
     <Dialog
       v-model:visible="showPurchaseDialog"
@@ -652,6 +785,7 @@ import Editor from 'primevue/editor'
 import DatePicker from 'primevue/datepicker'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import Textarea from 'primevue/textarea'
 
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
@@ -682,6 +816,9 @@ const {
   loadQuote,
   handleConfirm,
   handleDeleteDraftVersion,
+  handleDeleteLine,
+  handleCancelQuote,
+  handleReactivateQuote,
   handleTogglePurchase,
   handleUploadSourceFile,
   getSourceFileDownloadUrl,
@@ -939,6 +1076,57 @@ const deleteDraftVersionFromDetail = async () => {
     if (shouldGoBack) {
       useRouterObj.push('/quotes')
     }
+  } catch {
+    // handled by composable errorMsg
+  }
+}
+
+const pendingDeleteLine = ref<QuoteLineDomain | null>(null)
+const deleteLineReason = ref<string>('')
+
+const openDeleteLineDialog = (line: QuoteLineDomain) => {
+  pendingDeleteLine.value = line
+  deleteLineReason.value = ''
+}
+
+const cancelDeleteLineDialog = () => {
+  pendingDeleteLine.value = null
+  deleteLineReason.value = ''
+}
+
+const confirmDeleteLine = async () => {
+  const line = pendingDeleteLine.value
+  if (!line) return
+  try {
+    await handleDeleteLine(line.id, deleteLineReason.value.trim() || null)
+    pendingDeleteLine.value = null
+    deleteLineReason.value = ''
+  } catch {
+    // handled by composable errorMsg
+  }
+}
+
+const showCancelQuoteDialog = ref<boolean>(false)
+const cancelQuoteReason = ref<string>('')
+
+const openCancelQuoteDialog = () => {
+  cancelQuoteReason.value = ''
+  showCancelQuoteDialog.value = true
+}
+
+const confirmCancelQuote = async () => {
+  if (!cancelQuoteReason.value.trim()) return
+  try {
+    await handleCancelQuote(cancelQuoteReason.value.trim())
+    showCancelQuoteDialog.value = false
+  } catch {
+    // handled by composable errorMsg
+  }
+}
+
+const reactivateQuoteFromDetail = async () => {
+  try {
+    await handleReactivateQuote()
   } catch {
     // handled by composable errorMsg
   }
