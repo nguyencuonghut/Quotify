@@ -151,6 +151,25 @@ async def test_query_flattened_quotes_cancelled_true_shows_only_cancelled_rows(
 
 
 @pytest.mark.asyncio
+async def test_query_flattened_quotes_version_status_filters_by_current_version_status(
+    mock_rows: list[FakeResultRow],
+) -> None:
+    fake_db = FakeDbSession(mock_rows)
+    service = QuoteQueryService(cast(Any, fake_db))
+
+    await service.query_flattened_quotes(version_status="draft", limit=10, offset=0)
+
+    count_sql = str(fake_db.queries[0]).lower()
+    select_sql = str(fake_db.queries[1]).lower()
+    # Lọc "trạng thái cuối cùng" của phiếu (vd. quên chưa xác nhận) — kết hợp
+    # với filter `status != superseded` luôn có sẵn, đảm bảo chỉ khớp version
+    # HIỆN HÀNH, không phải bất kỳ version nào từng có trạng thái draft.
+    assert "quote_versions.status = :status_1" in count_sql
+    assert "quote_versions.status = :status_1" in select_sql
+    assert "quote_versions.status != :status_2" in select_sql
+
+
+@pytest.mark.asyncio
 async def test_query_flattened_quotes_for_export_returns_every_matching_row_without_pagination(
     mock_rows: list[FakeResultRow],
 ) -> None:

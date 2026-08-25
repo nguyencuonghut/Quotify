@@ -160,8 +160,8 @@
         <label class="quotes-page__filter-field">
           <span class="quotes-page__filter-label">Trạng thái phiếu</span>
           <Select
-            v-model="cancelled"
-            :options="cancelledOptions"
+            v-model="finalStatusFilter"
+            :options="finalStatusOptions"
             option-label="label"
             option-value="value"
             placeholder="Tất cả (ẩn đã hủy)"
@@ -554,6 +554,7 @@ const {
   deliveryMonth,
   purchased,
   cancelled,
+  versionStatus,
   limit,
   offset,
   sortField,
@@ -588,12 +589,33 @@ const purchasedOptions = [
   { label: 'Chưa chốt mua', value: false },
 ]
 
-// `null` (mặc định) ẩn phiếu đã hủy — giữ đúng hành vi trước khi có tính
-// năng "Hủy phiếu"; `true` đảo lại để tra soát các phiếu đã hủy.
-const cancelledOptions = [
-  { label: 'Tất cả (ẩn đã hủy)', value: null },
-  { label: 'Đã hủy', value: true },
+// "Trạng thái phiếu" gộp chung 2 khái niệm backend tách biệt (`cancelled` ở
+// cấp Quote, `versionStatus` ở cấp QuoteVersion hiện hành) thành 1 dropdown
+// duy nhất theo đúng cách người dùng nghĩ: "trạng thái CUỐI CÙNG của phiếu"
+// (Nháp / Đã xác nhận / Đã hủy), bất kể phiếu đã qua bao nhiêu vòng điều
+// chỉnh — theo phản hồi người dùng ngày 25/08/2026 (cần lọc ra phiếu quên
+// chưa xác nhận).
+type FinalStatusFilterValue = 'all' | 'draft' | 'confirmed' | 'cancelled'
+
+const finalStatusOptions: { label: string; value: FinalStatusFilterValue }[] = [
+  { label: 'Tất cả (ẩn đã hủy)', value: 'all' },
+  { label: 'Nháp (chưa xác nhận)', value: 'draft' },
+  { label: 'Đã xác nhận', value: 'confirmed' },
+  { label: 'Đã hủy', value: 'cancelled' },
 ]
+
+const finalStatusFilter = computed<FinalStatusFilterValue>({
+  get() {
+    if (cancelled.value === true) return 'cancelled'
+    if (versionStatus.value === 'draft') return 'draft'
+    if (versionStatus.value === 'confirmed') return 'confirmed'
+    return 'all'
+  },
+  set(value) {
+    cancelled.value = value === 'cancelled' ? true : null
+    versionStatus.value = value === 'draft' || value === 'confirmed' ? value : null
+  },
+})
 
 const fetchLookups = async () => {
   try {
@@ -655,6 +677,7 @@ if (restoredSnapshot) {
   deliveryMonth.value = deserializeDate(restoredSnapshot.deliveryMonth)
   purchased.value = restoredSnapshot.purchased
   cancelled.value = restoredSnapshot.cancelled
+  versionStatus.value = restoredSnapshot.versionStatus
   limit.value = restoredSnapshot.limit
   offset.value = restoredSnapshot.offset
   sortField.value = restoredSnapshot.sortField
@@ -667,6 +690,7 @@ if (restoredSnapshot) {
     || restoredSnapshot.deliveryMonth
     || restoredSnapshot.purchased !== null
     || restoredSnapshot.cancelled !== null
+    || restoredSnapshot.versionStatus !== null
   ) {
     showAdvancedFilters.value = true
   }
@@ -685,6 +709,7 @@ const currentViewSnapshot = computed(() => ({
   deliveryMonth: serializeDate(deliveryMonth.value),
   purchased: purchased.value,
   cancelled: cancelled.value,
+  versionStatus: versionStatus.value,
   limit: limit.value,
   offset: offset.value,
   sortField: sortField.value,

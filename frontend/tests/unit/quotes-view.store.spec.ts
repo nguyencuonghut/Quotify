@@ -15,6 +15,7 @@ const sampleSnapshot: QuotesViewState = {
   deliveryMonth: null,
   purchased: true,
   cancelled: null,
+  versionStatus: null,
   limit: 20,
   offset: 40,
   sortField: 'price_converted_vnd_per_kg',

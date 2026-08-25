@@ -37,6 +37,7 @@ class QuoteQueryService:
         currency: str | None = None,
         purchased: bool | None = None,
         cancelled: bool | None = None,
+        version_status: str | None = None,
     ) -> Any:
         filters = []
 
@@ -90,6 +91,13 @@ class QuoteQueryService:
         else:
             filters.append(Quote.cancelled_at.is_(None))
 
+        # `version_status` lọc theo trạng thái version CÒN HIỆU LỰC (không
+        # phải "superseded", đã loại bỏ vô điều kiện ở dưới) — tức trạng thái
+        # HIỆN HÀNH/cuối cùng của phiếu, đúng với cách người dùng nghĩ về 1
+        # phiếu bất kể đã trải qua bao nhiêu vòng điều chỉnh.
+        if version_status:
+            filters.append(QuoteVersion.status == version_status)
+
         if filters:
             stmt = stmt.where(*filters)
 
@@ -110,6 +118,7 @@ class QuoteQueryService:
         currency: str | None = None,
         purchased: bool | None = None,
         cancelled: bool | None = None,
+        version_status: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
         limit: int = 10,
@@ -170,6 +179,7 @@ class QuoteQueryService:
             currency=currency,
             purchased=purchased,
             cancelled=cancelled,
+            version_status=version_status,
         )
 
         count_stmt = (
@@ -193,6 +203,7 @@ class QuoteQueryService:
             currency=currency,
             purchased=purchased,
             cancelled=cancelled,
+            version_status=version_status,
         )
         total = (await self.db.execute(count_stmt)).scalar() or 0
 
@@ -271,6 +282,7 @@ class QuoteQueryService:
         currency: str | None = None,
         purchased: bool | None = None,
         cancelled: bool | None = None,
+        version_status: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
     ) -> list[dict[str, Any]]:
@@ -362,6 +374,7 @@ class QuoteQueryService:
             currency=currency,
             purchased=purchased,
             cancelled=cancelled,
+            version_status=version_status,
         )
 
         sort_by_map = {

@@ -50,6 +50,7 @@ const receivedDateEnd = ref<Date | null>(null)
 const deliveryMonth = ref<Date | null>(null)
 const purchased = ref<boolean | null>(null)
 const cancelled = ref<boolean | null>(null)
+const versionStatus = ref<'draft' | 'confirmed' | null>(null)
 const limit = ref<number>(10)
 const offset = ref<number>(0)
 const sortField = ref<string>('received_date')
@@ -73,6 +74,7 @@ vi.mock('@/composables/useQuotesPage', async () => {
       deliveryMonth,
       purchased,
       cancelled,
+      versionStatus,
       limit,
       offset,
       sortField,
@@ -166,6 +168,7 @@ describe('QuotesPage restores view state after navigating back from quote detail
     deliveryMonth.value = null
     purchased.value = null
     cancelled.value = null
+    versionStatus.value = null
     limit.value = 10
     offset.value = 0
     sortField.value = 'received_date'
@@ -191,6 +194,7 @@ describe('QuotesPage restores view state after navigating back from quote detail
       deliveryMonth: null,
       purchased: true,
       cancelled: null,
+      versionStatus: null,
       limit: 20,
       offset: 40,
       sortField: 'price_converted_vnd_per_kg',

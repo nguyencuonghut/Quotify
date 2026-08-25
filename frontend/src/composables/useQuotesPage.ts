@@ -56,6 +56,11 @@ export function useQuotesPage(getAccessToken: () => string | null) {
   // null (mặc định) = ẩn phiếu đã hủy (hành vi cũ); true = CHỈ hiện phiếu đã
   // hủy — dùng để tra soát lịch sử (xem `QuoteQueryService._apply_filters`).
   const cancelled = ref<boolean | null>(null)
+  // Lọc theo trạng thái version CÒN HIỆU LỰC (không phải "superseded") của
+  // mỗi phiếu — tức trạng thái CUỐI CÙNG mà người dùng quan tâm, bất kể đã
+  // qua bao nhiêu vòng điều chỉnh. 'draft' dùng để tra soát các phiếu quên
+  // chưa xác nhận.
+  const versionStatus = ref<'draft' | 'confirmed' | null>(null)
 
   // Pagination & Sorting
   const limit = ref<number>(10)
@@ -108,6 +113,9 @@ export function useQuotesPage(getAccessToken: () => string | null) {
     }
     if (cancelled.value !== null) {
       params.cancelled = cancelled.value
+    }
+    if (versionStatus.value !== null) {
+      params.versionStatus = versionStatus.value
     }
 
     return params
@@ -162,6 +170,7 @@ export function useQuotesPage(getAccessToken: () => string | null) {
     deliveryMonth.value = null
     purchased.value = null
     cancelled.value = null
+    versionStatus.value = null
     offset.value = 0
     loadQuotesData()
   }
@@ -181,6 +190,7 @@ export function useQuotesPage(getAccessToken: () => string | null) {
     deliveryMonth,
     purchased,
     cancelled,
+    versionStatus,
     limit,
     offset,
     sortField,

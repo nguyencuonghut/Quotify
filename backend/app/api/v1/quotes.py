@@ -312,6 +312,7 @@ async def list_quotes(
     currency: str | None = None,
     purchased: bool | None = None,
     cancelled: bool | None = None,
+    version_status: str | None = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
     limit: int = Query(default=10, ge=1, le=100),
@@ -329,6 +330,7 @@ async def list_quotes(
         currency=currency,
         purchased=purchased,
         cancelled=cancelled,
+        version_status=version_status,
         sort_by=sort_by,
         sort_order=sort_order,
         limit=limit,
@@ -371,6 +373,7 @@ async def export_quotes(
     currency: str | None = None,
     purchased: bool | None = None,
     cancelled: bool | None = None,
+    version_status: str | None = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
 ) -> Response:
@@ -389,6 +392,7 @@ async def export_quotes(
         currency=currency,
         purchased=purchased,
         cancelled=cancelled,
+        version_status=version_status,
         sort_by=sort_by,
         sort_order=sort_order,
     )

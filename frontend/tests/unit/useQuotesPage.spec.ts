@@ -146,6 +146,29 @@ describe('useQuotesPage', () => {
     )
   })
 
+  it('filters by the current version status (e.g. "draft" for quotes not yet confirmed)', async () => {
+    quotesApiMock.getQuotesList.mockResolvedValue({ items: [], total: 0 })
+
+    const page = useQuotesPage(() => 'mock-token')
+    await page.loadQuotesData()
+
+    expect(quotesApiMock.getQuotesList).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ versionStatus: expect.anything() }),
+      'mock-token',
+    )
+
+    page.versionStatus.value = 'draft'
+    await page.loadQuotesData()
+
+    expect(quotesApiMock.getQuotesList).toHaveBeenLastCalledWith(
+      expect.objectContaining({ versionStatus: 'draft' }),
+      'mock-token',
+    )
+
+    page.resetFilters()
+    expect(page.versionStatus.value).toBeNull()
+  })
+
   it('reads the access token live on every call, instead of a stale snapshot from creation', async () => {
     quotesApiMock.getQuotesList.mockResolvedValue({ items: [], total: 0 })
 

@@ -10,6 +10,7 @@ export interface QuotesViewState {
   deliveryMonth: string | null
   purchased: boolean | null
   cancelled: boolean | null
+  versionStatus: 'draft' | 'confirmed' | null
   limit: number
   offset: number
   sortField: string
