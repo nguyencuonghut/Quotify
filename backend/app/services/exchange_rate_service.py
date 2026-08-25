@@ -35,13 +35,27 @@ class ExchangeRateService:
         self.client = client
         self.historical_client = historical_client
 
-    async def get_usd_sell_today(self) -> ExchangeRateResult:
+    async def get_usd_sell_today(self, *, now: datetime | None = None) -> ExchangeRateResult:
         try:
             rate = await self.client.fetch_usd_sell_rate()
         except VietcombankExchangeRateError as exc:
             raise ExchangeRateUnavailableError(
                 "Không thể lấy tỷ giá USD bán ra tự động.",
             ) from exc
+
+        # Feed pXML.aspx không có tham số ngày — nó luôn trả tỷ giá GẦN NHẤT
+        # đã cập nhật, không đảm bảo là của HÔM NAY. Nếu Vietcombank chưa cập
+        # nhật (ví dụ gọi sớm trước giờ cập nhật buổi sáng), `DateTime` trong
+        # response vẫn là của ngày hôm trước — đối chiếu lại để không âm thầm
+        # gắn nhãn "tự động, hôm nay" cho 1 tỷ giá đã cũ.
+        today = get_business_today(now=now)
+        if rate.retrieved_at.date() != today:
+            raise ExchangeRateUnavailableError(
+                f"Vietcombank chưa cập nhật tỷ giá cho hôm nay "
+                f"({today.strftime('%d/%m/%Y')}), tỷ giá mới nhất là ngày "
+                f"{rate.retrieved_at.strftime('%d/%m/%Y')}. Vui lòng thử lại "
+                "sau hoặc nhập tỷ giá thủ công.",
+            )
 
         return ExchangeRateResult(
             currency=rate.currency,

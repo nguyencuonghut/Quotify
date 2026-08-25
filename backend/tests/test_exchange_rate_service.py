@@ -52,6 +52,63 @@ def test_vietcombank_parser_rejects_response_without_usd_sell() -> None:
 
 
 @pytest.mark.asyncio
+async def test_exchange_rate_service_rejects_stale_today_rate() -> None:
+    # Feed pXML.aspx không nhận tham số ngày — nếu Vietcombank chưa cập nhật
+    # (gọi sớm trước giờ cập nhật buổi sáng), `DateTime` trả về vẫn là của
+    # hôm qua. Phải phát hiện lệch ngày thay vì âm thầm gắn nhãn "hôm nay".
+    stale_xml = b"""
+    <ExrateList DateTime="24/08/2026 08:06:00">
+      <Exrate CurrencyCode="USD" Sell="26,100.00" />
+    </ExrateList>
+    """
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=stale_xml)
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    vcb_client = VietcombankExchangeRateClient(
+        url="https://example.test/vcb.xml",
+        timeout_seconds=1,
+        retry_count=0,
+        http_client=http_client,
+    )
+    service = ExchangeRateService(vcb_client)
+
+    with pytest.raises(ExchangeRateUnavailableError):
+        await service.get_usd_sell_today(now=datetime(2026, 8, 25, 7, 0, tzinfo=UTC))
+
+    await http_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_exchange_rate_service_accepts_fresh_today_rate() -> None:
+    fresh_xml = b"""
+    <ExrateList DateTime="25/08/2026 08:06:00">
+      <Exrate CurrencyCode="USD" Sell="26,100.00" />
+    </ExrateList>
+    """
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=fresh_xml)
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    vcb_client = VietcombankExchangeRateClient(
+        url="https://example.test/vcb.xml",
+        timeout_seconds=1,
+        retry_count=0,
+        http_client=http_client,
+    )
+    service = ExchangeRateService(vcb_client)
+
+    result = await service.get_usd_sell_today(
+        now=datetime(2026, 8, 25, 7, 0, tzinfo=UTC),
+    )
+
+    assert result.rate == Decimal("26100.00")
+    await http_client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_exchange_rate_service_maps_http_timeout_to_error_contract() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("timeout", request=request)

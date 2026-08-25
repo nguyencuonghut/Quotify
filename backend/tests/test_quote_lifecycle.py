@@ -17,6 +17,7 @@ from app.models import (
     Supplier,
     SupplierMaterial,
 )
+from app.services import exchange_rate_service as exchange_rate_service_module
 from app.services import quote_pricing as quote_pricing_module
 from app.services import quote_service as quote_service_module
 from app.services.exchange_rate_service import (
@@ -254,6 +255,7 @@ def test_setup(monkeypatch: pytest.MonkeyPatch) -> tuple[FakeQuoteSession, Quote
     business_today = date(2026, 7, 28)
     monkeypatch.setattr(quote_service_module, "get_business_today", lambda *_, **__: business_today)
     monkeypatch.setattr(quote_pricing_module, "get_business_today", lambda *_, **__: business_today)
+    monkeypatch.setattr(exchange_rate_service_module, "get_business_today", lambda *_, **__: business_today)
 
     session = FakeQuoteSession()
     
