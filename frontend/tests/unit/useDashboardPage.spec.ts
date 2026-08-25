@@ -265,6 +265,41 @@ describe('useDashboardPage', () => {
     expect(page.weeklyEntryChartData.value.datasets[0].data).toEqual([7, 0])
   })
 
+  it('still colors the day red when the purchased line ties in price with a non-purchased line on the same day', async () => {
+    // Bug thật gặp ngày 25/08/2026: 2 dòng cùng ngày 07-20 TRÙNG GIÁ tuyệt
+    // đối (10500) — 1 dòng chưa chốt mua đứng TRƯỚC dòng đã chốt mua trong
+    // dữ liệu trả về. `buildDailyMinPoints` trước đây luôn giữ điểm ĐẦU
+    // TIÊN gặp khi trùng giá (so sánh `<` nghiêm ngặt), khiến điểm đại diện
+    // của ngày đó là dòng CHƯA chốt mua — chart không tô đỏ dù mục "Chốt
+    // mua" vẫn liệt kê đúng giá này.
+    dashboardApiMock.getQuotifyPriceTrends.mockResolvedValue({
+      ...priceTrends,
+      points: [
+        {
+          ...priceTrends.points[0],
+          lineId: 'line-not-purchased',
+          quoteId: 'quote-not-purchased',
+          purchased: false,
+          purchaseMarkedAt: null,
+        },
+        {
+          ...priceTrends.points[0],
+          lineId: 'line-1',
+          quoteId: 'quote-1',
+          purchased: true,
+        },
+      ],
+    })
+
+    const page = useDashboardPage()
+    await page.bootstrap()
+
+    expect(page.periodDailyPoints.value).toHaveLength(1)
+    expect(page.periodDailyPoints.value[0].point.purchased).toBe(true)
+    expect(page.chartData.value.datasets[0].pointBackgroundColor).toEqual(['#ef4444'])
+    expect(page.chartData.value.datasets[0].pointRadius).toEqual([6])
+  })
+
   it('clicking a point on the "Giá theo kỳ hàng về" chart navigates to /quotes with the fixed delivery month and the clicked day', async () => {
     const page = useDashboardPage()
     page.selectedMaterialId.value = 'material-1'

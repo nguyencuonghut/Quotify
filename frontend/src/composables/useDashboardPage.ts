@@ -496,7 +496,26 @@ function buildDailyMinPoints(
   for (const point of points) {
     const day = point.receivedDate.slice(0, 10)
     const current = byDate.get(day)
-    if (!current || getPrice(point) < getPrice(current)) {
+    if (!current) {
+      byDate.set(day, point)
+      continue
+    }
+    const currentPrice = getPrice(current)
+    const candidatePrice = getPrice(point)
+    if (candidatePrice < currentPrice) {
+      byDate.set(day, point)
+    } else if (
+      // Trùng giá tuyệt đối (không phải làm tròn) trong cùng 1 ngày — ưu
+      // tiên dòng đã "Chốt mua" làm điểm đại diện của ngày đó (giá trị Y
+      // không đổi vì giá bằng nhau), để tín hiệu tô đỏ trên chart không bị
+      // "che" bởi 1 dòng khác trùng giá xếp trước trong dữ liệu trả về —
+      // bug thật gặp ngày 25/08/2026 (mục "Chốt mua" liệt kê đủ 3 giá,
+      // nhưng chart chỉ tô đỏ được 1 điểm do 2 điểm còn lại bị trùng giá
+      // với dòng chưa chốt mua).
+      candidatePrice === currentPrice &&
+      point.purchased &&
+      !current.purchased
+    ) {
       byDate.set(day, point)
     }
   }
