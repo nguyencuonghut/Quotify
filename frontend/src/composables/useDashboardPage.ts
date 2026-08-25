@@ -363,6 +363,43 @@ function buildTooltipRowElement(text: string, swatchColor: string): HTMLDivEleme
   return row
 }
 
+const NOTE_TEXT_MAX_LENGTH = 220
+
+/** Ghi chú phiếu (`QuoteNote.content`) là HTML từ rich-text editor — rút về
+ * plain text cho gọn trong tooltip (không render HTML thô, tránh layout vỡ
+ * vì heading/list/ảnh khi nhồi vào 1 box nhỏ cố định). */
+function stripHtmlToPlainText(html: string): string {
+  const container = document.createElement('div')
+  container.innerHTML = html
+  return (container.textContent ?? '').replace(/\s+/g, ' ').trim()
+}
+
+function truncateNoteText(text: string, maxLength: number = NOTE_TEXT_MAX_LENGTH): string {
+  if (text.length <= maxLength) {
+    return text
+  }
+  return `${text.slice(0, maxLength).trimEnd()}…`
+}
+
+/** Mỗi ghi chú hiện kèm tên NCC làm nhãn nguồn — bắt buộc khi 1 ngày có từ
+ * 2 phiếu có ghi chú trở lên, để không bị hiểu nhầm ghi chú của phiếu này
+ * là của phiếu khác (yêu cầu người dùng ngày 24/08/2026). */
+function buildTooltipNoteElement(supplierLabel: string, text: string): HTMLDivElement {
+  const note = document.createElement('div')
+  note.className = 'quotify-chart-tooltip__note'
+
+  const source = document.createElement('div')
+  source.className = 'quotify-chart-tooltip__note-source'
+  source.textContent = supplierLabel
+
+  const body = document.createElement('div')
+  body.className = 'quotify-chart-tooltip__note-text'
+  body.textContent = truncateNoteText(text)
+
+  note.append(source, body)
+  return note
+}
+
 /** Mỗi ngày nhận báo giá chỉ lấy 1 điểm trên chart "Giá theo kỳ hàng về" —
  * báo giá THẤP NHẤT trong ngày đó, rồi nối các điểm theo ngày thành 1 đường
  * duy nhất (theo yêu cầu người dùng ngày 20/08/2026: "tôi chỉ quan tâm tới
@@ -977,6 +1014,41 @@ export function useDashboardPage() {
     buildDailyMinPoints(trendPoints.value, periodGetPrice.value),
   )
 
+  // Gom ghi chú PHIẾU (QuoteNote — khác note của từng dòng QuoteLine) theo
+  // ngày nhận báo giá, để hiển thị trong tooltip chart "Giá theo kỳ hàng
+  // về" — dùng TOÀN BỘ `trendPoints` (không phải `periodDailyPoints`, vốn
+  // chỉ giữ 1 điểm giá MIN/ngày) vì 1 ngày có thể có NHIỀU phiếu (nhiều NCC
+  // báo giá cùng ngày) mà điểm MIN chỉ đại diện cho 1 trong số đó — nếu
+  // không, ghi chú của các phiếu còn lại trong ngày sẽ bị bỏ sót. Mỗi phiếu
+  // (`quoteId`) chỉ lấy 1 lần dù có nhiều dòng, gắn kèm tên NCC để phân biệt
+  // khi 1 ngày có từ 2 phiếu có ghi chú trở lên — tránh bị trộn lẫn nội dung.
+  const periodDailyNotes = computed(() => {
+    const notesByDate = new Map<string, { supplierLabel: string; text: string }[]>()
+    const seenQuoteIdsByDate = new Map<string, Set<string>>()
+
+    for (const point of trendPoints.value) {
+      if (!point.noteContent) {
+        continue
+      }
+      const day = point.receivedDate.slice(0, 10)
+      const seenQuoteIds = seenQuoteIdsByDate.get(day) ?? new Set<string>()
+      seenQuoteIdsByDate.set(day, seenQuoteIds)
+      if (seenQuoteIds.has(point.quoteId)) {
+        continue
+      }
+      const text = stripHtmlToPlainText(point.noteContent)
+      if (!text) {
+        continue
+      }
+      seenQuoteIds.add(point.quoteId)
+      const notes = notesByDate.get(day) ?? []
+      notesByDate.set(day, notes)
+      notes.push({ supplierLabel: point.supplierLabel, text })
+    }
+
+    return notesByDate
+  })
+
   // Liệt kê TẤT CẢ các giá đã "Chốt mua" khớp bộ lọc hiện tại — khác với
   // `periodDailyPoints` (chỉ giữ 1 điểm MIN mỗi ngày để vẽ đường trên
   // chart), một dòng báo giá đã chốt mua vẫn phải hiện ở đây dù không phải
@@ -1238,6 +1310,31 @@ export function useDashboardPage() {
             tooltipEl.appendChild(
               buildTooltipRowElement(`Giá ${formatPrice(entry.price)}`, accent),
             )
+
+            // Ghi chú PHIẾU (không phải note của từng dòng) cho tất cả các
+            // phiếu nhận báo giá trong CHÍNH ngày đang hover — có thể nhiều
+            // hơn 1 nếu nhiều NCC báo giá cùng ngày, mỗi ghi chú gắn tên NCC
+            // để phân biệt (xem `periodDailyNotes`).
+            const notesForDay = periodDailyNotes.value.get(entry.date) ?? []
+            if (notesForDay.length > 0) {
+              const notesHeaderEl = document.createElement('div')
+              notesHeaderEl.className = 'quotify-chart-tooltip__notes-header'
+              notesHeaderEl.textContent = 'Ghi chú phiếu'
+              tooltipEl.appendChild(notesHeaderEl)
+
+              const MAX_NOTES_SHOWN = 3
+              notesForDay.slice(0, MAX_NOTES_SHOWN).forEach((note) => {
+                tooltipEl.appendChild(
+                  buildTooltipNoteElement(note.supplierLabel, note.text),
+                )
+              })
+              if (notesForDay.length > MAX_NOTES_SHOWN) {
+                const moreEl = document.createElement('div')
+                moreEl.className = 'quotify-chart-tooltip__more'
+                moreEl.textContent = `+${notesForDay.length - MAX_NOTES_SHOWN} ghi chú khác`
+                tooltipEl.appendChild(moreEl)
+              }
+            }
 
             // Đo kích thước tooltip SAU khi đã đổ nội dung, rồi kẹp vị trí
             // theo chiều ngang trong phạm vi canvas — cùng cách làm với
@@ -1758,6 +1855,7 @@ export function useDashboardPage() {
     periodRangeOptions,
     applyPeriodRange,
     periodDailyPoints,
+    periodDailyNotes,
     periodPurchasedPricesFormatted,
     periodStats,
     periodStatsFormatted,

@@ -526,6 +526,44 @@
   font-style: italic;
 }
 
+// Ghi chú PHIẾU (QuoteNote) hiển thị trong tooltip chart "Giá theo kỳ hàng
+// về" — khác các `__row` phía trên (ellipsis 1 dòng, dành cho ngày/giá cố
+// định ngắn), ghi chú cho phép XUỐNG DÒNG (độ dài tùy ý) và có nhãn nguồn
+// (tên NCC) riêng để không bị trộn lẫn khi 1 ngày có nhiều phiếu có ghi chú,
+// theo yêu cầu người dùng ngày 24/08/2026.
+.quotify-chart-tooltip__notes-header {
+  margin: 0.5rem 0 0.3rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--app-border-soft);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-text-muted);
+}
+
+.quotify-chart-tooltip__note {
+  margin-bottom: 0.4rem;
+  max-width: 22rem;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+
+.quotify-chart-tooltip__note-source {
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--app-accent);
+  margin-bottom: 0.1rem;
+}
+
+.quotify-chart-tooltip__note-text {
+  white-space: normal;
+  word-break: break-word;
+  color: var(--app-text-secondary);
+}
+
 .dashboard-page__empty {
   display: grid;
   place-items: center;

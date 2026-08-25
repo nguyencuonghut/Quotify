@@ -70,6 +70,12 @@ class QuotifyPriceTrendPoint(BaseModel):
     purchased: bool
     purchase_marked_at: datetime | None = None
     confirmed_at: datetime
+    # Ghi chú PHIẾU (QuoteNote, bản revision mới nhất) — khác note của từng
+    # dòng QuoteLine — dùng để hiển thị trong tooltip chart "Giá theo kỳ
+    # hàng về", giúp phân biệt bối cảnh giữa nhiều phiếu cùng ngày nhận.
+    note_content: str | None = None
+    note_author_name: str | None = None
+    note_created_at: datetime | None = None
 
 
 class QuotifyPurchaseContext(BaseModel):

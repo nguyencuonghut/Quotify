@@ -13,6 +13,13 @@ class FakeResultRow:
     def __init__(self, data: dict[str, object]) -> None:
         self.__dict__.update(data)
 
+    def __getattr__(self, name: str) -> object:
+        # Fixture cũ không set field mới thêm sau (vd. `note_content`) — trả
+        # None thay vì AttributeError để không phải sửa lại mọi fixture cũ
+        # mỗi lần `_point_from_row` có thêm cột, cùng pattern với
+        # `test_quote_query_service.py::FakeResultRow`.
+        return None
+
 
 class FakeResult:
     def __init__(
@@ -118,6 +125,9 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
             "purchased": True,
             "purchase_marked_at": purchase_marked_at,
             "confirmed_at": confirmed_at,
+            "note_content": "<p>Đã thương lượng giảm giá 2%</p>",
+            "note_author_name": "Nguyễn Văn Mua",
+            "note_created_at": datetime(2026, 7, 20, 10, 0, tzinfo=UTC),
         }
     )
     fake_db = FakeDbSession(
@@ -183,6 +193,11 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
     assert response["points"][0]["price_original"] == Decimal("250.00")
     assert response["points"][0]["currency"] == "USD"
     assert response["points"][0]["unit"] == "MT"
+    # Ghi chú PHIẾU (QuoteNote, bản mới nhất) phải có mặt trong point để
+    # tooltip chart "Giá theo kỳ hàng về" hiển thị được — khác note của từng
+    # dòng QuoteLine.
+    assert response["points"][0]["note_content"] == "<p>Đã thương lượng giảm giá 2%</p>"
+    assert response["points"][0]["note_author_name"] == "Nguyễn Văn Mua"
     assert response["purchase_contexts"][0]["purchased_line_id"] == purchased_line_id
     assert response["purchase_contexts"][0]["at_purchase"]["total_lines"] == 1
     assert response["purchase_contexts"][0]["after_purchase"]["min_price"] == Decimal("6700.00")
@@ -190,6 +205,11 @@ async def test_get_price_trends_maps_summary_points_and_purchase_contexts() -> N
     assert "quote_versions.status = :status_1" in str(fake_db.queries[0])
     assert "suppliers.supplier_type" in str(fake_db.queries[0])
     assert "LIKE" in str(fake_db.queries[0])
+    # Query lấy points phải JOIN tới bảng ghi chú qua window function
+    # `row_number()` (lấy đúng 1 revision mới nhất/quote), không phải N+1.
+    points_query_sql = str(fake_db.queries[1]).lower()
+    assert "quote_note_revisions" in points_query_sql
+    assert "row_number()" in points_query_sql
 
 
 def _price_trend_point_row(*, received_date: date, line_id: object) -> FakeResultRow:

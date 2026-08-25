@@ -5,13 +5,15 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import case, distinct, func, or_, select
+from sqlalchemy import case, desc, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.material import Material
 from app.models.quote import Quote
 from app.models.quote_line import QuoteLine
+from app.models.quote_note import QuoteNote
+from app.models.quote_note_revision import QuoteNoteRevision
 from app.models.quote_version import QuoteVersion
 from app.models.supplier import Supplier
 from app.models.user import User, UserStatus
@@ -273,6 +275,35 @@ class QuotifyDashboardService:
 
     async def _get_points(self, filters: list[Any], *, point_limit: int) -> list[dict[str, Any]]:
         safe_limit = min(max(point_limit, 1), 1000)
+
+        # Ghi chú PHIẾU (QuoteNote — khác note của từng dòng QuoteLine) chỉ
+        # lấy REVISION MỚI NHẤT mỗi Quote qua window function `row_number()`,
+        # cùng pattern đã dùng ở `quote_query_service.query_flattened_quotes_for_export`
+        # (tránh N+1 query note theo từng quote_id riêng lẻ).
+        latest_revision_rank = (
+            select(
+                QuoteNoteRevision.note_id,
+                QuoteNoteRevision.content,
+                QuoteNoteRevision.created_at,
+                User.full_name.label("author_name"),
+                func.row_number()
+                .over(
+                    partition_by=QuoteNoteRevision.note_id,
+                    order_by=desc(QuoteNoteRevision.revision_number),
+                )
+                .label("rn"),
+            ).outerjoin(User, QuoteNoteRevision.author_id == User.id)
+        ).subquery()
+
+        latest_revision = (
+            select(
+                latest_revision_rank.c.note_id,
+                latest_revision_rank.c.content,
+                latest_revision_rank.c.created_at,
+                latest_revision_rank.c.author_name,
+            ).where(latest_revision_rank.c.rn == 1)
+        ).subquery()
+
         stmt = (
             select(
                 QuoteVersion.received_date,
@@ -294,12 +325,17 @@ class QuotifyDashboardService:
                 (QuoteLine.purchase_marked_at.is_not(None)).label("purchased"),
                 QuoteLine.purchase_marked_at,
                 QuoteVersion.confirmed_at,
+                latest_revision.c.content.label("note_content"),
+                latest_revision.c.author_name.label("note_author_name"),
+                latest_revision.c.created_at.label("note_created_at"),
             )
             .select_from(QuoteLine)
             .join(QuoteVersion, QuoteLine.quote_version_id == QuoteVersion.id)
             .join(Quote, QuoteVersion.quote_id == Quote.id)
             .join(Supplier, Quote.supplier_id == Supplier.id)
             .join(Material, QuoteLine.material_id == Material.id)
+            .outerjoin(QuoteNote, QuoteNote.quote_id == Quote.id)
+            .outerjoin(latest_revision, latest_revision.c.note_id == QuoteNote.id)
             .where(*filters)
             .order_by(
                 QuoteVersion.received_date.desc(),
@@ -396,6 +432,9 @@ class QuotifyDashboardService:
             "purchased": bool(row.purchased),
             "purchase_marked_at": row.purchase_marked_at,
             "confirmed_at": row.confirmed_at,
+            "note_content": row.note_content,
+            "note_author_name": row.note_author_name,
+            "note_created_at": row.note_created_at,
         }
 
     def _user_label(self, full_name: str | None, email: str | None) -> str:

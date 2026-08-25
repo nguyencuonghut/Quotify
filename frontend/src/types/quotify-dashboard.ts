@@ -67,6 +67,12 @@ export interface QuotifyPriceTrendPointDto {
   purchased: boolean
   purchase_marked_at: string | null
   confirmed_at: string
+  // Ghi chú PHIẾU (QuoteNote, bản revision mới nhất) — khác note của từng
+  // dòng QuoteLine — dùng để hiển thị trong tooltip chart "Giá theo kỳ
+  // hàng về".
+  note_content: string | null
+  note_author_name: string | null
+  note_created_at: string | null
 }
 
 export interface QuotifyPurchaseContextDto {
@@ -148,6 +154,9 @@ export interface QuotifyPriceTrendPoint {
   purchased: boolean
   purchaseMarkedAt: string | null
   confirmedAt: string
+  noteContent: string | null
+  noteAuthorName: string | null
+  noteCreatedAt: string | null
 }
 
 export interface QuotifyPurchaseContext {

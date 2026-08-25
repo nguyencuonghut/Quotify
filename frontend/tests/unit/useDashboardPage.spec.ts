@@ -378,6 +378,64 @@ describe('useDashboardPage', () => {
     expect(tooltipText).toContain('10,500.00 VNĐ/KG')
   })
 
+  it('shows every distinct quote note for the hovered day, labelled by supplier so they are not mixed together', async () => {
+    dashboardApiMock.getQuotifyPriceTrends.mockResolvedValue({
+      ...priceTrends,
+      points: [
+        {
+          ...priceTrends.points[0],
+          lineId: 'line-a1',
+          quoteId: 'quote-a',
+          supplierLabel: 'NCC-A - Nhà cung cấp A',
+          noteContent: '<p>Đã thương lượng giảm giá <strong>2%</strong></p>',
+        },
+        // Dòng thứ 2 CÙNG phiếu quote-a (khác line) — ghi chú giống hệt,
+        // không được lặp lại lần nữa trong tooltip.
+        {
+          ...priceTrends.points[0],
+          lineId: 'line-a2',
+          quoteId: 'quote-a',
+          supplierLabel: 'NCC-A - Nhà cung cấp A',
+          noteContent: '<p>Đã thương lượng giảm giá <strong>2%</strong></p>',
+        },
+        // Phiếu KHÁC (quote-b, NCC khác) cùng ngày nhận báo giá — ghi chú
+        // khác nội dung, phải hiện tách biệt kèm đúng tên NCC của nó.
+        {
+          ...priceTrends.points[0],
+          lineId: 'line-b1',
+          quoteId: 'quote-b',
+          supplierId: 'supplier-9',
+          supplierLabel: 'NCC-B - Nhà cung cấp B',
+          convertedPriceVndPerKg: 10800,
+          noteContent: 'Hàng giao chậm 3 ngày so với cam kết.',
+        },
+      ],
+    })
+
+    const page = useDashboardPage()
+    await page.bootstrap()
+
+    const canvas = document.createElement('canvas')
+    document.createElement('div').appendChild(canvas)
+    page.chartOptions.value.plugins.tooltip.external({
+      chart: { canvas },
+      tooltip: { opacity: 1, dataPoints: [{ dataIndex: 0 }], caretX: 10, caretY: 10 },
+    })
+
+    const tooltipEl = canvas.parentElement?.querySelector('.quotify-chart-tooltip')
+    const noteEls = tooltipEl?.querySelectorAll('.quotify-chart-tooltip__note')
+    expect(noteEls).toHaveLength(2)
+
+    const tooltipText = tooltipEl?.textContent ?? ''
+    expect(tooltipText).toContain('Ghi chú phiếu')
+    // HTML phải được rút về plain text (không còn thẻ <strong>/<p>).
+    expect(tooltipText).toContain('Đã thương lượng giảm giá 2%')
+    expect(tooltipText).not.toContain('<strong>')
+    expect(tooltipText).toContain('NCC-A - Nhà cung cấp A')
+    expect(tooltipText).toContain('Hàng giao chậm 3 ngày so với cam kết.')
+    expect(tooltipText).toContain('NCC-B - Nhà cung cấp B')
+  })
+
   it('sends selected material, month and received date filters to dashboard APIs', async () => {
     const page = useDashboardPage()
 

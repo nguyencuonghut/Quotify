@@ -111,6 +111,9 @@ export function mapPriceTrendPointDtoToDomain(
     purchased: dto.purchased,
     purchaseMarkedAt: dto.purchase_marked_at,
     confirmedAt: dto.confirmed_at,
+    noteContent: dto.note_content,
+    noteAuthorName: dto.note_author_name,
+    noteCreatedAt: dto.note_created_at,
   }
 }
 
