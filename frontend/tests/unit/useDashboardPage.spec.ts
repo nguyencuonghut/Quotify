@@ -15,11 +15,16 @@ const materialsApiMock = vi.hoisted(() => ({
 }))
 
 const pushMock = vi.hoisted(() => vi.fn())
+const resolveMock = vi.hoisted(() =>
+  vi.fn((location: { path: string; query: Record<string, string> }) => ({
+    href: `${location.path}?${new URLSearchParams(location.query).toString()}`,
+  })),
+)
 
 vi.mock('@/api/quotify-dashboard.api', () => dashboardApiMock)
 vi.mock('@/api/materials.api', () => materialsApiMock)
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, resolve: resolveMock }),
 }))
 
 const entryKpis = {
@@ -278,6 +283,58 @@ describe('useDashboardPage', () => {
         receivedDateEnd: '2026-07-20',
       },
     })
+  })
+
+  it('opens the "Giá theo kỳ hàng về" click-through target in a new tab when Ctrl/Cmd is held', async () => {
+    const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const page = useDashboardPage()
+    page.selectedMaterialId.value = 'material-1'
+    page.deliveryMonth.value = new Date(2026, 9, 1)
+
+    await page.bootstrap()
+
+    page.chartOptions.value.onClick({ native: { ctrlKey: true, button: 0 } }, [{ index: 0 }])
+
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(windowOpenSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/quotes?'),
+      '_blank',
+      'noopener',
+    )
+    windowOpenSpy.mockRestore()
+  })
+
+  it('opens the "Giá theo kỳ hàng về" click-through target in a new tab on middle-click, without needing the left-click onClick handler', async () => {
+    const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const page = useDashboardPage()
+    page.selectedMaterialId.value = 'material-1'
+    page.deliveryMonth.value = new Date(2026, 9, 1)
+
+    await page.bootstrap()
+
+    const canvas = document.createElement('canvas')
+    document.createElement('div').appendChild(canvas)
+    // Chart.js `onClick` không bắt được middle-click — tính năng này tự gắn
+    // listener `auxclick` riêng lên canvas, kích hoạt qua `tooltip.external`
+    // (nơi duy nhất trong composable có quyền truy cập `chart` thật).
+    const chart = {
+      canvas,
+      getElementsAtEventForMode: vi.fn(() => [{ index: 0, datasetIndex: 0 }]),
+    }
+    page.chartOptions.value.plugins.tooltip.external({
+      chart,
+      tooltip: { opacity: 0, dataPoints: [], caretX: 0, caretY: 0 },
+    })
+
+    canvas.dispatchEvent(new MouseEvent('auxclick', { button: 1, cancelable: true }))
+
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(windowOpenSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/quotes?'),
+      '_blank',
+      'noopener',
+    )
+    windowOpenSpy.mockRestore()
   })
 
   it('ticking "Giá CNF" keeps only USD/MT quotes and switches the chart to their original USD price', async () => {
@@ -915,6 +972,42 @@ describe('useDashboardPage', () => {
           receivedDateEnd: '2026-01-20',
         },
       })
+    })
+
+    it('opens the click-through target in a new tab when Ctrl/Cmd is held, instead of navigating in place', async () => {
+      const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+      dashboardApiMock.getQuotifyPriceTrends.mockImplementation(async (query) => ({
+        ...priceTrends,
+        points: [
+          {
+            ...priceTrends.points[0],
+            receivedDate: '2026-01-15',
+            convertedPriceVndPerKg: query.materialId === 'material-1' ? 7200 : 9450,
+          },
+        ],
+      }))
+
+      const page = useDashboardPage()
+      page.materials.value = [
+        { ...page.materials.value[0], id: 'material-1', name: 'Ngô hạt' },
+        { ...page.materials.value[0], id: 'material-2', name: 'Khô đậu nành' },
+      ]
+      page.historyMaterialIds.value = ['material-1', 'material-2']
+      page.historyDeliveryMonth.value = new Date(2026, 11, 1)
+      await page.loadPriceHistory()
+
+      page.historyChartOptions.value.onClick(
+        { native: { metaKey: true, button: 0 } },
+        [{ index: 0, datasetIndex: 0 }],
+      )
+
+      expect(pushMock).not.toHaveBeenCalled()
+      expect(windowOpenSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/quotes?'),
+        '_blank',
+        'noopener',
+      )
+      windowOpenSpy.mockRestore()
     })
   })
 

@@ -400,6 +400,88 @@ function buildTooltipNoteElement(supplierLabel: string, text: string): HTMLDivEl
   return note
 }
 
+type DashboardRouter = ReturnType<typeof useRouter>
+
+/** Chart.js chỉ truyền `event.native` (MouseEvent gốc) cho callback `onClick`
+ * — không có event nào nghĩa là điều hướng do code gọi trực tiếp (không
+ * phải người dùng click chuột), luôn coi là điều hướng tại chỗ như cũ. */
+function shouldOpenInNewTab(event: MouseEvent | null | undefined): boolean {
+  if (!event) {
+    return false
+  }
+  return event.ctrlKey || event.metaKey || event.button === 1
+}
+
+/** Điều hướng sang Bảng báo giá theo query đã build từ điểm/bucket đang
+ * click. Giữ Ctrl (Cmd trên Mac) hoặc click chuột giữa khi click vào 1 điểm
+ * trên chart sẽ mở kết quả ở TAB MỚI thay vì điều hướng tại chỗ — người dùng
+ * không mất vị trí/bộ lọc đang xem trên chart, không cần bấm back để quay
+ * lại, theo yêu cầu người dùng ngày 24/08/2026. Dùng chung cho cả 3 chart
+ * ("Giá theo kỳ hàng về", "Diễn biến giá theo thời gian chào giá", "So sánh
+ * giá theo mùa vụ") vì cả 3 đều điều hướng sang cùng 1 đích `/quotes`. */
+function navigateToQuotes(
+  router: DashboardRouter,
+  query: Record<string, string>,
+  event?: MouseEvent | null,
+) {
+  if (shouldOpenInNewTab(event)) {
+    const href = router.resolve({ path: '/quotes', query }).href
+    window.open(href, '_blank', 'noopener')
+    return
+  }
+  router.push({ path: '/quotes', query })
+}
+
+interface ChartHitTestable {
+  canvas: HTMLCanvasElement
+  getElementsAtEventForMode: (
+    event: Event,
+    mode: string,
+    options: Record<string, unknown>,
+    useFinalPosition: boolean,
+  ) => { index: number; datasetIndex: number }[]
+}
+
+// Chart.js `onClick` chỉ bắt được click CHUỘT TRÁI (event DOM chuẩn `click`)
+// — click chuột giữa phát sinh event `auxclick` riêng, không đi qua
+// `onClick`, nên phải tự gắn thêm listener trên canvas. Theo dõi canvas đã
+// gắn để tránh gắn lặp lại (hàm gắn được gọi lại mỗi lần tooltip render khi
+// rê chuột, không chỉ 1 lần).
+const middleClickBoundCanvases = new WeakSet<HTMLCanvasElement>()
+
+function ensureMiddleClickOpensQuotesInNewTab(
+  chart: ChartHitTestable | null | undefined,
+  router: DashboardRouter,
+  resolveQuery: (elements: { index: number; datasetIndex: number }[]) => Record<string, string> | null,
+) {
+  // `chart` có thể vắng mặt khi hàm được gọi từ test giả lập context Chart.js
+  // rút gọn (không kèm `chart`) — bỏ qua an toàn thay vì crash, vì đây chỉ
+  // là tính năng bổ trợ (middle-click), không phải luồng chính của tooltip.
+  if (!chart) {
+    return
+  }
+  if (middleClickBoundCanvases.has(chart.canvas)) {
+    return
+  }
+  middleClickBoundCanvases.add(chart.canvas)
+  chart.canvas.addEventListener('auxclick', (rawEvent) => {
+    const event = rawEvent as MouseEvent
+    if (event.button !== 1) {
+      return
+    }
+    // Chặn hành vi mặc định của trình duyệt cho click chuột giữa (thường là
+    // auto-scroll) — ở đây middle-click mang ý nghĩa "mở tab mới" giống link.
+    event.preventDefault()
+    const elements = chart.getElementsAtEventForMode(event, 'index', { intersect: false }, false)
+    const query = resolveQuery(elements)
+    if (!query) {
+      return
+    }
+    const href = router.resolve({ path: '/quotes', query }).href
+    window.open(href, '_blank', 'noopener')
+  })
+}
+
 /** Mỗi ngày nhận báo giá chỉ lấy 1 điểm trên chart "Giá theo kỳ hàng về" —
  * báo giá THẤP NHẤT trong ngày đó, rồi nối các điểm theo ngày thành 1 đường
  * duy nhất (theo yêu cầu người dùng ngày 20/08/2026: "tôi chỉ quan tâm tới
@@ -1014,6 +1096,26 @@ export function useDashboardPage() {
     buildDailyMinPoints(trendPoints.value, periodGetPrice.value),
   )
 
+  // Dùng chung cho cả click chuột trái (điều hướng tại chỗ/mở tab mới tùy
+  // Ctrl/Cmd) và middle-click (luôn mở tab mới) trên chart "Giá theo kỳ hàng
+  // về" — xem `navigateToQuotes`/`ensureMiddleClickOpensQuotesInNewTab`.
+  function buildPeriodQuotesQuery(index: number): Record<string, string> | null {
+    const entry = periodDailyPoints.value[index]
+    const fixedDeliveryMonth = toDateInputValue(deliveryMonth.value)
+    if (!entry || !fixedDeliveryMonth) {
+      return null
+    }
+    const query: Record<string, string> = {
+      deliveryMonth: fixedDeliveryMonth,
+      receivedDateStart: entry.date,
+      receivedDateEnd: entry.date,
+    }
+    if (selectedMaterialId.value) {
+      query.materialId = selectedMaterialId.value
+    }
+    return query
+  }
+
   // Gom ghi chú PHIẾU (QuoteNote — khác note của từng dòng QuoteLine) theo
   // ngày nhận báo giá, để hiển thị trong tooltip chart "Giá theo kỳ hàng
   // về" — dùng TOÀN BỘ `trendPoints` (không phải `periodDailyPoints`, vốn
@@ -1256,21 +1358,12 @@ export function useDashboardPage() {
         intersect: false,
         mode: 'index',
       },
-      onClick(_event: unknown, elements: { index: number }[]) {
-        const entry = periodDailyPoints.value[elements[0]?.index ?? -1]
-        const fixedDeliveryMonth = toDateInputValue(deliveryMonth.value)
-        if (!entry || !fixedDeliveryMonth) {
+      onClick(event: { native?: MouseEvent | null } | null, elements: { index: number }[]) {
+        const query = buildPeriodQuotesQuery(elements[0]?.index ?? -1)
+        if (!query) {
           return
         }
-        const query: Record<string, string> = {
-          deliveryMonth: fixedDeliveryMonth,
-          receivedDateStart: entry.date,
-          receivedDateEnd: entry.date,
-        }
-        if (selectedMaterialId.value) {
-          query.materialId = selectedMaterialId.value
-        }
-        router.push({ path: '/quotes', query })
+        navigateToQuotes(router, query, event?.native)
       },
       plugins: {
         legend: {
@@ -1283,7 +1376,7 @@ export function useDashboardPage() {
           // xem `buildCrosshairPlugin`), thông tin ngày/giá nằm hết ở đây,
           // theo yêu cầu người dùng ngày 20/08/2026.
           external(context: {
-            chart: { canvas: HTMLCanvasElement }
+            chart: ChartHitTestable
             tooltip: {
               opacity: number
               dataPoints: { dataIndex: number }[]
@@ -1293,6 +1386,9 @@ export function useDashboardPage() {
           }) {
             const { chart, tooltip } = context
             const tooltipEl = getOrCreateChartTooltipElement(chart.canvas)
+            ensureMiddleClickOpensQuotesInNewTab(chart, router, (elements) =>
+              buildPeriodQuotesQuery(elements[0]?.index ?? -1),
+            )
 
             const entry = periodDailyPoints.value[tooltip.dataPoints[0]?.dataIndex ?? -1]
             if (tooltip.opacity === 0 || !entry) {
@@ -1454,6 +1550,20 @@ export function useDashboardPage() {
         : cssVar('--app-border-soft', '#e2e8f0')
     const textColor = cssVar('--app-text-secondary', '#64748b')
 
+    // Dùng chung cho cả click chuột trái và middle-click — xem
+    // `navigateToQuotes`/`ensureMiddleClickOpensQuotesInNewTab`.
+    function resolveComparisonQuotesQuery(
+      elements: { index: number; datasetIndex: number }[],
+    ): Record<string, string> | null {
+      const element = elements[0]
+      const bucket = buckets[element?.index ?? -1]
+      const result = trendResults[element?.datasetIndex ?? -1]
+      if (!bucket || !result) {
+        return null
+      }
+      return buildNavigationQuery(bucket, result)
+    }
+
     return {
       maintainAspectRatio: false,
       responsive: true,
@@ -1467,17 +1577,15 @@ export function useDashboardPage() {
         intersect: false,
         mode: 'index',
       },
-      onClick(_event: unknown, elements: { index: number; datasetIndex: number }[]) {
-        const element = elements[0]
-        const bucket = buckets[element?.index ?? -1]
-        const result = trendResults[element?.datasetIndex ?? -1]
-        if (!bucket || !result) {
+      onClick(
+        event: { native?: MouseEvent | null } | null,
+        elements: { index: number; datasetIndex: number }[],
+      ) {
+        const query = resolveComparisonQuotesQuery(elements)
+        if (!query) {
           return
         }
-        router.push({
-          path: '/quotes',
-          query: buildNavigationQuery(bucket, result),
-        })
+        navigateToQuotes(router, query, event?.native)
       },
       plugins: {
         legend: {
@@ -1495,12 +1603,19 @@ export function useDashboardPage() {
         tooltip: {
           enabled: false,
           external(context: {
+            chart: ChartHitTestable
             tooltip: {
               opacity: number
               title?: string[]
               dataPoints: { dataIndex: number }[]
             }
           }) {
+            ensureMiddleClickOpensQuotesInNewTab(
+              context.chart,
+              router,
+              resolveComparisonQuotesQuery,
+            )
+
             if (!hoverInfo) {
               return
             }
