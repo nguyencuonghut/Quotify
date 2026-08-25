@@ -119,6 +119,9 @@
             <div class="quote-detail-page__timeline-chip-date">
               Nhận ngày: {{ v.receivedDate }}
             </div>
+            <div v-if="v.createdByName" class="quote-detail-page__timeline-chip-date">
+              Người tạo: {{ v.createdByName }} — {{ formatDateTime(v.createdAt) }}
+            </div>
           </div>
         </div>
       </div>

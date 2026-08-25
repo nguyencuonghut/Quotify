@@ -310,6 +310,55 @@ describe('QuoteDetailPage cancel quote and delete confirmed line', () => {
   })
 })
 
+describe('QuoteDetailPage version history creator info', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    quote.value = {
+      id: 'quote-1',
+      supplierId: 'supplier-1',
+      supplierName: 'Supplier A',
+      supplierCode: 'SUPA',
+      createdById: 'user-1',
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-01T00:00:00Z',
+      versions: [],
+    }
+    isLoading.value = false
+    activeVersion.value = {
+      id: 'version-2',
+      status: 'confirmed',
+      versionNumber: 2,
+      receivedDate: '2026-08-24',
+      createdById: 'manager-1',
+      createdByName: 'Nguyễn Văn Trưởng Phòng',
+      createdAt: '2026-08-25T02:00:00Z',
+      lines: [],
+    }
+    sortedVersions.value = [
+      {
+        id: 'version-1',
+        status: 'superseded',
+        versionNumber: 1,
+        receivedDate: '2026-08-24',
+        createdById: 'user-1',
+        createdByName: 'Lê Thị Hồng',
+        createdAt: '2026-08-24T01:00:00Z',
+        lines: [],
+      },
+      activeVersion.value,
+    ]
+    note.value = null
+  })
+
+  it('shows the creator name and created-at timestamp for each version in the history strip', () => {
+    const wrapper = mountQuoteDetailPage()
+
+    const text = wrapper.text()
+    expect(text).toContain('Người tạo: Lê Thị Hồng')
+    expect(text).toContain('Người tạo: Nguyễn Văn Trưởng Phòng')
+  })
+})
+
 describe('QuoteDetailPage manager correction on user-role quotes', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
