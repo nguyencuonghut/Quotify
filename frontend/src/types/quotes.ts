@@ -96,6 +96,7 @@ export interface QuoteDto {
   supplier_name: string
   supplier_code: string
   created_by_id: string | null
+  created_by_role: string | null
   created_at: string
   updated_at: string
   cancelled_at: string | null
@@ -110,6 +111,7 @@ export interface QuoteDomain {
   supplierName: string
   supplierCode: string
   createdById: string | null
+  createdByRole: string | null
   createdAt: string
   updatedAt: string
   cancelledAt: string | null

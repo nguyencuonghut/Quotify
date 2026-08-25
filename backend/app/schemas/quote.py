@@ -91,6 +91,7 @@ class QuoteResponse(BaseModel):
     supplier_name: str
     supplier_code: str
     created_by_id: UUID | None = None
+    created_by_role: str | None = None
     created_at: datetime
     updated_at: datetime
     cancelled_at: datetime | None = None

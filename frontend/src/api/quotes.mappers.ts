@@ -74,6 +74,7 @@ export function mapQuoteDtoToDomain(dto: QuoteDto): QuoteDomain {
     supplierName: dto.supplier_name,
     supplierCode: dto.supplier_code,
     createdById: dto.created_by_id,
+    createdByRole: dto.created_by_role,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
     cancelledAt: dto.cancelled_at,

@@ -548,6 +548,10 @@ onMounted(async () => {
         const latest = sorted[0]
         if (latest) {
           await loadVersionData(latest, quote)
+          // Bản điều chỉnh MỚI phải có lý do riêng — không được kế thừa lý do
+          // của bản điều chỉnh trước đó (loadVersionData vốn dùng chung cho
+          // cả trường hợp sửa tiếp 1 bản nháp, nơi lý do CẦN giữ nguyên).
+          correctionReason.value = null
         } else {
           addLine()
         }

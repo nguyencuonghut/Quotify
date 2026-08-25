@@ -21,10 +21,16 @@ class MockSession:
         self.quote = quote
         self.committed = False
         self.line_to_return: Any = None
+        self.owner_by_id: dict[UUID, User] = {}
+        self.version_by_id: dict[UUID, QuoteVersion] = {}
 
-    async def get(self, model_class: type[Any], id: UUID) -> Any:
+    async def get(self, model_class: type[Any], id: UUID, **_kwargs: Any) -> Any:
         if model_class is Quote and id == self.quote.id:
             return self.quote
+        if model_class is User:
+            return self.owner_by_id.get(id)
+        if model_class is QuoteVersion:
+            return self.version_by_id.get(id)
         return None
 
     async def execute(self, statement: object) -> Any:
@@ -53,6 +59,8 @@ class MockQuoteService:
     def __init__(self, quote_id: UUID) -> None:
         self.quote_id = quote_id
         self.create_version_calls: list[dict[str, Any]] = []
+        self.update_draft_calls: list[dict[str, Any]] = []
+        self.confirm_version_calls: list[dict[str, Any]] = []
         self.delete_draft_version_calls: list[dict[str, Any]] = []
         self.delete_confirmed_line_calls: list[dict[str, Any]] = []
         self.cancel_quote_calls: list[dict[str, Any]] = []
@@ -108,6 +116,42 @@ class MockQuoteService:
         version.lines = []
         return version
 
+    async def update_draft(self, **kwargs: Any) -> QuoteVersion:
+        self.update_draft_calls.append(kwargs)
+        version = QuoteVersion(
+            id=kwargs["version_id"],
+            quote_id=self.quote_id,
+            version_number=2,
+            received_date=kwargs["received_date"],
+            status="draft",
+            is_backfilled=kwargs["is_backfilled"],
+            backfill_reason=kwargs["backfill_reason"],
+            correction_reason=kwargs["correction_reason"],
+            created_by_id=kwargs["updated_by_id"],
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        version.lines = []
+        return version
+
+    async def confirm_version(self, **kwargs: Any) -> QuoteVersion:
+        self.confirm_version_calls.append(kwargs)
+        version = QuoteVersion(
+            id=kwargs["version_id"],
+            quote_id=self.quote_id,
+            version_number=2,
+            received_date=date(2026, 7, 31),
+            status="confirmed",
+            is_backfilled=False,
+            backfill_reason=None,
+            correction_reason="Sửa giá nhập nhầm.",
+            created_by_id=kwargs["confirmed_by_id"],
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        version.lines = []
+        return version
+
     async def delete_draft_version(self, **kwargs: Any) -> Any:
         self.delete_draft_version_calls.append(kwargs)
 
@@ -125,8 +169,14 @@ class MockQuoteService:
         return DeleteResult()
 
 
-def make_user(*, role_name: str, user_id: UUID | None = None) -> User:
+def make_user(
+    *,
+    role_name: str,
+    user_id: UUID | None = None,
+    extra_permission_codes: tuple[str, ...] = (),
+) -> User:
     permissions = [Permission(id=uuid4(), code="quotes.update")]
+    permissions += [Permission(id=uuid4(), code=code) for code in extra_permission_codes]
     role = Role(id=uuid4(), name=role_name, is_system=role_name in {"admin", "user"})
     role.permissions = permissions
     user = User(
@@ -413,3 +463,181 @@ async def test_admin_can_reactivate_any_quote(
     assert quote_service.reactivate_quote_calls[0]["quote_id"] == quote.id
     assert session.committed is True
     assert audit_service.events[0]["action"] == "quotes.reactivated"
+
+
+def make_manager(*, user_id: UUID | None = None) -> User:
+    return make_user(
+        role_name="manager",
+        user_id=user_id,
+        extra_permission_codes=("quotes.correct_user_quotes", "quotes.mark_purchased"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_manager_can_create_correction_version_for_user_role_quote(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+    quote_version_payload: dict[str, Any],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    session.owner_by_id[quote.created_by_id] = make_user(role_name="user", user_id=quote.created_by_id)
+    manager_user = make_manager()
+    app.dependency_overrides[get_current_user] = lambda: manager_user
+
+    response = await client.post(f"/api/v1/quotes/{quote.id}/versions", json=quote_version_payload)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert quote_service.create_version_calls[0]["created_by_id"] == manager_user.id
+    assert session.committed is True
+    assert len(audit_service.events) == 1
+
+
+@pytest.mark.asyncio
+async def test_manager_cannot_create_correction_version_for_another_managers_quote(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+    quote_version_payload: dict[str, Any],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    session.owner_by_id[quote.created_by_id] = make_manager(user_id=quote.created_by_id)
+    manager_user = make_manager()
+    app.dependency_overrides[get_current_user] = lambda: manager_user
+
+    response = await client.post(f"/api/v1/quotes/{quote.id}/versions", json=quote_version_payload)
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert quote_service.create_version_calls == []
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_manager_can_confirm_own_created_correction_draft(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    session.owner_by_id[quote.created_by_id] = make_user(role_name="user", user_id=quote.created_by_id)
+    manager_user = make_manager()
+    app.dependency_overrides[get_current_user] = lambda: manager_user
+    version_id = uuid4()
+    session.version_by_id[version_id] = QuoteVersion(
+        id=version_id,
+        quote_id=quote.id,
+        version_number=2,
+        received_date=date(2026, 7, 31),
+        status="draft",
+        is_backfilled=False,
+        created_by_id=manager_user.id,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    response = await client.post(f"/api/v1/quotes/{quote.id}/versions/{version_id}/confirm")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert quote_service.confirm_version_calls[0]["confirmed_by_id"] == manager_user.id
+    assert session.committed is True
+
+
+@pytest.mark.asyncio
+async def test_manager_cannot_update_draft_created_by_the_quote_owner(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+    quote_version_payload: dict[str, Any],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    session.owner_by_id[quote.created_by_id] = make_user(role_name="user", user_id=quote.created_by_id)
+    manager_user = make_manager()
+    app.dependency_overrides[get_current_user] = lambda: manager_user
+    version_id = uuid4()
+    session.version_by_id[version_id] = QuoteVersion(
+        id=version_id,
+        quote_id=quote.id,
+        version_number=1,
+        received_date=date(2026, 7, 28),
+        status="draft",
+        is_backfilled=False,
+        # Bản nháp này do CHÍNH chủ phiếu (User) tự tạo — không phải bản
+        # điều chỉnh của manager — nên manager không được đụng vào.
+        created_by_id=quote.created_by_id,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    response = await client.put(
+        f"/api/v1/quotes/{quote.id}/versions/{version_id}/draft",
+        json=quote_version_payload,
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert quote_service.update_draft_calls == []
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_manager_cannot_cancel_user_quote(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    session.owner_by_id[quote.created_by_id] = make_user(role_name="user", user_id=quote.created_by_id)
+    manager_user = make_manager()
+    app.dependency_overrides[get_current_user] = lambda: manager_user
+
+    response = await client.post(
+        f"/api/v1/quotes/{quote.id}/cancel",
+        json={"reason": "Nhập nhầm."},
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert quote_service.cancel_quote_calls == []
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_manager_cannot_delete_confirmed_line_for_user_quote(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    session.owner_by_id[quote.created_by_id] = make_user(role_name="user", user_id=quote.created_by_id)
+    manager_user = make_manager()
+    app.dependency_overrides[get_current_user] = lambda: manager_user
+    line_id = uuid4()
+
+    response = await client.post(
+        f"/api/v1/quotes/{quote.id}/lines/{line_id}/delete",
+        json={"reason": "Nhập nhầm."},
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert quote_service.delete_confirmed_line_calls == []
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_manager_cannot_toggle_purchase_for_user_quote(
+    app: FastAPI,
+    client: AsyncClient,
+    ownership_dependencies: tuple[Quote, MockQuoteService, MockSession, MockAuditLogService, User],
+) -> None:
+    quote, quote_service, session, audit_service, _ = ownership_dependencies
+    session.owner_by_id[quote.created_by_id] = make_user(role_name="user", user_id=quote.created_by_id)
+    manager_user = make_manager()
+    app.dependency_overrides[get_current_user] = lambda: manager_user
+    line = _make_line(quote_id=quote.id)
+    session.line_to_return = line
+
+    response = await client.put(
+        f"/api/v1/quotes/{quote.id}/lines/{line.id}/purchase",
+        json={"purchase": True},
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert session.committed is False

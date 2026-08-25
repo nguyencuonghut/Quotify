@@ -29,27 +29,27 @@
         />
         <template v-if="!quote?.cancelledAt">
           <Button
-            v-if="canUpdateQuote && activeVersion?.status !== 'draft'"
+            v-if="canCreateCorrectionVersion && activeVersion?.status !== 'draft'"
             label="Tạo bản điều chỉnh"
             icon="pi pi-copy"
             @click="createNewVersion"
           />
           <Button
-            v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
+            v-if="canManageDraftVersion(activeVersion) && activeVersion && activeVersion.status === 'draft'"
             label="Sửa bản nháp"
             icon="pi pi-pencil"
             outlined
             @click="editDraft"
           />
           <Button
-            v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
+            v-if="canManageDraftVersion(activeVersion) && activeVersion && activeVersion.status === 'draft'"
             label="Xác nhận phiên bản"
             icon="pi pi-check"
             severity="primary"
             @click="showConfirmDialog = true"
           />
           <Button
-            v-if="canUpdateQuote && activeVersion && activeVersion.status === 'draft'"
+            v-if="canManageDraftVersion(activeVersion) && activeVersion && activeVersion.status === 'draft'"
             label="Xóa bản nháp"
             icon="pi pi-trash"
             severity="danger"
@@ -791,7 +791,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
 import { useQuoteDetail } from '@/composables/useQuoteDetail'
 import AdminLayout from '@/layouts/AdminLayout.vue'
-import type { QuoteLineDomain, QuoteNoteRevisionDomain } from '@/types/quotes'
+import type { QuoteLineDomain, QuoteNoteRevisionDomain, QuoteVersionDomain } from '@/types/quotes'
 import { getDefaultAvatarUrl } from '@/utils/default-avatars'
 
 const route = useRoute()
@@ -841,6 +841,23 @@ const canMutateCurrentQuote = computed(() => {
 })
 const canUpdateQuote = computed(() => permissionStore.can('quotes.update') && canMutateCurrentQuote.value)
 const canMarkPurchase = computed(() => permissionStore.can('quotes.mark_purchased') && canMutateCurrentQuote.value)
+// Trưởng phòng (permission "quotes.correct_user_quotes"): được tạo/tự hoàn
+// tất bản điều chỉnh trên phiếu do tài khoản role "user" tạo, KHÔNG áp dụng
+// cho các hành động khác (Hủy phiếu, Xóa dòng, Chốt mua...) — những hành
+// động đó vẫn chỉ dành cho admin/chủ phiếu (`canMutateCurrentQuote`).
+const canCorrectUserQuoteAsHead = computed(() => (
+  permissionStore.can('quotes.correct_user_quotes')
+  && quote.value?.createdByRole === 'user'
+))
+const canCreateCorrectionVersion = computed(() => (
+  permissionStore.can('quotes.update')
+  && (canMutateCurrentQuote.value || canCorrectUserQuoteAsHead.value)
+))
+function canManageDraftVersion(version: QuoteVersionDomain | null | undefined): boolean {
+  if (!version || !permissionStore.can('quotes.update')) return false
+  if (canMutateCurrentQuote.value) return true
+  return canCorrectUserQuoteAsHead.value && version.createdById === authStore.currentUser?.id
+}
 const canCreateNote = computed(() => permissionStore.can('quote_notes.create'))
 const canUpdateNote = computed(() => permissionStore.can('quote_notes.update'))
 const canManageNoteRevision = (revision: QuoteNoteRevisionDomain) => (

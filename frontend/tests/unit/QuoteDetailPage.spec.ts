@@ -310,6 +310,81 @@ describe('QuoteDetailPage cancel quote and delete confirmed line', () => {
   })
 })
 
+describe('QuoteDetailPage manager correction on user-role quotes', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    const authStore = useAuthStore()
+    authStore.currentUser = {
+      id: 'manager-1',
+      email: 'manager@quotify.local',
+      status: 'active',
+      roles: ['manager'],
+      permissions: ['quotes.update', 'quotes.correct_user_quotes'],
+      lastLoginAt: null,
+    }
+
+    quote.value = {
+      id: 'quote-1',
+      supplierId: 'supplier-1',
+      supplierName: 'Supplier A',
+      supplierCode: 'SUPA',
+      createdById: 'user-1',
+      createdByRole: 'user',
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-01T00:00:00Z',
+      cancelledAt: null,
+      cancelledById: null,
+      cancelReason: null,
+      versions: [],
+    }
+    isLoading.value = false
+    activeVersion.value = {
+      id: 'version-1',
+      status: 'confirmed',
+      versionNumber: 1,
+      receivedDate: '2026-08-01',
+      createdById: 'user-1',
+      lines: [],
+    }
+    sortedVersions.value = [activeVersion.value]
+    note.value = null
+  })
+
+  it('shows "Tạo bản điều chỉnh" for a manager on a quote created by a "user"-role account', () => {
+    const wrapper = mountQuoteDetailPageForCancelAndDeleteLineActions()
+
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Tạo bản điều chỉnh'))).toBe(true)
+  })
+
+  it('does NOT show "Hủy phiếu" for a manager on a quote they did not create', () => {
+    const wrapper = mountQuoteDetailPageForCancelAndDeleteLineActions()
+
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Hủy phiếu'))).toBe(false)
+  })
+
+  it('does NOT show draft-management buttons on a draft the quote owner created themselves', () => {
+    activeVersion.value = { ...activeVersion.value, status: 'draft', createdById: 'user-1' }
+    sortedVersions.value = [activeVersion.value]
+
+    const wrapper = mountQuoteDetailPageForCancelAndDeleteLineActions()
+
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Xác nhận phiên bản'))).toBe(false)
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Sửa bản nháp'))).toBe(false)
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Xóa bản nháp'))).toBe(false)
+  })
+
+  it('shows draft-management buttons on a correction draft the manager created themselves', () => {
+    activeVersion.value = { ...activeVersion.value, status: 'draft', createdById: 'manager-1' }
+    sortedVersions.value = [activeVersion.value]
+
+    const wrapper = mountQuoteDetailPageForCancelAndDeleteLineActions()
+
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Xác nhận phiên bản'))).toBe(true)
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Sửa bản nháp'))).toBe(true)
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Xóa bản nháp'))).toBe(true)
+  })
+})
+
 describe('QuoteDetailPage note revision deletion', () => {
   beforeEach(() => {
     setActivePinia(createPinia())

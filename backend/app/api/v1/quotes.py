@@ -17,7 +17,7 @@ from app.api.v1.exchange_rates import get_exchange_rate_service
 from app.api.v1.files import get_file_admin_service
 from app.api.v1.quotify_settings import get_audit_log_service, get_quotify_settings_service
 from app.auth.dependencies import get_current_user, require_permission
-from app.auth.permissions import has_role
+from app.auth.permissions import has_permission, has_role
 from app.db.session import get_db_session
 from app.models import Quote, QuoteLine, QuoteNoteRevision, QuoteVersion, User
 from app.schemas.quote import (
@@ -148,6 +148,16 @@ def _build_version_response(version: QuoteVersion) -> QuoteVersionResponse:
     )
 
 
+def _quote_created_by_role(quote: Quote) -> str | None:
+    if not quote.created_by:
+        return None
+    if _quote_owner_has_role(quote, "admin"):
+        return "admin"
+    if _quote_owner_has_role(quote, "user"):
+        return "user"
+    return None
+
+
 def _build_quote_response(quote: Quote) -> QuoteResponse:
     return QuoteResponse(
         id=quote.id,
@@ -155,6 +165,7 @@ def _build_quote_response(quote: Quote) -> QuoteResponse:
         supplier_name=quote.supplier.name,
         supplier_code=quote.supplier.code,
         created_by_id=quote.created_by_id,
+        created_by_role=_quote_created_by_role(quote),
         created_at=quote.created_at,
         updated_at=quote.updated_at,
         cancelled_at=quote.cancelled_at,
@@ -168,11 +179,28 @@ def _is_admin_user(user: User) -> bool:
     return has_role(user, "admin")
 
 
+def _quote_owner_has_role(quote: Quote, role_name: str) -> bool:
+    return any(role.name == role_name for role in quote.created_by.roles)
+
+
+async def _quote_owner_can_be_corrected_by(
+    *, session: AsyncSession, quote: Quote, current_user: User
+) -> bool:
+    if not has_permission(current_user, "quotes.correct_user_quotes"):
+        return False
+    # Query riêng cho chủ phiếu (không dựa vào `quote.created_by` được eager
+    # load sẵn hay không) — tránh lazy-load ngoài greenlet context.
+    owner = await session.get(User, quote.created_by_id, options=[selectinload(User.roles)])
+    return owner is not None and has_role(owner, "user")
+
+
 async def _ensure_quote_mutation_allowed(
     *,
     session: AsyncSession,
     quote_id: UUID,
     current_user: User,
+    version_id: UUID | None = None,
+    allow_correction_bypass: bool = False,
 ) -> None:
     quote = await session.get(Quote, quote_id)
     if not quote:
@@ -186,11 +214,23 @@ async def _ensure_quote_mutation_allowed(
     _ensure_quote_not_cancelled(quote)
     if _is_admin_user(current_user):
         return
-    if quote.created_by_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=QUOTE_OWNER_DENIED_DETAIL,
-        )
+    if quote.created_by_id == current_user.id:
+        return
+    if allow_correction_bypass and await _quote_owner_can_be_corrected_by(
+        session=session, quote=quote, current_user=current_user
+    ):
+        if version_id is None:
+            return
+        version = await session.get(QuoteVersion, version_id)
+        # Trưởng phòng chỉ được thao tác trên bản điều chỉnh do CHÍNH mình
+        # tạo — không được đụng vào bản nháp mà chủ phiếu (User) đang tự
+        # soạn dở.
+        if version is not None and version.created_by_id == current_user.id:
+            return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=QUOTE_OWNER_DENIED_DETAIL,
+    )
 
 
 def _ensure_quote_not_cancelled(quote: Quote) -> None:
@@ -463,6 +503,7 @@ async def create_version(
         session=session,
         quote_id=id,
         current_user=current_user,
+        allow_correction_bypass=True,
     )
     try:
         version = await quote_service.create_version(
@@ -513,6 +554,8 @@ async def update_draft(
         session=session,
         quote_id=id,
         current_user=current_user,
+        version_id=version_id,
+        allow_correction_bypass=True,
     )
     # Load old version snapshot for audit log
     old_stmt = (
@@ -621,6 +664,8 @@ async def confirm_version(
         session=session,
         quote_id=id,
         current_user=current_user,
+        version_id=version_id,
+        allow_correction_bypass=True,
     )
     try:
         version = await quote_service.confirm_version(
@@ -667,6 +712,8 @@ async def delete_draft_version(
         session=session,
         quote_id=id,
         current_user=current_user,
+        version_id=version_id,
+        allow_correction_bypass=True,
     )
     try:
         result = await quote_service.delete_draft_version(

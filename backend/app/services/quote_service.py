@@ -11,7 +11,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Quote, QuoteLine, QuoteVersion, Supplier, SupplierMaterial
+from app.models import Quote, QuoteLine, QuoteVersion, Supplier, SupplierMaterial, User
 from app.services.exchange_rate_service import (
     convert_usd_mt_to_vnd_kg,
     get_business_today,
@@ -877,6 +877,7 @@ class QuoteService:
             .selectinload(QuoteLine.material),
             selectinload(Quote.versions).selectinload(QuoteVersion.created_by),
             selectinload(Quote.supplier),
+            selectinload(Quote.created_by).selectinload(User.roles),
         ).where(Quote.id == quote_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()

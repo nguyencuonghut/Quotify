@@ -976,3 +976,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: UI/UX improvement plan Slice 1-14
 - Tom tat: Hoan tat 14/15 slice ke hoach cai tien UI/UX toan frontend theo TDD: don dead CSS Tailwind-style, doi v-if permission sang disabled+title, gop badge trang thai dung chung token, AdminLayout them skip-link/tooltip nav/dich chuoi tieng Anh, useLoginPage khong con throw loi khong bat duoc, Suppliers truncate cot vat tu. Slice 15 (dashboard chart parity) de lai cho quyet dinh san pham.
+
+## 2026-08-25 07:16:27Z - claude
+
+- Tieu de: Role manager: correction quyen tren phieu cua User
+- Tom tat: Them permission quotes.correct_user_quotes va role manager (Truong phong): cho phep tao/tu hoan tat ban dieu chinh (create_version+update_draft+confirm_version+delete_draft_version) tren phieu do tai khoan role user tao, gioi han o version do chinh manager tao; khong bypass cho cancel/delete-line/mark-purchased/upload. Da verify Playwright tren dev, phat hien bug rieng: DELETE /users/{id} 500 khi user co refresh_tokens (NOT NULL constraint).
