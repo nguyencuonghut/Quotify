@@ -18,7 +18,7 @@ Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, A
 4. **Bước 1 đã cần nhận tin từ Telegram.** Để liên kết tài khoản an toàn bằng mã `/start <token>`, bot phải nhận được update. Vì vậy webhook (hoặc long-polling) phải có ngay ở Bước 1, không chờ Bước 2.
 5. **Tài khoản ChatGPT Plus / Gemini Advanced / Claude Pro trả phí theo tháng KHÔNG cấp quyền gọi API.** Chatbot cần API key riêng (tính phí theo token). Cần chốt điều này trước khi bắt đầu Bước 2.
 6. Chatbot hỏi đáp nên dùng **tool-calling với các hàm cố định** (gọi lại service có sẵn), không cho AI tự sinh SQL. Cách này đáp ứng "chỉ READ" và "cấm SQL nguy hiểm" bằng thiết kế, không bằng bộ lọc.
-7. Đã chốt các quyết định ở Mục 0.1. **D5 đến D10** (chống spam, nguồn dữ liệu kích hoạt, người nhận tin) vẫn là đề xuất mặc định, chưa được xác nhận. Điểm mở còn lại ở Mục 9.2.
+7. Đã chốt các quyết định ở Mục 0.1, gồm cả D5 đến D10 (chống spam, nguồn dữ liệu kích hoạt, người nhận tin). Chỉ còn một số điểm mở nhỏ ở Mục 9.2.
 
 ---
 
@@ -37,8 +37,10 @@ Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, A
 | QĐ-9 | 2026-10-03 | Chatbot nhập liệu **luôn tạo nháp rồi mới chốt**. **Ghi nhận nguồn nhập qua Telegram**: chỉ thêm **icon bot ở cột "Trạng thái"** của danh sách báo giá, kèm **ô tick lọc** theo nguồn Telegram | 4.5, 4.9, 5.3 |
 | QĐ-10 | 2026-10-03 | **Admin hệ thống quản lý chi phí LLM**, trần ngân sách khoảng **2.000.000 đ mỗi tháng** | 5.6 |
 | QĐ-11 | 2026-10-03 | Chưa loại ngày lễ và Tết khỏi ngày làm việc | D3 |
-| QĐ-13 | 2026-10-03 | **Không tính biến động % trên CNF**: chuỗi USD/MT cũng chỉ tính % trên VNĐ/KG. Cảnh báo ngân sách LLM gửi **qua email admin** | D1, 5.6 |
 | QĐ-12 | 2026-10-03 | Giá bất thường: chỉ chấp nhận bằng nút **Giá đúng** (không tự động). Người nhận: **trưởng phòng và người nhập phiếu**. Xác nhận hướng tin theo bước nhảy cuối (D2) | D2, D12 |
+| QĐ-13 | 2026-10-03 | **Không tính biến động % trên CNF**: chuỗi USD/MT cũng chỉ tính % trên VNĐ/KG. Cảnh báo ngân sách LLM gửi **qua email admin** | D1, 5.6 |
+| QĐ-14 | 2026-10-03 | Đồng ý toàn bộ đề xuất **D5 đến D10**: chống spam (chỉ gửi khi chiều hoặc mức đổi, gộp tin theo vật tư, mức Nhẹ vào bản tin 08:00, trần số tin mỗi lần quét), bỏ qua phiếu nhập lùi và import, trưởng phòng nhận mọi tin, nhân viên nhận tin của vật tư mình đã nhập trong 90 ngày, admin chỉ nhận khi bật tùy chọn, cờ bật/tắt và mức tối thiểu cho từng người | D5 đến D10 |
+| QĐ-15 | 2026-10-03 | Chuỗi so sánh là **(vật tư, kỳ giao hàng)**, **không gộp nhiều kỳ giao hàng** vào một chuỗi. Giá so sánh là `price_converted_vnd_per_kg` của version `confirmed`, phiếu chưa hủy | D1 |
 
 Điều chỉnh hướng tin theo hướng của bước nhảy cuối (xem D2) đã được xác nhận trong QĐ-12.
 
@@ -115,16 +117,16 @@ Tài liệu hiện **tuyên bố ngoài phạm vi** các mục gần với yêu 
 
 ---
 
-## 3. Quyết định cần chốt (kèm đề xuất mặc định)
+## 3. Quyết định (đã chốt và đề xuất)
 
 ### Nhóm A: Định nghĩa biến động giá
 
-**D1. Giá nào để so sánh?**
-- Đề xuất: `price_converted_vnd_per_kg`, chuỗi **(vật tư, kỳ giao hàng)**, chỉ version `confirmed`, phiếu chưa hủy.
+**D1. Giá nào để so sánh? (ĐÃ CHỐT, QĐ-15)**
+- Quyết định: `price_converted_vnd_per_kg`, chuỗi **(vật tư, kỳ giao hàng)**, chỉ version `confirmed`, phiếu chưa hủy.
 - **Đã chốt (QĐ-1):** không phân biệt nhà cung cấp. Điểm giá của một ngày là giá thấp nhất trong ngày giữa mọi NCC.
 - **Đã chốt (QĐ-13):** chuỗi USD/MT cũng chỉ tính % trên VNĐ/KG, không thêm quy tắc tính % trên CNF.
 - Lưu ý: dòng USD/MT bị ảnh hưởng bởi tỷ giá. Cùng giá USD nhưng tỷ giá đổi vẫn thành "biến động". Có thể chấp nhận (vì giá VNĐ/KG mới là thứ phòng Thu Mua mua thật), nhưng tin nhắn nên ghi rõ "giá quy đổi".
-- Không gộp nhiều kỳ giao hàng vào một chuỗi vì giá kỳ xa khác kỳ gần.
+- **Không gộp nhiều kỳ giao hàng vào một chuỗi** vì giá kỳ xa khác kỳ gần (đã chốt, QĐ-15).
 
 **D2. Điều kiện biến động (ĐÃ CHỐT, QĐ-1): bộ ba quy tắc so với 7 ngày làm việc liền trước.**
 
@@ -181,11 +183,11 @@ Ví dụ 3 cho thấy lý do cần quy tắc nhất quán hướng. Giá đã gi
   - Ai được sửa: **admin và trưởng phòng** (permission `price_alerts.manage`, đã chốt).
 - **Vì sao cần ghi đè** (Phụ lục B.7): mức dao động khác nhau theo mặt hàng. Trung vị |%| của các điểm bị báo: Khô đậu tương 4,3% (P90 8,0%), Ngô hạt 3,3% (P90 5,2%), Methionine 4,9% (P90 13,7%). Riêng Khô đậu tương chiếm khoảng 52% số điểm bị báo, nên là ứng viên đầu tiên cho ngưỡng cao hơn.
 
-**D5. Chống spam.** Backtest với quy tắc đã chốt (Phụ lục B.7, 12 tháng gần nhất) cho thấy khối lượng tin là vấn đề thật: daily-min giữa các NCC dao động nhiều. Nếu gửi theo từng chuỗi (vật tư, kỳ giao) thì trưởng phòng nhận khoảng **19,5 tin/tuần**.
-- Đề xuất: (a) chỉ gửi khi **(chiều, mức) khác lần đã gửi gần nhất của chuỗi đó trong 14 ngày**; (b) **gộp theo vật tư**: một tin cho mỗi vật tư mỗi ngày, liệt kê các kỳ giao hàng vượt ngưỡng (còn khoảng **7,8 tin/tuần**); (c) mức Nhẹ gom vào **bản tin tổng hợp 08:00 giờ VN**, mức Trung bình và Lớn gửi ngay (khoảng **2,9 tin/tuần** cho trưởng phòng); (d) trần số tin mỗi lần quét (flood guard); (e) cân nhắc nâng ngưỡng Nhẹ của các mặt hàng dao động mạnh bằng cấu hình theo mặt hàng (D4).
+**D5. Chống spam (ĐÃ CHỐT, QĐ-14).** Backtest với quy tắc đã chốt (Phụ lục B.7, 12 tháng gần nhất) cho thấy khối lượng tin là vấn đề thật: daily-min giữa các NCC dao động nhiều. Nếu gửi theo từng chuỗi (vật tư, kỳ giao) thì trưởng phòng nhận khoảng **19,5 tin/tuần**.
+- Quyết định: (a) chỉ gửi khi **(chiều, mức) khác lần đã gửi gần nhất của chuỗi đó trong 14 ngày**; (b) **gộp theo vật tư**: một tin cho mỗi vật tư mỗi ngày, liệt kê các kỳ giao hàng vượt ngưỡng (còn khoảng **7,8 tin/tuần**); (c) mức Nhẹ gom vào **bản tin tổng hợp 08:00 giờ VN**, mức Trung bình và Lớn gửi ngay (khoảng **2,9 tin/tuần** cho trưởng phòng); (d) trần số tin mỗi lần quét (flood guard); (e) cân nhắc nâng ngưỡng Nhẹ của các mặt hàng dao động mạnh bằng cấu hình theo mặt hàng (D4).
 
-**D6. Nguồn dữ liệu nào kích hoạt thông báo?**
-- Đề xuất v1: **bỏ qua version `is_backfilled=true`** và bỏ qua phiếu import. Lưu ý `is_backfilled` bị ép `true` mỗi khi `received_date` < hôm nay, nên phiếu nhập muộn hợp lệ cũng bị bỏ qua. Đây là đánh đổi chấp nhận được để tránh bão tin khi import hàng nghìn dòng.
+**D6. Nguồn dữ liệu nào kích hoạt thông báo? (ĐÃ CHỐT, QĐ-14)**
+- Quyết định v1: **bỏ qua version `is_backfilled=true`** và bỏ qua phiếu import. Lưu ý `is_backfilled` bị ép `true` mỗi khi `received_date` < hôm nay, nên phiếu nhập muộn hợp lệ cũng bị bỏ qua. Đây là đánh đổi chấp nhận được để tránh bão tin khi import hàng nghìn dòng.
 - Khi triển khai lần đầu, đặt `watermark = thời điểm triển khai` để dữ liệu cũ không sinh thông báo.
 
 **D12. Giá bất thường (ĐÃ CHỐT, QĐ-3): loại thông báo riêng, nghi nhập sai.**
@@ -204,13 +206,13 @@ Ví dụ 3 cho thấy lý do cần quy tắc nhất quán hướng. Giá đã gi
 
 ### Nhóm B: Người nhận
 
-**D7. "Trưởng phòng".** Đề xuất: thêm permission mới `price_alerts.receive_all`, cấp cho role `manager` bằng migration dữ liệu. Không so tên role.
+**D7. "Trưởng phòng" (ĐÃ CHỐT, QĐ-14).** thêm permission mới `price_alerts.receive_all`, cấp cho role `manager` bằng migration dữ liệu. Không so tên role.
 
-**D8. "Nhân viên nhận mặt hàng mình đã nhập báo giá".** Đề xuất: user nhận cảnh báo của vật tư `M` nếu user là `quotes.created_by_id` của ít nhất một phiếu có dòng vật tư `M` trong **90 ngày gần nhất** (cấu hình được). Phiếu import thuộc tài khoản seed admin nên không tính.
+**D8. "Nhân viên nhận mặt hàng mình đã nhập báo giá" (ĐÃ CHỐT, QĐ-14).** user nhận cảnh báo của vật tư `M` nếu user là `quotes.created_by_id` của ít nhất một phiếu có dòng vật tư `M` trong **90 ngày gần nhất** (cấu hình được). Phiếu import thuộc tài khoản seed admin nên không tính.
 
-**D9. Admin có nhận tất cả không?** Admin bypass mọi quyền, nên cần quy ước. Đề xuất: admin chỉ nhận nếu có liên kết Telegram **và** bật tùy chọn (mặc định tắt). Tài khoản seed admin bị loại.
+**D9. Admin có nhận tất cả không? (ĐÃ CHỐT, QĐ-14)** Admin bypass mọi quyền, nên cần quy ước: admin chỉ nhận nếu có liên kết Telegram **và** bật tùy chọn (mặc định tắt). Tài khoản seed admin bị loại.
 
-**D10. Người dùng có tự tắt/bật theo mức không?** Đề xuất v1: có 1 cờ bật/tắt chung và 1 cờ "mức tối thiểu" (Nhẹ/Trung bình/Lớn) cho mỗi người. Mặc định: trưởng phòng từ mức Trung bình, nhân viên từ mức Nhẹ (gom bản tin).
+**D10. Người dùng có tự tắt/bật theo mức không? (ĐÃ CHỐT, QĐ-14)** có 1 cờ bật/tắt chung và 1 cờ "mức tối thiểu" (Nhẹ/Trung bình/Lớn) cho mỗi người. Mặc định: trưởng phòng từ mức Trung bình, nhân viên từ mức Nhẹ (gom bản tin).
 
 ### Nhóm C: Chatbot AI
 
@@ -758,6 +760,8 @@ Mỗi lát cắt có migration (nếu cần), backend, UI (nếu cần), test, t
 
 | # | Câu hỏi | Trả lời |
 |---|---|---|
+| D1 | Gộp nhiều kỳ giao hàng vào một chuỗi không | Không gộp. Chuỗi là (vật tư, kỳ giao hàng) |
+| D5 đến D10 | Chống spam, nguồn dữ liệu kích hoạt, người nhận tin, tùy chọn từng người | Đồng ý toàn bộ đề xuất |
 | D11a | Nhà cung cấp LLM | Chưa chốt cho production. Dev dùng API key Google AI Studio |
 | D11b | Chính sách dữ liệu | Cho phép gửi nội dung báo giá, ảnh, PDF sang bên thứ ba |
 | 1 | Tin nhắn gửi vào nhóm hay chat riêng | Chỉ chat riêng |
@@ -778,14 +782,6 @@ Mỗi lát cắt có migration (nếu cần), backend, UI (nếu cần), test, t
 | 15 | Kênh gửi cảnh báo ngân sách LLM | Email admin |
 
 ### 9.2 Còn mở
-
-**Chưa được xác nhận (đang là đề xuất mặc định trong Mục 3):**
-- **D5** chống spam: chỉ gửi khi (chiều, mức) đổi, gộp tin theo vật tư, mức Nhẹ vào bản tin 08:00, trần số tin mỗi lần quét.
-- **D6** bỏ qua version nhập lùi (`is_backfilled`) và phiếu import, đặt mốc quét ban đầu là thời điểm triển khai.
-- **D7** trưởng phòng nhận mọi tin qua permission `price_alerts.receive_all`.
-- **D8** nhân viên nhận tin của vật tư mình đã nhập báo giá trong 90 ngày gần nhất.
-- **D9** admin chỉ nhận nếu bật tùy chọn (mặc định tắt), tài khoản seed admin bị loại.
-- **D10** mỗi người có cờ bật/tắt và mức tối thiểu (trưởng phòng từ Trung bình, nhân viên từ Nhẹ gom bản tin).
 
 **Điểm mở nhỏ (không chặn việc bắt đầu, chốt trong lúc làm):**
 
