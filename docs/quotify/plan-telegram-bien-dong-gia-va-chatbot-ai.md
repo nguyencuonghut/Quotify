@@ -7,6 +7,7 @@
 
 Tài liệu liên quan:
 - [plan-telegram-giai-doan-1a-nen-tang-lien-ket.md](plan-telegram-giai-doan-1a-nen-tang-lien-ket.md): kế hoạch triển khai chi tiết Giai đoạn 1A (chia slice).
+- [plan-telegram-giai-doan-1b-engine-bien-dong-gia.md](plan-telegram-giai-doan-1b-engine-bien-dong-gia.md): kế hoạch triển khai chi tiết Giai đoạn 1B (chia slice, bản nháp 2026-10-04). Kiểm chứng lại tài liệu này với code và dữ liệu thật; các chỗ lệch (head Alembic, D2 mục 5, đơn vị của D6, nhận biết import) được liệt kê ở mục "Độ Lệch Và Bổ Sung" của kế hoạch 1B và sẽ được sửa ở Slice 0 của 1B.
 - [review-telegram-plan-rasoat-2026-10-03.md](review-telegram-plan-rasoat-2026-10-03.md): kết quả rà soát độc lập tài liệu này và trạng thái áp dụng từng mục.
 
 Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, API, worker) và frontend; các phép backtest bằng script chạy trên DB dev (Phụ lục B); 3 agent rà soát độc lập ngày 2026-10-03. Mục nào chưa kiểm chứng được ghi **[CHƯA XÁC MINH]**.
@@ -922,7 +923,7 @@ Chi tiết, chia slice, hợp đồng API và tiêu chí chấp nhận: [kế ho
 - **Hoàn thành khi:** một người dùng liên kết, đổi, hủy được tài khoản Telegram trên dev, rồi trên production với một tài khoản thử.
 
 ### Giai đoạn 1B: Engine biến động và thông báo
-Sẽ có kế hoạch riêng theo mẫu 1A. Hạng mục:
+**Kế hoạch chi tiết (bản nháp chờ xác nhận):** [plan-telegram-giai-doan-1b-engine-bien-dong-gia.md](plan-telegram-giai-doan-1b-engine-bien-dong-gia.md), chia 16 slice và hai đợt phát hành (α: biến động giá; β: giá bất thường và nút bấm). Hạng mục tổng quát:
 - Migration nhóm biến động giá (4.5) và permission mới, cấp cho `manager` bằng migration tự chèn quyền (4.6).
 - Hàm `get_daily_min_series` (4.3) và `PriceAlertService` (hàm thuần, TDD): cửa sổ ngày làm việc, bộ ba quy tắc, nguồn kích hoạt (D6), dòng ứng viên của version điều chỉnh, đánh giá bất thường mức dòng và vòng đời thẻ (D12).
 - Cron quét an toàn (4.1), tin gộp (D5b), giải quyết người nhận (D7 đến D10), chống trùng và leo thang.

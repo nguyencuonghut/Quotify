@@ -1001,3 +1001,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1A: S5c ma QR va S6c E2E toan chuoi
 - Tom tat: S5c: ma QR cho duong dan lien ket bang uqr (nap lui, chunk rieng 10KB, tu ve SVG path, khong v-html), da giai ma anh chup bang zbarimg o light/dark/390px. S6c: server Telegram gia co test, compose test them fake-telegram, backend-test ep tat Telegram de .env dev co bot that khong lot vao test, E2E profile-telegram-full chay 6 pass trong docker. 4 spec E2E cu loi san (audit-logs, quote-detail-filters, smoke, suppliers) da xac nhan loi y het voi compose goc. npm audit co 5 loi high co san khong lien quan uqr.
+
+## 2026-10-04 08:59:45Z - claude
+
+- Tieu de: Telegram 1B: ke hoach chi tiet
+- Tom tat: Soan ke hoach 1B (16 slice, hai dot alpha/beta) bang 4 agent khao sat va thi nghiem Telegram T7-T10. Phat hien chinh: ban dieu chinh mat tin neu nguon bi thay the truoc khi quet (them bang version da quet), D6 theo ngay lam viec 283 version/1030 dong, tai uoc luong 18,9 tin/tuan, gia bat thuong bi nhiem doc tham chieu, matplotlib +130MB khong ve duoc emoji, worker chua co TelegramClient va logging, worker-test co the dung bot that. Luu script phan tich vao docs/quotify/analysis-1b.
