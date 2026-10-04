@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401,E402
     material,
     material_type,
     permission,
+    price_alert,
     quote,
     quote_version,
     quote_line,

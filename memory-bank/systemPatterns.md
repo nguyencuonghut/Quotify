@@ -628,3 +628,14 @@ Liên kết người dùng Quotify với tài khoản Telegram (xem plan 1A). M�
 6. Webhook không JWT: 404 khi tắt/sai mode/thiếu secret, 403 khi sai secret (`secrets.compare_digest`), 200 còn lại. Route nhận `Request` thay vì model body để secret được kiểm trước validation.
 7. Không log nội dung update (tin `/start <mã>` chứa mã) và không audit mã sai hoặc lạ; audit không chứa `telegram_user_id`/username, `request_id` dạng `tg-update-<id>`.
 8. Kiểm thử: hành vi dựa vào khóa, savepoint, unique của PostgreSQL phải kiểm ở lớp tích hợp (marker `integration`, database tạm mỗi phiên, `INTEGRATION_DATABASE_URL`), vì fake session không kiểm được. Các test API và webhook dùng `httpx.MockTransport` và `dependency_overrides`.
+
+## Price Alert Foundation Pattern
+
+Nền tảng của thông báo biến động giá (Giai đoạn 1B, Slice 1; xem `docs/quotify/plan-telegram-giai-doan-1b-engine-bien-dong-gia.md`).
+
+1. Sáu bảng additive trong một migration viết tay (`20261004_1200`): `price_alert_settings` và `price_alert_scan_state` là singleton (`singleton_key = 'default'`, CHECK và UNIQUE), hàng mặc định do migration tự chèn (id cố định, `ON CONFLICT DO NOTHING`); `price_alert_scan_runs`, `price_alert_scanned_versions`, `price_alert_material_thresholds`, `user_alert_preferences`. Mọi FK ghi rõ `ON DELETE`. Model gom trong `models/price_alert.py`.
+2. Quyền `price_alerts.manage` và `price_alerts.receive_all` được **migration** (`20261004_1300`) tự `INSERT INTO permissions ... ON CONFLICT (code) DO NOTHING` rồi gán cho role `manager` và `admin` bằng `INSERT ... SELECT ... ON CONFLICT DO NOTHING`; thiếu role nào thì bỏ qua role đó. Lý do: `seed_auth_rbac.py` chỉ chạy lúc khởi động và không đụng role `manager`. Đồng thời thêm hai mã vào `BASE_PERMISSION_CODES` (seed gán cho admin). Không thêm vào `USER_ROLE_PERMISSION_CODES` (có test).
+3. Cấu hình: `PUT /price-alert-settings` thay toàn bộ trường; service khóa dòng cấu hình bằng `FOR UPDATE`; chuyển `is_enabled` `false → true` đặt `scan_state.watermark_confirmed_at` và `enabled_since` bằng thời điểm bật, mỗi lần bật (dữ liệu cũ không sinh tin). Audit `price_alerts.settings_updated` chỉ ghi khi có thay đổi, kèm `changes[]` mọi giá trị là chuỗi.
+4. Cổng bật là hai cờ: biến môi trường `TELEGRAM_ENABLED` (cần) và `price_alert_settings.is_enabled` (đủ). `GET`/`PUT` vẫn chạy khi `TELEGRAM_ENABLED=false`, chỉ engine (Slice 5) không chạy.
+5. Test: API với service giả (`tests/test_price_alert_settings_api.py`), PostgreSQL thật cho watermark, khóa dòng, CHECK và FK (`tests/integration/test_price_alert_settings_db.py`), migration trên database tạm trống qua fixture `empty_database_url` và `migration_helpers.py` (`tests/integration/test_price_alert_migrations.py`), một head (`tests/test_alembic_heads.py`). Helper dựng vật tư và version đã chốt nằm ở `tests/integration/db_helpers.py`.
+

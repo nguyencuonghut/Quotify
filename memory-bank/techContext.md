@@ -235,7 +235,7 @@
 
 - Verified Telegram 1A backend (2026-10-04):
   - biến môi trường mới: `TELEGRAM_ENABLED`, `TELEGRAM_BOT_TOKEN(_FILE)`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET(_FILE)`, `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_API_BASE_URL`, `TELEGRAM_MODE` (`webhook`|`polling`), `TELEGRAM_HTTP_TIMEOUT_SECONDS`, `RATE_LIMIT_TELEGRAM_LINK_TOKEN`
-  - chuỗi migration: `20260824_1000` → `20261004_1000` (`telegram_processed_updates`) → `20261004_1100` (`telegram_accounts`, `telegram_link_tokens`); `alembic heads` còn một head
+  - chuỗi migration: `20260824_1000` → `20261004_1000` (`telegram_processed_updates`) → `20261004_1100` (`telegram_accounts`, `telegram_link_tokens`) → `20261004_1200` (sáu bảng `price_alert_*`/`user_alert_preferences`) → `20261004_1300` (quyền `price_alerts.*`); `alembic heads` còn một head
   - lớp test tích hợp DB thật: `INTEGRATION_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:55432/app uv run pytest -m integration` (tạo database `it_<ngẫu nhiên>` rồi xóa; không có URL thì skip)
   - nếu `.ruff_cache` bị `Permission denied` (do chủ sở hữu root từ Docker), chạy `ruff --no-cache`, và `mypy --cache-dir=<thư mục tạm>`
   - `alembic check` đang báo drift cũ ở `audit_logs`, `quote_lines`, `suppliers`... không liên quan Telegram; đừng "sửa" bằng `--autogenerate`

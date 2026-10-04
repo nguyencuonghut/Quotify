@@ -42,6 +42,8 @@ BASE_PERMISSION_CODES = [
     "exchange_rates.read",
     "quotify_settings.read",
     "quotify_settings.update",
+    "price_alerts.receive_all",
+    "price_alerts.manage",
 ]
 
 USER_ROLE_PERMISSION_CODES = [

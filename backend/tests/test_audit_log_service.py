@@ -301,3 +301,24 @@ def test_sanitize_audit_metadata_still_redacts_telegram_secrets_and_identity() -
         "telegram_username": REDACTED_METADATA_VALUE,
         "chat_id": REDACTED_METADATA_VALUE,
     }
+
+
+def test_sanitize_audit_metadata_preserves_price_alert_settings_changes() -> None:
+    metadata = {
+        "changes": [
+            {
+                "field": "medium_from_percent",
+                "label": "Ngưỡng Trung bình từ (%)",
+                "old_value": "5.00",
+                "new_value": "6.00",
+            },
+            {
+                "field": "is_enabled",
+                "label": "Bật thông báo biến động giá",
+                "old_value": "false",
+                "new_value": "true",
+            },
+        ],
+    }
+
+    assert sanitize_audit_metadata(metadata) == metadata

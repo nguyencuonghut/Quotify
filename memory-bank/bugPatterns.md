@@ -841,6 +841,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: chưa có.
 - Related files: `backend/app/api/v1/users.py`
 
+### 2026-10-04: Test "không rò" kiểm chuỗi con ngắn nên thỉnh thoảng fail ngẫu nhiên
+
+- Area: Backend test `test_telegram_link_api.py::test_unlinking_revokes_the_account_and_is_audited`
+- Trigger: `assert "555" not in repr(event)` với `telegram_user_id=555`. `repr(event)` chứa UUID và request id ngẫu nhiên, nên khoảng 1 đến 2% lần chạy có chuỗi con "555" trong UUID và test fail không do lỗi thật (gặp ở lần chạy toàn bộ suite Slice 1 của Giai đoạn 1B).
+- Root cause: giá trị "chim hoàng yến" (canary) ngắn và là chuỗi chữ số trùng được với hex ngẫu nhiên.
+- Fix: dùng hằng `LEAK_CANARY_TELEGRAM_ID = 7_400_100_555` (10 chữ số, đủ lạ) và so `str(hằng) not in repr(event)`.
+- Regression guard: quy tắc khi viết test kiểu "giá trị X không xuất hiện trong đầu ra": chọn X đủ dài, không phải số nhỏ hay chuỗi ngắn; chạy lại test vài lần.
+- Related files: `backend/tests/test_telegram_link_api.py`
+
 ## Usage Rule
 
 Before changing behavior in an area with prior bugs, read the relevant entries first and explicitly avoid repeating the same failure mode.

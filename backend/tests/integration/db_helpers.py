@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import itertools
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import TelegramAccount, User, UserStatus
+from app.models import (
+    Material,
+    MaterialType,
+    Quote,
+    QuoteVersion,
+    Supplier,
+    TelegramAccount,
+    User,
+    UserStatus,
+)
 from app.services.telegram_link_service import TelegramLinkService
 
 # Database tích hợp dùng chung cả phiên test nên id Telegram và update_id phải khác nhau giữa
@@ -74,3 +83,51 @@ async def issue_token(
         issued = await TelegramLinkService(session).issue_link_token(user_id)
         await session.commit()
     return issued.token
+
+
+async def create_material(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    name: str = "Vật tư thử",
+) -> uuid.UUID:
+    suffix = uuid.uuid4().hex[:8].upper()
+    async with session_factory() as session:
+        material_type = MaterialType(code=f"IT{suffix}", name="Loại vật tư thử")
+        session.add(material_type)
+        await session.flush()
+        material = Material(code=f"IT{suffix}", name=name, material_type_id=material_type.id)
+        session.add(material)
+        await session.commit()
+    return material.id
+
+
+async def create_confirmed_quote_version(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    created_by_id: uuid.UUID | None = None,
+    received_date: date | None = None,
+    confirmed_at: datetime | None = None,
+) -> uuid.UUID:
+    """Dựng phiếu có một version đã chốt (chưa có dòng giá) và trả về id của version."""
+    suffix = uuid.uuid4().hex[:8].upper()
+    moment = confirmed_at or datetime.now(UTC)
+    async with session_factory() as session:
+        supplier = Supplier(code=f"IT{suffix}", name="Nhà cung cấp thử", supplier_type="domestic")
+        session.add(supplier)
+        await session.flush()
+        quote = Quote(supplier_id=supplier.id, created_by_id=created_by_id)
+        session.add(quote)
+        await session.flush()
+        version = QuoteVersion(
+            quote_id=quote.id,
+            version_number=1,
+            received_date=received_date or moment.date(),
+            status="confirmed",
+            created_by_id=created_by_id,
+            confirmed_at=moment,
+            confirmed_by_id=created_by_id,
+        )
+        session.add(version)
+        await session.commit()
+    return version.id
+

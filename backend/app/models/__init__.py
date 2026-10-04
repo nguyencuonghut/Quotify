@@ -9,6 +9,14 @@ from app.models.import_job import ImportJob
 from app.models.material import Material
 from app.models.material_type import MaterialType
 from app.models.permission import Permission, role_permissions
+from app.models.price_alert import (
+    PriceAlertMaterialThreshold,
+    PriceAlertScanRun,
+    PriceAlertScanState,
+    PriceAlertScannedVersion,
+    PriceAlertSetting,
+    UserAlertPreference,
+)
 from app.models.quote import Quote
 from app.models.quote_version import QuoteVersion
 from app.models.quote_line import QuoteLine
@@ -35,6 +43,11 @@ __all__ = [
     "Material",
     "MaterialType",
     "Permission",
+    "PriceAlertMaterialThreshold",
+    "PriceAlertScanRun",
+    "PriceAlertScanState",
+    "PriceAlertScannedVersion",
+    "PriceAlertSetting",
     "Quote",
     "QuoteVersion",
     "QuoteLine",
@@ -50,6 +63,7 @@ __all__ = [
     "TelegramLinkToken",
     "TelegramProcessedUpdate",
     "User",
+    "UserAlertPreference",
     "UserStatus",
     "role_permissions",
     "user_roles",

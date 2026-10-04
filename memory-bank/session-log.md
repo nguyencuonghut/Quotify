@@ -1006,3 +1006,33 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B: ke hoach chi tiet
 - Tom tat: Soan ke hoach 1B (16 slice, hai dot alpha/beta) bang 4 agent khao sat va thi nghiem Telegram T7-T10. Phat hien chinh: ban dieu chinh mat tin neu nguon bi thay the truoc khi quet (them bang version da quet), D6 theo ngay lam viec 283 version/1030 dong, tai uoc luong 18,9 tin/tuan, gia bat thuong bi nhiem doc tham chieu, matplotlib +130MB khong ve duoc emoji, worker chua co TelegramClient va logging, worker-test co the dung bot that. Luu script phan tich vao docs/quotify/analysis-1b.
+
+## 2026-10-04 09:26:51Z - claude
+
+- Tieu de: Telegram 1B: đổi chu kỳ quét thành 30 giây (L27, QĐ-20)
+- Tom tat: Giữ cron quét + watermark, đổi chu kỳ 2 phút thành 30 giây (second={0,30}, cron gửi lệch pha 15/45). Chỉ ghi scan_runs khi có việc hoặc lỗi, nhịp tim last_run_at trên scan_state, thêm trần 30 tin trong 10 phút cho mỗi người. Đo lại D5(b) với ô 30 giây: 19,1 tin/tuần (trước 18,9), Trung bình và Lớn 7,6 không đổi. Enqueue sau commit và outbox trigger để dành cho 1C. Chỉ sửa tài liệu và hằng số SCAN_SLOT_SECONDS trong script phân tích.
+
+## 2026-10-04 09:35:04Z - claude
+
+- Tieu de: Telegram 1B: chốt Q1-Q7, tài khoản seed là tài khoản import
+- Tom tat: Q1-Q6 theo đề xuất. Q7: không làm tài khoản import riêng; admin hệ thống (AUTH_SEED_ADMIN_EMAIL) chỉ quản trị và import, không nhập tay, nên seed = import và không nhận tin. Cập nhật L17, RR-38, RR-46, Slice 0 (kiểm production tài khoản import và liên kết Telegram), kiểm thật trên dev cần liên kết Telegram vào tài khoản trưởng phòng thử. Đo dev: 4 job import đều do seed tải, 2.847 phiếu seed đều tạo ngày 19/08.
+
+## 2026-10-04 09:40:22Z - claude
+
+- Tieu de: Telegram 1B: L28 tài khoản Manager thử trên dev
+- Tom tat: Thêm L28: tài khoản Manager riêng trên dev (manager+user, không phải seed) để nhập liệu, chốt phiếu thử và nhận Telegram; β cần thêm tài khoản nhân viên; luật một thẻ có nút cho người vừa là trưởng phòng vừa là người nhập; tạo lại sau khi khôi phục DB dev. Cập nhật Slice 0, 5, 9, 13. Chưa tạo tài khoản.
+
+## 2026-10-04 10:04:48Z - claude
+
+- Tieu de: Telegram 1B Slice 0: thí nghiệm gửi thật, chốt L1-L26, đồng bộ tài liệu
+- Tom tat: Chạy thí nghiệm dương với bot dev: 40 tin liên tiếp không 429; sendPhoto multipart, nút 64 byte, caption 1024, văn bản 4096 đều ok; answerCallbackQuery hết hạn sau khoảng 15 giây (14s ok, 17s lỗi); editMessageText không dùng được trên tin ảnh, dùng editMessageCaption; message is not modified coi là thành công. Cập nhật L20, L22, L24, Slice 13, RR-36, Phụ lục A. Đồng bộ tài liệu cha, CONTEXT.md, Requirements.txt, quotify-implementation-plan.md. Tài khoản Manager thử dev đã tạo và liên kết. Còn kiểm production chỉ đọc do người dùng chạy.
+
+## 2026-10-04 10:08:09Z - claude
+
+- Tieu de: Telegram 1B Slice 0: kiểm production chỉ đọc khớp giả định
+- Tom tat: Kiểm production: role manager tồn tại, mọi job import do tài khoản seed, 2.847 phiếu seed đều tạo 19/08, 595 phiếu của 7 người thật, delivery_month và confirmed_at sạch, chưa có liên kết Telegram nào hiệu lực (liên kết seed đã thu hồi). Slice 0 hoàn tất, bước tiếp Slice 1.
+
+## 2026-10-04 10:21:44Z - claude
+
+- Tieu de: Telegram 1B Slice 1: nền tảng dữ liệu, quyền và API cấu hình
+- Tom tat: Thêm sáu bảng price_alert_* và user_alert_preferences (migration 20261004_1200), quyền price_alerts.manage và receive_all gán cho manager và admin bằng migration (20261004_1300), GET và PUT /price-alert-settings với watermark khi bật, audit price_alerts.settings_updated. 74 test mới, pytest 633 pass, ruff 62, mypy 13, bandit 16 không đổi. Xác minh thật trên dev. Sửa test Telegram cũ flaky (canary 555). Bước tiếp Slice 2.

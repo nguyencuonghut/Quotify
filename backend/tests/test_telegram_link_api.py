@@ -19,6 +19,8 @@ from app.models.telegram_account import TelegramAccount
 from app.services.telegram_link_service import IssuedLinkToken, TelegramLinkStatus
 
 BASE = "/api/v1/users/me/telegram"
+# Đủ dài và đủ lạ để không trùng ngẫu nhiên với UUID hay request id có trong `repr(event)`.
+LEAK_CANARY_TELEGRAM_ID = 7_400_100_555
 TOKEN = "T0kenForTests_abcdefghijklmnopqrstuvwxyz0123456"
 
 
@@ -266,8 +268,8 @@ async def test_unlinking_revokes_the_account_and_is_audited(harness: Harness) ->
     account = TelegramAccount(
         id=uuid4(),
         user_id=harness.user.id,
-        telegram_user_id=555,
-        chat_id=555,
+        telegram_user_id=LEAK_CANARY_TELEGRAM_ID,
+        chat_id=LEAK_CANARY_TELEGRAM_ID,
         status="active",
         linked_at=datetime.now(UTC),
     )
@@ -290,7 +292,7 @@ async def test_unlinking_revokes_the_account_and_is_audited(harness: Harness) ->
         "telegram_account_id": str(account.id),
         "reason": "user_unlink",
     }
-    assert "555" not in repr(event)
+    assert str(LEAK_CANARY_TELEGRAM_ID) not in repr(event)
 
 
 @pytest.mark.asyncio

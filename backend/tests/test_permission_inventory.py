@@ -143,6 +143,13 @@ def test_quotify_user_role_business_crud_permissions_are_seeded() -> None:
     assert user_role_permissions <= _load_seeded_permission_codes()
 
 
+def test_price_alert_permissions_are_seeded_but_not_granted_to_the_user_role() -> None:
+    price_alert_permissions = {"price_alerts.receive_all", "price_alerts.manage"}
+
+    assert price_alert_permissions <= _load_seeded_permission_codes()
+    assert price_alert_permissions.isdisjoint(_load_user_role_permission_codes())
+
+
 def _load_seeded_permission_codes() -> set[str]:
     tree = ast.parse(SEED_DATA_PATH.read_text(encoding="utf-8"), filename=str(SEED_DATA_PATH))
     for node in tree.body:

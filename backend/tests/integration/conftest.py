@@ -87,6 +87,38 @@ def integration_database_url() -> Iterator[str]:
 
 
 @pytest.fixture
+def empty_database_url() -> Iterator[str]:
+    """Database tạm TRỐNG (chưa chạy migration) cho test upgrade/downgrade từng bước."""
+    import asyncio
+
+    base_url = _configured_url()
+    if not base_url:
+        pytest.skip("Không có INTEGRATION_DATABASE_URL hoặc DATABASE_URL: bỏ qua test tích hợp.")
+
+    parsed = make_url(base_url)
+    database_name = f"mig_{uuid.uuid4().hex[:12]}"
+    admin_url = parsed.set(database="postgres")
+
+    async def run_admin(statement: str) -> None:
+        engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
+        try:
+            async with engine.connect() as connection:
+                await connection.execute(text(statement))
+        finally:
+            await engine.dispose()
+
+    try:
+        asyncio.run(run_admin(f'CREATE DATABASE "{database_name}"'))
+    except Exception as exc:  # không kết nối được máy chủ: không phải lỗi của test
+        pytest.skip(f"Không kết nối được PostgreSQL để chạy test tích hợp: {type(exc).__name__}")
+
+    try:
+        yield parsed.set(database=database_name).render_as_string(hide_password=False)
+    finally:
+        asyncio.run(run_admin(f'DROP DATABASE IF EXISTS "{database_name}" WITH (FORCE)'))
+
+
+@pytest.fixture
 async def db_engine(integration_database_url: str) -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(integration_database_url)
     try:
