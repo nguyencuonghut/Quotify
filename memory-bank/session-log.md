@@ -996,3 +996,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1A: xac minh voi bot dev that
 - Tom tat: Xac minh voi bot dev that (token trong .env, git bo qua): T2 getUpdates khi co webhook tra 409; T3 bam lai duong dan khi da Start van gui /start <ma 43 ky tu>, ma da dung bao khong hop le; T5 chan bot gui my_chat_member member->kicked va sendMessage tra 403 bot was blocked by the user, bo chan kicked->member kem /start tron; T5b chat not found 400. Lien ket that, blocked/active, /stop deu dung trong DB, audit, giao dien. Con lai: webhook HTTPS/VPS, doi tai khoan Telegram thu hai, S5c, S6c, S7.
+
+## 2026-10-04 06:06:56Z - claude
+
+- Tieu de: Telegram 1A: S5c ma QR va S6c E2E toan chuoi
+- Tom tat: S5c: ma QR cho duong dan lien ket bang uqr (nap lui, chunk rieng 10KB, tu ve SVG path, khong v-html), da giai ma anh chup bang zbarimg o light/dark/390px. S6c: server Telegram gia co test, compose test them fake-telegram, backend-test ep tat Telegram de .env dev co bot that khong lot vao test, E2E profile-telegram-full chay 6 pass trong docker. 4 spec E2E cu loi san (audit-logs, quote-detail-filters, smoke, suppliers) da xac nhan loi y het voi compose goc. npm audit co 5 loi high co san khong lien quan uqr.
