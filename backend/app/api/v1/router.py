@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.alert_preferences import router as alert_preferences_router
 from app.api.v1.audit_logs import router as audit_logs_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.backups import router as backups_router
@@ -11,6 +12,9 @@ from app.api.v1.jobs import router as jobs_router
 from app.api.v1.material_types import router as material_types_router
 from app.api.v1.materials import router as materials_router
 from app.api.v1.permissions import router as permissions_router
+from app.api.v1.price_alert_material_thresholds import (
+    router as price_alert_material_thresholds_router,
+)
 from app.api.v1.price_alerts import router as price_alerts_router
 from app.api.v1.quote_backfill_imports import router as quote_backfill_imports_router
 from app.api.v1.quotes import router as quotes_router
@@ -23,6 +27,8 @@ from app.api.v1.telegram_link import router as telegram_link_router
 from app.api.v1.users import router as users_router
 
 router = APIRouter()
+# Đăng ký trước users_router để `/users/me/...` không rơi vào `/users/{user_id}`.
+router.include_router(alert_preferences_router)
 router.include_router(audit_logs_router)
 router.include_router(auth_router)
 router.include_router(backups_router)
@@ -41,6 +47,7 @@ router.include_router(quote_backfill_imports_router)
 router.include_router(quotify_dashboard_router)
 router.include_router(permissions_router)
 router.include_router(price_alerts_router)
+router.include_router(price_alert_material_thresholds_router)
 router.include_router(quotify_settings_router)
 router.include_router(roles_router)
 router.include_router(users_router)
