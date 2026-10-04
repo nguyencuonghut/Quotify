@@ -499,9 +499,17 @@ Biết **version nào được quét** và **dòng nào của nó tham gia đán
 
 ### Tiêu chí chấp nhận
 
-- [ ] Mọi trường hợp của L1, L3 và D6 có test (thuần hoặc PostgreSQL thật).
-- [ ] Số version đủ điều kiện D6 trên DB dev khớp số đo (283 version và 1.030 dòng, theo `received_date` đến ngày chốt) khi chạy hàm trên dữ liệu thật.
-- [ ] Baseline không xấu hơn.
+- [x] Mọi trường hợp của L1, L3 và D6 có test (thuần hoặc PostgreSQL thật).
+- [x] Số version đủ điều kiện D6 trên DB dev khớp số đo (283 version và 1.030 dòng, theo `received_date` đến ngày chốt) khi chạy hàm trên dữ liệu thật.
+- [x] Baseline không xấu hơn.
+
+### Kết quả (2026-10-04)
+
+- `services/price_alert_candidates.py`: `select_versions_to_scan` (L3), `trigger_delay_working_days` và `is_trigger_source` (D6, giờ VN, NULL-safe), `select_candidate_lines` (L1, hàm thuần), `resolve_candidate_lines`, `record_scanned_version` (L2, idempotent). Helper test `create_quote_shell`, `create_version_with_lines`.
+- 30 test mới (20 thuần, 10 PostgreSQL thật). pytest 737 pass; ruff 62, mypy 13, bandit 16 không đổi. Đột biến (bỏ trừ tập đa, bỏ overlap 5 phút, bỏ đổi múi giờ VN) đều bị test bắt.
+- **Dev:** chạy trên dữ liệu thật cho đúng **283 version nguồn kích hoạt và 1.030 dòng**, khớp số đo.
+- **Rà soát agent độc lập đã bổ sung:** một version mới có thể thay thế nhiều version cũ (`confirm_version` lặp qua danh sách), nên nguồn được lấy là tập mọi version trỏ về nó: chỉ so tập đa khi mọi nguồn đã quét và cùng `received_date`; test biên overlap nghiêm ngặt; test phiếu hủy rồi kích hoạt lại không phát lại version chốt trước watermark (nhờ L3, cần watermark của Slice 5 để đúng).
+- **Lưu ý cho Slice 5:** `resolve_candidate_lines` đọc nguồn bằng truy vấn riêng, nên lần quét phải chạy dưới khóa advisory (L8e) và cùng một giao dịch; D6 mục 3 (phiếu chưa hủy) chỉ xét lúc chọn version.
 
 ### Rollback
 

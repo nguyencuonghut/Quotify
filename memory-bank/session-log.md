@@ -1046,3 +1046,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B Slice 3: lõi đánh giá R1/R2/R3
 - Tom tat: Thêm price_alert_rules.py (evaluate_change), 32 test gồm đối chiếu cài đặt độc lập và ba ví dụ D2; agent rà soát bổ sung lọc điểm trước ngày mới và gộp trùng ngày. pytest 707 pass.
+
+## 2026-10-04 10:43:42Z - claude
+
+- Tieu de: Telegram 1B Slice 4: nguồn kích hoạt và dòng ứng viên
+- Tom tat: Thêm price_alert_candidates.py, 30 test, khớp 283 version và 1.030 dòng trên dev, agent rà soát bổ sung nhiều version nguồn.

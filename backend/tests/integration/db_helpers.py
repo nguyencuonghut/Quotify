@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import itertools
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -188,3 +189,72 @@ async def create_priced_line(
         session.add(line)
         await session.commit()
     return version.id, line.id
+
+
+async def create_quote_shell(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    created_by_id: uuid.UUID | None = None,
+    cancelled: bool = False,
+) -> uuid.UUID:
+    suffix = uuid.uuid4().hex[:8].upper()
+    async with session_factory() as session:
+        supplier = Supplier(code=f"IT{suffix}", name="Nhà cung cấp thử", supplier_type="domestic")
+        session.add(supplier)
+        await session.flush()
+        quote = Quote(
+            supplier_id=supplier.id,
+            created_by_id=created_by_id,
+            cancelled_at=datetime.now(UTC) if cancelled else None,
+        )
+        session.add(quote)
+        await session.commit()
+    return quote.id
+
+
+async def create_version_with_lines(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    quote_id: uuid.UUID,
+    version_number: int,
+    received_date: date,
+    lines: Sequence[tuple[uuid.UUID, int | str, date]],
+    status: str = "confirmed",
+    confirmed_at: datetime | None = None,
+    supersedes_version_id: uuid.UUID | None = None,
+) -> tuple[uuid.UUID, list[uuid.UUID]]:
+    """Dựng version nhiều dòng `(material_id, giá, delivery_month)`, có thể thay thế version cũ."""
+    moment = confirmed_at or datetime.now(UTC)
+    async with session_factory() as session:
+        version = QuoteVersion(
+            quote_id=quote_id,
+            version_number=version_number,
+            received_date=received_date,
+            status=status,
+            confirmed_at=moment if status in ("confirmed", "superseded") else None,
+        )
+        session.add(version)
+        await session.flush()
+        line_ids: list[uuid.UUID] = []
+        for order, (material_id, price, delivery_month) in enumerate(lines):
+            line = QuoteLine(
+                quote_version_id=version.id,
+                material_id=material_id,
+                price_original=Decimal(price),
+                currency="VND",
+                unit="KG",
+                delivery_month=delivery_month,
+                line_order=order,
+                price_converted_vnd_per_kg=Decimal(price),
+            )
+            session.add(line)
+            await session.flush()
+            line_ids.append(line.id)
+        if supersedes_version_id is not None:
+            old = await session.get(QuoteVersion, supersedes_version_id)
+            assert old is not None
+            old.status = "superseded"
+            old.superseded_at = moment
+            old.superseded_by_version_id = version.id
+        await session.commit()
+    return version.id, line_ids
