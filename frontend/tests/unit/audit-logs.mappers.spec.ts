@@ -105,4 +105,51 @@ describe('audit log mappers', () => {
     expect(result.items[0].actionLabel).toBe('Đăng nhập thất bại')
     expect(result.items[0].changeSummary).toBe('Không thay đổi dữ liệu')
   })
+
+  it.each([
+    [
+      'telegram.link_requested',
+      'telegram_link_token',
+      'Yêu cầu liên kết Telegram',
+      'Mã liên kết Telegram',
+    ],
+    [
+      'telegram.linked',
+      'telegram_account',
+      'Liên kết Telegram',
+      'Liên kết Telegram',
+    ],
+    [
+      'telegram.link_rejected',
+      'telegram_link_token',
+      'Từ chối liên kết Telegram',
+      'Mã liên kết Telegram',
+    ],
+    [
+      'telegram.unlinked',
+      'telegram_account',
+      'Hủy liên kết Telegram',
+      'Liên kết Telegram',
+    ],
+  ])(
+    'labels the Telegram event %s in Vietnamese',
+    (action, entityType, actionLabel, entityTypeLabel) => {
+      const result = mapAuditLogDtoToDomain({
+        id: 'log-tg',
+        actor_user_id: 'user-1',
+        actor_email: 'an@example.com',
+        action,
+        entity_type: entityType,
+        entity_id: 'entity-1',
+        request_id: 'tg-update-1',
+        ip_address: null,
+        metadata: { channel: 'telegram', reason: 'stop_command' },
+        created_at: '2026-10-04T02:00:00+00:00',
+      })
+
+      expect(result.actionLabel).toBe(actionLabel)
+      expect(result.entityTypeLabel).toBe(entityTypeLabel)
+      expect(result.targetLabel).toBe('entity-1')
+    },
+  )
 })

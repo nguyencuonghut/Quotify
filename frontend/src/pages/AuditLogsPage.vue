@@ -287,6 +287,10 @@ const actionFilterOptions = [
   { label: 'Xuất danh sách người dùng', value: 'users.export_completed' },
   { label: 'Backup hoàn tất', value: 'backups.run_completed' },
   { label: 'Backup thất bại', value: 'backups.run_failed' },
+  { label: 'Yêu cầu liên kết Telegram', value: 'telegram.link_requested' },
+  { label: 'Liên kết Telegram', value: 'telegram.linked' },
+  { label: 'Từ chối liên kết Telegram', value: 'telegram.link_rejected' },
+  { label: 'Hủy liên kết Telegram', value: 'telegram.unlinked' },
 ]
 const entityTypeFilterOptions = [
   { label: 'Người dùng', value: 'user' },
@@ -297,6 +301,8 @@ const entityTypeFilterOptions = [
   { label: 'Lần backup', value: 'backup_log' },
   { label: 'Lượt nhập dữ liệu', value: 'import_job' },
   { label: 'Lượt xuất dữ liệu', value: 'export_job' },
+  { label: 'Liên kết Telegram', value: 'telegram_account' },
+  { label: 'Mã liên kết Telegram', value: 'telegram_link_token' },
 ]
 
 function actionSeverity(action: string) {

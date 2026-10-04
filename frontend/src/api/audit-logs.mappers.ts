@@ -36,6 +36,10 @@ const ACTION_LABELS: Record<string, string> = {
   'roles.role_created': 'Tạo vai trò',
   'roles.role_deleted': 'Xóa vai trò',
   'roles.role_updated': 'Cập nhật vai trò',
+  'telegram.link_requested': 'Yêu cầu liên kết Telegram',
+  'telegram.linked': 'Liên kết Telegram',
+  'telegram.link_rejected': 'Từ chối liên kết Telegram',
+  'telegram.unlinked': 'Hủy liên kết Telegram',
 }
 
 const ENTITY_TYPE_LABELS: Record<string, string> = {
@@ -46,6 +50,8 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   file: 'Tệp',
   import_job: 'Lượt nhập dữ liệu',
   role: 'Vai trò',
+  telegram_account: 'Liên kết Telegram',
+  telegram_link_token: 'Mã liên kết Telegram',
   user: 'Người dùng',
 }
 
