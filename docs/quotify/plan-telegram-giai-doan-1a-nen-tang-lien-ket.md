@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-**ĐÃ TRIỂN KHAI TRÊN DEV (cập nhật 2026-10-04).** Backend S1 đến S4, frontend S5a, S5b, S5c, nhãn audit S6a, tài liệu và hồi quy S6b, E2E S6c đã xong và commit trên nhánh `feat/telegram-1a-foundation` (chưa push, chưa merge vào `main`). **Chưa làm:** Slice 7 (production, thao tác trên VPS), phần hạ tầng của Slice 0 (VPS ra được `api.telegram.org`, Telegram vào được cổng 443), và kiểm chứng đổi tài khoản bằng một tài khoản Telegram thứ hai. Tính năng **tắt mặc định** (`TELEGRAM_ENABLED=false`) nên merge không làm đổi hành vi nhìn thấy trên production.
+**ĐÃ TRIỂN KHAI TRÊN DEV VÀ PRODUCTION (cập nhật 2026-10-04); tính năng đã BẬT trên production.** Backend S1 đến S4, frontend S5a, S5b, S5c, nhãn audit S6a, tài liệu và hồi quy S6b, E2E S6c đã xong và commit trên nhánh `feat/telegram-1a-foundation` (đã merge vào `main`). Slice 7 xong cùng ngày: production đã chạy code mới, `TELEGRAM_ENABLED=true`, webhook đã đặt. **Còn lại:** kiểm chứng đổi tài khoản bằng một tài khoản Telegram thứ hai (cả dev và production).
 
 Phần còn lại của tài liệu giữ nguyên là **kế hoạch gốc** (ngày soạn 2026-10-03, bản 3, đồng bộ với tài liệu cha ngày 2026-10-04). Kết quả thực tế, các chỗ lệch so với kế hoạch và việc còn lại nằm ở mục "Kết Quả Triển Khai" ngay sau đây.
 
@@ -33,7 +33,7 @@ Cách soạn:
 | 6a Nhãn audit | Xong | |
 | 6b Vận hành, tài liệu | Xong | Runbook mục 12, `CONTEXT.md`, memory-bank |
 | 6c E2E toàn chuỗi với Telegram giả | Xong | `profile-telegram-full.spec.ts` chạy 6/6 (cùng E2E-A) trong stack docker test |
-| 7 Production | **Chưa làm** | Cần bot production riêng và thao tác trên VPS theo runbook mục 12 |
+| 7 Production | **Xong (2026-10-04)** | Deploy với cờ tắt, migration `20261004_1000` và `20261004_1100`, bật cờ, đặt webhook, đăng ký lệnh, liên kết/hủy thật; bot production `@HonghaQuotifyBot` |
 
 ### Số liệu kiểm chứng
 
@@ -375,7 +375,7 @@ Chốt điều kiện ngoài code và các điểm Telegram chưa nêu rõ **tr�
 
 - [x] Có bot dev, token trong `.env` dev, không có trong git.
 - [x] Phụ lục A điền xong T2, T3, T5, T5b. Nếu kết quả khác giả định thì sửa quyết định liên quan trước Slice 1.
-- [ ] Hạ tầng production: ra ngoài được, chứng chỉ hợp lệ, vào được từ mạng ngoài, DNS ổn. Nếu không đạt thì dừng và xử lý trước khi sang Slice 2. *(CHƯA: việc trên VPS, thuộc Slice 7)*
+- [x] Hạ tầng production: ra ngoài được, chứng chỉ hợp lệ, vào được từ mạng ngoài, DNS ổn. Nếu không đạt thì dừng và xử lý trước khi sang Slice 2. *(2026-10-04: VPS gọi ra `api.telegram.org` (HTTP 302), `/health` truy cập được từ 4G, chứng chỉ Let's Encrypt đúng domain còn hạn đến 2026-11-17, DNS có A đúng IP VPS và không có AAAA, nginx dùng `prod.conf`)*
 - [x] K1 đến K19 và bộ tin nhắn được xác nhận (hoặc sửa), bao gồm quyết định K18. *(người dùng ủy quyền cho agent quyết ngày 2026-10-04; đã rà và giữ nguyên, K18 giữ lớp test tích hợp)*
 - [x] Các tài liệu ở mục 5 được cập nhật và commit. *(`CONTEXT.md`, `Requirements.txt`, `quotify-implementation-plan.md`, tài liệu cha)*
 
@@ -811,10 +811,10 @@ Tiêu chí: quét được mã bằng điện thoại thật ở light và dark;
 
 ### Tiêu chí chấp nhận
 
-- [ ] Webhook đăng ký được, `getWebhookInfo` sạch lỗi sau tin thật. *(CHƯA: Slice 7)*
-- [ ] Liên kết, đổi, hủy chạy trên production với một tài khoản thử, có audit. *(CHƯA: Slice 7)*
-- [ ] Mọi chức năng cũ không đổi. Production không thấy panel trước khi bật. *(CHƯA: Slice 7)*
-- [ ] Token bot không có trong log và span. *(CHƯA: Slice 7)*
+- [x] Webhook đăng ký được, `getWebhookInfo` sạch lỗi sau tin thật. *(2026-10-04: `pending_update_count: 0`, `last_error_message: None` sau khi có tin thật)*
+- [ ] Liên kết, đổi, hủy chạy trên production với một tài khoản thử, có audit. *(CHƯA: liên kết, `/help` và hủy đã chạy trên production với tài khoản của chủ dự án và có audit (`link_requested`, `linked`, `unlinked`); chưa thử đổi sang Telegram thứ hai)*
+- [x] Mọi chức năng cũ không đổi. Production không thấy panel trước khi bật. *(đã kiểm bằng trình duyệt sau deploy với cờ tắt: không có panel, avatar/đổi mật khẩu/dữ liệu bình thường; 10 người dùng, 3.437 phiếu, 21.110 dòng nguyên vẹn sau migration)*
+- [x] Token bot không có trong log và span. *(log backend và worker: 0 lần trước và sau khi chạy thật; span: chưa có `otel-collector` chạy trên VPS nên không có span nào được thu, và host Telegram đã được loại khỏi OTel httpx)*
 
 ### Rollback (theo thứ tự, không đảo)
 

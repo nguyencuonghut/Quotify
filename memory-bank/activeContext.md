@@ -102,4 +102,4 @@ The repository has been prepared with:
 
 1. Điều tra nợ kỹ thuật frontend đang chặn quality gate toàn repo: `make docker-test-frontend` fail ở lint/typecheck do các lỗi hiện hữu trong cụm Quote/QuoteEditor/QuoteDetail/QuotesPage và một warning CSS `:deep(...)` trong backup style; các file Phase 9 Frontend đã qua lint mục tiêu và unit test mục tiêu.
 2. Nếu muốn hoàn tất Slice 15 của `docs/quotify/plan-ui-ux-improvements.md` (đồng bộ tính năng 3 chart Dashboard), cần quyết định sản phẩm từ người yêu cầu trước — không tự ý code.
-3. Telegram 1A: còn S7 (đưa lên production, thao tác trên VPS theo runbook mục 12, cần bot production riêng và kiểm tra VPS ↔ `api.telegram.org`/cổng 443), và thử đổi tài khoản bằng tài khoản Telegram thứ hai. Bot dev `@HHQuotifyBot` đã có, T2/T3/T5/T5b đã đo. K1–K19 đã chốt giữ nguyên ngày 2026-10-04 (người dùng ủy quyền cho agent quyết); S5c và S6c đã xong.
+3. Telegram 1A đã lên production ngày 2026-10-04 (S7 xong, cờ bật). Còn lại: thử đổi tài khoản bằng Telegram thứ hai, rồi soạn kế hoạch 1B (tính biến động và gửi thông báo giá). Bot dev `@HHQuotifyBot`, production `@HonghaQuotifyBot`.

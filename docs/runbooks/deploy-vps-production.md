@@ -357,9 +357,12 @@ trường trước:
 
 ```bash
 export COMPOSE_FILE=docker-compose.prod.yml
+export POSTGRES_DB=quotify    # tên database production (xem POSTGRES_DB trong .env); script mặc định là "app" và KHÔNG đọc .env
 bash scripts/ops/backup-postgres.sh
 bash scripts/ops/backup-minio.sh
 ```
+
+Nếu quên `POSTGRES_DB`, `pg_dump` báo `database "app" does not exist` và để lại file `postgres.sql.gz` **20 byte** (không phải backup). Luôn kiểm tra kích thước và `gzip -t` file vừa tạo, ví dụ: `LATEST=$(ls -1dt backups/*/ | head -1); ls -lh "$LATEST"; gzip -t "$LATEST"postgres.sql.gz && zcat "$LATEST"postgres.sql.gz | grep -c "CREATE TABLE"`.
 
 Kiểm tra file backup vừa tạo có kích thước hợp lý (không phải file rỗng
 0 byte) trước khi đi tiếp:
@@ -809,3 +812,11 @@ Kiểm tra: `me` phải in đúng `@HonghaQuotifyBot` (nếu không, script từ
 Từ lúc bật cờ, panel Telegram hiện cho **mọi** người dùng; nên báo trước trong nhóm nội bộ.
 
 **G. Tắt khẩn cấp (đúng thứ tự, mục 12.5)**: `delete --yes` trước, rồi `TELEGRAM_ENABLED=false`, `up -d --force-recreate backend`, `restart reverse-proxy`.
+
+**Bài học từ lần triển khai đầu (2026-10-04)**
+
+- Backup Postgres: script không đọc `.env`, phải `export POSTGRES_DB=quotify` (đã ghi vào mục 9.2).
+- `dig` không có sẵn trên VPS; dùng `getent ahostsv4 <domain>` và `getent ahostsv6 <domain>` (kết quả `::ffff:<IPv4>` chỉ là IPv4 ánh xạ, không phải bản ghi AAAA thật).
+- Nhập token bằng `read -rs`: kiểm tra **độ dài** (khoảng 45 đến 47) trước khi ghi; dán hai lần sẽ cho độ dài khoảng 92 và Telegram trả "Not Found". Sau khi ghi, kiểm định dạng: `grep -c -E '^TELEGRAM_BOT_TOKEN=[0-9]{8,12}:[A-Za-z0-9_-]{35}$' .env` phải in `1`. Chạy `read` và `sed` thành **hai lệnh riêng**; nếu chạy `sed` khi biến rỗng thì `.env` bị ghi token rỗng.
+- Log backend production có cảnh báo OpenTelemetry không tìm thấy `otel-collector` khi stack observability chưa chạy; đã có sẵn từ trước, không liên quan Telegram.
+- Sau khi bật, xóa bản sao `.env` có chứa token (`shred -u .env.bak-before-enable`).
