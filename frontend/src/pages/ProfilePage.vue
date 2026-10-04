@@ -272,40 +272,66 @@
             </p>
 
             <template v-if="telegramDeepLink && !isTelegramExpired">
-              <div class="profile-page__telegram-link-row">
-                <input
-                  class="p-inputtext profile-page__telegram-link-input"
-                  type="text"
-                  readonly
-                  aria-label="Đường dẫn liên kết Telegram"
-                  :value="telegramDeepLink"
-                  data-testid="profile-telegram-link-input"
-                />
-                <Button
-                  as="a"
-                  icon="pi pi-external-link"
-                  label="Mở Telegram"
-                  :href="telegramDeepLink"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-testid="profile-telegram-open-link"
-                />
-                <Button
-                  type="button"
-                  severity="secondary"
-                  outlined
-                  :icon="isTelegramCopied ? 'pi pi-check' : 'pi pi-copy'"
-                  :label="
-                    isTelegramCopied ? 'Đã sao chép' : 'Sao chép đường dẫn'
-                  "
-                  data-testid="profile-telegram-copy-button"
-                  @click="copyTelegramLink"
-                />
+              <div class="profile-page__telegram-pending-body">
+                <svg
+                  v-if="telegramQr"
+                  class="profile-page__telegram-qr"
+                  role="img"
+                  aria-label="Mã QR của đường dẫn liên kết Telegram. Quét bằng điện thoại để mở Telegram."
+                  shape-rendering="crispEdges"
+                  :viewBox="`0 0 ${telegramQr.size} ${telegramQr.size}`"
+                  data-testid="profile-telegram-qr"
+                >
+                  <rect
+                    class="profile-page__telegram-qr-background"
+                    :width="telegramQr.size"
+                    :height="telegramQr.size"
+                  />
+                  <path
+                    class="profile-page__telegram-qr-modules"
+                    :d="telegramQr.path"
+                  />
+                </svg>
+                <div class="profile-page__telegram-pending-copy">
+                  <div class="profile-page__telegram-link-row">
+                    <input
+                      class="p-inputtext profile-page__telegram-link-input"
+                      type="text"
+                      readonly
+                      aria-label="Đường dẫn liên kết Telegram"
+                      :value="telegramDeepLink"
+                      data-testid="profile-telegram-link-input"
+                    />
+                    <Button
+                      as="a"
+                      icon="pi pi-external-link"
+                      label="Mở Telegram"
+                      :href="telegramDeepLink"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="profile-telegram-open-link"
+                    />
+                    <Button
+                      type="button"
+                      severity="secondary"
+                      outlined
+                      :icon="isTelegramCopied ? 'pi pi-check' : 'pi pi-copy'"
+                      :label="
+                        isTelegramCopied ? 'Đã sao chép' : 'Sao chép đường dẫn'
+                      "
+                      data-testid="profile-telegram-copy-button"
+                      @click="copyTelegramLink"
+                    />
+                  </div>
+                  <small class="profile-page__hint">
+                    Mở đường dẫn trong ứng dụng Telegram rồi bấm Start. Đường
+                    dẫn chỉ dùng được một lần.
+                  </small>
+                  <small v-if="telegramQr" class="profile-page__hint">
+                    Hoặc quét mã QR bằng camera điện thoại.
+                  </small>
+                </div>
               </div>
-              <small class="profile-page__hint">
-                Mở đường dẫn trong ứng dụng Telegram rồi bấm Start. Đường dẫn
-                chỉ dùng được một lần.
-              </small>
             </template>
             <small
               v-else-if="!telegramDeepLink"
@@ -450,6 +476,7 @@ import Password from 'primevue/password'
 import { computed, onMounted } from 'vue'
 
 import { useProfilePage } from '@/composables/useProfilePage'
+import { useQrCode } from '@/composables/useQrCode'
 import { useTelegramLink } from '@/composables/useTelegramLink'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 
@@ -499,6 +526,8 @@ const {
   startLinking: startTelegramLinking,
   successMessage: telegramSuccessMessage,
 } = useTelegramLink()
+
+const { qr: telegramQr } = useQrCode(telegramDeepLink)
 
 const telegramBusyTitle = computed(() =>
   isTelegramBusy.value ? 'Đang xử lý, vui lòng đợi.' : undefined,

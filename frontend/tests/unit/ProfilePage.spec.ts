@@ -39,10 +39,17 @@ interface TelegramState {
   successMessage: Ref<string | null>
 }
 
-const holder = vi.hoisted(() => ({ telegram: null as unknown }))
+const holder = vi.hoisted(() => ({
+  telegram: null as unknown,
+  qr: null as unknown,
+}))
 
 vi.mock('@/composables/useTelegramLink', () => ({
   useTelegramLink: () => holder.telegram,
+}))
+
+vi.mock('@/composables/useQrCode', () => ({
+  useQrCode: () => ({ qr: holder.qr }),
 }))
 
 vi.mock('@/composables/useProfilePage', () => ({
@@ -109,8 +116,12 @@ function makeTelegram(overrides: Partial<TelegramState> = {}): TelegramState {
 
 let wrapper: VueWrapper | null = null
 
-function mountPage(telegram: TelegramState) {
+function mountPage(
+  telegram: TelegramState,
+  qr: { path: string; size: number } | null = null,
+) {
   holder.telegram = telegram
+  holder.qr = ref(qr)
   wrapper = mount(ProfilePage, {
     global: {
       stubs: {
@@ -342,5 +353,51 @@ describe('ProfilePage Telegram panel', () => {
       'đã hết hạn',
     )
     expect(byTestId('profile-telegram-open-link').exists()).toBe(false)
+  })
+
+  it('shows a QR code of the pending link when one is available', () => {
+    mountPage(
+      makeTelegram({
+        isPending: ref(true),
+        deepLink: ref(DEEP_LINK),
+        mode: ref<TelegramLinkMode>('pending'),
+      }),
+      { path: 'M4 4h1v1h-1z', size: 13 },
+    )
+
+    const svg = byTestId('profile-telegram-qr')
+    expect(svg.exists()).toBe(true)
+    expect(svg.attributes('role')).toBe('img')
+    expect(svg.attributes('aria-label')).toContain('Mã QR')
+    expect(svg.attributes('viewBox')).toBe('0 0 13 13')
+    expect(svg.find('path').attributes('d')).toBe('M4 4h1v1h-1z')
+  })
+
+  it('works without a QR code', () => {
+    mountPage(
+      makeTelegram({
+        isPending: ref(true),
+        deepLink: ref(DEEP_LINK),
+        mode: ref<TelegramLinkMode>('pending'),
+      }),
+      null,
+    )
+
+    expect(byTestId('profile-telegram-qr').exists()).toBe(false)
+    expect(byTestId('profile-telegram-open-link').exists()).toBe(true)
+  })
+
+  it('never shows a QR code for an expired link', () => {
+    mountPage(
+      makeTelegram({
+        isPending: ref(true),
+        isExpired: ref(true),
+        deepLink: ref(DEEP_LINK),
+        mode: ref<TelegramLinkMode>('pending'),
+      }),
+      { path: 'M4 4h1v1h-1z', size: 13 },
+    )
+
+    expect(byTestId('profile-telegram-qr').exists()).toBe(false)
   })
 })

@@ -106,6 +106,7 @@ test('links a first Telegram account and shows the result once Telegram complete
   const open = page.getByTestId('profile-telegram-open-link')
   await expect(open).toHaveAttribute('href', DEEP_LINK)
   await expect(open).toHaveAttribute('target', '_blank')
+  await expect(page.getByTestId('profile-telegram-qr')).toBeVisible()
   await expect(page.getByTestId('profile-telegram-countdown')).toContainText(
     'còn hiệu lực',
   )

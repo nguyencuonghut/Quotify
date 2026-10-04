@@ -7,6 +7,9 @@
   --app-border-strong: #dcdcdc;
   --app-danger: #ef4444;
   --app-info: #0ea5e9;
+  // Mã QR luôn đen trên trắng ở cả hai giao diện, nếu không điện thoại không quét được.
+  --app-qr-bg: #ffffff;
+  --app-qr-fg: #000000;
   --app-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --app-success: #10b981;
   --app-surface-ground: #ffffff;
@@ -51,6 +54,8 @@
   --app-border-strong: #334155;
   --app-danger: #f87171;
   --app-info: #38bdf8;
+  --app-qr-bg: #ffffff;
+  --app-qr-fg: #000000;
   --app-shadow-sm: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
   --app-success: #4ade80;
   --app-surface-ground: #090d16;

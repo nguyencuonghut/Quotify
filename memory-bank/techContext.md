@@ -246,6 +246,14 @@
   - `frontend/dist` có thể thuộc root (do Docker) khiến `vite build` lỗi `EACCES`; build ra thư mục khác bằng `npx vite build --outDir <thư mục tạm> --emptyOutDir`
   - xác minh tay: backend thật + `fake_telegram.py` + Vite dev, chụp light/dark/390px bằng Playwright; `update_id` gửi vào webhook phải khác nhau giữa các lần chạy vì chống trùng
 
+- Verified QR code for the Telegram link (2026-10-04):
+  - dependency `uqr@0.1.3` (MIT, không có dependency con, `sideEffects: false`); chỉ dùng `encode()` để lấy ma trận ô, tự vẽ `<path>` SVG ở `frontend/src/utils/qr-path.ts`, không `v-html`, không dịch vụ QR ngoài vì đường dẫn chứa mã dùng một lần
+  - nạp lười bằng `import('uqr')` trong `useQrCode`; `vite build` tách thành chunk riêng khoảng 10 KB, không vào bundle chính
+  - token `--app-qr-bg` (`#ffffff`) và `--app-qr-fg` (`#000000`) cố định ở cả light và dark
+  - kiểm bằng cách chụp ảnh trình duyệt thật rồi giải mã bằng `zbarimg` (light, dark, 390px): khớp đúng đường dẫn
+  - npm 12 chuẩn hóa lại toàn bộ cờ `dev` khi `npm install`, gây nhiễu hàng chục dòng trong `package-lock.json`; khi thêm gói hãy khôi phục lock rồi chỉ thêm mục của gói mới, và kiểm bằng `npm ci --dry-run`
+  - `make frontend-dependency-audit` đang báo 5 lỗi mức cao có sẵn (`brace-expansion`, `immutable`...) không liên quan `uqr`; chưa chạy `npm audit fix`
+
 ## Planned Stack
 
 - Backend: FastAPI `0.136.3`, Python `3.12` or `3.13` target, Pydantic v2, SQLAlchemy, Alembic
