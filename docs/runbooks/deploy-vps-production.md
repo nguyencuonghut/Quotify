@@ -521,3 +521,149 @@ nối lại.
   qua trình duyệt: `ssh -N -L 9001:127.0.0.1:9001 <ssh-user>@<vps-ip>`, rồi mở
   `http://localhost:9001` trên máy cá nhân (MinIO console hiện cũng không
   publish port ra ngoài).
+
+## 12. Thông báo Telegram (liên kết tài khoản, giai đoạn 1A)
+
+Tính năng này **tắt mặc định** (`TELEGRAM_ENABLED=false`). Khi tắt: `GET /api/v1/users/me/telegram`
+vẫn trả 200 với `enabled=false` (trang Hồ sơ tự ẩn panel Telegram), `POST .../link-token`
+trả 503, webhook `POST /api/v1/telegram/webhook` trả 404. Nghĩa là deploy code mới
+**không làm đổi gì người dùng nhìn thấy** cho tới khi bạn chủ động bật ở mục 12.4.
+
+### 12.1 Biến môi trường
+
+Tất cả đã có sẵn trong `.env.production.example`. `docker-compose.prod.yml` nạp `.env`
+vào `backend` bằng `env_file`, nên không cần sửa file compose.
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---|---|
+| `TELEGRAM_ENABLED` | `false` | Công tắc tổng. Đặt `true` mới bật liên kết và webhook |
+| `TELEGRAM_MODE` | `webhook` | `webhook` (production) hoặc `polling` (chỉ dev). Webhook trả 404 nếu mode không phải `webhook` |
+| `TELEGRAM_BOT_TOKEN` hoặc `TELEGRAM_BOT_TOKEN_FILE` | rỗng | Token từ @BotFather. **Bí mật**, không commit, không dán vào chat/ticket |
+| `TELEGRAM_BOT_USERNAME` | rỗng | Username bot, có hay không có `@` đều được (hệ thống tự bỏ `@`). Dùng để dựng đường dẫn `https://t.me/<bot>?start=<mã>` và để đối chiếu với `getMe` |
+| `TELEGRAM_WEBHOOK_SECRET` hoặc `..._FILE` | rỗng | Chuỗi Telegram gửi kèm mỗi request (header `X-Telegram-Bot-Api-Secret-Token`). Chỉ cho phép `A-Z a-z 0-9 _ -`, tối đa 256 ký tự |
+| `TELEGRAM_WEBHOOK_URL` | rỗng | URL HTTPS công khai của webhook, dùng cho lệnh `set` |
+| `TELEGRAM_API_BASE_URL` | `https://api.telegram.org` | Chỉ đổi khi test với Telegram giả |
+| `TELEGRAM_HTTP_TIMEOUT_SECONDS` | `10` | Timeout gọi Telegram |
+| `RATE_LIMIT_TELEGRAM_LINK_TOKEN` | `5` | Số lần cấp đường dẫn liên kết tối đa mỗi người dùng trong `RATE_LIMIT_WINDOW_SECONDS` (60 giây) |
+
+Sinh secret webhook (**không** dùng `-base64`, vì có ký tự `+ / =` bị Telegram từ chối):
+
+```bash
+openssl rand -hex 32
+```
+
+### 12.2 Dev và production dùng hai bot khác nhau
+
+Mỗi môi trường một bot riêng (tạo bằng @BotFather: `/newbot`). Không bao giờ dùng token bot
+production trong `.env` dev. Các lệnh `set`, `delete`, `commands` in `@username` của bot và URL
+webhook hiện tại rồi **từ chối chạy** nếu `TELEGRAM_BOT_USERNAME` khác bot thật (exit 2), và
+chỉ thay đổi khi có `--yes`.
+
+### 12.3 Triển khai code mới (cờ vẫn tắt)
+
+Làm theo mục 9 như thường lệ. Điểm riêng của đợt này:
+
+1. Có **2 migration mới** (additive, tạo bảng `telegram_processed_updates`, `telegram_accounts`,
+   `telegram_link_tokens`): `20261004_1000`, `20261004_1100`. Chạy ở bước 9.5 bằng
+   `docker compose -f docker-compose.prod.yml run --rm backend uv run alembic upgrade head`.
+   Không sửa bảng cũ và không thêm cột vào `users`.
+2. Giữ `TELEGRAM_ENABLED=false` và điền sẵn `.env` theo bảng 12.1 (trừ `TELEGRAM_ENABLED`).
+3. Sau 9.7 kiểm tra: `/health`, `/ready`, đăng nhập, trang Hồ sơ cũ (đổi avatar, đổi mật khẩu)
+   vẫn chạy và **không thấy panel "Thông báo Telegram"**.
+4. Kiểm tra token không nằm trong log: so sánh bằng biến môi trường, không `echo` token ra màn hình:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml logs backend | grep -c -F "$(grep '^TELEGRAM_BOT_TOKEN=' .env | cut -d= -f2-)"
+   ```
+
+   Kết quả phải là `0`.
+
+### 12.4 Bật tính năng trên production
+
+Điều kiện: bot production đã tạo, VPS gọi ra được `https://api.telegram.org/`, và từ **mạng
+ngoài công ty** (ví dụ 4G) gọi được `https://quotify.honghafeed.com.vn/health`. Telegram yêu cầu
+HTTPS cổng 443/80/88/8443, TLS 1.2+, chứng chỉ có CN trùng domain và đủ chuỗi trung gian
+(Let's Encrypt dùng được), không hỗ trợ IPv6 và không theo redirect.
+
+1. Đặt `TELEGRAM_ENABLED=true` trong `.env`.
+2. Tạo lại backend rồi **restart `reverse-proxy`** (tạo lại `backend` đổi IP nội bộ, không restart
+   thì Nginx giữ IP cũ và toàn site trả 502, xem mục 9.7):
+
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d --force-recreate backend
+   docker compose -f docker-compose.prod.yml restart reverse-proxy
+   ```
+
+3. Đăng ký webhook và lệnh bot. Đối chiếu `@username` và URL in ra **trước khi** thêm `--yes`:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py set
+   docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py set --yes
+   docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py commands --yes
+   docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py info
+   ```
+
+4. Thử với **một** tài khoản: trang Hồ sơ → "Liên kết Telegram" → mở đường dẫn → Start → bot trả
+   "Đã liên kết". Thử `/help`, đổi sang tài khoản Telegram khác, rồi "Hủy liên kết". Xem
+   nhật ký audit (`telegram.link_requested`, `telegram.linked`, `telegram.unlinked`).
+5. **Sau khi có tin thật đi qua**, chạy lại `... telegram_webhook.py info`: kỳ vọng
+   `pending_update_count: 0` và `last_error_message: None`. Chỉ kiểm sau tin thật mới chứng minh Telegram
+   gọi vào được; kiểm ngay sau `set` luôn "sạch".
+6. Khi bật cờ, panel Telegram hiện cho **mọi** người dùng. "Nhóm thử" chỉ là quy ước thông báo nội
+   bộ, không phải cơ chế kỹ thuật.
+
+### 12.5 Tắt khẩn cấp (đúng thứ tự, không đảo)
+
+1. **Xóa webhook trước** (lệnh này chỉ cần token, không cần cờ bật):
+
+   ```bash
+   docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py delete --yes
+   ```
+
+   Nếu tắt cờ trước, backend trả 404, Telegram vẫn thử lại và dồn update trong 24 giờ.
+2. Đặt `TELEGRAM_ENABLED=false` trong `.env`.
+3. `docker compose -f docker-compose.prod.yml up -d --force-recreate backend`, rồi
+   `docker compose -f docker-compose.prod.yml restart reverse-proxy`.
+4. **Giữ nguyên schema**, không `alembic downgrade` trên production (bảng mới tương thích code cũ).
+
+### 12.6 Môi trường dev
+
+Dev dùng **polling** (không cần domain công khai).
+
+1. Tạo bot dev bằng @BotFather, đặt trong `.env` dev:
+   `TELEGRAM_ENABLED=true`, `TELEGRAM_MODE=polling`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`.
+2. Chạy migration (`make migrate`) rồi bật service poller (profile `telegram`):
+
+   ```bash
+   docker compose --profile telegram up -d telegram-poller
+   ```
+
+   Poller **từ chối chạy** khi `APP_ENV=production`, `TELEGRAM_ENABLED=false` hoặc
+   `TELEGRAM_MODE` khác `polling`. Nó tự gọi `deleteWebhook` khi khởi động vì `getUpdates` và
+   webhook loại trừ nhau.
+3. Muốn thử webhook thật trên dev (cần HTTPS công khai, ví dụ tunnel): đổi `TELEGRAM_MODE=webhook`,
+   dừng poller (`docker compose --profile telegram stop telegram-poller`), đặt `TELEGRAM_WEBHOOK_URL`
+   và `TELEGRAM_WEBHOOK_SECRET`, chạy `scripts/telegram_webhook.py set --yes`. Quay lại polling thì
+   chạy `delete --yes` rồi bật lại poller.
+4. **Sau khi khôi phục dump production vào dev** (từ lần deploy có bảng Telegram trở đi), chạy:
+
+   ```sql
+   TRUNCATE telegram_accounts, telegram_link_tokens, telegram_processed_updates;
+   ```
+
+   Nếu không, Telegram của người thật bị coi là "đang liên kết với người khác" trên dev, và các
+   giai đoạn gửi thông báo sau này có thể gửi nhầm từ dev.
+5. Test không cần bot thật: `docker compose` test stack hoặc `uv run pytest` dùng `httpx.MockTransport`.
+   Lớp test tích hợp PostgreSQL thật: `INTEGRATION_DATABASE_URL=... uv run pytest -m integration`.
+
+### 12.7 Xử lý sự cố
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| `POST link-token` trả 503 | `TELEGRAM_ENABLED=false` hoặc thiếu `TELEGRAM_BOT_USERNAME` | Kiểm tra `.env`, tạo lại `backend` |
+| Webhook trả 404 | Cờ tắt, `TELEGRAM_MODE` không phải `webhook`, hoặc chưa đặt `TELEGRAM_WEBHOOK_SECRET` | Kiểm tra `.env` |
+| Webhook trả 403 | Secret ở Telegram khác `TELEGRAM_WEBHOOK_SECRET` | Chạy lại `set --yes` |
+| `info` có `last_error_message` | Telegram không gọi vào được (chứng chỉ, tường lửa, DNS/AAAA) | Kiểm tra mục 12.4 phần điều kiện |
+| Người dùng bấm đường dẫn nhưng không liên kết | Đường dẫn hết hạn (10 phút), đã dùng, hoặc bị thay bởi đường dẫn mới hơn | Tạo đường dẫn mới trong trang Hồ sơ |
+| Bot báo "đang liên kết với một tài khoản Quotify khác" | Telegram đó đang giữ bởi người dùng khác còn hoạt động | Người kia hủy liên kết (web hoặc `/stop`); chủ cũ bị khóa/vô hiệu thì tự được giải phóng |
+| `docker compose ... logs` có chuỗi giống token | Không được xảy ra | Dừng ngay, thu hồi token ở @BotFather (`/revoke`), báo người phụ trách |

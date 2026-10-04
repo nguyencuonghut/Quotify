@@ -233,6 +233,19 @@
   - `bash scripts/compliance/check-production-readiness.sh`
   - `cd frontend && npm run lint && npm run typecheck && npm run test:unit`
 
+- Verified Telegram 1A backend (2026-10-04):
+  - biến môi trường mới: `TELEGRAM_ENABLED`, `TELEGRAM_BOT_TOKEN(_FILE)`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET(_FILE)`, `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_API_BASE_URL`, `TELEGRAM_MODE` (`webhook`|`polling`), `TELEGRAM_HTTP_TIMEOUT_SECONDS`, `RATE_LIMIT_TELEGRAM_LINK_TOKEN`
+  - chuỗi migration: `20260824_1000` → `20261004_1000` (`telegram_processed_updates`) → `20261004_1100` (`telegram_accounts`, `telegram_link_tokens`); `alembic heads` còn một head
+  - lớp test tích hợp DB thật: `INTEGRATION_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:55432/app uv run pytest -m integration` (tạo database `it_<ngẫu nhiên>` rồi xóa; không có URL thì skip)
+  - nếu `.ruff_cache` bị `Permission denied` (do chủ sở hữu root từ Docker), chạy `ruff --no-cache`, và `mypy --cache-dir=<thư mục tạm>`
+  - `alembic check` đang báo drift cũ ở `audit_logs`, `quote_lines`, `suppliers`... không liên quan Telegram; đừng "sửa" bằng `--autogenerate`
+
+- Verified Telegram 1A frontend (2026-10-04):
+  - `cd frontend && npx vitest run` (234 pass, đúng 4 lỗi cũ ở `audit-logs.page.spec.ts` và `useQuotifySettingsPage.spec.ts`), `npx eslint .` (69), `npx prettier --check .` (74 file lệch có sẵn), `npx vue-tsc -b` (0 lỗi)
+  - E2E-A: `E2E_ADMIN_EMAIL=... E2E_ADMIN_PASSWORD=... npx playwright test tests/e2e/profile-telegram.spec.ts` (backend chạy ở cổng 8000; mock ba endpoint Telegram bằng `page.route`, đăng nhập thật; người dùng không có vai trò vẫn đăng nhập được vì trang Hồ sơ không cần quyền)
+  - `frontend/dist` có thể thuộc root (do Docker) khiến `vite build` lỗi `EACCES`; build ra thư mục khác bằng `npx vite build --outDir <thư mục tạm> --emptyOutDir`
+  - xác minh tay: backend thật + `fake_telegram.py` + Vite dev, chụp light/dark/390px bằng Playwright; `update_id` gửi vào webhook phải khác nhau giữa các lần chạy vì chống trùng
+
 ## Planned Stack
 
 - Backend: FastAPI `0.136.3`, Python `3.12` or `3.13` target, Pydantic v2, SQLAlchemy, Alembic

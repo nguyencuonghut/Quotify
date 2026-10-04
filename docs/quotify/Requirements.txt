@@ -54,6 +54,7 @@
 - Sử dụng danh sách người dùng của hệ thống để xác định người nhập báo giá và người thêm/sửa ghi chú.
 - Không quản lý chỉ tiêu bắt buộc nhập báo giá, danh sách người chưa nhập hoặc gửi email nhắc nhở.
 - Dashboard chỉ hiển thị KPI số lượng báo giá đã nhập theo từng người dùng.
+- Người dùng có thể liên kết tài khoản Telegram cá nhân ở trang Hồ sơ để nhận thông báo biến động giá (không phải nhắc nhập báo giá). Mỗi người dùng chỉ có một liên kết đang hiệu lực, có thể đổi sang tài khoản Telegram khác hoặc hủy bất cứ lúc nào. Thông báo chỉ nêu thông tin, không khuyến nghị mua hoặc bán.
 
 3.5. Quản lý phiếu báo giá và phiên bản
 

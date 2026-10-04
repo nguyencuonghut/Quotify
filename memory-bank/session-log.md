@@ -981,3 +981,18 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Role manager: correction quyen tren phieu cua User
 - Tom tat: Them permission quotes.correct_user_quotes va role manager (Truong phong): cho phep tao/tu hoan tat ban dieu chinh (create_version+update_draft+confirm_version+delete_draft_version) tren phieu do tai khoan role user tao, gioi han o version do chinh manager tao; khong bypass cho cancel/delete-line/mark-purchased/upload. Da verify Playwright tren dev, phat hien bug rieng: DELETE /users/{id} 500 khi user co refresh_tokens (NOT NULL constraint).
+
+## 2026-10-04 04:05:39Z - claude
+
+- Tieu de: Telegram 1A backend S1-S3b: nen tang lien ket
+- Tom tat: Backend Telegram 1A (tat mac dinh TELEGRAM_ENABLED=false): client an toan token, webhook va poller dev, dedupe update, cap ma lien ket, lien ket qua /start <ma> va doi tai khoan nguyen tu (savepoint + 2 partial unique). Redact token o log/OTel. Lop test tich hop DB that (marker integration, INTEGRATION_DATABASE_URL). 515 pytest pass, baseline ruff/mypy/bandit giu nguyen. Con lai S4-S7 va xac minh voi Telegram that (can bot dev do nguoi dung tao).
+
+## 2026-10-04 04:31:23Z - claude
+
+- Tieu de: Telegram 1A: frontend panel, audit, runbook (S4-S6b)
+- Tom tat: Hoan tat backend S4 (huy lien ket web va /stop, my_chat_member va 403 thanh blocked, giai phong cho owner_inactive, duy tri moi tin, don ma cu), frontend S5a/S5b (useTelegramLink, panel ProfilePage, E2E-A), S6a nhan audit, S6b runbook muc 12 va CONTEXT.md. Race poll cu ghi de trang thai da duoc sua bang stateVersion. Con lai S5c QR, S6c, S7 production va xac minh voi Telegram that (can bot dev). Baseline: pytest 554 pass, vitest 234 pass 4 loi cu, ESLint 69, ruff 62, bandit 16.
+
+## 2026-10-04 05:41:27Z - claude
+
+- Tieu de: Telegram 1A: xac minh voi bot dev that
+- Tom tat: Xac minh voi bot dev that (token trong .env, git bo qua): T2 getUpdates khi co webhook tra 409; T3 bam lai duong dan khi da Start van gui /start <ma 43 ky tu>, ma da dung bao khong hop le; T5 chan bot gui my_chat_member member->kicked va sendMessage tra 403 bot was blocked by the user, bo chan kicked->member kem /start tron; T5b chat not found 400. Lien ket that, blocked/active, /stop deu dung trong DB, audit, giao dien. Con lai: webhook HTTPS/VPS, doi tai khoan Telegram thu hai, S5c, S6c, S7.

@@ -795,10 +795,10 @@ Test hiện có bị ảnh hưởng: `test_audit_log_service.py` (thêm test key
 
 | # | Nội dung | Kết quả | Ngày |
 |---|---|---|---|
-| T2 | `getUpdates` khi webhook bật trả gì (409?) | | |
-| T3 | Bấm lại đường dẫn khi đã Start: có gửi lại `/start <param>` không (mobile, desktop, web). Param 64 và 65 ký tự | | |
-| T5 | Chặn bot: mã và chuỗi lỗi `sendMessage`, `my_chat_member.new_chat_member.status` khi chặn và bỏ chặn | | |
-| T5b | `sendMessage` tới ID chưa Start và ID bịa | | |
+| T2 | `getUpdates` khi webhook bật trả gì (409?) | **409** `Conflict: can't use getUpdates method while webhook is active; use deleteWebhook to delete the webhook first` (bot dev `@HHQuotifyBot`, webhook trỏ URL bịa rồi xóa) | 2026-10-04 |
+| T3 | Bấm lại đường dẫn khi đã Start: có gửi lại `/start <param>` không (mobile, desktop, web). Param 64 và 65 ký tự | **Có.** Chat đã Start rồi, mỗi lần bấm lại đường dẫn Telegram vẫn gửi `/start <param>` (quan sát 3 lần, param 43 ký tự, `entities=[bot_command]`). Mở chat bằng `t.me/<bot>` không kèm param thì Start gửi `/start` trơn (bot trả lời chào). Mã đã dùng mà bấm lại thì bot báo "không hợp lệ" (đúng K3). Chỉ thử một client của người dùng; chưa thử mobile/web riêng, chưa thử param 64/65 ký tự | 2026-10-04 |
+| T5 | Chặn bot: mã và chuỗi lỗi `sendMessage`, `my_chat_member.new_chat_member.status` khi chặn và bỏ chặn | Chặn: `my_chat_member` chat riêng `member → kicked`; `sendMessage` trả **403** `Forbidden: bot was blocked by the user`. Bỏ chặn (Restart bot): `kicked → member`, và Telegram tự gửi thêm `/start` trơn. Đã xác minh DB `active → blocked → active`, `/stop` khi `active` thu hồi (`stop_command`, audit `telegram.unlinked`) | 2026-10-04 |
+| T5b | `sendMessage` tới ID chưa Start và ID bịa | **400** `Bad Request: chat not found` cho cả ID người dùng chưa Start, ID bịa và nhóm bịa. Không phải 403, nên mã chỉ đánh dấu `blocked` khi `error_code == 403` là đúng | 2026-10-04 |
 | T6 | 40 tin liên tiếp: có 429 không, `retry_after` bao nhiêu (cho 1B) | | |
 | T7 | Text 4097 ký tự, `parse_mode=HTML` với `<` thô: lỗi gì (cho 1B) | | |
 | T8 | `callback_data` 65 byte, chuỗi 33 ký tự tiếng Việt (cho 1B) | | |

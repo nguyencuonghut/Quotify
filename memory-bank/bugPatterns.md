@@ -814,6 +814,33 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: Bất kỳ secret nào thêm vào `docker-compose.prod.yml` trong tương lai PHẢI dùng `${VAR:?...}`, không bao giờ literal — và phải verify bằng `docker compose config` thật trong thư mục cô lập (copy compose file + `.env` test riêng, không chạy trực tiếp ở repo có `.env` dev đang dùng) để xác nhận giá trị thực sự được truyền đúng, không chỉ đọc code bằng mắt.
 - Related files: `docker-compose.prod.yml`, `.env.production.example`, `docs/runbooks/deploy-vps-production.md`
 
+### 2026-10-04: Token bot Telegram nằm trong URL nên dễ rò qua log và trace
+
+- Area: Backend Telegram integration / logging / OpenTelemetry
+- Trigger: Mọi cuộc gọi Bot API có dạng `https://api.telegram.org/bot<token>/METHOD`. Token lọt ra ngoài qua log INFO "HTTP Request" của httpx, thuộc tính URL trong span OTel httpx, thông điệp exception của httpx (`ConnectError`, `ReadTimeout`), và chuỗi `__cause__`/`__context__` của traceback.
+- Root cause: URL chứa bí mật là đặc thù của Telegram; các lớp ghi log/trace mặc định luôn in URL.
+- Fix: `core/logging.py` hạ `httpx`/`httpcore` xuống WARNING và scrub token ở formatter (cả message lẫn exception); `core/observability.py` thêm host Telegram vào `OTEL_PYTHON_HTTPX_EXCLUDED_URLS` trước khi instrument; `TelegramClient` không `raise_for_status()` và ném lại lỗi mạng đã làm sạch bằng `from None`; `__repr__` che token.
+- Regression guard: `tests/test_telegram_client.py`, `tests/test_logging_redaction.py`, `tests/test_otel_telegram_exclusion.py`; không log nội dung update vì `/start <mã>` chứa mã liên kết.
+- Related files: `backend/app/integrations/telegram.py`, `backend/app/core/logging.py`, `backend/app/core/observability.py`, `backend/app/services/telegram_update_runner.py`
+
+### 2026-10-04: Phản hồi poll cũ ghi đè trạng thái vừa do người dùng đổi (race ở `useTelegramLink`)
+
+- Area: Frontend `useTelegramLink` (panel Telegram ở trang Hồ sơ)
+- Trigger: Poll trạng thái đang bay (server còn mã chờ), người dùng bấm "Hủy yêu cầu" hoặc "Tạo đường dẫn mới", rồi phản hồi cũ đến muộn.
+- Root cause: `applyStatus` áp dụng mọi phản hồi theo thứ tự đến, không theo thứ tự yêu cầu, nên trạng thái "đang chờ" đã hủy bị dựng lại (hoặc mã mới vừa tạo bị xóa).
+- Fix: biến `stateVersion` tăng sau mỗi hành động của người dùng; `refresh()` ghi nhớ phiên bản lúc gửi và bỏ phản hồi nếu phiên bản đã đổi.
+- Regression guard: `tests/unit/useTelegramLink.spec.ts` ("ignores a status response that was requested before ...").
+- Related files: `frontend/src/composables/useTelegramLink.ts`
+
+### 2026-10-04: `DELETE /users/{id}` trả 500 với người dùng đã từng đăng nhập (đã biết, chưa sửa)
+
+- Area: Backend users API
+- Trigger: Xóa người dùng có `refresh_tokens` (ví dụ người dùng thử vừa đăng nhập qua giao diện) → 500 do ràng buộc NOT NULL.
+- Root cause: chưa điều tra trong đợt Telegram; ghi nhận lần đầu ở session-log 2026-08-25.
+- Fix: chưa sửa. Khi dọn dữ liệu thử, xóa `refresh_tokens` rồi `users` theo đúng ID bằng SQL.
+- Regression guard: chưa có.
+- Related files: `backend/app/api/v1/users.py`
+
 ## Usage Rule
 
 Before changing behavior in an area with prior bugs, read the relevant entries first and explicitly avoid repeating the same failure mode.

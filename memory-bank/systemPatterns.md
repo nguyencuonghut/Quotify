@@ -615,3 +615,16 @@ Production-readiness in this repo is split into four layers:
    - a script that validates required assets exist and production compose files parse correctly
 
 The repo should not treat production readiness as "docs only". At minimum, each layer above must have either runnable code, executable scripts, or machine-checkable config committed in the repo.
+
+## Telegram Link Pattern
+
+Liên kết người dùng Quotify với tài khoản Telegram (xem plan 1A). Mọi thứ additive, tắt mặc định bằng `TELEGRAM_ENABLED=false`.
+
+1. Liên kết theo `telegram_user_id`, không theo username; username chỉ để hiển thị và lưu không có `@`.
+2. "Đang giữ liên kết" là `status IN ('active','blocked')`, bảo đảm bằng hai partial unique index (`uq_telegram_accounts_holding_telegram_user`, `uq_telegram_accounts_holding_user`). Liên kết `revoked` giữ làm lịch sử và không chiếm chỗ.
+3. Mã liên kết là `secrets.token_urlsafe(32)`, chỉ lưu sha256, hạn 10 phút, dùng một lần. Cấp mã mới khóa `FOR UPDATE` dòng `users` rồi đặt `expires_at = now` cho mã cũ chưa dùng, nên luôn chỉ còn đúng một mã hợp lệ. `redeem` khóa dòng mã `FOR UPDATE` để hai người cùng mở một đường dẫn nối tiếp nhau.
+4. Đổi tài khoản Telegram: thu hồi liên kết cũ và chèn liên kết mới trong MỘT `begin_nested()` (`attach_account`), `flush()` tường minh giữa hai bước. Chèn vi phạm unique thì savepoint hoàn tác cả việc thu hồi. Phân biệt constraint bị vi phạm theo tên (`_violated_constraint`), không đoán theo nội dung lỗi.
+5. Service chỉ `flush()`; route hoặc `TelegramUpdateRunner` `commit()` rồi MỚI gửi tin Telegram (at-most-once, lỗi gửi chỉ log). Lỗi hạ tầng tạm thời → 503 và không ghi dedupe để Telegram thử lại; lỗi "độc" → 200, ghi dedupe và trả tin lỗi hệ thống.
+6. Webhook không JWT: 404 khi tắt/sai mode/thiếu secret, 403 khi sai secret (`secrets.compare_digest`), 200 còn lại. Route nhận `Request` thay vì model body để secret được kiểm trước validation.
+7. Không log nội dung update (tin `/start <mã>` chứa mã) và không audit mã sai hoặc lạ; audit không chứa `telegram_user_id`/username, `request_id` dạng `tg-update-<id>`.
+8. Kiểm thử: hành vi dựa vào khóa, savepoint, unique của PostgreSQL phải kiểm ở lớp tích hợp (marker `integration`, database tạm mỗi phiên, `INTEGRATION_DATABASE_URL`), vì fake session không kiểm được. Các test API và webhook dùng `httpx.MockTransport` và `dependency_overrides`.

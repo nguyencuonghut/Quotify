@@ -1389,3 +1389,8 @@ Quotify được coi là hoàn thành phiên bản đầu khi:
   `confirmed_at`, bổ sung copy matrix, constraint/concurrency cho version,
   predicate nhập lại duy nhất, quote-scoped file download và
   `Quote.created_by_id` làm nguồn KPI bất biến.
+- 04/10/2026: Mở rộng phạm vi: thông báo biến động giá qua Telegram và chatbot
+  AI nay nằm trong phạm vi (giọng trung tính, không khuyến nghị mua bán). Giai
+  đoạn 1A (nền tảng liên kết tài khoản Telegram) được triển khai theo
+  `docs/quotify/plan-telegram-giai-doan-1a-nen-tang-lien-ket.md`, chỉ thêm bảng
+  và route mới, tắt mặc định bằng `TELEGRAM_ENABLED=false`.

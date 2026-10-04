@@ -79,3 +79,21 @@ _Tránh_: Ngày mua
 **Người nhập phiếu**:
 Người tạo phiếu báo giá ban đầu trong Quotify và là nguồn tính KPI số phiếu theo user.
 _Tránh_: Người sửa phiên bản mới nhất
+
+**Liên kết Telegram**:
+Quan hệ giữa một người dùng Quotify và một tài khoản Telegram (nhận diện bằng mã người dùng Telegram, không phải username). Mỗi người dùng chỉ có tối đa một liên kết đang hiệu lực và mỗi tài khoản Telegram chỉ gắn với tối đa một người dùng.
+_Tránh_: Kết nối Telegram
+
+**Đường dẫn liên kết**:
+URL `https://t.me/<bot>?start=<mã>` do trang Hồ sơ tạo, người dùng mở trong Telegram để hoàn tất liên kết. Chỉ hiển thị một lần ở phiên đã tạo và có hiệu lực 10 phút.
+_Tránh_: Liên kết (đứng một mình để chỉ URL)
+
+**Mã liên kết**:
+Chuỗi bí mật dùng một lần nằm trong đường dẫn liên kết; hệ thống chỉ lưu bản băm.
+_Tránh_: Token (trong chuỗi hiển thị cho người dùng)
+
+**Hủy liên kết**:
+Hành động của người dùng (ở trang Hồ sơ hoặc bằng lệnh `/stop`) để ngừng nhận thông báo; liên kết chuyển sang trạng thái đã thu hồi và vẫn được giữ làm lịch sử.
+
+**Đổi tài khoản Telegram**:
+Liên kết sang một tài khoản Telegram khác; liên kết cũ bị thu hồi cùng lúc với việc tạo liên kết mới (hoặc cả hai cùng không đổi nếu thất bại).
