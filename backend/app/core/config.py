@@ -172,6 +172,9 @@ class Settings(BaseSettings):
         default=10.0,
         alias="TELEGRAM_HTTP_TIMEOUT_SECONDS",
     )
+    # Danh sách email người nhận thử thông báo biến động giá (cách nhau bằng dấu phẩy). Rỗng nghĩa
+    # là không giới hạn; có giá trị thì CHỈ những người này nhận tin (giai đoạn pilot).
+    price_alert_recipient_emails: str = Field(default="", alias="PRICE_ALERT_RECIPIENT_EMAILS")
     vietcombank_exchange_rate_url: str = Field(
         default="https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx",
         alias="VIETCOMBANK_EXCHANGE_RATE_URL",
@@ -243,6 +246,14 @@ class Settings(BaseSettings):
         self._apply_secret_file("minio_secret_key", self.minio_secret_key_file)
         self._apply_secret_file("telegram_bot_token", self.telegram_bot_token_file)
         self._apply_secret_file("telegram_webhook_secret", self.telegram_webhook_secret_file)
+
+    @property
+    def price_alert_recipient_email_set(self) -> frozenset[str]:
+        return frozenset(
+            email.strip().lower()
+            for email in self.price_alert_recipient_emails.split(",")
+            if email.strip()
+        )
 
     @field_validator("telegram_bot_username")
     @classmethod

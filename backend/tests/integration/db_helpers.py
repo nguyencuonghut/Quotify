@@ -8,18 +8,24 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import (
     Material,
     MaterialType,
+    Permission,
     Quote,
     QuoteLine,
     QuoteVersion,
+    Role,
     Supplier,
     TelegramAccount,
     User,
     UserStatus,
+    role_permissions,
+    user_roles,
 )
 from app.services.telegram_link_service import TelegramLinkService
 
@@ -42,17 +48,48 @@ async def create_user(
     *,
     status: UserStatus = UserStatus.ACTIVE,
     full_name: str = "Người Dùng Thử",
+    email: str | None = None,
+    role_names: Sequence[str] = (),
 ) -> uuid.UUID:
     user = User(
-        email=f"it_{uuid.uuid4().hex[:10]}@example.com",
+        email=email or f"it_{uuid.uuid4().hex[:10]}@example.com",
         password_hash="x",
         full_name=full_name,
         status=status,
     )
     async with session_factory() as session:
         session.add(user)
+        await session.flush()
+        for name in role_names:
+            role_id = (await session.execute(select(Role.id).where(Role.name == name))).scalar_one()
+            await session.execute(user_roles.insert().values(user_id=user.id, role_id=role_id))
         await session.commit()
     return user.id
+
+
+async def ensure_role(
+    session_factory: async_sessionmaker[AsyncSession],
+    name: str,
+    permission_codes: Sequence[str] = (),
+) -> uuid.UUID:
+    """Tạo role nếu chưa có (DB tích hợp dùng chung cả phiên) và gán đúng các quyền đã có."""
+    async with session_factory() as session:
+        role = (await session.execute(select(Role).where(Role.name == name))).scalar_one_or_none()
+        if role is None:
+            role = Role(name=name, is_system=False)
+            session.add(role)
+            await session.flush()
+        for code in permission_codes:
+            permission_id = (
+                await session.execute(select(Permission.id).where(Permission.code == code))
+            ).scalar_one()
+            await session.execute(
+                pg_insert(role_permissions)
+                .values(role_id=role.id, permission_id=permission_id)
+                .on_conflict_do_nothing(),
+            )
+        await session.commit()
+    return role.id
 
 
 def build_account(

@@ -603,9 +603,17 @@ Biết **ai** nhận tin của một vật tư (D7 đến D10, L12, L16) và c�
 
 ### Tiêu chí chấp nhận
 
-- [ ] Bảng người nhận D7 đến D10 có test đủ từng dòng.
-- [ ] API ngưỡng và tùy chọn đóng băng như hợp đồng.
-- [ ] Baseline không xấu hơn.
+- [x] Bảng người nhận D7 đến D10 có test đủ từng dòng.
+- [x] API ngưỡng và tùy chọn đóng băng như hợp đồng.
+- [x] Baseline không xấu hơn.
+
+### Kết quả (2026-10-04)
+
+- **Người nhận** (`services/price_alert_recipients.py`, `resolve_recipients`): trưởng phòng (quyền `price_alerts.receive_all`) nhận mọi vật tư từ Trung bình; nhân viên nhận vật tư mình là `quotes.created_by_id` trong 90 ngày (phiếu hủy, version nháp hoặc `superseded` không tính), từ Nhẹ; admin chỉ khi bật `admin_receive_all` (kiểm admin **trước** quyền vì migration cho admin cả `receive_all`); tài khoản seed bị loại NULL-safe; chỉ người `ACTIVE` có liên kết `active`; cờ cá nhân và `min_level`; thẻ bất thường (`kind='anomaly'`) bỏ qua mức tối thiểu, chỉ trưởng phòng, admin đã bật và người nhập (version) nhận; danh sách pilot `PRICE_ALERT_RECIPIENT_EMAILS` (cấu hình mới, ví dụ ở hai file `.env`) giữ đúng người, người khác trả `skipped` lý do `pilot`. Trưởng phòng đồng thời là người nhập chỉ nhận một mục (L28).
+- **API** (do một agent làm trong worktree riêng, đã gộp): `GET/PUT/DELETE /price-alert-settings/materials`, `GET/PUT /users/me/alert-preferences`; audit `price_alerts.threshold_updated`; `anomaly_percent` null so với ngưỡng mặc định; `DELETE` idempotent; route `/users/me/alert-preferences` đăng ký trước `/users/{id}` (có test thứ tự). Mức tối thiểu hiệu lực mặc định là Trung bình cho người có `receive_all` hoặc role `manager` (và admin), còn lại Nhẹ.
+- **Engine đọc ngưỡng hiệu lực** đã có từ Slice 5 (`load_thresholds`), có test.
+- **Test mới (77):** 25 người nhận và cấu hình, 52 API ngưỡng và tùy chọn. pytest 843 pass; ruff 62, mypy 13, bandit 16 không đổi. Đột biến (admin kiểm sau trưởng phòng, bỏ loại seed, bỏ cửa sổ 90 ngày) đều bị bắt. Kiểm thật trên dev bằng token Manager thử: danh sách vật tư 22 mục có `effective`, tùy chọn mặc định Trung bình, người không phải admin đặt `admin_receive_all` bị 403.
+- **Ghi nhận:** `PUT` tùy chọn cá nhân không ghi audit (hợp đồng không yêu cầu).
 
 ### Rollback
 

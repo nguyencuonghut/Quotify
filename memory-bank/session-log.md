@@ -1056,3 +1056,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B Slice 5: quét, sự kiện, cron 30 giây, dry-run replay
 - Tom tat: Thêm price_alert_events, PriceAlertScanService, cron poll_price_alerts, price_alert_replay, worker-test tắt Telegram. 36 test mới, pytest 766 pass, replay dev khớp tham chiếu dưới 5%. Agent rà soát bổ sung cột sequence_number, test UNIQUE, lỗi DB trong savepoint, timeout cho replay.
+
+## 2026-10-04 11:23:02Z - claude
+
+- Tieu de: Telegram 1B Slice 6: người nhận, ngưỡng theo vật tư, tùy chọn cá nhân
+- Tom tat: resolve_recipients (D7-D10, pilot), API ngưỡng theo vật tư và alert-preferences do agent worktree làm rồi cherry-pick, 77 test mới, pytest 843 pass, baseline lint không đổi.
