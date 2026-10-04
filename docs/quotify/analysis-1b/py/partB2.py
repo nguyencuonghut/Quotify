@@ -22,10 +22,10 @@ for m in msgs:
 top = sorted(byd.items(), key=lambda kv: -kv[1][0])[:6]
 for k, v in top: print(k, 'msgs', v[0], 'TB+L', v[1], 'by-chain', v[2])
 print('days with >=1 msg', len(byd), 'of', PERIOD_DAYS)
-print('max msgs in one scan slot (2 min):')
-slotc = collections.Counter(int(m['t'].timestamp() // 120) for m in msgs)
+print(f'max msgs in one scan slot ({SCAN_SLOT_SECONDS} s):')
+slotc = collections.Counter(int(m['t'].timestamp() // SCAN_SLOT_SECONDS) for m in msgs)
 mx = max(slotc.values()); print('  ', mx, '(slot count with that max:', sum(1 for v in slotc.values() if v == mx), ')')
-print('max chain-level events in one scan slot:', max(collections.Counter(int(e['t'].timestamp() // 120) for e in sent).values()))
+print('max chain-level events in one scan slot:', max(collections.Counter(int(e['t'].timestamp() // SCAN_SLOT_SECONDS) for e in sent).values()))
 print()
 print('== level mix of sent (chain-level)', {LV[k]: v for k, v in sorted(collections.Counter(e['lv'] for e in sent).items())}, 'dir up/down', collections.Counter(e['dir'] for e in sent))
 print('rules', collections.Counter(e['rule'] for e in sent))

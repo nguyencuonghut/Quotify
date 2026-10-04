@@ -58,6 +58,7 @@ Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, A
 | QĐ-17 | 2026-10-04 | **Đơn vị tin (D5b):** một tin cho mỗi người nhận, mỗi vật tư, mỗi lần quét. Cùng ngày chỉ gửi bổ sung khi **leo thang** hoặc đổi chiều. Ảnh kèm caption ngắn, chi tiết các kỳ giao hàng gửi bằng tin văn bản ngay sau. Không sửa tin cũ | D5 |
 | QĐ-18 | 2026-10-04 | **Vòng đời giá bất thường:** loại ở mức dòng rồi tính lại daily-min; cửa sổ gắn cờ 30 ngày; gộp cụm; người nhập nhận tin không có nút; chỉ người có `price_alerts.receive_all` và admin bấm được; có nhắc và hết hạn. Cảnh báo ngay lúc nhập (USD gõ vào ô VNĐ/KG) tách thành tính năng riêng, ngoài phạm vi 1A đến 1C | D12 |
 | QĐ-19 | 2026-10-04 | **Quyền:** `price_alerts.manage` cho admin **và trưởng phòng, gồm cả bật/tắt tính năng**; cấp bằng migration tự chèn quyền (phương án a); giao diện cấu hình ở **trang mới** `/price-alert-settings`, không cấp `quotify_settings.read` cho trưởng phòng; cờ môi trường là điều kiện cần, cờ DB là điều kiện đủ | 4.6, 4.9 |
+| QĐ-20 | 2026-10-04 | **Chu kỳ quét 30 giây** (thay 2 phút), giữ cơ chế cron quét + watermark chồng lấp 5 phút + khóa advisory; chỉ ghi `scan_runs` khi có việc, nhịp tim ở `scan_state.last_run_at`; thêm trần 30 tin trong 10 phút cho mỗi người. Chi tiết ở kế hoạch 1B, L27 | 4.1, D5(d) |
 
 ---
 
@@ -69,7 +70,7 @@ Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, A
 |---|---|
 | Backend | Python 3.12, FastAPI 0.136, SQLAlchemy 2 async + asyncpg, Alembic, Pydantic v2, `uv` |
 | Worker | arq 0.26 + Redis 7. Chỉ có 1 cron (`poll_and_run_scheduled_backups`, mỗi phút). Chạy `arq app.worker.WorkerSettings` |
-| DB | Postgres 16. Một role duy nhất (`postgres`). Alembic head hiện tại: `20260824_1000` |
+| DB | Postgres 16. Một role duy nhất (`postgres`). Alembic head hiện tại: `20261004_1100` (sau hai migration Telegram 1A; số liệu cũ `20260824_1000` đã lỗi thời) |
 | Frontend | Vue 3.5 + TS, Pinia, PrimeVue 4, Chart.js, vee-validate + zod, SCSS tập trung (cấm `<style>` trong `.vue`) |
 | Deploy | VPS, build qua SSH, **không CI/CD**. Migrate bằng `docker compose -f docker-compose.prod.yml run --rm backend uv run alembic upgrade head` **trước** `up -d`. Sau `up -d` phải `restart reverse-proxy` |
 | Domain | `quotify.honghafeed.com.vn`, HTTPS 443 (certbot). Nginx route `/api/` → backend nên webhook đi qua được mà không sửa nginx |
@@ -191,7 +192,7 @@ Cách kết hợp:
 2. **Mức** của tin là mức cao nhất trong các quy tắc áp dụng, tính theo ngưỡng của vật tư (D4). **Lý do chính** là quy tắc cho mức cao nhất. Về mặt toán học, khi tăng thì |R2| ≥ |R1| (đáy không lớn hơn điểm gần nhất), khi giảm thì |R3| ≥ |R1|. Vì vậy R1 chỉ có thể là lý do chính khi |%| bằng nhau, tức điểm gần nhất chính là đáy hoặc đỉnh (430/1.540 lần trong backtest). **Khi |%| bằng nhau thì ưu tiên R1.** Các quy tắc còn lại hiển thị như thông tin phụ, và **không in dòng phụ nếu nó trùng điểm tham chiếu với lý do chính**.
 3. Cần **ít nhất 1 điểm trước** trong cửa sổ, nếu không thì không gửi.
 4. Điểm đã bị gắn "giá bất thường" (D12) và còn ở trạng thái `pending` hoặc `rejected` không được dùng làm điểm tham chiếu và không sinh tin biến động. Điểm đã được "Giá đúng" hợp lệ trở lại.
-5. **Dòng ứng viên của version điều chỉnh.** Version mới là snapshot đầy đủ (sao chép mọi dòng của version cũ). Chỉ các dòng **mới thêm hoặc đổi giá** so với version nguồn (`superseded_by_version_id`) mới tham gia đánh giá. `delete_confirmed_line` tạo version mới nhưng không có dòng nào đổi giá: có thể làm daily-min của ngày đổi nhưng **không phát tin**.
+5. **Dòng ứng viên của version điều chỉnh.** Version mới chứa đầy đủ dòng của phiếu, nhưng **backend không sao chép** từ version cũ: frontend gửi lại toàn bộ dòng, và dòng không có khóa nguồn (`source_line_id`). Chỉ các dòng **mới thêm hoặc đổi giá** so với version nguồn (`superseded_by_version_id`) mới tham gia đánh giá; cách tìm chúng (so tập đa giá theo chuỗi, ba ngoại lệ) định nghĩa ở kế hoạch 1B, L1. `delete_confirmed_line` tạo version mới nhưng không có dòng nào đổi giá: có thể làm daily-min của ngày đổi nhưng **không phát tin**.
 
 **Vì sao điều chỉnh so với cách hiểu theo chữ.** Nếu mỗi quy tắc chạy độc lập rồi lấy mức cao nhất, backtest cho thấy khoảng 20% tin (403/1.986, loại 82 điểm có R1 = 0) có nhãn tăng/giảm ngược với bước nhảy cuối. Quy tắc nhất quán hướng loại bỏ mâu thuẫn này, khối lượng tin gần như không đổi (19,5 so với 20,3 tin/tuần theo chuỗi). Đã được xác nhận (QĐ-12).
 
@@ -258,11 +259,11 @@ Version không phải nguồn kích hoạt **vẫn được dùng làm điểm t
 
 Lý do thay đổi (Phụ lục B.8):
 - `is_backfilled` chỉ được kiểm khi tạo hoặc sửa bản nháp (`_validate_backfill`), **không kiểm lúc chốt**: bản nháp tạo hôm trước rồi chốt hôm nay vẫn có `is_backfilled=false` dù `received_date` đã cũ. Ngược lại, phiếu nhập trễ 1 ngày cũng bị ép `true`.
-- Trong 12 tháng chỉ 565 dòng (5,8%) là nhập thật, 82,5% là import (8.082 dòng, cùng tạo ngày 19/08/2026 bằng tài khoản seed). Điều kiện `is_backfilled=false` giữ lại khoảng 38% khối lượng tin của dữ liệu nhân viên thật. Dữ liệu nhân viên nhập lùi có 1.151 dòng, trong đó 220 dòng trễ không quá 1 ngày, 373 dòng không quá 3 ngày, 522 dòng không quá 7 ngày.
+- Trong 12 tháng chỉ 565 dòng (5,8%) là nhập thật, 82,5% là import (8.082 dòng, cùng tạo ngày 19/08/2026 bằng tài khoản seed). Điều kiện `is_backfilled=false` giữ lại khoảng 38% khối lượng tin của dữ liệu nhân viên thật. Dữ liệu nhân viên nhập lùi có 1.151 dòng, trong đó 220 dòng trễ không quá 1 ngày **lịch**, 373 dòng không quá 3 ngày lịch, 522 dòng không quá 7 ngày lịch. Đó là ngày lịch và chỉ cho dòng nhập lùi; theo **ngày làm việc** và cho mọi dòng người thật, trễ ≤ 3 là 283 version và 1.030 dòng (kế hoạch 1B, Phụ lục C thay bảng tải ở B.8).
 - Ngưỡng trễ 3 ngày làm việc tránh bão tin do import mà không bỏ phí tin trễ vài ngày.
 
 Giới hạn:
-- Nhận biết import chỉ qua tài khoản seed admin, không có đánh dấu riêng. Nếu admin vừa nhập tay vừa dùng tài khoản seed thì phiếu nhập tay bị loại nhầm. Khuyến nghị dùng tài khoản riêng cho import.
+- Nhận biết import chỉ qua tài khoản seed admin, không có đánh dấu riêng, và import dùng **id người tải file** chứ không ép tài khoản seed. Quy ước đã chốt (kế hoạch 1B, Q7, L17): admin hệ thống chỉ quản trị và import, không bao giờ nhập tay, nên tài khoản seed là tài khoản import; Slice 0 kiểm production để xác nhận. Không cần tài khoản riêng cho import.
 - Khi bật cờ lần đầu, và **mỗi lần bật lại**, watermark đặt bằng thời điểm bật (4.1) để dữ liệu cũ không sinh tin.
 - Ước lượng tải theo điều kiện này và các số cần đo lại ở dry-run replay: Phụ lục B.8.
 
@@ -312,8 +313,8 @@ Các giá trị dưới đây là mặc định đề xuất, **chưa được x
 | Cửa sổ tham chiếu | 7 ngày làm việc | D3 |
 | Độ trễ cho phép của nguồn kích hoạt | 3 ngày làm việc | D6, QĐ-16 |
 | Cửa sổ chống lặp theo chuỗi | 14 ngày lịch | D5(a) |
-| Trần gửi ngay mỗi lần quét | 30 tin | D5(d) |
-| Chu kỳ quét, độ chồng lấp | 2 phút, 5 phút | 4.1 |
+| Trần gửi ngay mỗi lần quét | 30 tin; thêm 30 tin trong 10 phút cho mỗi người (QĐ-20) | D5(d) |
+| Chu kỳ quét, độ chồng lấp | 30 giây, 5 phút (đổi từ 2 phút, QĐ-20) | 4.1 |
 | Cửa sổ gắn cờ bất thường, ngưỡng | 30 ngày lịch, 30% | D12 |
 | Gộp cụm bất thường | từ 3 cờ cùng ngày | D12 |
 | Điểm sau gắn vào thẻ pending | lệch dưới 2,5% so với điểm pending | D12 |
@@ -350,7 +351,7 @@ Các giá trị dưới đây là mặc định đề xuất, **chưa được x
 ```
 Nhân viên chốt báo giá ──► quote_versions (confirmed_at gán phía ứng dụng, TRƯỚC khi commit)
                                          │
-              cron arq mỗi 2 phút ◄──────┘   quét confirmed_at > watermark − 5 phút
+             cron arq mỗi 30 giây ◄──────┘   quét confirmed_at > watermark − 5 phút
                         │   khóa advisory suốt lần quét
                         ▼
   Giai đoạn 1: giao dịch ngắn, mỗi version một savepoint
@@ -371,7 +372,7 @@ Lý do chọn **cron quét + watermark** thay vì móc vào route confirm:
 - Không phải sửa `quotes.py` (an toàn cho code cũ đang chạy).
 - Bắt được mọi đường confirm: API `confirm_version`, `delete_confirmed_line` (tự tạo và confirm bản điều chỉnh), `create_quote(confirm_immediately=True)` của import.
 - Mất kết nối Redis hay worker tạm dừng không làm mất sự kiện, nếu watermark được quản lý đúng như dưới đây.
-- Đổi lại: trễ tối đa khoảng 2 phút. Chấp nhận được với thông báo giá.
+- Đổi lại: trễ tối đa khoảng 30 giây cộng thời gian xử lý (chu kỳ đã chốt ở QĐ-20). Chấp nhận được với thông báo giá. Nếu sau này cần gần thời gian thực: enqueue job ngay sau commit, giữ cron làm lưới an toàn, hoặc outbox bằng trigger DB; chưa làm.
 
 **Quy tắc quét an toàn** (watermark có thể bỏ sót version nếu làm ngây thơ):
 - `confirmed_at` được gán bằng `datetime.now()` phía ứng dụng **trước** khi commit (`quote_service.py`), và import commit mỗi 200 nhóm. Một version có `confirmed_at` sớm có thể commit muộn hơn lần quét đã đẩy watermark qua nó. Vì vậy quét **chồng lấp**: `confirmed_at > watermark − 5 phút`. Sự trùng lặp do chồng lấp được chặn bởi `UNIQUE` và `INSERT ... ON CONFLICT DO NOTHING` (idempotent).
@@ -490,7 +491,7 @@ Không bắt người dùng gõ mật khẩu Quotify hay `chat_id` vào chat. Kh
 
 ### 4.5 Mô hình dữ liệu (migration mới, additive)
 
-Head hiện tại là `20260824_1000`. Migration mới đặt tên `YYYYMMDD_HHMM_<mô_tả>.py`, `--rev-id` đúng quy ước, viết tay (autogenerate sẽ sinh DROP index giả vì ORM thiếu nhiều index composite). Các migration nối tiếp nhau (một head). Phần Telegram (1A) có định nghĩa chuẩn ở kế hoạch 1A.
+Head hiện tại là `20261004_1100` (sau 1A). Migration 1B nối tiếp từ đây. Migration mới đặt tên `YYYYMMDD_HHMM_<mô_tả>.py`, `--rev-id` đúng quy ước, viết tay (autogenerate sẽ sinh DROP index giả vì ORM thiếu nhiều index composite). Các migration nối tiếp nhau (một head). Phần Telegram (1A) có định nghĩa chuẩn ở kế hoạch 1A.
 
 **Nhóm Telegram (1A).**
 
@@ -674,7 +675,7 @@ Secret đi qua `env_file: .env` của backend và worker. **Không** dùng `${TE
 
 ### 4.8 Worker
 
-- Thêm cron vào `WorkerSettings.cron_jobs` (cạnh `poll_and_run_scheduled_backups`): `poll_price_alerts` mỗi 2 phút, `send_price_alert_digest` mỗi giờ (chạy khi đã qua giờ bản tin và `last_digest_local_date` chưa phải hôm nay, nên worker tắt lúc 08:00 vẫn gửi bù cùng ngày), nhắc thẻ bất thường `pending` mỗi giờ, dọn dữ liệu cũ mỗi ngày.
+- Thêm cron vào `WorkerSettings.cron_jobs` (cạnh `poll_and_run_scheduled_backups`): `poll_price_alerts` mỗi 30 giây (`second={0, 30}`), `send_price_alert_digest` mỗi giờ (chạy khi đã qua giờ bản tin và `last_digest_local_date` chưa phải hôm nay, nên worker tắt lúc 08:00 vẫn gửi bù cùng ngày), nhắc thẻ bất thường `pending` mỗi giờ, dọn dữ liệu cũ mỗi ngày.
 - **Múi giờ.** arq 0.26.3 hỗ trợ `timezone` trong `WorkerSettings`. Đặt `timezone = ZoneInfo("Asia/Ho_Chi_Minh")` (Việt Nam không có DST) và có test, vì mặc định cron chạy theo múi giờ hệ thống (UTC trong container, `hour=8` thành 15:00 giờ VN).
 - **Chống chạy chồng:** khóa advisory suốt lần quét (4.1). `SKIP LOCKED` trong mẫu backup không đủ vì commit giữa vòng lặp làm nhả khóa.
 - Job gửi tin: bọc `try/except` riêng, thử lại có backoff, xử lý 429 (`retry_after`) và 403 (bot bị chặn thì `mark_blocked`). Lỗi 400 (HTML sai) là lỗi terminal, không thử lại. Chỉ bỏ qua khi trạng thái terminal (`sent`, `failed`, `suppressed`, `skipped`), không bỏ qua trạng thái `sending` còn hạn `lease_until` (bug 27/07).
@@ -1002,6 +1003,7 @@ Mã `H` đánh số các câu hỏi, cột QĐ trỏ tới quyết định tươ
 | Q2 | 10-04 | Đơn vị tin | Gộp trong một lần quét, chỉ gửi bổ sung khi leo thang, caption ngắn kèm tin chi tiết | QĐ-17 |
 | Q3 | 10-04 | Vòng đời giá bất thường | Đồng ý các đề xuất ở D12 | QĐ-18 |
 | Q4 | 10-04 | Quyền và vị trí giao diện cấu hình | Đồng ý. Trưởng phòng được tắt/bật tính năng | QĐ-19 |
+| Q5 | 10-04 | Có nên tính biến động ngay khi người dùng chốt phiếu thay vì cron quét | Giữ cron quét + watermark (bắt đủ ba đường chốt, không mất sự kiện khi Redis hỏng, không sửa `quotes.py`), đổi chu kỳ thành 30 giây. Enqueue sau commit hoặc outbox để dành cho 1C nếu cần | QĐ-20 |
 
 ### 9.2 Còn mở
 
@@ -1016,7 +1018,7 @@ Mã `H` đánh số các câu hỏi, cột QĐ trỏ tới quyết định tươ
 7. **Chấp nhận câu hỏi gõ không dấu** (đề xuất ở 5.1, chưa xác nhận).
 8. **TTL hội thoại** (đề xuất 30 ngày) và job dọn.
 9. **Font tiếng Việt** trong image production cho matplotlib **[CHƯA XÁC MINH]**.
-10. **Nhận biết import chỉ bằng tài khoản seed admin** (QĐ-16): chưa có đánh dấu riêng, phiếu nhập tay bằng tài khoản seed bị loại nhầm.
+10. **Nhận biết import chỉ bằng tài khoản seed admin** (QĐ-16): chưa có đánh dấu riêng. Đã chốt quy ước ở kế hoạch 1B (Q7): tài khoản seed không bao giờ nhập tay, nên không cần tài khoản riêng; vi phạm quy ước làm phiếu nhập tay bị loại nhầm (RR-38 của kế hoạch 1B).
 11. **Xóa người dùng cứng:** `DELETE /users/{id}` có thể còn trả 500 (phân tích tĩnh, chưa chạy thử). Khuyến nghị vô hiệu hóa thay vì xóa.
 12. **Backlog (ngoài phạm vi 1A đến 1C):** cảnh báo ngay lúc nhập (giá USD/MT gõ vào ô VNĐ/KG) trên giao diện nhập báo giá; loại ngày lễ và Tết khỏi ngày làm việc (QĐ-11).
 
@@ -1210,7 +1212,7 @@ Các phép đo dưới đây do agent rà soát tự viết script chạy trên 
 | Giai đoạn có nhập thật | 20/08 đến 02/10/2026 (44 ngày, 6,29 tuần), 7 người nhập |
 | Dòng nhập thật theo tuần ISO 34 đến 40 | 89, 175, 20, 96, 49, 45, 91 |
 | Nhập thật: chênh `confirmed_at` so với `received_date` | 562 dòng chênh 0 ngày, 3 dòng chênh 1 ngày |
-| Nhân viên nhập lùi: chênh | 1.151 dòng, trung vị 13 ngày, P75 76, P90 179, tối đa 316 (trễ ≤ 1 ngày: 220, ≤ 3 ngày: 373, ≤ 7 ngày: 522) |
+| Nhân viên nhập lùi: chênh | 1.151 dòng, trung vị 13 ngày, P75 76, P90 179, tối đa 316 (trễ ≤ 1 ngày lịch: 220, ≤ 3 ngày lịch: 373, ≤ 7 ngày lịch: 522; đã thay bằng đo theo ngày làm việc ở kế hoạch 1B, Phụ lục C) |
 
 **Tải tin theo nguồn kích hoạt** (cùng giai đoạn 20/08 đến 02/10, đơn vị tin mỗi tuần hoạt động; "TB+L" là Trung bình và Lớn, gộp theo vật tư):
 

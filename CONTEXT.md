@@ -97,3 +97,60 @@ Hành động của người dùng (ở trang Hồ sơ hoặc bằng lệnh `/st
 
 **Đổi tài khoản Telegram**:
 Liên kết sang một tài khoản Telegram khác; liên kết cũ bị thu hồi cùng lúc với việc tạo liên kết mới (hoặc cả hai cùng không đổi nếu thất bại).
+
+**Điểm giá**:
+Giá thấp nhất (VNĐ/KG, giá đã lưu) của một chuỗi trong một ngày nhận báo giá. Là đơn vị để so sánh biến động.
+_Tránh_: Giá hôm nay, Dòng giá
+
+**Chuỗi giá**:
+Cặp (vật tư, kỳ giao hàng). Biến động giá được tính trong từng chuỗi, không gộp các kỳ giao hàng khác nhau.
+_Tránh_: Mã hàng
+
+**Cửa sổ tham chiếu**:
+7 ngày làm việc liền trước ngày của điểm giá mới. Giá tham chiếu (thấp nhất, cao nhất, gần nhất) lấy từ các điểm giá trong cửa sổ này.
+_Tránh_: 7 ngày (nếu hiểu là ngày lịch)
+
+**Ngày làm việc**:
+Thứ Hai đến thứ Sáu. Chưa loại ngày lễ và Tết. Điểm nhận vào cuối tuần vẫn là điểm tham chiếu.
+_Tránh_: Ngày thường
+
+**Biến động giá**:
+Thay đổi của điểm giá mới so với giá tham chiếu, được phát hiện bằng bộ ba quy tắc R1 (so với điểm gần nhất), R2 (so với giá thấp nhất), R3 (so với giá cao nhất) và phải cùng hướng.
+_Tránh_: Cảnh báo giá, Tăng giảm giá
+
+**Mức biến động**:
+Nhẹ, Trung bình hoặc Lớn, phân theo ngưỡng phần trăm của từng vật tư (mặc định 2,5%, 5% và 10%).
+_Tránh_: Mức độ nghiêm trọng
+
+**Ngưỡng cảnh báo**:
+Ba mức phần trăm phân biệt Nhẹ, Trung bình và Lớn. Có giá trị mặc định chung và có thể ghi đè theo từng vật tư.
+_Tránh_: Giới hạn
+
+**Nguồn kích hoạt**:
+Phiên bản báo giá được chốt có thể sinh thông báo biến động: không do tài khoản import (admin hệ thống) tạo và có độ trễ không quá 3 ngày làm việc từ ngày nhận đến ngày chốt. Phiên bản không phải nguồn kích hoạt vẫn được dùng làm điểm tham chiếu.
+_Tránh_: Báo giá mới
+
+**Giá bất thường**:
+Điểm giá lệch quá 30% so với trung vị 30 ngày của chuỗi, nghi nhập sai. Bị loại khỏi tính toán biến động và gửi thành thẻ để trưởng phòng xem xét.
+_Tránh_: Giá sai (chưa kết luận)
+
+**Sự kiện biến động**:
+Bản ghi hệ thống ghi nhận một biến động giá của một chuỗi, trước khi quyết định gửi cho ai.
+_Tránh_: Thông báo
+
+**Tin thông báo**:
+Một tin Telegram gửi cho một người nhận về một vật tư trong một lần quét; có thể gộp nhiều kỳ giao hàng.
+_Tránh_: Sự kiện
+
+**Bản tin tổng hợp**:
+Tin gửi lúc 08:00 giờ Việt Nam gom các biến động mức Nhẹ (giai đoạn 1C, chưa có ở 1B).
+_Tránh_: Báo cáo ngày
+
+**Trưởng phòng**:
+Người dùng có quyền nhận thông báo của mọi vật tư (`price_alerts.receive_all`), thường là vai trò `manager`. Không nhận biết bằng tên vai trò trong code.
+_Tránh_: Quản lý (nếu chỉ dựa vào tên role)
+
+**Admin hệ thống**:
+Tài khoản seed (`AUTH_SEED_ADMIN_EMAIL`) chỉ dùng để quản trị và import, không nhập tay và không nhận thông báo biến động. Phiếu do tài khoản này tạo được xem là import.
+_Tránh_: Admin (khi muốn nói người dùng có role admin bình thường)
+

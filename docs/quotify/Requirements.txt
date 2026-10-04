@@ -130,3 +130,4 @@ Quy tắc chốt mua:
     * Tại thời điểm đánh dấu chốt mua trong Quotify: so sánh giá đã chốt với các báo giá đã tồn tại trong hệ thống tại thời điểm đó.
     * Sau thời điểm đánh dấu chốt mua: so sánh giá đã chốt với xu hướng giá phát sinh sau đó.
 - Hai góc nhìn trên chỉ cung cấp thông tin tham khảo; hệ thống không tự kết luận quyết định mua là đúng hay sai.
+- Thông báo biến động giá qua Telegram (giai đoạn 1B) là chức năng bổ sung ngoài dashboard: khi một báo giá được chốt, hệ thống so giá với 7 ngày làm việc liền trước và gửi tin tới trưởng phòng và nhân viên đã nhập vật tư đó. Tin chỉ nêu thông tin (mức biến động, giá tham chiếu, biểu đồ), không khuyến nghị mua hoặc bán và không tự kết luận. Chi tiết ở `docs/quotify/plan-telegram-giai-doan-1b-engine-bien-dong-gia.md`.

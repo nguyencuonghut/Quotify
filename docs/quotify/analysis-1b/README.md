@@ -29,6 +29,7 @@ Chạy trên **DB dev** (không phải production). Đặt hai file CSV cạnh c
 | `py/partB.py` đến `partB5.py` | Phát lại theo thời điểm chốt (`confirmed_at`) với nguồn kích hoạt D6, chặn bất thường D12 mức dòng, chống lặp D5(a), gộp tin D5(b), ước lượng người nhận D8 |
 | `py/price_chart_prototype.py` | Mẫu vẽ biểu đồ 14 ngày bằng matplotlib (API hướng đối tượng, `asyncio.to_thread`). Ảnh mẫu: `chart_prototype.png`. Có 7 lỗi mypy strict do `matplotlib.dates`; bản chính thức phải tránh |
 | `sql/ex8.sql` | Xuất `lines.csv` |
+| `sql/slice0_production_check.sql` | Kiểm production chỉ đọc cho Slice 0 (role, người import, phiếu của tài khoản seed, liên kết Telegram); đặt `default_transaction_read_only = on` |
 | `sql/ex6.sql` | Xuất các cặp version điều chỉnh (nguồn và kế nhiệm) |
 | `sql/q2*.sql`, `q3.sql`, `q4.sql`, `q5*.sql`, `q6c.sql`, `q9.sql` | Truy vấn đo số liệu: phân bố tài khoản seed và người thật, độ trễ ngày làm việc, 60 ngày gần nhất, `delivery_month`, cuối tuần, trùng khóa dòng, dòng nhập thật theo tuần ISO |
 
@@ -36,6 +37,6 @@ Chạy một truy vấn: `docker exec -i quotify-postgres-1 psql -U postgres -d 
 
 ## Giới hạn đã biết
 
-- Engine mô phỏng chu kỳ quét 2 phút bằng gộp theo thời điểm chốt; không mô phỏng người bấm "Giá đúng" (bất thường bị loại vĩnh viễn trong mô phỏng).
+- Engine mô phỏng chu kỳ quét bằng gộp theo thời điểm chốt trong ô `SCAN_SLOT_SECONDS` (30 giây theo L27 của kế hoạch 1B; bản đầu dùng 120 giây, chênh +1% tin D5(b)); không mô phỏng người bấm "Giá đúng" (bất thường bị loại vĩnh viễn trong mô phỏng).
 - Danh sách người nhận (D8) là ước lượng theo `quotes.created_by_id` trong 90 ngày.
 - Các số liệu là của DB dev tại 2026-10-04 (khôi phục từ dump 2026-10-02 cộng dữ liệu nhập sau đó), không phải production.

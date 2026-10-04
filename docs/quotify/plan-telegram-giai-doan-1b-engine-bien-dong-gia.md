@@ -2,11 +2,11 @@
 
 ## Trạng Thái
 
-BẢN NHÁP ĐỂ XÁC NHẬN (bản 1). Ngày soạn: 2026-10-04. **Chưa có dòng code nào của 1B.** Giai đoạn 1A (liên kết tài khoản Telegram) đã chạy trên production từ 2026-10-04.
+BẢN ĐÃ CHỐT (bản 4, 2026-10-04: Q1 đến Q7 và L1 đến L28 đã chốt; **Slice 0 đã xong**, kể cả kiểm production chỉ đọc). Sẵn sàng bắt đầu Slice 1. Ngày soạn: 2026-10-04. **Chưa có dòng code nào của 1B.** Giai đoạn 1A (liên kết tài khoản Telegram) đã chạy trên production từ 2026-10-04.
 
 Kế hoạch này là phần triển khai chi tiết của Giai đoạn 1B trong
 [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md)
-(Mục 3 D1 đến D12, Mục 4.1 đến 4.8, Mục 7). Các quyết định thiết kế ở tài liệu đó đã chốt (QĐ-1 đến QĐ-19). Chỗ kế hoạch này kiểm chứng lại, điều chỉnh hoặc bổ sung dựa trên code và dữ liệu thật được liệt kê ở mục "Độ Lệch Và Bổ Sung So Với Tài Liệu Cha". Các điều cần người dùng quyết nằm ở mục "Câu Hỏi Cần Bạn Quyết" (Q1 đến Q7), mỗi câu có đề xuất.
+(Mục 3 D1 đến D12, Mục 4.1 đến 4.8, Mục 7). Các quyết định thiết kế ở tài liệu đó đã chốt (QĐ-1 đến QĐ-19; QĐ-20 là chu kỳ quét 30 giây, xem L27). Chỗ kế hoạch này kiểm chứng lại, điều chỉnh hoặc bổ sung dựa trên code và dữ liệu thật được liệt kê ở mục "Độ Lệch Và Bổ Sung So Với Tài Liệu Cha". Các điều cần người dùng quyết nằm ở mục "Câu Hỏi Cần Bạn Quyết" (Q1 đến Q7, đã chốt 2026-10-04), mỗi câu có đề xuất.
 
 Cách soạn:
 - Local skill `to-issues`: chia lát cắt dọc (tracer bullet). Mỗi slice đi qua đủ các tầng cần thiết, tự xác minh được, có loại **HITL** (cần người quyết định hoặc thao tác ngoài code) hoặc **AFK** (agent làm và merge được), "chặn bởi" và tiêu chí chấp nhận. Không đăng issue lên tracker nào.
@@ -23,7 +23,7 @@ Cuối Giai đoạn 1B, trên dev rồi production (cờ tắt rồi bật dần
 - Có chế độ **dry-run replay** trên DB dev để đo tải tin và kiểm engine trước khi gửi thật.
 
 **Hoàn thành khi (định lượng, mục 1B của tài liệu cha, đã siết lại bằng số đo thật):**
-1. Replay trên DB dev bằng engine thật khớp **engine tham chiếu độc lập** (`docs/quotify/analysis-1b/`) trong ±15% cho cấu hình D6 (Phụ lục C): khoảng 30,2 tin theo chuỗi mỗi tuần, 16,9 tin gộp theo vật tư, 6,8 tin Trung bình và Lớn, 18,9 tin theo đơn vị D5(b) (7,6 Trung bình và Lớn). Không có tin sai hướng.
+1. Replay trên DB dev bằng engine thật khớp **engine tham chiếu độc lập** (`docs/quotify/analysis-1b/`) trong ±15% cho cấu hình D6 (Phụ lục C): khoảng 30,2 tin theo chuỗi mỗi tuần, 16,9 tin gộp theo vật tư, 6,8 tin Trung bình và Lớn, 19,1 tin theo đơn vị D5(b) (7,6 Trung bình và Lớn). Không có tin sai hướng.
 2. Ba ví dụ của D2 và các biên ngưỡng (2,5 / 5 / 10, và 4,996) đúng; test thuộc tính |R2| ≥ |R1| khi tăng, |R3| ≥ |R1| khi giảm xanh.
 3. Các điểm bất thường của B.7 được gắn cờ đúng; các điểm đúng của Khô cọ và Tryptophan không bị gắn cờ giả khi mô phỏng nút "Giá đúng" (đợt β).
 4. Tin mẫu đúng định dạng trên Telegram thật (ảnh 900 x 500, caption không quá 1.024 ký tự, tin chi tiết không quá 4.096), nút Giá đúng và Nhập sai chạy được vòng khứ hồi (đợt β).
@@ -85,7 +85,7 @@ Lý do tách: giá bất thường là phần rủi ro nhất (tham chiếu bị
 
 ### Từ Telegram thật (bot dev `@HHQuotifyBot`, các thí nghiệm "từ chối", không gửi gì vào chat)
 
-Văn bản 4.097 ký tự: 400 `message is too long`. HTML có `<` hoặc `&` thô: 400 `can't parse entities` (lỗi cuối cùng). `callback_data` 65 byte hoặc chuỗi tiếng Việt 72 byte: 400 `BUTTON_DATA_INVALID`. Nút inline không có `callback_data` hay `url`: 400. Caption 1.025 ký tự: 400. `answerCallbackQuery` với id giả: 400 (hết hạn). `editMessageText` tin không tồn tại: 400. Theo tài liệu chính thức (Bot API 10.3): ảnh tối đa 10 MB, rộng cộng cao không quá 10.000, tỷ lệ tối đa 20, caption và văn bản tính sau khi parse entity. **Các thí nghiệm "dương" (gửi thật, nút bấm khứ hồi, giới hạn tốc độ 40 tin) cần bạn đồng ý nhận tin thử: Slice 0.**
+Văn bản 4.097 ký tự: 400 `message is too long`. HTML có `<` hoặc `&` thô: 400 `can't parse entities` (lỗi cuối cùng). `callback_data` 65 byte hoặc chuỗi tiếng Việt 72 byte: 400 `BUTTON_DATA_INVALID`. Nút inline không có `callback_data` hay `url`: 400. Caption 1.025 ký tự: 400. `answerCallbackQuery` với id giả: 400 (hết hạn). `editMessageText` tin không tồn tại: 400. Theo tài liệu chính thức (Bot API 10.3): ảnh tối đa 10 MB, rộng cộng cao không quá 10.000, tỷ lệ tối đa 20, caption và văn bản tính sau khi parse entity. Các thí nghiệm "dương" (gửi thật, nút bấm khứ hồi, giới hạn tốc độ 40 tin) đã chạy ngày 2026-10-04 ở Slice 0, kết quả ở Phụ lục A. Điểm đáng chú ý nhất: `answerCallbackQuery` bị từ chối sau khoảng 15 giây (L22).
 
 ### Từ thử nghiệm biểu đồ (matplotlib, môi trường tạm, Python 3.12 như image)
 
@@ -104,7 +104,7 @@ Khả thi, không cần apt hay font: matplotlib 3.11.2 cùng numpy, pillow... �
 
 ## Độ Lệch Và Bổ Sung So Với Tài Liệu Cha
 
-Các điểm dưới đây được kiểm chứng bằng code và dữ liệu thật. Những chỗ tài liệu cha **sai về sự kiện** sẽ được sửa ở Slice 0; những chỗ là **quyết định thiết kế mới** nằm ở mục L1 đến L24.
+Các điểm dưới đây được kiểm chứng bằng code và dữ liệu thật. Những chỗ tài liệu cha **sai về sự kiện** sẽ được sửa ở Slice 0; những chỗ là **quyết định thiết kế mới** nằm ở mục L1 đến L28.
 
 | # | Tài liệu cha ghi | Thực tế và xử lý |
 |---|---|---|
@@ -150,39 +150,41 @@ Mỗi điểm có mặc định, dựa trên số đo ở mục Căn Cứ. **Tr�
 | L5 | Ngày làm việc | Module thuần `services/working_days.py`: `is_working_day`, `working_days_between(start, end)` (đếm ngày làm việc trong `(start, end]`), `reference_window(day, n=7)` (lùi bỏ thứ Bảy, Chủ Nhật). Thứ Bảy, Chủ Nhật không đếm; ngày lễ và Tết chưa loại (QĐ-11). Điểm nhận cuối tuần vẫn là điểm tham chiếu |
 | L6 | Điểm giá (daily-min) | Hàm `get_daily_min_series(session, material_id, delivery_month, date_from, date_to, exclude_line_ids)` trong `services/daily_min_series.py`, SQL `GROUP BY received_date, MIN(price_converted_vnd_per_kg)`, điều kiện chuẩn của dashboard, chuẩn hóa `date_trunc('month')`. Trả thêm id dòng và version của điểm thấp nhất. Chatbot ở giai đoạn 2 dùng lại hàm này |
 | L7 | Phân mức | `percent = (mới − ref) / ref × 100` bằng `Decimal`, **không quantize** trước khi so; biên `≥ 2,5`, `≥ 5`, `> 10` (D4). Hiển thị mới làm tròn HALF_UP 2 chữ số. Bảo vệ `ref = 0` và giá không dương (import không kiểm dương) |
-| L8 | Worker | (a) Dựng `TelegramClient.from_settings` ở `startup`, đóng ở `shutdown`; (b) gọi `configure_logging` ở `startup` (hiện thiếu, nên log INFO không in và bộ che token không áp dụng); (c) cron `poll_price_alerts` mỗi 2 phút; (d) đặt `timezone = ZoneInfo(settings.app_timezone)` cho `WorkerSettings` và có test; (e) `pg_try_advisory_xact_lock` suốt lần quét, vì `cron(unique=True)` chỉ chống trùng theo mốc giờ, không chống chạy chồng; (f) mỗi version trong một savepoint |
+| L8 | Worker | (a) Dựng `TelegramClient.from_settings` ở `startup`, đóng ở `shutdown`; (b) gọi `configure_logging` ở `startup` (hiện thiếu, nên log INFO không in và bộ che token không áp dụng); (c) cron `poll_price_alerts` mỗi 30 giây (`second={0, 30}`, L27); (d) đặt `timezone = ZoneInfo(settings.app_timezone)` cho `WorkerSettings` và có test; (e) `pg_try_advisory_xact_lock` suốt lần quét, vì `cron(unique=True)` chỉ chống trùng theo mốc giờ, không chống chạy chồng; (f) mỗi version trong một savepoint |
 | L9 | `allowed_updates` | Gom thành **một hằng** dùng chung cho poller và CLI, thêm `callback_query` (đợt β). Webhook production đang đăng ký danh sách cũ nên **sau deploy đợt β phải chạy lại `telegram_webhook.py set --yes`** (nếu không Telegram không gửi `callback_query`). Test đang ghim danh sách cũ ở 3 file, phải cập nhật |
 | L10 | Client Telegram mở rộng | Thêm `send_photo(chat_id, png, caption, reply_markup)` (multipart: `files` cho ảnh, `data` cho trường còn lại, `reply_markup` là chuỗi JSON), `answer_callback_query`, `edit_message_text`, `edit_message_reply_markup`. Kiểm caption ≤ 1.024 và văn bản ≤ 4.096 trước khi gọi. Giữ `from None` khi lỗi mạng. Lỗi `message is not modified` là bình thường, không thử lại |
 | L11 | Biểu đồ | matplotlib, **API hướng đối tượng** (`Figure` + `FigureCanvasAgg`, không `pyplot`), chạy trong `asyncio.to_thread`. Nhúng đường dẫn tới DejaVu Sans đi kèm gói (`FontProperties(fname=...)`), không phụ thuộc font hệ thống. **Không emoji trong ảnh** (dùng `▲`, `▼`); emoji chỉ ở caption và tin văn bản. Tránh `matplotlib.dates` (lỗi mypy strict). Đặt `MPLCONFIGDIR=/tmp/mpl`. Bọc sau hàm `render_price_chart(spec) -> bytes` để đổi sang Pillow sau nếu cần. Pin phiên bản trong `uv.lock` |
 | L12 | Danh sách người nhận thử (pilot) | Biến môi trường `PRICE_ALERT_RECIPIENT_EMAILS` (rỗng nghĩa là không giới hạn). Khi có giá trị, **chỉ** người trong danh sách nhận tin; người khác được ghi trạng thái `skipped` (lý do `pilot`). Dùng ở dev và ở giai đoạn đầu trên production, an toàn hơn chỉ dựa vào việc "ít người đã liên kết Telegram" |
-| L13 | Hai cờ | `TELEGRAM_ENABLED` (môi trường) là điều kiện cần; `price_alert_settings.is_enabled` (DB) là điều kiện đủ. Chuyển `false → true` đặt `watermark_confirmed_at` và `enabled_since` bằng thời điểm bật **mỗi lần**, để dữ liệu cũ không sinh tin. Cron kiểm cờ ở đầu mỗi lần chạy nên tắt có hiệu lực trong vòng 2 phút |
+| L13 | Hai cờ | `TELEGRAM_ENABLED` (môi trường) là điều kiện cần; `price_alert_settings.is_enabled` (DB) là điều kiện đủ. Chuyển `false → true` đặt `watermark_confirmed_at` và `enabled_since` bằng thời điểm bật **mỗi lần**, để dữ liệu cũ không sinh tin. Cron kiểm cờ ở đầu mỗi lần chạy nên tắt có hiệu lực trong vòng 30 giây |
 | L14 | Quyền | Hai mã cho 1B: `price_alerts.receive_all`, `price_alerts.manage` (`chatbot.manage` để 2A). Thêm vào `BASE_PERMISSION_CODES` (list literal). **Migration quyền tự `INSERT`** vào `permissions` (`gen_random_uuid()`, `ON CONFLICT (code) DO NOTHING`) rồi gán cho `manager` **và `admin`** (`ON CONFLICT DO NOTHING`, chịu được thiếu role). Gán `admin` để giao diện 1C hiện trang (frontend `can()` không bypass admin; backend vẫn bypass). Có test migration trên DB có và không có role `manager`, và chạy trước seed |
 | L15 | Audit | `price_alerts.settings_updated`, `price_alerts.threshold_updated` (kèm `changes[]`, mọi giá trị `str()`), `price_alerts.anomaly_reviewed`, `price_alerts.scan_completed` (chỉ khi có sự kiện). Thêm khóa vào allow-list, test giữ khóa và vẫn che khóa chứa `token`, `secret`, `session`. Không audit từng tin gửi |
 | L16 | Người nhận | D7 đến D10 giữ nguyên. Chỉ gửi cho người dùng `ACTIVE` có liên kết Telegram `active` (không `blocked`). D8 dựa `quotes.created_by_id`; D12 dựa `quote_versions.created_by_id` (hiện luôn bằng nhau, nên test phải **tạo dữ liệu khác nhau** để kiểm hai định nghĩa). Mọi phép loại tài khoản seed phải NULL-safe (`IS DISTINCT FROM`) |
-| L17 | Nhận biết import | Phiếu do tài khoản seed (`AUTH_SEED_ADMIN_EMAIL`) tạo là import (D6). Vì import dùng id người tải file, **Slice 0 phải kiểm production**: ai đã tải import (`import_jobs.created_by_id`, `entity_type`). Khuyến nghị dùng tài khoản riêng cho import (Q7). Không có đánh dấu riêng ở 1B |
+| L17 | Nhận biết import | Quy ước đã chốt (Q7): tài khoản seed (`AUTH_SEED_ADMIN_EMAIL`) là admin hệ thống, chỉ quản trị và import, không bao giờ nhập tay; phiếu do tài khoản này tạo là import (D6) và tài khoản này không nhận tin. Import dùng id người tải file nên quy ước chỉ đúng khi mọi import đều do tài khoản này tải: **Slice 0 kiểm production** (`import_jobs.created_by_id`) và kiểm tài khoản này không có phiếu nhập tay. Đo trên dev (2026-10-04): 4 job import đều do tài khoản seed tải; 2.847 phiếu của tài khoản seed đều tạo trong một ngày (19/08, ngày import); 587 phiếu của 9 người thật từ 20/08 đến 02/10. **Production (kiểm 2026-10-04) khớp dev:** 4 job import đều do tài khoản seed tải; 2.847 phiếu của tài khoản seed đều tạo ngày 19/08; 595 phiếu của 7 người thật từ 20/08 đến 04/10. Vi phạm quy ước về sau (người khác import) không có cơ chế chặn riêng ở 1B; trần 10 phút của L27(d) giới hạn thiệt hại. Không có đánh dấu riêng |
 | L18 | Mức Nhẹ ở 1B | Tạo sự kiện và tin trạng thái `digest_queued`, **không gửi** (bản tin 08:00 là 1C). Tính là "đã gửi" cho chống lặp D5(a). Người đặt mức tối thiểu "Nhẹ" vì thế chưa nhận gì ở 1B (Q1) |
 | L19 | Dọn dữ liệu | Cron hằng ngày xóa sự kiện, tin, lần quét, version đã quét cũ hơn 180 ngày. Có test không xóa tin còn `pending` hay thẻ còn `pending` |
-| L20 | Hạ tầng test | `worker-test` ép `TELEGRAM_ENABLED=false` và token rỗng (như `backend-test` đã làm ở 1A); `scripts/fake_telegram_server.py` và `tests/telegram_fakes.py` hiểu multipart (`sendPhoto`), `answerCallbackQuery`, `editMessageText`, trả `message_id`. Thêm helper dựng vật tư, nhà cung cấp, phiếu, version, dòng vào `tests/integration/db_helpers.py` |
-| L21 | Quan sát | `price_alert_scan_runs` (số version quét, sự kiện, tin tạo, tin gửi, lỗi) và log INFO của worker. Có truy vấn giám sát chỉ đọc trong runbook. Metric Prometheus và cảnh báo watermark trễ là 1C |
-| L22 | `callback_query` ở bot | Rate limit **bucket riêng** theo `from.id` (cùng cơ chế in-memory); **luôn** gọi `answerCallbackQuery` (kể cả khi từ chối hay bị giới hạn) để nút không quay mãi; nhánh lỗi "độc" cũng phải trả lời được callback (hiện trả `[]` khi không có `message`) |
+| L20 | Hạ tầng test | `worker-test` ép `TELEGRAM_ENABLED=false` và token rỗng (như `backend-test` đã làm ở 1A); `scripts/fake_telegram_server.py` và `tests/telegram_fakes.py` hiểu multipart (`sendPhoto`), `answerCallbackQuery`, `editMessageText`, `editMessageCaption`, `editMessageReplyMarkup`, trả `message_id`. Thêm helper dựng vật tư, nhà cung cấp, phiếu, version, dòng vào `tests/integration/db_helpers.py` |
+| L21 | Quan sát | `price_alert_scan_runs` (số version quét, sự kiện, tin tạo, tin gửi, lỗi; **chỉ ghi khi lần quét có việc hoặc có lỗi**, L27), nhịp tim `price_alert_scan_state.last_run_at`, và log INFO của worker (lần quét rỗng chỉ log DEBUG). Có truy vấn giám sát chỉ đọc trong runbook, trong đó `last_run_at` cũ hơn 2 phút khi cờ đang bật nghĩa là cron hoặc worker hỏng. Metric Prometheus và cảnh báo watermark trễ là 1C |
+| L22 | `callback_query` ở bot | Rate limit **bucket riêng** theo `from.id` (cùng cơ chế in-memory); **luôn** gọi `answerCallbackQuery` (kể cả khi từ chối hay bị giới hạn) để nút không quay mãi, và gọi **trong 5 giây** kể từ lúc nhận update, trước các thao tác tốn thời gian (Telegram từ chối câu trả lời sau khoảng 15 giây: trả lời sau 14 giây vẫn được, sau 17 giây thì 400 `query is too old`, Phụ lục A). Nếu việc xử lý chưa xong thì trả lời ngay bằng "Đang xử lý" rồi sửa tin khi xong; nhánh lỗi "độc" cũng phải trả lời được callback (hiện trả `[]` khi không có `message`) |
 | L23 | Hai người bấm cùng lúc | Cập nhật nguyên tử: `UPDATE price_alert_events SET review_status=:s, reviewed_by_id=:u, reviewed_at=now() WHERE id=:id AND review_status='pending' RETURNING ...`; ai được 1 dòng thì thắng (dedupe theo `update_id` không đủ vì hai lần bấm là hai update) |
-| L24 | Sửa tin sau khi bấm | Sửa tin của **người bấm**: ghi người xử lý, thời điểm, kết quả và bỏ bàn phím. Tin của trưởng phòng khác giữ nguyên cho tới khi họ bấm; khi bấm vào thẻ đã xử lý thì `answerCallbackQuery` báo "đã được xử lý bởi ..." và sửa tin của họ về trạng thái cuối |
+| L24 | Sửa tin sau khi bấm | Tin có ảnh sửa bằng `editMessageCaption` (`editMessageText` trả 400 `there is no text in the message to edit`), tin văn bản bằng `editMessageText`; bỏ bàn phím bằng `reply_markup` `{"inline_keyboard": []}`; lỗi 400 `message is not modified` (bấm lặp hoặc sửa trùng nội dung) là **thành công**, không phải lỗi. Sửa tin của **người bấm**: ghi người xử lý, thời điểm, kết quả và bỏ bàn phím. Tin của trưởng phòng khác giữ nguyên cho tới khi họ bấm; khi bấm vào thẻ đã xử lý thì `answerCallbackQuery` báo "đã được xử lý bởi ..." và sửa tin của họ về trạng thái cuối |
 | L25 | Gửi tin | At-least-once, `lease_until` giảm gửi trùng. Mỗi tin: gửi ảnh rồi tin chi tiết. 429: chờ `retry_after`; 403: `mark_blocked` theo **tài khoản** (`telegram_accounts.chat_id`); 400: lỗi cuối, không thử lại; lỗi mạng: thử lại có backoff. Bỏ qua tin ở trạng thái cuối; không bỏ qua `sending` còn hạn `lease_until` |
 | L26 | Dry-run replay | Lệnh `python -m app.price_alert_replay` chạy engine thật trên DB, **trong một giao dịch không bao giờ commit**, không gửi Telegram, in số liệu theo tuần (chuỗi, gộp, Trung bình và Lớn, D5(b)). Tùy chọn `--ignore-trigger-source` (bỏ D6) để thấy nhiều dữ liệu hơn trên dev |
+| L27 | Chu kỳ quét 30 giây (đã chốt 2026-10-04) | Giữ **cron quét + watermark** và đổi chu kỳ từ 2 phút (tài liệu cha 4.1) xuống **30 giây** (`second={0, 30}`). Độ trễ từ lúc chốt đến lúc có sự kiện tối đa 30 giây cộng thời gian xử lý; đến tin Telegram khoảng 45 giây vì cron gửi chạy lệch pha `second={15, 45}` (L25). Tính toán vẫn là đúng điều người dùng mô tả (chốt xong thì so với cửa sổ 7 ngày làm việc rồi gửi), chỉ khác là do cron nhặt thay vì route gọi. Không móc vào route confirm vì ba đường chốt (route, `delete_confirmed_line`, import commit từng 200 nhóm) và vì mất kết nối Redis sau commit sẽ làm mất sự kiện; **nâng cấp gần thời gian thực** (enqueue job ngay sau commit, giữ cron làm lưới an toàn; hoặc outbox bằng trigger DB) để dành cho 1C nếu 30 giây không đủ. Hệ quả: **(a)** chỉ ghi `price_alert_scan_runs` khi lần quét có ≥ 1 version hoặc có lỗi, nếu không sẽ có khoảng 2.880 dòng rỗng mỗi ngày; thay vào đó mọi lần quét có lấy được khóa đều cập nhật `price_alert_scan_state.last_run_at` (một UPDATE trên bảng singleton, thêm cột ở migration 1). **(b)** Khóa advisory vẫn bắt buộc: lần quét có thể kéo dài hơn 30 giây khi import lớn, và `cron(unique=True)` của arq chỉ chống trùng theo mốc thời gian (job id là `tên:mốc ms`); lần chạy không lấy được khóa thoát ngay, không ghi gì. **(c)** Độ chồng lấp watermark giữ **5 phút** (do độ trễ commit của import, không phụ thuộc chu kỳ). **(d)** Chia nhỏ lần quét làm trần D5(d) "30 tin mỗi lần quét" kém tác dụng khi có đợt nhập hàng loạt, nên thêm **trần thứ hai: 30 tin gửi ngay cho một người trong 10 phút gần nhất** (đếm từ `price_alert_messages`, hằng số trong code; vượt thì `digest_queued` và gom vào tin tóm tắt như D5(d)); số liệu thật (tối đa 7 tin mỗi lần quét, 14 tin mỗi ngày) không chạm trần này. **(e)** Số liệu D5(b) đo lại với ô quét 30 giây: 19,1 tin mỗi tuần (trước 18,9), Trung bình và Lớn vẫn 7,6 (Phụ lục C) |
+| L28 | Tài khoản thử trên dev (người dùng đề xuất 2026-10-04) | Tạo một tài khoản **Manager** riêng trên dev (role `manager` và `user`, giống 9 trưởng phòng hiện có; không phải tài khoản seed và không mượn tài khoản của người thật) qua trang Người dùng. Dùng cho cả hai việc: **nhập liệu và chốt phiếu thử** (người thật nên là nguồn kích hoạt hợp lệ theo D6) và **nhận Telegram** (liên kết Telegram của bạn vào tài khoản này, thay cho liên kết của tài khoản seed). Một tài khoản đủ cho đợt α vì trưởng phòng nhận mọi vật tư từ mức Trung bình (D7); quy tắc D8 (nhân viên chỉ nhận vật tư mình đã nhập) không kiểm được bằng tài khoản này mà do test tích hợp phủ. Đợt β cần thêm **một tài khoản nhân viên** (role `user`) làm người nhập, để kiểm "trưởng phòng khác người nhập" (thẻ có nút và thẻ không nút). **Luật khi một người vừa là trưởng phòng vừa là người nhập:** nhận **một** thẻ, loại có nút (một tin cho mỗi người nhận, D5(b)). Tài khoản nằm trong DB dev nên mất khi khôi phục DB từ dump; thao tác tạo lại ghi trong hướng dẫn kiểm dev. `PRICE_ALERT_RECIPIENT_EMAILS` trên dev chỉ gồm email tài khoản này |
 
 ## Câu Hỏi Cần Bạn Quyết
 
-Mỗi câu có đề xuất; nếu bạn trả lời "theo đề xuất" thì tác giả chốt như đề xuất.
+Mỗi câu có đề xuất; nếu bạn trả lời "theo đề xuất" thì tác giả chốt như đề xuất. **Kết quả 2026-10-04:** Q1 đến Q6 chốt theo đề xuất; Q7 chốt như ghi ở dòng Q7.
 
 | # | Câu hỏi | Đề xuất | Hệ quả nếu khác |
 |---|---|---|---|
-| Q1 | **Mức Nhẹ ở 1B**: lưu mà chưa gửi (chờ bản tin 08:00 ở 1C), hay gửi riêng từng tin ngay? | Lưu, chưa gửi (L18). Mức Nhẹ chiếm phần lớn sự kiện (118/190 theo chuỗi trong replay); gửi riêng sẽ tăng đáng kể khối lượng tin | Gửi riêng: tải tin mỗi nhân viên tăng, cần trần riêng, ngược với D5(c) |
-| Q2 | **Bản điều chỉnh sửa muộn**: D6 tính trễ theo `received_date` (bản điều chỉnh mang `received_date` cũ), nên sửa giá sau hơn 3 ngày làm việc **không phát tin** (vẫn là điểm tham chiếu). Giữ vậy? | Giữ (đơn giản, tránh bão tin khi sửa hàng loạt phiếu cũ) | Tính trễ theo ngày chốt bản điều chỉnh: sửa lỗi cũ cũng phát tin; dễ ồn khi chỉnh dữ liệu lịch sử |
-| Q3 | **Tách hai đợt phát hành** α (biến động) và β (giá bất thường, nút bấm)? | Tách (xem mục Phát Hành Hai Đợt) | Một đợt: rủi ro lớn hơn, deploy phải đổi `allowed_updates` ngay |
-| Q4 | **Giá bất thường (D12)**: replay thời gian thực gắn cờ 43 điểm (6,8 mỗi tuần), nhiều điểm do tham chiếu bị nhiễm độc bởi lần nhập sai đầu tiên. Giữ ngưỡng 30% và 30 ngày, rồi chỉnh theo dry-run **có mô phỏng nút "Giá đúng"** ở Slice 12? | Giữ mặc định, chỉ phát hành β khi dry-run đạt | Nâng ngưỡng (40%, 50%) bỏ sót lỗi nhập sai thật (ví dụ USD gõ vào ô VNĐ/KG lệch khoảng 96%) |
-| Q5 | **Ai nhận tin trong giai đoạn pilot trên production?** (L12) | Chỉ chủ dự án và 1 đến 2 trưởng phòng, qua `PRICE_ALERT_RECIPIENT_EMAILS`, vài tuần đầu | Bỏ pilot: tin đến mọi người đã liên kết ngay khi bật |
-| Q6 | **Thêm `--no-cache` vào `uv sync` của Dockerfile production** (giảm 137 MB layer, bù cho matplotlib)? Thay đổi Dockerfile production ngoài phạm vi tính năng | Làm, như một slice nhỏ riêng có rollback dễ (Slice 8) | Không làm: image production tăng thêm khoảng 274 MB |
-| Q7 | **Tài khoản riêng cho import** thay vì dùng tài khoản seed admin hay admin thật? Cần thiết nếu admin vừa nhập tay vừa import cùng tài khoản (phiếu nhập tay bị loại nhầm khỏi nguồn kích hoạt) | Khuyến nghị làm trước khi bật trên production; Slice 0 kiểm xem hiện ai đang import | Không làm: chấp nhận loại nhầm một số phiếu |
+| Q1 (đã chốt) | **Mức Nhẹ ở 1B**: lưu mà chưa gửi (chờ bản tin 08:00 ở 1C), hay gửi riêng từng tin ngay? | Lưu, chưa gửi (L18). Mức Nhẹ chiếm phần lớn sự kiện (118/190 theo chuỗi trong replay); gửi riêng sẽ tăng đáng kể khối lượng tin | Gửi riêng: tải tin mỗi nhân viên tăng, cần trần riêng, ngược với D5(c) |
+| Q2 (đã chốt) | **Bản điều chỉnh sửa muộn**: D6 tính trễ theo `received_date` (bản điều chỉnh mang `received_date` cũ), nên sửa giá sau hơn 3 ngày làm việc **không phát tin** (vẫn là điểm tham chiếu). Giữ vậy? | Giữ (đơn giản, tránh bão tin khi sửa hàng loạt phiếu cũ) | Tính trễ theo ngày chốt bản điều chỉnh: sửa lỗi cũ cũng phát tin; dễ ồn khi chỉnh dữ liệu lịch sử |
+| Q3 (đã chốt) | **Tách hai đợt phát hành** α (biến động) và β (giá bất thường, nút bấm)? | Tách (xem mục Phát Hành Hai Đợt) | Một đợt: rủi ro lớn hơn, deploy phải đổi `allowed_updates` ngay |
+| Q4 (đã chốt) | **Giá bất thường (D12)**: replay thời gian thực gắn cờ 43 điểm (6,8 mỗi tuần), nhiều điểm do tham chiếu bị nhiễm độc bởi lần nhập sai đầu tiên. Giữ ngưỡng 30% và 30 ngày, rồi chỉnh theo dry-run **có mô phỏng nút "Giá đúng"** ở Slice 12? | Giữ mặc định, chỉ phát hành β khi dry-run đạt | Nâng ngưỡng (40%, 50%) bỏ sót lỗi nhập sai thật (ví dụ USD gõ vào ô VNĐ/KG lệch khoảng 96%) |
+| Q5 (đã chốt) | **Ai nhận tin trong giai đoạn pilot trên production?** (L12) | Chỉ chủ dự án và 1 đến 2 trưởng phòng, qua `PRICE_ALERT_RECIPIENT_EMAILS`, vài tuần đầu (phải là tài khoản người thật, không phải tài khoản seed; Q7) | Bỏ pilot: tin đến mọi người đã liên kết ngay khi bật |
+| Q6 (đã chốt) | **Thêm `--no-cache` vào `uv sync` của Dockerfile production** (giảm 137 MB layer, bù cho matplotlib)? Thay đổi Dockerfile production ngoài phạm vi tính năng | Làm, như một slice nhỏ riêng có rollback dễ (Slice 8) | Không làm: image production tăng thêm khoảng 274 MB |
+| Q7 (đã chốt, khác đề xuất ban đầu) | **Tài khoản riêng cho import** thay vì dùng tài khoản seed admin hay admin thật? | **Không cần tài khoản riêng.** Tài khoản admin hệ thống (`AUTH_SEED_ADMIN_EMAIL`) chỉ để quản trị và import, **không bao giờ nhập tay** vì không phải nhân sự phòng Mua. Vậy "tài khoản seed" chính là "tài khoản import" (L17) | Quy ước này phải đúng mãi: nếu admin hệ thống nhập tay thì phiếu đó bị loại khỏi nguồn kích hoạt; nếu người khác import thì bị coi là nhập tay (RR-38) |
 
 ## Mô Hình Dữ Liệu (migration additive, viết tay, không `--autogenerate`)
 
@@ -199,6 +201,7 @@ price_alert_scanned_versions
   scan_run_id UUID NULL FK price_alert_scan_runs SET NULL
 ```
 
+- **Thêm** cột `price_alert_scan_state.last_run_at timestamptz NULL` (L27): nhịp tim của cron quét, cập nhật mỗi lần chạy lấy được khóa, kể cả khi không có version nào.
 - Giữ nguyên các bảng `price_alert_settings` (singleton), `price_alert_scan_state` (singleton), `price_alert_scan_runs`, `price_alert_material_thresholds`, `price_alert_events`, `price_alert_messages`, `price_alert_message_events`, `user_alert_preferences` như tài liệu cha. `price_alert_events.attached_to_event_id`, `review_status`, `reminded_at` chỉ dùng từ đợt β nhưng tạo cùng bảng để tránh migration sửa bảng.
 - **Chia migration theo slice** (mỗi migration một head nối tiếp từ `20261004_1100`, đặt tên `YYYYMMDD_HHMM_<mô_tả>.py`):
   1. Slice 1: `price_alert_settings`, `price_alert_scan_state`, `price_alert_scan_runs`, `price_alert_scanned_versions`, `price_alert_material_thresholds`, `user_alert_preferences`.
@@ -234,7 +237,7 @@ Dữ liệu động luôn qua `escape_html`. Phần định dạng đầy đủ 
 | Caption (≤ 1.024 ký tự) | `🔺🟠 TĂNG TRUNG BÌNH · Ngô hạt` / `Giá thấp nhất hôm nay: 8,150.00 VNĐ/KG (02/10/2026)` / `Kỳ 12/2026: +5.57% so với giá thấp nhất 7 ngày làm việc` |
 | Tin chi tiết (≤ 4.096) | Theo Mục 4.2: lý do chính, "So sánh khác" (chỉ khi khác điểm tham chiếu), vùng tham chiếu, dòng CNF khi nguồn USD/MT (QĐ-8), chú thích "điểm giá có thể thuộc nhà cung cấp khác với lần trước", liên kết `https://quotify.honghafeed.com.vn/quotes/<id>` |
 | Quá dài | Nhiều kỳ giao hàng vượt ngưỡng: cắt có chú thích "còn N kỳ nữa, xem trên web"; không bao giờ vượt 4.096 ký tự |
-| Vượt trần mỗi lần quét (30) | Một tin tóm tắt "còn N thay đổi, xem trên web" (D5(d)) |
+| Vượt trần (30 mỗi lần quét, hoặc 30 trong 10 phút cho mỗi người, L27) | Một tin tóm tắt "còn N thay đổi, xem trên web" (D5(d)) |
 | Thẻ giá bất thường (β) | Theo Mục 4.2; trưởng phòng có hai nút `✅ Giá đúng` và `❌ Nhập sai` (`callback_data` `pa:ok:<uuid>` và `pa:no:<uuid>`, khoảng 42 byte, dưới 64) |
 | Thẻ cho người nhập (β) | Cùng nội dung, **không nút**, thay bằng "Vui lòng kiểm tra và sửa phiếu nếu nhập sai." kèm liên kết |
 | Sau khi bấm (β) | Sửa tin: `✅ Đã xác nhận giá đúng bởi <tên> lúc <HH:mm DD/MM/YYYY>` hoặc `❌ Đã đánh dấu nhập sai bởi <tên> ...`, bỏ nút |
@@ -280,29 +283,47 @@ Chốt các quyết định còn mở, kiểm các giả định chỉ productio
 
 ### Việc cần làm
 
-1. **Chốt Q1 đến Q7 và L1 đến L26** (người dùng trả lời "theo đề xuất" hoặc sửa). Ghi kết quả vào mục "Quyết Định Kỹ Thuật" và "Câu Hỏi Cần Bạn Quyết".
+1. **Chốt L1 đến L26** (Q1 đến Q7, L27 và L28 đã được người dùng chốt ngày 2026-10-04; người dùng trả lời "theo đề xuất" hoặc sửa). Ghi kết quả vào mục "Quyết Định Kỹ Thuật".
 2. **Kiểm production, chỉ đọc**, trên VPS (`/opt/quotify`, nhớ `-f docker-compose.prod.yml`, database là `quotify`):
    - Role `manager` có tồn tại không và tên chính xác: `select name from roles order by 1`.
    - Số người dùng theo role và trạng thái.
    - Ai đã tải import: `select ij.entity_type, ij.task_name, u.email, count(*) from import_jobs ij left join users u on u.id = ij.created_by_id group by 1,2,3` (L17, Q7).
-   - Phiếu theo người tạo: `select u.email, count(*) from quotes q join users u on u.id = q.created_by_id group by 1 order by 2 desc`.
+   - Phiếu theo người tạo: `select u.email, count(*) from quotes q join users u on u.id = q.created_by_id group by 1 order by 2 desc`. Với tài khoản seed, kiểm thêm theo ngày (`group by q.created_at::date`): phải chỉ có các ngày import, không có phiếu nhập tay rải rác (Q7, L17).
+   - Tài khoản nào đang liên kết Telegram (`telegram_accounts` nối `users`, so với `AUTH_SEED_ADMIN_EMAIL`): tài khoản seed không nhận tin (L16), nên người trong nhóm pilot (Q5) phải liên kết bằng tài khoản người thật.
    - `delivery_month` khác ngày 01 và `confirmed_at` thiếu: hai truy vấn đếm.
    - Số người đã liên kết Telegram: `select count(*) from telegram_accounts where status = 'active'`.
-3. **Thí nghiệm "dương" với bot dev** (cần bạn đồng ý nhận khoảng 8 tin thử, và 40 tin cho mục f). Dùng script tạm, không chạm poller sản phẩm. Ghi vào Phụ lục A:
+3. **Tạo tài khoản Manager thử trên dev (L28)** qua trang Người dùng (bạn tự đặt mật khẩu, không dán vào chat), rồi liên kết Telegram của bạn vào tài khoản đó trên trang Hồ sơ (hủy liên kết hiện có của tài khoản seed trước). Dùng làm người nhận cho các thí nghiệm bên dưới nếu muốn thử tin thật theo đường nghiệp vụ.
+4. **Thí nghiệm "dương" với bot dev** (cần bạn đồng ý nhận khoảng 8 tin thử, và 40 tin cho mục f). Dùng script tạm, không chạm poller sản phẩm. Ghi vào Phụ lục A:
    - (a) `sendPhoto` PNG 900 x 500 kèm caption và bàn phím inline 2 nút: hiển thị đúng không.
    - (b) Bấm nút: `callback_query` đến qua `getUpdates` khi `allowed_updates` có `callback_query` (kiểm `id`, `from`, `message.message_id`, `data`).
    - (c) `answerCallbackQuery`, `editMessageText`, `editMessageReplyMarkup` sau khi bấm; `message is not modified`.
    - (d) `callback_data` đúng 64 byte có được chấp nhận; caption đúng 1.024 ký tự và tin đúng 4.096 ký tự được chấp nhận.
    - (e) Hết hạn của `answerCallbackQuery` (bấm nút rồi đợi quá lâu mới trả lời).
    - (f) **T6:** 40 tin liên tiếp tới chat riêng: có 429 không, `retry_after` bao nhiêu.
-4. **Đồng bộ tài liệu:** sửa tài liệu cha theo các dòng 1 đến 4 của mục "Độ Lệch" (head, D2 mục 5, D6 đơn vị, nhận biết import); thêm thuật ngữ giá vào `CONTEXT.md` (Điểm giá, Chuỗi, Cửa sổ tham chiếu, Ngày làm việc, Biến động giá, Mức biến động, Ngưỡng cảnh báo, Nguồn kích hoạt, Giá bất thường, Sự kiện, Tin, Bản tin tổng hợp, Trưởng phòng, kèm cột "Tránh"); ghi chú phạm vi ở `Requirements.txt` mục 3.9 (thông báo trung tính, không tự kết luận) và "Nhật ký thay đổi" của `quotify-implementation-plan.md`.
+5. **Đồng bộ tài liệu:** sửa tài liệu cha theo các dòng 1 đến 4 của mục "Độ Lệch" (head, D2 mục 5, D6 đơn vị, nhận biết import); thêm thuật ngữ giá vào `CONTEXT.md` (Điểm giá, Chuỗi, Cửa sổ tham chiếu, Ngày làm việc, Biến động giá, Mức biến động, Ngưỡng cảnh báo, Nguồn kích hoạt, Giá bất thường, Sự kiện, Tin, Bản tin tổng hợp, Trưởng phòng, kèm cột "Tránh"); ghi chú phạm vi ở `Requirements.txt` mục 3.9 (thông báo trung tính, không tự kết luận) và "Nhật ký thay đổi" của `quotify-implementation-plan.md`.
 
 ### Tiêu chí chấp nhận
 
-- [ ] Q1 đến Q7 và L1 đến L26 được chốt (ghi ngày).
-- [ ] Kết quả kiểm production đã ghi: tên role trưởng phòng, người import, số người đã liên kết.
-- [ ] Phụ lục A điền xong các mục (a) đến (f). Nếu kết quả khác giả định (ví dụ giới hạn tốc độ) thì sửa quyết định liên quan trước Slice 8.
-- [ ] Tài liệu cha, `CONTEXT.md`, `Requirements.txt`, `quotify-implementation-plan.md` được cập nhật và commit.
+- [x] L1 đến L26 được chốt. Q1 đến Q7, L27, L28 và L1 đến L26 đã chốt 2026-10-04.
+- [x] Tài khoản Manager thử trên dev tồn tại ("Quản lý phòng Mua", role `manager`, đang hoạt động) và đã liên kết Telegram (kiểm DB 2026-10-04). Còn lại: đưa email vào `PRICE_ALERT_RECIPIENT_EMAILS` của `.env` dev khi Slice 1 thêm biến này.
+- [x] Kết quả kiểm production đã ghi (2026-10-04, mục "Kết quả kiểm production" bên dưới): role trưởng phòng là `manager`; mọi import do tài khoản seed tải; tài khoản seed chỉ có phiếu ngày import; production chưa có liên kết Telegram nào đang hiệu lực.
+- [x] Phụ lục A điền xong các mục (a) đến (f) (2026-10-04). Nếu kết quả khác giả định (ví dụ giới hạn tốc độ) thì sửa quyết định liên quan trước Slice 8.
+- [x] Tài liệu cha, `CONTEXT.md`, `Requirements.txt`, `quotify-implementation-plan.md` được cập nhật (chờ bạn commit).
+
+### Kết quả kiểm production (chỉ đọc, 2026-10-04)
+
+Truy vấn nằm ở `docs/quotify/analysis-1b/sql/slice0_production_check.sql`.
+
+| Điều kiểm | Kết quả | Hệ quả |
+|---|---|---|
+| Tên role | `admin`, `manager`, `user` | Migration quyền gán cho `manager` đúng tên (RR-41 giải quyết) |
+| Người dùng | 1 tài khoản seed (admin) và 9 người thật, đều `active` | Giống dev. Trên dev 9 người này là 7 `user` và 2 `manager` (mỗi người một role); production không kiểm riêng từng người, sẽ thấy số dòng gán quyền khi chạy migration ở Slice 11 |
+| Người tải import | 4 job (vật tư, nhà cung cấp, 2 lần nhập lùi báo giá) đều do tài khoản seed | Quy ước Q7 đúng (L17) |
+| Phiếu của tài khoản seed | 2.847 phiếu, tất cả tạo ngày 2026-08-19 | Không có phiếu nhập tay rải rác (RR-38) |
+| Phiếu của người khác | 595 phiếu của 7 người, từ 20/08 đến 04/10/2026 (dev có 587 phiếu đến 02/10) | Dev chỉ cũ hơn vài ngày; số liệu Phụ lục C giữ nguyên |
+| `delivery_month` khác ngày 01 | 0 | Khóa chuỗi theo tháng an toàn (L1) |
+| Version `confirmed` thiếu `confirmed_at` | 0 | Truy vấn quét L3 không bỏ sót vì thiếu mốc |
+| Liên kết Telegram | 1 liên kết, của tài khoản seed, đã thu hồi (lần thử khi go-live 1A) | **Chưa ai trên production liên kết Telegram.** Trước pilot (Q5) người nhận phải liên kết bằng tài khoản người thật (không phải tài khoản seed) |
 
 ### Rollback
 
@@ -320,7 +341,7 @@ Người có quyền `price_alerts.manage` đọc và ghi cấu hình chung, b�
 
 ### Việc cần làm
 
-1. **Migration 1** (L2, tài liệu cha 4.5): `price_alert_settings` (singleton, CHECK như tài liệu cha, hàng mặc định tự chèn bằng migration giống `quotify_settings`), `price_alert_scan_state` (singleton), `price_alert_scan_runs`, `price_alert_scanned_versions`, `price_alert_material_thresholds`, `user_alert_preferences`. Viết tay, `down_revision = "20261004_1100"`. Đăng ký model ở `models/__init__.py` và `db/base.py`.
+1. **Migration 1** (L2, tài liệu cha 4.5): `price_alert_settings` (singleton, CHECK như tài liệu cha, hàng mặc định tự chèn bằng migration giống `quotify_settings`), `price_alert_scan_state` (singleton, có cột `last_run_at`, L27), `price_alert_scan_runs`, `price_alert_scanned_versions`, `price_alert_material_thresholds`, `user_alert_preferences`. Viết tay, `down_revision = "20261004_1100"`. Đăng ký model ở `models/__init__.py` và `db/base.py`.
 2. **Migration 2 (quyền, L14):** tự `INSERT` hai mã vào `permissions` rồi gán cho `manager` và `admin`, chịu được thiếu role; `downgrade` xóa đúng các dòng đó.
 3. Thêm hai mã vào `BASE_PERMISSION_CODES` (list literal). Thêm khóa audit vào allow-list (L15).
 4. `services/price_alert_settings_service.py` và `schemas/price_alerts.py`, `api/v1/price_alerts.py` với `GET` và `PUT /price-alert-settings` theo hợp đồng. Chuyển `is_enabled` `false → true` đặt `watermark_confirmed_at` và `enabled_since` (L13). Audit `price_alerts.settings_updated` kèm `changes[]`. Đăng ký router. Không sửa `quotify_settings`.
@@ -345,10 +366,20 @@ curl -s -X PUT localhost:8000/api/v1/price-alert-settings -H "Authorization: Bea
 
 ### Tiêu chí chấp nhận
 
-- [ ] Hợp đồng `GET`/`PUT /price-alert-settings` đóng băng như mục Hợp Đồng API; commit làm căn cứ cho 1C.
-- [ ] `manager` và `admin` có quyền mới trên dev sau `make migrate` (kể cả khi chưa chạy seed).
-- [ ] Bật tính năng đặt watermark và ghi audit; cron chưa tồn tại nên chưa có tác dụng phụ.
-- [ ] Baseline không xấu hơn; mọi file mới sạch ruff, mypy, bandit.
+- [x] Hợp đồng `GET`/`PUT /price-alert-settings` đóng băng như mục Hợp Đồng API (chờ bạn commit làm căn cứ cho 1C). Phần ngưỡng theo vật tư và tùy chọn cá nhân của hợp đồng làm ở Slice 6.
+- [x] `manager` và `admin` có quyền mới trên dev sau `make migrate` (kể cả khi chưa chạy seed; có test migration).
+- [x] Bật tính năng đặt watermark và ghi audit; cron chưa tồn tại nên chưa có tác dụng phụ.
+- [x] Baseline không xấu hơn; mọi file mới sạch ruff, mypy, bandit.
+
+### Kết quả (2026-10-04, nhánh `feat/telegram-1b-alpha`)
+
+- **Code mới:** `models/price_alert.py` (sáu model), hai migration `20261004_1200` và `20261004_1300`, `schemas/price_alerts.py`, `services/price_alert_settings_service.py`, `api/v1/price_alerts.py` (đăng ký ở router). Sửa tối thiểu: `models/__init__.py`, `db/base.py`, `auth/seed_data.py` (hai mã quyền), `tests/integration/db_helpers.py` (thêm `create_material`, `create_confirmed_quote_version`), `tests/integration/conftest.py` (fixture `empty_database_url`).
+- **Test mới (74):** 30 API (service giả: hợp đồng, 401/403, 422, audit), 34 PostgreSQL thật (watermark bật/tắt/bật lại, hai lần bật đồng thời, CHECK, singleton, FK `CASCADE`/`SET NULL`), 7 migration trên DB trống (quyền có/thiếu `manager`, chạy trước seed, tái sử dụng quyền đã có, chạy lại, downgrade, vòng upgrade/downgrade/upgrade), 1 một head, 1 audit giữ `changes[]`, 1 quyền không cấp cho role `user`. Đã chạy thử đột biến (bỏ `FOR UPDATE`, đặt watermark mỗi lần, bỏ `updated_by_id`): cả ba bị test bắt.
+- **Baseline:** pytest 633 pass (559 + 74, có DB); ruff 62, mypy 13, bandit 16 (không đổi, không lỗi ở file mới).
+- **Xác minh thật trên dev:** `make migrate`, `downgrade -2`, `make migrate` đúng một head `20261004_1300`; `manager` và `admin` có cả hai quyền; bằng token của tài khoản Manager thử: `GET` 200, `PUT` bật đặt `enabled_since`, đổi ngưỡng giữ nguyên `enabled_since`, ngưỡng sai thứ tự và ngoài khoảng trả 422, không đăng nhập trả 401. Đã dọn dữ liệu thử theo đúng ID (3 dòng audit, watermark, người sửa cuối).
+- **Quyết định bổ sung trong lúc làm:** (a) khoảng hợp lệ của các trường số (ngày làm việc tham chiếu 1 đến 30; số ngày xét bất thường 1 đến 365; trễ tối đa của nguồn kích hoạt 0 đến 30; số ngày nhân viên 1 đến 365; cửa sổ chống lặp 0 đến 90; trần mỗi lần quét 1 đến 500; giờ bản tin 0 đến 23; phần trăm Nhẹ/Trung bình/Lớn ≤ 100) được ghi cả ở schema (422) lẫn CHECK của DB; (b) `PUT` không có thay đổi thì không ghi audit và không đổi người sửa cuối; (c) hai hàng mặc định có id cố định `...0a1` (cấu hình) và `...0a2` (trạng thái quét); (d) quyền tạo kèm `description` tiếng Việt.
+- **Phát hiện:** test cũ `test_unlinking_revokes_the_account_and_is_audited` thỉnh thoảng fail ngẫu nhiên vì kiểm chuỗi con "555" trong `repr` có UUID; đã sửa (xem `bugPatterns.md`).
+- **Còn lại cho slice sau:** các endpoint ngưỡng theo vật tư và `users/me/alert-preferences` (Slice 6); thêm khóa audit cho `threshold_updated`, `anomaly_reviewed`, `scan_completed` (Slice 6, 13, 5).
 
 ### Rollback
 
@@ -470,32 +501,32 @@ Xóa file mới.
 
 ### Mục tiêu
 
-Chốt một version trên dev thì sau tối đa 2 phút có **dòng sự kiện** đúng trong DB (chưa gửi Telegram). Có lệnh dry-run để đo tải trên dữ liệu thật mà không ghi gì.
+Chốt một version trên dev thì sau tối đa một chu kỳ quét (30 giây) có **dòng sự kiện** đúng trong DB (chưa gửi Telegram). Có lệnh dry-run để đo tải trên dữ liệu thật mà không ghi gì.
 
 ### Việc cần làm
 
 1. **Migration 3:** `price_alert_events` (tài liệu cha 4.5, gồm các cột β). Model và đăng ký.
-2. `services/price_alert_scan.py`: `PriceAlertScanService.run_once(now)` (L3, L8): kiểm cờ (L13), `pg_try_advisory_xact_lock`, chọn version, mỗi version một `begin_nested()`, lọc ứng viên, lấy điểm tham chiếu (`get_daily_min_series`, cửa sổ 7 ngày làm việc), `evaluate_change`, chống lặp 14 ngày và leo thang (D5(a)), ghi `price_alert_events` bằng `INSERT ... ON CONFLICT DO NOTHING`, ghi `price_alert_scanned_versions` và `price_alert_scan_runs`, tiến watermark. Lỗi một version ghi vào `scan_runs` và bỏ qua.
-3. `worker.py`: cron `poll_price_alerts` mỗi 2 phút (L8), `timezone = ZoneInfo(settings.app_timezone)`; **không** gửi Telegram ở slice này.
+2. `services/price_alert_scan.py`: `PriceAlertScanService.run_once(now)` (L3, L8): kiểm cờ (L13), `pg_try_advisory_xact_lock`, chọn version, mỗi version một `begin_nested()`, lọc ứng viên, lấy điểm tham chiếu (`get_daily_min_series`, cửa sổ 7 ngày làm việc), `evaluate_change`, chống lặp 14 ngày và leo thang (D5(a)), ghi `price_alert_events` bằng `INSERT ... ON CONFLICT DO NOTHING`, ghi `price_alert_scanned_versions` và, chỉ khi quét ≥ 1 version hoặc có lỗi, `price_alert_scan_runs` (L27); luôn cập nhật `scan_state.last_run_at`; tiến watermark. Lỗi một version ghi vào `scan_runs` và bỏ qua.
+3. `worker.py`: cron `poll_price_alerts` mỗi 30 giây, `second={0, 30}` (L8, L27), `timezone = ZoneInfo(settings.app_timezone)`; **không** gửi Telegram ở slice này.
 4. `app/price_alert_replay.py` (L26): chạy engine trên DB trong giao dịch không bao giờ commit, in số liệu theo tuần.
 5. `worker-test` ép `TELEGRAM_ENABLED=false` và token rỗng (L20).
 
 ### Thứ tự test (tracer trước)
 
 1. **Tracer (tích hợp):** dựng chuỗi có 3 điểm trước, chốt version mới có giá +5,57% so với đáy, gọi `run_once` → đúng một dòng `price_alert_events` (`kind='change'`, mức Trung bình, tăng, lý do R2, các trường giá và ngày đúng), một dòng `scanned_versions`, một dòng `scan_runs`, watermark tiến.
-2. Chạy lại `run_once` không tạo sự kiện thứ hai (idempotent). Chạy hai tiến trình cùng lúc (hai kết nối): chỉ một tiến trình quét, tiến trình kia thoát.
+2. Chạy lại `run_once` không tạo sự kiện thứ hai (idempotent). Lần chạy không có version nào **không** tạo dòng `scan_runs` nhưng cập nhật `last_run_at`. Chạy hai tiến trình cùng lúc (hai kết nối): chỉ một tiến trình quét, tiến trình kia thoát.
 3. **Chồng lấp:** version có `confirmed_at` sớm hơn watermark nhưng commit muộn vẫn được quét. **Cô lập lỗi:** một version có giá 0 không chặn các version khác và watermark vẫn tiến; lỗi được ghi.
 4. **Bật cờ sau vài tuần:** dữ liệu cũ hơn thời điểm bật không sinh sự kiện. Tắt cờ thì cron không làm gì.
 5. Chống lặp: cùng (chiều, mức) trong 14 ngày bị bỏ; leo thang hoặc đổi chiều thì tạo sự kiện mới; mức Nhẹ được tính là đã gửi. Bản điều chỉnh có nguồn chưa quét. `delete_confirmed_line` không sinh sự kiện.
-6. `WorkerSettings.timezone` bằng múi giờ VN; hàm cron được đăng ký, mặc định `unique`.
+6. `WorkerSettings.timezone` bằng múi giờ VN; hàm cron được đăng ký với `second={0, 30}`, mặc định `unique`.
 7. **Dry-run:** chạy xong số dòng các bảng `price_alert_*` không đổi (giao dịch bị hủy); in bảng theo tuần.
 
 ### Cách xác minh thật
 
 ```bash
 docker compose restart worker       # worker dev không tự reload code
-# bật tính năng bằng API (Slice 1), chốt một phiếu thử trên giao diện, đợi 2 phút
-docker compose exec postgres psql -U postgres -d app -c "select kind, level, direction, rule, percent_change, price_new, price_ref from price_alert_events order by created_at desc limit 5" -c "select * from price_alert_scan_runs order by started_at desc limit 3"
+# bật tính năng bằng API (Slice 1), chốt một phiếu thử trên giao diện bằng tài khoản Manager thử (L28; phiếu của tài khoản seed bị loại khỏi nguồn kích hoạt, Q7), đợi khoảng 40 giây
+docker compose exec postgres psql -U postgres -d app -c "select kind, level, direction, rule, percent_change, price_new, price_ref from price_alert_events order by created_at desc limit 5" -c "select * from price_alert_scan_runs order by started_at desc limit 3" -c "select last_run_at, watermark_confirmed_at from price_alert_scan_state"
 docker compose exec backend uv run python -m app.price_alert_replay --weeks 8
 ```
 
@@ -503,7 +534,8 @@ Chạy replay với D6 và so với Phụ lục C (khoảng 30,2 / 16,9 / 6,8 m�
 
 ### Tiêu chí chấp nhận
 
-- [ ] Chốt phiếu thật trên dev sinh đúng sự kiện sau tối đa 2 phút, không trùng.
+- [ ] Chốt phiếu thật trên dev sinh đúng sự kiện sau tối đa một chu kỳ quét (30 giây), không trùng.
+- [ ] Để worker chạy 1 giờ không có phiếu mới: không có dòng `scan_runs` nào được thêm, `last_run_at` luôn mới hơn 1 phút (L27).
 - [ ] Hai tiến trình quét song song chỉ một chạy (test trên PostgreSQL thật).
 - [ ] Replay chạy xong, không để lại dữ liệu, và số liệu nằm trong ±15% của Phụ lục C (cổng chính thức ở Slice 10).
 - [ ] `worker-test` không còn dùng được Telegram thật. Baseline không xấu hơn.
@@ -560,20 +592,20 @@ Từ các sự kiện sinh ra **tin** đúng đơn vị D5(b): một tin cho m�
 ### Việc cần làm
 
 1. **Migration 4:** `price_alert_messages`, `price_alert_message_events`. Model và đăng ký.
-2. `services/price_alert_messages.py`: gộp sự kiện theo (người nhận, vật tư, lần quét); `UNIQUE (user_id, material_id, scan_run_id, kind)`; trạng thái `pending`, `suppressed`, `digest_queued`, `skipped`; trần 30 tin và tin tóm tắt; mức Nhẹ thành `digest_queued` (L18).
+2. `services/price_alert_messages.py`: gộp sự kiện theo (người nhận, vật tư, lần quét); `UNIQUE (user_id, material_id, scan_run_id, kind)`; trạng thái `pending`, `suppressed`, `digest_queued`, `skipped`; trần 30 tin mỗi lần quét **và** 30 tin gửi ngay cho một người trong 10 phút gần nhất (L27), cùng tin tóm tắt; mức Nhẹ thành `digest_queued` (L18).
 3. `run_once` (Slice 5) gọi thêm bước này cùng giao dịch ngắn (Giai đoạn 1 của thiết kế 4.1).
 
 ### Thứ tự test (tracer trước)
 
 1. **Tracer:** hai kỳ giao hàng của cùng vật tư vượt ngưỡng trong một lần quét tạo **một** tin cho trưởng phòng, liên kết hai sự kiện.
 2. Cùng ngày, lần quét sau không leo thang thì `suppressed`; leo thang (mức cao hơn mức cao nhất đã gửi trong ngày, hoặc đổi chiều) thì tạo tin bổ sung.
-3. Vượt 30 tin trong một lần quét: tin thứ 31 trở đi `digest_queued` và một tin tóm tắt "còn N thay đổi"; mức Nhẹ luôn `digest_queued`.
+3. Vượt 30 tin trong một lần quét: tin thứ 31 trở đi `digest_queued` và một tin tóm tắt "còn N thay đổi"; mức Nhẹ luôn `digest_queued`. **Trần cửa sổ (L27):** hai lần quét cách nhau 30 giây, mỗi lần 20 tin cho cùng một người: tin thứ 31 của cửa sổ 10 phút trở đi `digest_queued`; sau 10 phút trần được tính lại.
 4. Chạy lại cùng lần quét không tạo tin trùng (UNIQUE và `ON CONFLICT`).
 5. Người nhận bị `skipped` (không còn đủ điều kiện) được ghi rõ lý do.
 
 ### Tiêu chí chấp nhận
 
-- [ ] Replay (Slice 5) in thêm số tin theo đơn vị D5(b), khớp Phụ lục C trong ±15% (18,9 mỗi tuần, 7,6 Trung bình và Lớn).
+- [ ] Replay (Slice 5) in thêm số tin theo đơn vị D5(b), khớp Phụ lục C trong ±15% (19,1 mỗi tuần, 7,6 Trung bình và Lớn).
 - [ ] Không có tin sai hướng trong replay.
 - [ ] Baseline không xấu hơn.
 
@@ -634,7 +666,7 @@ Tin ở trạng thái `pending` được **gửi thật** tới Telegram: ảnh 
 ### Việc cần làm
 
 1. `worker.py` (L8): dựng `TelegramClient` ở `startup`, đóng ở `shutdown`; gọi `configure_logging`.
-2. `services/price_alert_sender.py` (L25): chọn tin `pending` đến hạn, lấy `lease_until`, gửi ảnh rồi tin chi tiết, đặt `sent` hoặc `failed`, lưu `telegram_message_id`; phân loại lỗi 429, 403, 400 và lỗi mạng. Cron `send_price_alerts` (mỗi phút) hoặc nối vào cuối `poll_price_alerts`.
+2. `services/price_alert_sender.py` (L25): chọn tin `pending` đến hạn, lấy `lease_until`, gửi ảnh rồi tin chi tiết, đặt `sent` hoặc `failed`, lưu `telegram_message_id`; phân loại lỗi 429, 403, 400 và lỗi mạng. Cron `send_price_alerts` chạy lệch pha với cron quét, `second={15, 45}` (L27), là job riêng để một lần gửi chậm không làm trễ lần quét; chống chạy chồng bằng `lease_until` của từng tin, không bằng khóa advisory.
 3. 403: `mark_blocked` theo tài khoản của tin (`telegram_account_id`).
 
 ### Thứ tự test (tracer trước)
@@ -647,7 +679,7 @@ Tin ở trạng thái `pending` được **gửi thật** tới Telegram: ảnh 
 
 ### Cách xác minh thật (HITL)
 
-Đặt `PRICE_ALERT_RECIPIENT_EMAILS` chỉ gồm tài khoản của bạn trên dev; chốt phiếu thử gây biến động Trung bình rồi mở Telegram: ảnh và tin chi tiết hiện đúng, bấm liên kết mở được phiếu. Kiểm `grep` token trong log của worker bằng 0.
+**Chuẩn bị:** hiện liên kết Telegram duy nhất trên dev là của tài khoản seed, mà tài khoản seed không nhận tin (L16, Q7). Dùng tài khoản Manager thử của L28 (đã chuẩn bị ở Slice 0; mỗi tài khoản Telegram chỉ liên kết một người dùng, nên liên kết cũ của tài khoản seed phải được hủy). `PRICE_ALERT_RECIPIENT_EMAILS` chỉ gồm tài khoản đó; dùng chính nó nhập và chốt phiếu thử gây biến động Trung bình rồi mở Telegram: ảnh và tin chi tiết hiện đúng, bấm liên kết mở được phiếu. Kiểm `grep` token trong log của worker bằng 0.
 
 ### Tiêu chí chấp nhận
 
@@ -719,7 +751,7 @@ Production chạy engine với cờ tắt, rồi bật cho nhóm pilot, không �
 
 ### Rollback (đúng thứ tự)
 
-1. `PUT /price-alert-settings` với `is_enabled=false` (hiệu lực trong 2 phút) hoặc `TELEGRAM_ENABLED=false` rồi recreate backend và worker, `restart reverse-proxy`.
+1. `PUT /price-alert-settings` với `is_enabled=false` (hiệu lực trong 30 giây) hoặc `TELEGRAM_ENABLED=false` rồi recreate backend và worker, `restart reverse-proxy`.
 2. Giữ nguyên schema (additive, tương thích code cũ). Không `alembic downgrade` trên production.
 
 ---
@@ -736,7 +768,7 @@ Dòng giá nghi nhập sai bị phát hiện ở mức dòng, **loại khỏi t�
 
 1. `services/price_alert_anomaly.py`: phát hiện mức dòng (lệch ≥ 30% so với trung vị các điểm hợp lệ trước trong 30 ngày lịch; trung vị số chẵn là trung bình hai điểm giữa; cần ít nhất 1 điểm; chỉ 1 điểm tham chiếu thì "độ tin cậy thấp"; điểm đầu chuỗi không bị gắn cờ), tạo sự kiện `kind='anomaly'`, `review_status='pending'`.
 2. Loại dòng bị gắn cờ trước khi tính daily-min và làm điểm tham chiếu (`exclude_line_ids` của Slice 2); điểm sau cùng mặt bằng (lệch dưới 2,5% so với điểm `pending`) gắn vào thẻ; từ 3 cờ trong một ngày địa phương gộp thành một tin tóm tắt (tối đa 10 điểm).
-3. Người nhận: trưởng phòng (`receive_all`) nhận thẻ có nút; **người nhập** (`quote_versions.created_by_id`) nhận thẻ không nút; seed admin không nhận; người không `ACTIVE` bỏ qua; tin bất thường không chịu mức tối thiểu nhưng chịu cờ bật/tắt cá nhân và pilot.
+3. Người nhận: trưởng phòng (`receive_all`) nhận thẻ có nút; **người nhập** (`quote_versions.created_by_id`) nhận thẻ không nút; người vừa là trưởng phòng vừa là người nhập nhận **một** thẻ có nút (L28); seed admin không nhận; người không `ACTIVE` bỏ qua; tin bất thường không chịu mức tối thiểu nhưng chịu cờ bật/tắt cá nhân và pilot.
 4. Chế độ replay mô phỏng "Giá đúng" (chính sách mô phỏng ghi rõ, ví dụ chấp nhận điểm bị cờ nếu có từ 2 điểm sau trong khoảng 2,5% so với nó).
 
 ### Thứ tự test (tracer trước)
@@ -769,7 +801,7 @@ Trưởng phòng bấm **Giá đúng** hoặc **Nhập sai** trong Telegram và 
 
 ### Việc cần làm
 
-1. `telegram_update_service.py`: parse `callback_query` (`id`, `from.id`, `message.chat.id`, `message.message_id`, `data`), nhánh xử lý, authz (L22: người dùng `ACTIVE`, `price_alerts.receive_all` hoặc admin, qua `AuthService.get_active_user` rồi `has_permission`), outbound mới (`answerCallbackQuery`, `editMessageText`) và `runner` gửi chúng.
+1. `telegram_update_service.py`: parse `callback_query` (`id`, `from.id`, `message.chat.id`, `message.message_id`, `data`), nhánh xử lý, authz (L22: người dùng `ACTIVE`, `price_alerts.receive_all` hoặc admin, qua `AuthService.get_active_user` rồi `has_permission`), outbound mới (`answerCallbackQuery`, `editMessageText`, `editMessageCaption`) và `runner` gửi chúng; `answerCallbackQuery` đi **trước** việc cập nhật DB nặng và trong 5 giây (L22).
 2. Cập nhật nguyên tử (L23), sửa tin (L24), ghi audit `price_alerts.anomaly_reviewed` (không chứa `telegram_user_id`).
 3. Gom `ALLOWED_UPDATES` (L9) thêm `callback_query`; cập nhật các test đang ghim danh sách cũ.
 4. Rate limit bucket riêng; nhánh lỗi "độc" vẫn trả lời callback.
@@ -780,7 +812,7 @@ Trưởng phòng bấm **Giá đúng** hoặc **Nhập sai** trong Telegram và 
 2. Nhập sai: thẻ `rejected`, dòng vẫn bị loại.
 3. Người không có quyền bấm: bị từ chối, `answerCallbackQuery` báo lỗi, không đổi trạng thái. Người không `ACTIVE`.
 4. **Hai người bấm cùng lúc** (hai kết nối): đúng một người thắng, người kia nhận "đã được xử lý bởi ...".
-5. Bấm thẻ đã xử lý hoặc hết hạn; `callback_data` lạ hoặc sai định dạng; id sự kiện không tồn tại.
+5. **Thứ tự và thời hạn:** server giả ghi thứ tự gọi: `answerCallbackQuery` đến trước khi tin bị sửa; khi cập nhật DB chậm hoặc lỗi thì callback vẫn được trả lời trong 5 giây. Bấm lặp liên tiếp (Telegram gửi mỗi lần bấm là một `callback_query` riêng): lần sau nhận "đã được xử lý", sửa tin trùng (400 `message is not modified`) không làm lỗi. Bấm thẻ đã xử lý hoặc hết hạn; `callback_data` lạ hoặc sai định dạng; id sự kiện không tồn tại.
 6. Giới hạn tốc độ vẫn trả lời callback; callback gây lỗi vẫn trả lời callback.
 7. `ALLOWED_UPDATES` dùng chung ở poller và CLI và có `callback_query`.
 
@@ -894,16 +926,18 @@ S3 và S4 làm song song được. S6 chỉ cần S1 nên có thể làm song so
 | RR-33 | matplotlib: +130 MB, RSS worker 104 đến 150 MB, vẽ mỗi ảnh 61 đến 91 ms trên luồng nền | `to_thread`, ghim phiên bản, `--no-cache` (Q6), `MPLCONFIGDIR=/tmp/mpl`, hàm bọc để đổi sang Pillow | 8 |
 | RR-34 | Worker chưa có logging và `timezone`: giờ cron lệch 7 tiếng, log INFO không in | `configure_logging` ở `startup`, `timezone` VN, test | 5, 9 |
 | RR-35 | Webhook production giữ `allowed_updates` cũ nên nút bấm "chết" | Bước `set --yes` bắt buộc ở Slice 15, kiểm `info` | 13, 15 |
-| RR-36 | Callback quay mãi (hết hạn, bị giới hạn tốc độ, lỗi) | Luôn `answerCallbackQuery`, bucket riêng (L22) | 13 |
+| RR-36 | Callback quay mãi hoặc bị từ chối `query is too old` (ngưỡng đo được khoảng 15 giây) vì xử lý chậm, hàng đợi poller dồn, DB khóa | Luôn `answerCallbackQuery` trong 5 giây, trước việc nặng; bucket riêng (L22) | 13 |
 | RR-37 | Tin gửi cả cuối tuần và ngoài giờ (17% version đủ điều kiện được chốt cuối tuần) | Theo QĐ-7 (không có khung giờ yên lặng); người dùng tự tắt tiếng chat; cờ bật/tắt cá nhân | 11 |
-| RR-38 | Admin vừa nhập tay vừa import cùng tài khoản: phiếu nhập tay bị loại nhầm khỏi nguồn kích hoạt | Kiểm production ở Slice 0; tài khoản riêng cho import (Q7) | 0 |
+| RR-38 | Quy ước "admin hệ thống không bao giờ nhập tay" (Q7) bị vi phạm: phiếu nhập tay của tài khoản seed bị loại nhầm khỏi nguồn kích hoạt, hoặc người khác import nên bị coi là nhập tay | Kiểm production ở Slice 0; ghi quy ước vào runbook; trần 10 phút cho mỗi người (L27d) giới hạn thiệt hại | 0 |
 | RR-39 | Gửi tin là at-least-once nên hiếm khi trùng | `lease_until`, UNIQUE, chấp nhận (RR-27) | 9 |
 | RR-40 | `confirmed_at` là aware UTC khi đọc: `.date()` sai ngày trong khung 00:00 đến 07:00 giờ VN | Luôn `astimezone(VN)`; test chốt 23:30 và 00:30 | 4 |
 | RR-41 | Migration quyền gắn với tên role `manager`, tên thật trên production chưa kiểm | Kiểm ở Slice 0; migration chịu được thiếu role; có thể gán thủ công | 0, 1 |
 | RR-42 | Hai cách tính min/max khác nhau (backend `summary` trên mọi dòng, frontend trên daily-min): tin và dashboard có thể lệch | Tin dùng daily-min và ghi rõ "vùng tham chiếu"; không sửa dashboard | 2, 8 |
 | RR-43 | Làm tròn trước khi phân mức đẩy 4,996% lên mức Trung bình | `Decimal` không quantize trước khi so (L7), có test | 3 |
 | RR-44 | Không có test hay helper dựng phiếu trên DB thật | Thêm helper ở Slice 2 trước mọi test tích hợp | 2 |
-| RR-45 | Cron quét 2 phút cạnh job import dài: tranh `max_jobs` của arq (mặc định 10) | Job quét ngắn; đo khi import chạy; xét `max_jobs` | 5, 11 |
+| RR-45 | Cron quét 30 giây cạnh job import dài: tranh `max_jobs` của arq (mặc định 10); lần quét kéo dài quá 30 giây làm lần sau chạy chồng | Job quét ngắn; khóa advisory làm lần chạy chồng thoát ngay; đo khi import chạy; xét `max_jobs` | 5, 11 |
+| RR-46 | Chia nhỏ lần quét (30 giây) làm trần "30 tin mỗi lần quét" kém tác dụng khi có đợt nhập hàng loạt của người không phải tài khoản seed | Trần thứ hai: 30 tin trong 10 phút cho mỗi người (L27); nguồn kích hoạt D6; quy ước tài khoản import (Q7) | 7, 11 |
+| RR-47 | Cron 30 giây tạo khoảng 2.880 lần chạy mỗi ngày: dòng `scan_runs` rỗng làm phình bảng, log INFO ồn, tải thăm dò thừa | Chỉ ghi `scan_runs` khi có việc hoặc lỗi; nhịp tim ở `scan_state.last_run_at`; lần rỗng log DEBUG; đo 0,3 ms mỗi truy vấn chọn version (L4) | 5 |
 
 ## Phụ Lục A: Kết Quả Kiểm Chứng Thực Nghiệm Với Telegram
 
@@ -911,7 +945,7 @@ Bot dev `@HHQuotifyBot`. Các thí nghiệm "từ chối" không gửi tin vào 
 
 | # | Nội dung | Kết quả | Ngày |
 |---|---|---|---|
-| T6 | 40 tin liên tiếp: có 429 không, `retry_after` | Chưa đo (cần đồng ý nhận 40 tin, Slice 0 mục f) | |
+| T6 | 40 tin liên tiếp tới chat riêng, gửi tuần tự (mục f) | **Không có 429.** 40 tin trong 19,3 giây (khoảng 2 tin mỗi giây, trung vị 419 ms mỗi tin). Giới hạn thật nằm xa tải 1B (tối đa 30 tin trong 10 phút cho mỗi người, L27d); vẫn xử lý 429 theo `retry_after` (L25) | 2026-10-04 |
 | T7a | Văn bản 4.097 ký tự | 400 `message is too long` | 2026-10-04 |
 | T7b | `parse_mode=HTML` với `<` và `&` thô | 400 `can't parse entities: Unsupported start tag ...` và `Can't find end tag corresponding to start tag "i"`: lỗi cuối cùng, không thử lại, bắt buộc `escape_html` | 2026-10-04 |
 | T8a | `callback_data` 65 byte ASCII | 400 `BUTTON_DATA_INVALID` | 2026-10-04 |
@@ -921,7 +955,11 @@ Bot dev `@HHQuotifyBot`. Các thí nghiệm "từ chối" không gửi tin vào 
 | T9b | Ảnh: kích thước, tỷ lệ | Theo tài liệu chính thức Bot API 10.3: tối đa 10 MB, rộng cộng cao không quá 10.000, tỷ lệ rộng trên cao tối đa 20. Ảnh dự kiến 900 x 500, khoảng 54 KB nằm xa các giới hạn | 2026-10-04 |
 | T10a | `answerCallbackQuery` id giả | 400 `query is too old and response timeout expired or query ID is invalid` | 2026-10-04 |
 | T10b | `editMessageText` tin không tồn tại | 400 `message can't be edited` | 2026-10-04 |
-| (a) đến (e) | Thử "dương" (gửi ảnh, nút bấm khứ hồi, sửa tin, 64 byte, hết hạn trả lời) | Chưa làm (Slice 0 mục 3) | |
+| (a) | `sendPhoto` multipart PNG 900 x 500 (55 KB) kèm caption HTML và bàn phím 2 nút (`reply_markup` là chuỗi JSON trong form) | Gửi được; người dùng xác nhận ảnh rõ nét, tiêu đề và caption tiếng Việt đúng | 2026-10-04 |
+| (b) | Bấm nút: `callback_query` | Đến qua `getUpdates` khi `allowed_updates` có `callback_query`. Có `id`, `from` (`id`, `first_name`, `last_name`, `language_code`, `is_bot`), `message` (đủ `chat.id`, `message_id`), `data`, `chat_instance`. `data` nguyên vẹn (42 byte cho `pa:ok:<uuid>`; 64 byte cũng nguyên vẹn) | 2026-10-04 |
+| (c) | Sau khi bấm: `answerCallbackQuery`, sửa tin | `answerCallbackQuery` chạy (khoảng 0,9 giây); gọi lần hai cho cùng một lần bấm vẫn `ok`. `editMessageCaption` (tin ảnh) và `editMessageText` (tin văn bản) chạy; `editMessageText` trên tin ảnh: 400 `there is no text in the message to edit`. Sửa y hệt: 400 `message is not modified: specified new message content and reply markup are exactly the same...`. `editMessageReplyMarkup` bỏ nút chạy, lặp lại: 400 `message is not modified` | 2026-10-04 |
+| (d) | `callback_data` đúng 64 byte; caption đúng 1.024; văn bản đúng 4.096 | Cả ba được chấp nhận và hiển thị đủ (người dùng xác nhận) | 2026-10-04 |
+| (e) | Hết hạn của `answerCallbackQuery` (trả lời trễ sau lần bấm) | Trễ 0 đến 2, 5, 8, 11, 14 giây: `ok`. Trễ 17 giây, 20 giây, 60 giây: 400 `query is too old and response timeout expired or query ID is invalid`. **Ngưỡng khoảng 15 giây.** Bấm liên tiếp cách nhau 2 đến 3 giây: Telegram gửi mỗi lần bấm là một `callback_query` riêng, không bị gộp hay chặn | 2026-10-04 |
 
 ## Phụ Lục B: Danh Sách File Dự Kiến
 
@@ -939,22 +977,22 @@ Bot dev `@HHQuotifyBot`. Các thí nghiệm "từ chối" không gửi tin vào 
 
 Engine tham chiếu độc lập (`docs/quotify/analysis-1b/py/engine.py`, `partA.py`, `partB*.py`). Kiểm chứng: cấu hình B.7 tái hiện đúng **4.532 điểm, 1.540 điểm bị báo, R1/R2/R3 = 430/638/472, 16 điểm bất thường (13 chuỗi, 7 vật tư), 19,4 tin/tuần theo chuỗi (tài liệu cha 19,5), 7,8 theo vật tư (7,8), 2,9 Trung bình và Lớn (2,9)**.
 
-Phát lại theo thời điểm chốt (`confirmed_at`), chia cho 6,29 tuần hoạt động (20/08 đến 02/10/2026). Các cột là mỗi tuần:
+Phát lại theo thời điểm chốt (`confirmed_at`), chia cho 6,29 tuần hoạt động (20/08 đến 02/10/2026). Tin D5(b) gộp theo **ô quét 30 giây** (L27; bản phân tích đầu dùng ô 2 phút cho 18,9 mỗi tuần, chênh +1%; các cột còn lại không phụ thuộc chu kỳ). Các cột là mỗi tuần:
 
 | Kịch bản | Theo chuỗi | Gộp theo vật tư | Trung bình và Lớn (gộp) | Tin D5(b) (Trung bình và Lớn) |
 |---|---|---|---|---|
-| Trễ ≤ 0 ngày làm việc | 18,8 | 11,5 | 4,1 | 11,9 (4,1) |
-| Trễ ≤ 1 | 25,1 | 14,8 | 5,9 | 16,1 (6,4) |
-| **Trễ ≤ 3, loại tài khoản seed (D6)** | **30,2** | **16,9** | **6,8** | **18,9 (7,6)** |
-| Trễ ≤ 7 | 31,7 | 17,5 | 7,2 | 19,7 (8,0) |
-| Mọi dòng của người thật | 38,3 | 19,1 | 8,3 | 22,9 (9,5) |
-| Chỉ `is_backfilled=false` | 18,5 | 11,0 | 4,0 | 11,5 (4,0) |
+| Trễ ≤ 0 ngày làm việc | 18,8 | 11,5 | 4,1 | 12,1 (4,1) |
+| Trễ ≤ 1 | 25,1 | 14,8 | 5,9 | 16,2 (6,4) |
+| **Trễ ≤ 3, loại tài khoản seed (D6)** | **30,2** | **16,9** | **6,8** | **19,1 (7,6)** |
+| Trễ ≤ 7 | 31,7 | 17,5 | 7,2 | 20,0 (8,0) |
+| Mọi dòng của người thật | 38,3 | 19,1 | 8,3 | 23,4 (9,7) |
+| Chỉ `is_backfilled=false` | 18,5 | 11,0 | 4,0 | 11,6 (4,0) |
 
 Chi tiết kịch bản D6:
-- Theo tuần ISO 34 đến 40, tin D5(b): 5, 37, 10, 20, 11, 19, 17 (Trung bình và Lớn: 2, 17, 3, 10, 4, 8, 4). Tuần cao nhất 37 tin. Ngày cao nhất 14 tin (08/09). Một lần quét 2 phút cao nhất 7 tin gộp, thấp xa trần 30.
-- Theo mức (theo chuỗi, sau chống lặp): Nhẹ 118, Trung bình 49, Lớn 23; tăng 109, giảm 81; lý do chính R1 126, R2 39, R3 25. Chống lặp loại 55/245 sự kiện. Vật tư nhiều tin nhất: Ngô hạt 11, Cám gạo chiết ly 9, Lysine 99% 9.
-- Người nhận (ước lượng D8): trung bình 1,94 nhân viên mỗi tin. Mỗi người một tuần: người nhiều nhất 7,6 tin tức thời (Trung bình và Lớn) và 16,2 tin nếu tính cả mức Nhẹ (hai trưởng phòng là 7,6/16,2 và 7,6/9,2); nhân viên nhiều nhất 4,3/9,4; thấp nhất 0,2/0,5.
+- Theo tuần ISO 34 đến 40, tin D5(b): 5, 38, 10, 20, 11, 19, 17 (Trung bình và Lớn: 2, 17, 3, 10, 4, 8, 4). Tuần cao nhất 38 tin. Ngày cao nhất 14 tin (27/08 và 08/09). Một lần quét (ô 30 giây) cao nhất 7 tin gộp và 15 sự kiện theo chuỗi, đều là một đợt nhập duy nhất; thấp xa trần 30. Chu kỳ ngắn hơn không làm đợt nhập tách thành nhiều tin vì mỗi đợt chốt trong vài giây.
+- Theo mức (theo chuỗi, sau chống lặp): Nhẹ 118, Trung bình 49, Lớn 23; tăng 109, giảm 81; lý do chính R1 126, R2 39, R3 25. Chống lặp loại 55/245 sự kiện. Vật tư nhiều tin nhất: Ngô hạt 11, Cám gạo chiết ly 10, Lysine 99% 9.
+- Người nhận (ước lượng D8): trung bình 1,94 nhân viên mỗi tin. Mỗi người một tuần: người nhiều nhất 7,6 tin tức thời (Trung bình và Lớn) và 16,4 tin nếu tính cả mức Nhẹ (hai trưởng phòng là 7,6/16,4 và 7,6/9,2); nhân viên nhiều nhất 4,3/9,4; thấp nhất 0,2/0,5.
 - Bất thường (D12, mức dòng, trung vị 30 ngày, **bất thường bị loại vĩnh viễn**, không mô phỏng "Giá đúng"): 47 dòng, 43 điểm (6,8 mỗi tuần), 28 chuỗi, 11 vật tư; sau gộp cụm khoảng 16 tin, 2,6 mỗi tuần cho trưởng phòng. Chặn bất thường giảm khoảng 13% tin theo chuỗi và 24% Trung bình và Lớn.
 - So với B.8 của tài liệu cha (28,2 / 17,7 / 7,3): +7%, −5%, −7%, trong ±30%.
 
-Giới hạn: chu kỳ quét 2 phút được xấp xỉ; không có người bấm nút; danh sách người nhận là ước lượng; dữ liệu là DB dev, không phải production. Slice 0 nên chạy lại bộ truy vấn `analysis-1b/sql/` trên bản sao production (chỉ đọc) để so.
+Giới hạn: chu kỳ quét 30 giây được xấp xỉ bằng ô 30 giây theo `confirmed_at` (không mô phỏng giờ chạy thật của cron); không có người bấm nút; danh sách người nhận là ước lượng; dữ liệu là DB dev, không phải production. Slice 0 nên chạy lại bộ truy vấn `analysis-1b/sql/` trên bản sao production (chỉ đọc) để so.

@@ -121,8 +121,8 @@ def replay(L, only_notbf=False, label=''):
         if l and (e['cd'] - l[0]).days <= 14 and (l[1], l[2]) == (e['dir'], e['lv']):
             e['sent'] = False; continue
         last[e['chain']] = (e['cd'], e['dir'], e['lv']); e['sent'] = True; sent.append(e)
-    # D5(b) messages: per (material, 2-minute scan slot); same local day later scan only if escalation
-    slot = lambda e: int(e['t'].timestamp() // 120)
+    # D5(b) messages: per (material, scan slot); same local day later scan only if escalation
+    slot = lambda e: int(e['t'].timestamp() // SCAN_SLOT_SECONDS)
     groups = collections.defaultdict(list)
     for e in sent: groups[(e['mid'], e['cd'], slot(e))].append(e)
     msgs = []; day_state = {}
@@ -135,6 +135,7 @@ def replay(L, only_notbf=False, label=''):
     mat_day = {(e['mid'], e['cd']) for e in sent}
     return {'events': events, 'sent': sent, 'msgs': msgs, 'mat_day': mat_day, 'anomalies': anomalies, 'trig_versions': trig_versions, 'state': st}
 
+SCAN_SLOT_SECONDS = 30  # scan interval decided in L27 (the first analysis used 120)
 PERIOD_DAYS = 44; WEEKS = PERIOD_DAYS / 7
 def summarize(name, res):
     ev, sent, msgs = res['events'], res['sent'], res['msgs']

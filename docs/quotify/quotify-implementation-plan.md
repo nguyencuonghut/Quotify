@@ -1394,3 +1394,7 @@ Quotify được coi là hoàn thành phiên bản đầu khi:
   đoạn 1A (nền tảng liên kết tài khoản Telegram) được triển khai theo
   `docs/quotify/plan-telegram-giai-doan-1a-nen-tang-lien-ket.md`, chỉ thêm bảng
   và route mới, tắt mặc định bằng `TELEGRAM_ENABLED=false`.
+- 04/10/2026: Giai đoạn 1A đã chạy trên production. Giai đoạn 1B (engine biến động giá và gửi thông báo Telegram) được lập kế hoạch tại
+  `docs/quotify/plan-telegram-giai-doan-1b-engine-bien-dong-gia.md`: quét `confirmed_at` bằng cron 30 giây,
+  bộ ba quy tắc R1/R2/R3 trên 7 ngày làm việc, hai đợt phát hành, chỉ thêm bảng và route mới, tắt mặc định.
+  Chưa có code 1B.
