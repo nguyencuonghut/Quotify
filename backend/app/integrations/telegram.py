@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -10,6 +11,8 @@ if TYPE_CHECKING:
     from app.core.config import Settings
 
 TELEGRAM_MESSAGE_MAX_LENGTH = 4096
+TELEGRAM_CAPTION_MAX_LENGTH = 1024
+_NOT_MODIFIED_MARKER = "message is not modified"
 DEFAULT_TELEGRAM_API_BASE_URL = "https://api.telegram.org"
 
 
@@ -141,6 +144,135 @@ class TelegramClient:
         result = await self._call("sendMessage", payload)
         return int(result["message_id"])
 
+    async def send_photo(
+        self,
+        chat_id: int,
+        png: bytes,
+        caption: str,
+        *,
+        parse_mode: str | None = "HTML",
+        reply_markup: dict[str, Any] | None = None,
+    ) -> int:
+        """Gửi ảnh PNG (multipart) kèm caption; trả về `message_id`.
+
+        Caption dài hơn 1.024 ký tự bị từ chối TRƯỚC khi gọi mạng. `reply_markup`
+        được gửi dưới dạng chuỗi JSON vì multipart không mang được object lồng nhau.
+        """
+        if len(caption) > TELEGRAM_CAPTION_MAX_LENGTH:
+            raise TelegramMessageTooLongError(
+                f"Caption dài {len(caption)} ký tự, vượt giới hạn {TELEGRAM_CAPTION_MAX_LENGTH}.",
+            )
+        data: dict[str, Any] = {"chat_id": str(chat_id), "caption": caption}
+        if parse_mode:
+            data["parse_mode"] = parse_mode
+        if reply_markup is not None:
+            data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+        result = await self._call(
+            "sendPhoto",
+            data=data,
+            files={"photo": ("chart.png", png, "image/png")},
+        )
+        return int(result["message_id"])
+
+    async def answer_callback_query(
+        self,
+        callback_query_id: str,
+        text: str | None = None,
+        show_alert: bool = False,
+    ) -> None:
+        payload: dict[str, Any] = {"callback_query_id": callback_query_id}
+        if text is not None:
+            payload["text"] = text
+        if show_alert:
+            payload["show_alert"] = True
+        await self._call("answerCallbackQuery", payload)
+
+    async def edit_message_text(
+        self,
+        chat_id: int,
+        message_id: int,
+        text: str,
+        *,
+        parse_mode: str | None = "HTML",
+        reply_markup: dict[str, Any] | None = None,
+    ) -> bool:
+        """Sửa nội dung tin văn bản. Không dùng được cho tin ảnh (dùng `edit_message_caption`).
+
+        Trả `True` nếu đã sửa, `False` nếu Telegram báo 400 `message is not modified`
+        (nội dung y hệt, coi là thành công). Mọi lỗi 400 khác vẫn ném `TelegramApiError`.
+        """
+        if len(text) > TELEGRAM_MESSAGE_MAX_LENGTH:
+            raise TelegramMessageTooLongError(
+                f"Tin nhắn dài {len(text)} ký tự, vượt giới hạn {TELEGRAM_MESSAGE_MAX_LENGTH}.",
+            )
+        payload: dict[str, Any] = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": text,
+            "disable_web_page_preview": True,
+        }
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+        return await self._call_edit("editMessageText", payload)
+
+    async def edit_message_caption(
+        self,
+        chat_id: int,
+        message_id: int,
+        caption: str,
+        *,
+        parse_mode: str | None = "HTML",
+        reply_markup: dict[str, Any] | None = None,
+    ) -> bool:
+        """Sửa caption của tin ảnh (tin ảnh không có text nên `editMessageText` bị 400).
+
+        Trả `True` nếu đã sửa, `False` nếu 400 `message is not modified` (coi là thành công).
+        Mọi lỗi 400 khác vẫn ném `TelegramApiError`.
+        """
+        if len(caption) > TELEGRAM_CAPTION_MAX_LENGTH:
+            raise TelegramMessageTooLongError(
+                f"Caption dài {len(caption)} ký tự, vượt giới hạn {TELEGRAM_CAPTION_MAX_LENGTH}.",
+            )
+        payload: dict[str, Any] = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "caption": caption,
+        }
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+        return await self._call_edit("editMessageCaption", payload)
+
+    async def edit_message_reply_markup(
+        self,
+        chat_id: int,
+        message_id: int,
+        reply_markup: dict[str, Any] | None = None,
+    ) -> bool:
+        """Thay bàn phím inline của tin; `reply_markup=None` nghĩa là bỏ bàn phím.
+
+        Trả `True` nếu đã sửa, `False` nếu 400 `message is not modified` (coi là thành công).
+        Mọi lỗi 400 khác vẫn ném `TelegramApiError`.
+        """
+        payload: dict[str, Any] = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "reply_markup": reply_markup if reply_markup is not None else {"inline_keyboard": []},
+        }
+        return await self._call_edit("editMessageReplyMarkup", payload)
+
+    async def _call_edit(self, method: str, payload: dict[str, Any]) -> bool:
+        try:
+            await self._call(method, payload)
+        except TelegramApiError as exc:
+            if exc.error_code == 400 and _NOT_MODIFIED_MARKER in exc.description.lower():
+                return False
+            raise
+        return True
+
     async def set_webhook(
         self,
         *,
@@ -205,14 +337,26 @@ class TelegramClient:
         payload: dict[str, Any] | None = None,
         *,
         http_timeout: float | None = None,
+        data: dict[str, Any] | None = None,
+        files: dict[str, tuple[str, bytes, str]] | None = None,
     ) -> Any:
         url = f"{self._api_base_url}/bot{self._token}/{method}"
         try:
-            response = await self._get_http_client().post(
-                url,
-                json=payload or {},
-                timeout=http_timeout or self._timeout_seconds,
-            )
+            timeout = http_timeout or self._timeout_seconds
+            if files is not None:
+                # Multipart (sendPhoto): `data` là các trường form, `files` là phần tải lên.
+                response = await self._get_http_client().post(
+                    url,
+                    data=data,
+                    files=files,
+                    timeout=timeout,
+                )
+            else:
+                response = await self._get_http_client().post(
+                    url,
+                    json=payload or {},
+                    timeout=timeout,
+                )
         except httpx.HTTPError as exc:
             # `from None`: ngắt chuỗi nguyên nhân, vì exception của httpx có thể mang URL (token).
             raise TelegramNetworkError(

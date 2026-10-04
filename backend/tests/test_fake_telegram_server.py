@@ -71,3 +71,59 @@ def test_a_chat_can_be_marked_as_blocking_the_bot(base_url: str) -> None:
         "description": "Forbidden: bot was blocked by the user",
     }
     assert httpx.get(f"{base_url}/__sent").json() == []
+
+
+def test_send_photo_multipart_is_recorded_and_returns_message_id(base_url: str) -> None:
+    response = httpx.post(
+        f"{base_url}/botT/sendPhoto",
+        data={
+            "chat_id": "555",
+            "caption": "Biểu đồ giá",
+            "parse_mode": "HTML",
+            "reply_markup": '{"inline_keyboard": []}',
+        },
+        files={"photo": ("chart.png", b"\x89PNG" + b"\x00" * 10, "image/png")},
+    )
+
+    assert response.json() == {"ok": True, "result": {"message_id": 1}}
+    [item] = httpx.get(f"{base_url}/__sent").json()
+    assert item["chat_id"] == 555
+    assert item["caption"] == "Biểu đồ giá"
+    assert item["photo_bytes"] == 14
+    assert item["reply_markup"] == '{"inline_keyboard": []}'
+    assert httpx.get(f"{base_url}/__sent", params={"chat_id": 555}).json() == [item]
+
+
+def test_send_photo_to_a_blocked_chat_returns_403(base_url: str) -> None:
+    httpx.post(f"{base_url}/__block", json={"chat_id": 999})
+
+    response = httpx.post(
+        f"{base_url}/botT/sendPhoto",
+        data={"chat_id": "999", "caption": "x"},
+        files={"photo": ("chart.png", b"png", "image/png")},
+    )
+
+    assert response.status_code == 403
+    assert httpx.get(f"{base_url}/__sent").json() == []
+
+
+def test_edit_and_callback_methods_are_recorded_and_reset(base_url: str) -> None:
+    for method in ("editMessageText", "editMessageCaption", "editMessageReplyMarkup"):
+        response = httpx.post(
+            f"{base_url}/botT/{method}", json={"chat_id": 5, "message_id": 8, "text": "t"}
+        )
+        assert response.json() == {"ok": True, "result": {"message_id": 8}}
+    answer = httpx.post(f"{base_url}/botT/answerCallbackQuery", json={"callback_query_id": "c1"})
+
+    assert answer.json() == {"ok": True, "result": True}
+    edits = httpx.get(f"{base_url}/__edits").json()
+    assert [e["method"] for e in edits] == [
+        "editMessageText",
+        "editMessageCaption",
+        "editMessageReplyMarkup",
+    ]
+    assert httpx.get(f"{base_url}/__callback_answers").json() == [{"callback_query_id": "c1"}]
+
+    httpx.post(f"{base_url}/__reset")
+    assert httpx.get(f"{base_url}/__edits").json() == []
+    assert httpx.get(f"{base_url}/__callback_answers").json() == []

@@ -265,3 +265,186 @@ async def test_get_updates_uses_offset_and_a_longer_http_timeout() -> None:
     assert payload["offset"] == 11
     assert payload["timeout"] == 25
     assert seen[0].extensions["timeout"]["read"] == 35
+
+
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+
+@pytest.mark.asyncio
+async def test_send_photo_is_multipart_with_photo_caption_and_json_reply_markup() -> None:
+    from scripts.fake_telegram_server import parse_multipart
+
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 77}})
+
+    client, http_client = make_client(httpx.MockTransport(handler))
+    markup = {"inline_keyboard": [[{"text": "Đã xem", "callback_data": "ack:1"}]]}
+
+    message_id = await client.send_photo(555, PNG_BYTES, "<b>Giá</b> tăng", reply_markup=markup)
+    await http_client.aclose()
+
+    assert message_id == 77
+    assert seen[0].url.path == f"/bot{FAKE_TOKEN}/sendPhoto"
+    content_type = seen[0].headers["content-type"]
+    assert content_type.startswith("multipart/form-data")
+    fields, files = parse_multipart(content_type, seen[0].content)
+    assert files == {"photo": PNG_BYTES}
+    assert fields["chat_id"] == "555"
+    assert fields["caption"] == "<b>Giá</b> tăng"
+    assert fields["parse_mode"] == "HTML"
+    assert json.loads(fields["reply_markup"]) == markup
+
+
+@pytest.mark.asyncio
+async def test_send_photo_rejects_caption_over_1024_before_any_request() -> None:
+    from app.integrations.telegram import TelegramMessageTooLongError
+
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 1}})
+
+    client, http_client = make_client(httpx.MockTransport(handler))
+
+    with pytest.raises(TelegramMessageTooLongError):
+        await client.send_photo(1, PNG_BYTES, "x" * 1025)
+    assert requests == []
+
+    assert await client.send_photo(1, PNG_BYTES, "x" * 1024) == 1
+    await http_client.aclose()
+    assert len(requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_send_photo_network_error_does_not_leak_the_token() -> None:
+    import traceback
+
+    from app.integrations.telegram import TelegramNetworkError
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("boom", request=request)
+
+    client, http_client = make_client(httpx.MockTransport(handler))
+
+    with pytest.raises(TelegramNetworkError) as exc_info:
+        await client.send_photo(1, PNG_BYTES, "cap")
+    await http_client.aclose()
+
+    error = exc_info.value
+    assert FAKE_TOKEN not in "".join(traceback.format_exception(error))
+    assert error.__cause__ is None
+    assert error.__suppress_context__ is True
+
+
+@pytest.mark.asyncio
+async def test_answer_callback_query_payload() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    client, http_client = make_client(httpx.MockTransport(handler))
+
+    await client.answer_callback_query("cb1")
+    await client.answer_callback_query("cb2", "Đã ghi nhận", show_alert=True)
+    await http_client.aclose()
+
+    assert seen[0].url.path.endswith("/answerCallbackQuery")
+    assert json.loads(seen[0].content) == {"callback_query_id": "cb1"}
+    assert json.loads(seen[1].content) == {
+        "callback_query_id": "cb2",
+        "text": "Đã ghi nhận",
+        "show_alert": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_edit_methods_send_expected_payloads_and_report_success() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 9}})
+
+    client, http_client = make_client(httpx.MockTransport(handler))
+    markup = {"inline_keyboard": [[{"text": "A", "callback_data": "a"}]]}
+
+    assert await client.edit_message_text(5, 9, "Mới", reply_markup=markup) is True
+    assert await client.edit_message_caption(5, 9, "Cap mới") is True
+    assert await client.edit_message_reply_markup(5, 9) is True
+    await http_client.aclose()
+
+    assert [r.url.path.rsplit("/", 1)[-1] for r in seen] == [
+        "editMessageText",
+        "editMessageCaption",
+        "editMessageReplyMarkup",
+    ]
+    text_payload = json.loads(seen[0].content)
+    assert text_payload["text"] == "Mới"
+    assert text_payload["message_id"] == 9
+    assert text_payload["parse_mode"] == "HTML"
+    assert text_payload["reply_markup"] == markup
+    assert json.loads(seen[1].content)["caption"] == "Cap mới"
+    assert json.loads(seen[2].content) == {
+        "chat_id": 5,
+        "message_id": 9,
+        "reply_markup": {"inline_keyboard": []},
+    }
+
+
+@pytest.mark.asyncio
+async def test_edit_not_modified_is_success_but_other_400_still_raises() -> None:
+    from app.integrations.telegram import TelegramApiError
+
+    not_modified = "Bad Request: message is not modified: specified new message content"
+    descriptions = iter(
+        [
+            not_modified,
+            not_modified,
+            not_modified,
+            "Bad Request: there is no text in the message to edit",
+        ]
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400,
+            json={"ok": False, "error_code": 400, "description": next(descriptions)},
+        )
+
+    client, http_client = make_client(httpx.MockTransport(handler))
+
+    assert await client.edit_message_text(1, 2, "x") is False
+    assert await client.edit_message_caption(1, 2, "x") is False
+    assert await client.edit_message_reply_markup(1, 2) is False
+    with pytest.raises(TelegramApiError) as exc_info:
+        await client.edit_message_text(1, 2, "x")
+    await http_client.aclose()
+
+    assert exc_info.value.error_code == 400
+
+
+@pytest.mark.asyncio
+async def test_edit_length_limits_are_checked_before_any_request() -> None:
+    from app.integrations.telegram import TelegramMessageTooLongError
+
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    client, http_client = make_client(httpx.MockTransport(handler))
+
+    with pytest.raises(TelegramMessageTooLongError):
+        await client.edit_message_text(1, 2, "x" * 4097)
+    with pytest.raises(TelegramMessageTooLongError):
+        await client.edit_message_caption(1, 2, "x" * 1025)
+    await http_client.aclose()
+
+    assert requests == []

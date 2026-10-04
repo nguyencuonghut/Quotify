@@ -11,6 +11,7 @@ import httpx
 from sqlalchemy.dialects import postgresql
 
 from app.integrations.telegram import TelegramClient
+from scripts.fake_telegram_server import parse_multipart
 
 FAKE_TOKEN = "123456789:AAFakeTokenFakeTokenFakeTokenFake12"
 WEBHOOK_SECRET = "test_webhook_secret-123"
@@ -95,6 +96,30 @@ class Outbox:
     # Chat bị Telegram từ chối (403 "bot was blocked"), các chat khác vẫn gửi được.
     forbidden_chat_ids: set[int] = field(default_factory=set)
 
+    def sent_photos(self) -> list[dict[str, Any]]:
+        """Các sendPhoto đã gửi: trường form + `photo_bytes` (kích thước tệp ảnh)."""
+        photos: list[dict[str, Any]] = []
+        for request in self.requests:
+            if request.url.path.endswith("/sendPhoto"):
+                fields, files = parse_multipart(request.headers["content-type"], request.content)
+                photos.append({**fields, "photo_bytes": len(files.get("photo", b""))})
+        return photos
+
+    def edits(self) -> list[dict[str, Any]]:
+        names = ("editMessageText", "editMessageCaption", "editMessageReplyMarkup")
+        return [
+            {"method": request.url.path.rsplit("/", 1)[-1], **json.loads(request.content)}
+            for request in self.requests
+            if request.url.path.rsplit("/", 1)[-1] in names
+        ]
+
+    def callback_answers(self) -> list[dict[str, Any]]:
+        return [
+            json.loads(request.content)
+            for request in self.requests
+            if request.url.path.endswith("/answerCallbackQuery")
+        ]
+
     def sent_messages(self) -> list[dict[str, Any]]:
         return [
             json.loads(request.content)
@@ -109,7 +134,12 @@ class Outbox:
 def make_client(outbox: Outbox) -> tuple[TelegramClient, httpx.AsyncClient]:
     def handler(request: httpx.Request) -> httpx.Response:
         outbox.requests.append(request)
-        chat_id = json.loads(request.content or b"{}").get("chat_id")
+        content_type = request.headers.get("content-type", "")
+        if content_type.startswith("multipart/form-data"):
+            fields, _ = parse_multipart(content_type, request.content)
+            chat_id: Any = int(fields["chat_id"]) if "chat_id" in fields else None
+        else:
+            chat_id = json.loads(request.content or b"{}").get("chat_id")
         if chat_id in outbox.forbidden_chat_ids:
             return httpx.Response(
                 403,
