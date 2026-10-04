@@ -19,6 +19,7 @@ except ImportError:
 
 
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from arq import cron, func
 from openpyxl import load_workbook
@@ -26,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.db.session import get_sessionmaker
 from app.integrations.vietcombank import VietcombankExchangeRateClient
 from app.models import ExportJob, ImportJob, User, UserStatus
@@ -48,6 +50,7 @@ from app.services.quote_backfill_import import (
 )
 from app.services.quote_pricing import QuotePricingService
 from app.services.quote_service import QuoteService
+from app.services.price_alert_scan import PriceAlertScanService, get_seed_user_id
 from app.services.quotify_settings_service import QuotifySettingsService
 from app.services.user_admin import RoleNotFoundError, UserAdminService
 from app.storage.minio import build_minio_client
@@ -159,6 +162,12 @@ async def _log_worker_audit_event(
 
 async def startup(ctx: dict[str, Any]) -> None:
     settings = get_settings()
+    # Worker không chạy qua `create_app` nên phải tự cấu hình log (INFO và bộ che token Telegram).
+    configure_logging(
+        settings.log_level,
+        log_format=settings.log_format,
+        app_env=settings.app_env,
+    )
     ctx["session_factory"] = get_sessionmaker()
     ctx["minio_client"] = build_minio_client(settings)
     logger.info("Arq background worker started up successfully.")
@@ -1000,6 +1009,28 @@ async def poll_and_run_scheduled_backups(ctx: dict[str, Any]) -> None:
             logger.info(f"Schedule {schedule.name} updated. Next run: {next_run}")
 
 
+async def poll_price_alerts(ctx: dict[str, Any]) -> None:
+    """Cron 30 giây: quét version vừa chốt và ghi sự kiện biến động giá (L27). Không gửi tin."""
+    settings = get_settings()
+    if not settings.telegram_enabled:
+        return
+
+    session_factory = ctx["session_factory"]
+    async with session_factory() as session:
+        seed_user_id = await get_seed_user_id(session, settings.auth_seed_admin_email)
+        outcome = await PriceAlertScanService(session, seed_user_id=seed_user_id).run_once(
+            datetime.now(UTC),
+        )
+        await session.commit()
+    if outcome.status == "scanned":
+        logger.info(
+            "price_alert.scan versions=%s events=%s errors=%s",
+            outcome.versions_scanned,
+            outcome.events_created,
+            outcome.error_count,
+        )
+
+
 settings = get_settings()
 
 
@@ -1015,7 +1046,13 @@ class WorkerSettings:
         export_users_task,
         run_backup_task,
         poll_and_run_scheduled_backups,
+        poll_price_alerts,
     ]
-    cron_jobs = [cron(poll_and_run_scheduled_backups, second=0)]
+    cron_jobs = [
+        cron(poll_and_run_scheduled_backups, second=0),
+        cron(poll_price_alerts, second={0, 30}),
+    ]
+    # Việt Nam không có DST; không đặt thì cron chạy theo giờ hệ thống (UTC trong container).
+    timezone = ZoneInfo(settings.app_timezone)
     on_startup = startup
     on_shutdown = shutdown

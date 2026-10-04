@@ -10,18 +10,19 @@ from app.models.material import Material
 from app.models.material_type import MaterialType
 from app.models.permission import Permission, role_permissions
 from app.models.price_alert import (
+    PriceAlertEvent,
     PriceAlertMaterialThreshold,
+    PriceAlertScannedVersion,
     PriceAlertScanRun,
     PriceAlertScanState,
-    PriceAlertScannedVersion,
     PriceAlertSetting,
     UserAlertPreference,
 )
 from app.models.quote import Quote
-from app.models.quote_version import QuoteVersion
 from app.models.quote_line import QuoteLine
 from app.models.quote_note import QuoteNote
 from app.models.quote_note_revision import QuoteNoteRevision
+from app.models.quote_version import QuoteVersion
 from app.models.quotify_setting import QuotifySetting
 from app.models.refresh_token import RefreshToken
 from app.models.role import Role
@@ -43,6 +44,7 @@ __all__ = [
     "Material",
     "MaterialType",
     "Permission",
+    "PriceAlertEvent",
     "PriceAlertMaterialThreshold",
     "PriceAlertScanRun",
     "PriceAlertScanState",

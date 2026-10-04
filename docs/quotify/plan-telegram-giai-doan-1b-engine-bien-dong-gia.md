@@ -556,12 +556,22 @@ Chạy replay với D6 và so với Phụ lục C (khoảng 30,2 / 16,9 / 6,8 m�
 
 ### Tiêu chí chấp nhận
 
-- [ ] Chốt phiếu thật trên dev sinh đúng sự kiện sau tối đa một chu kỳ quét (30 giây), không trùng.
-- [ ] Để worker chạy 1 giờ không có phiếu mới: không có dòng `scan_runs` nào được thêm, `last_run_at` luôn mới hơn 1 phút (L27).
-- [ ] Hai tiến trình quét song song chỉ một chạy (test trên PostgreSQL thật).
-- [ ] Replay chạy xong, không để lại dữ liệu, và số liệu nằm trong ±15% của Phụ lục C (cổng chính thức ở Slice 10).
-- [ ] `worker-test` không còn dùng được Telegram thật. Baseline không xấu hơn.
-- [ ] Chạy `agent-task-close.sh`, cập nhật `memory-bank/`.
+- [x] Chốt phiếu thật trên dev sinh đúng sự kiện sau tối đa một chu kỳ quét (30 giây), không trùng.
+- [x] Để worker chạy 1 giờ không có phiếu mới: không có dòng `scan_runs` nào được thêm, `last_run_at` luôn mới hơn 1 phút (L27).
+- [x] Hai tiến trình quét song song chỉ một chạy (test trên PostgreSQL thật).
+- [x] Replay chạy xong, không để lại dữ liệu, và số liệu nằm trong ±15% của Phụ lục C (cổng chính thức ở Slice 10).
+- [x] `worker-test` không còn dùng được Telegram thật. Baseline không xấu hơn.
+- [x] Chạy `agent-task-close.sh`, cập nhật `memory-bank/`.
+
+### Kết quả (2026-10-04)
+
+- **Code mới:** migration `20261004_1400` và model `PriceAlertEvent` (có cột `sequence_number` tự tăng để biết sự kiện nào mới nhất khi cùng `created_at`); `services/price_alert_scan.py` (`PriceAlertScanService.run_once`, `scan_versions`, `load_thresholds`, `get_seed_user_id`); cron `poll_price_alerts` ở `worker.py` (`second={0, 30}`, `timezone` VN, `configure_logging` ở `startup`); `app/price_alert_replay.py`; `worker-test` ép tắt Telegram.
+- **Thiết kế đã chốt khi làm:** service chỉ `flush`, cron `commit`, replay `rollback`; khóa advisory kiểu transaction giữ đến lúc commit; một version lỗi vẫn được đánh dấu đã quét (không lặp mỗi 30 giây), lỗi nằm ở `scan_runs`; sự kiện chỉ tạo khi chính version đó giữ giá thấp nhất của ngày (báo giá thứ hai không hạ giá thấp nhất thì không có sự kiện); chống lặp so với sự kiện gần nhất của chuỗi (cùng chiều và mức trong cửa sổ, mức Nhẹ tính là đã gửi); watermark không vượt `now`; `last_run_at` cập nhật mỗi lần lấy được khóa, bảng `scan_runs` chỉ có dòng khi có việc.
+- **Test mới (36):** 23 PostgreSQL thật cho quét (tracer đủ trường, idempotent, cờ tắt, hai kết nối, chồng lấp 5 phút, cô lập lỗi kể cả lỗi DB, bật cờ sau vài tuần, chống lặp và cửa sổ, leo thang, đổi chiều, bản điều chỉnh, ghi đè ngưỡng, giới hạn batch, replay), 7 cho worker (múi giờ VN, `second={0,30}`, cách nhau 30 giây, task). pytest 766 pass; ruff 62, mypy 13, bandit 16 không đổi. Đột biến (bỏ kiểm chủ sở hữu giá thấp nhất ngày, đổi `<=`, bỏ so mức, watermark `min`, bỏ kiểm nguồn kích hoạt) đều bị bắt.
+- **Replay trên dev (nhiều ngày thật, D6 bật):** 207 sự kiện theo chuỗi (32,9 mỗi tuần), 115 vật tư-ngày (18,3), 56 Trung bình và Lớn (8,9). So với engine tham chiếu **không có chặn bất thường** (đúng với đợt α): 218 / 116 / 57, lệch dưới 5%. So với Phụ lục C (có chặn bất thường, đợt β): 30,2 / 16,9 / 6,8, lệch +9% / +8% / +31%; phần chênh Trung bình và Lớn là các điểm bất thường sẽ bị loại ở đợt β. Cổng ±15% chính thức ở Slice 10 nên so với số không chặn bất thường cho đợt α.
+- **Thật trên dev:** worker khởi động có `poll_price_alerts` và cron; bật cờ rồi `last_run_at` tiến đúng :00 và :30, không có dòng `scan_runs` nào khi rảnh.
+- **Rà soát agent độc lập đã xử lý:** thứ tự "sự kiện gần nhất" không phụ thuộc UUID ngẫu nhiên (cột tự tăng); test UNIQUE giờ thật sự chỉ còn chỉ mục chặn; lỗi DB trong savepoint không làm hỏng lô; nhánh đánh dấu lỗi không làm thoát cả lần quét; replay có `lock_timeout` 5 giây và `statement_timeout` 120 giây, đếm đúng phần từ `since`; watermark bị chặn bởi `now`.
+- **Giới hạn đã biết của replay:** chỉ tính version `confirmed` hiện tại (bỏ các version sau đó bị thay thế), nên số liệu là xấp xỉ; replay xóa rồi hoàn tác các bảng sự kiện trong giao dịch (giữ khóa ngắn); khi 1C thêm bảng tin có FK, cần đổi sang lọc theo tập version.
 
 ### Rollback
 

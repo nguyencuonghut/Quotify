@@ -245,6 +245,11 @@ services:
       REDIS_URL: redis://redis-test:6379/0
       SMTP_HOST: mailpit-test
       SMTP_PORT: 1025
+      # Worker kiểm thử không bao giờ được gọi Telegram thật (token dev nằm trong .env).
+      TELEGRAM_ENABLED: "false"
+      TELEGRAM_BOT_TOKEN: ""
+      TELEGRAM_BOT_USERNAME: ""
+      TELEGRAM_WEBHOOK_SECRET: ""
     volumes:
       - ./backend:/app
       - backend_venv:/app/.venv
