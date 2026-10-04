@@ -21,7 +21,7 @@ Cách soạn:
 
 | Slice | Trạng thái | Ghi chú |
 |---|---|---|
-| 0 Chuẩn bị, kiểm chứng | **Một phần** | Có bot dev `@HHQuotifyBot`, token trong `.env` (git bỏ qua). Phụ lục A: T2, T3, T5, T5b đã có kết quả. Chưa làm: hạ tầng production, xác nhận chính thức K1 đến K19 (đã triển khai theo mặc định), T6 đến T10 (thuộc 1B) |
+| 0 Chuẩn bị, kiểm chứng | **Một phần** | Có bot dev `@HHQuotifyBot`, token trong `.env` (git bỏ qua). Phụ lục A: T2, T3, T5, T5b đã có kết quả. K1 đến K19 và bộ tin nhắn đã chốt (giữ nguyên). Chưa làm: hạ tầng production, T6 đến T10 (thuộc 1B) |
 | 1 Cấu hình, client an toàn | Xong | Token không lọt log, traceback, `repr`, span OTel (có test và kiểm trực tiếp) |
 | 2 Update, dedupe, webhook, polling | Xong | `/help` được bot dev thật trả lời. Webhook 404/403/200/503 đúng K6 và K13 |
 | 3a Cấp mã, đóng băng API | Xong | Hai migration, hai partial unique, thử vi phạm bằng `psql` trong `BEGIN ... ROLLBACK` |
@@ -72,7 +72,7 @@ Cách soạn:
 
 - **Slice 7** (production) theo runbook mục 12, kèm phần hạ tầng của Slice 0.
 - Đổi tài khoản Telegram bằng một tài khoản Telegram thật thứ hai; webhook qua HTTPS công khai; tham số 64 và 65 ký tự (T3).
-- Xác nhận chính thức K1 đến K19; T6 đến T10 làm ở 1B.
+- T6 đến T10 làm ở 1B. (K1 đến K19 đã chốt, xem mục Quyết Định Kỹ Thuật.)
 - Nợ có sẵn, ngoài phạm vi: 4 spec E2E cũ đang lỗi, `DELETE /users/{id}` trả 500 với người dùng đã đăng nhập, `npm audit` có 5 lỗi mức cao không liên quan.
 
 ## Mục Tiêu
@@ -185,9 +185,9 @@ Các điểm trên được agent kiểm bằng HTML thô của các trang chín
 | Cập nhật `username`, kiểm `User.status` mỗi tin | 4.4 | Thực hiện ở Slice 4 | Mang sang đúng yêu cầu của tài liệu cha |
 | Bật/tắt và mức tối thiểu trong panel | 4.9 | Hoãn sang 1B/1C | Chưa có thông báo để bật/tắt |
 
-## Quyết Định Kỹ Thuật Cho 1A (xác nhận ở Slice 0)
+## Quyết Định Kỹ Thuật Cho 1A (đã chốt 2026-10-04)
 
-Mỗi điểm có mặc định, chỉ cần sửa nếu không đồng ý.
+Mỗi điểm có mặc định. **Đã chốt:** người dùng ủy quyền cho agent quyết ("K1-K19 bạn tự quyết đi, hợp lý là được"); agent rà từng mục đối chiếu với code đã chạy và kết quả đo với bot dev thật, kết luận **giữ nguyên cả 19 mục** (xem "Kết quả rà soát K1 đến K19" ngay dưới bảng). Đây là quyết định của agent theo ủy quyền, không phải người dùng duyệt từng mục; muốn đổi mục nào thì sửa tại đây.
 
 | # | Quyết định | Mặc định |
 |---|---|---|
@@ -210,6 +210,34 @@ Mỗi điểm có mặc định, chỉ cần sửa nếu không đồng ý.
 | K17 | Log | Hạ `httpx` và `httpcore` xuống WARNING **và** scrub ở Formatter. Chấp nhận mất dòng INFO "HTTP Request" của httpx, kể cả cuộc gọi Vietcombank. Scrub chỉ phủ handler gốc (logger `uvicorn.*` có handler riêng nên không dựa vào scrub cho chúng) |
 | K18 | Lớp test tích hợp DB thật | Thêm một lớp nhỏ (marker `integration`) chạy trên `postgres-test` cho 5 hành vi: dedupe đồng thời, hai partial unique, `FOR UPDATE` trên mã, rollback savepoint khi đổi tài khoản, phân biệt constraint vi phạm. Nếu không đồng ý thì các hành vi này chỉ kiểm bằng `psql` thủ công (yếu hơn, không chống hồi quy). Cách `backend-test` nối `postgres-test` **[CHƯA XÁC MINH]**, xem ở Slice 2 |
 | K19 | Giữ nguyên hợp đồng khi tắt | Khi cờ tắt: `GET` vẫn 200 với `enabled=false`, `POST link-token` 503, webhook 404 |
+
+### Kết quả rà soát K1 đến K19 (2026-10-04)
+
+Tất cả giữ nguyên. Ghi chú theo bằng chứng:
+
+| Mục | Kết luận | Bằng chứng và ghi chú |
+|---|---|---|
+| K1 | Giữ | Hai partial unique chạy; thử vi phạm bằng `psql` và test tích hợp (kể cả `blocked` vẫn giữ chỗ) |
+| K2 | Giữ | Bốn sự kiện audit đúng. Bổ sung: sự kiện `telegram.unlinked` do hệ thống giải phóng (`owner_inactive`) không có actor |
+| K3 | Giữ 10 phút | Dùng thật: người dùng mất khoảng 6 phút ở lần đầu mà vẫn kịp; cấp lại mã rất rẻ. Bổ sung: tab cũ tự phát hiện đường dẫn bị thay và báo người dùng |
+| K4 | Giữ 5 lần/60 giây theo người dùng | In-memory theo tiến trình, đủ vì production chạy một tiến trình uvicorn (RR-18); xét lại ở 1C khi có Redis |
+| K5 | Giữ | `my_chat_member` đến đúng khi chặn và bỏ chặn với bot thật qua polling |
+| K6 | Giữ | Kiểm bằng test và `curl` thật, kể cả webhook sai secret trong E2E |
+| K7 | Giữ | Bổ sung điểm vận hành: `docker compose up` thường không bật `telegram-poller` (đã ghi vào runbook và memory-bank) |
+| K8 | Giữ | Dọn mã quá 7 ngày và update quá 3 ngày chạy trong runner, có test |
+| K9 | Giữ | Thực tế còn thêm `TELEGRAM_MODE` và `TELEGRAM_HTTP_TIMEOUT_SECONDS`, đã có trong runbook mục 12.1 |
+| K10 | Giữ | `setMyCommands` đã đăng ký thành công trên bot dev thật |
+| K11 | Giữ, đã làm cả hai | E2E-A (Slice 5b) và E2E toàn chuỗi (Slice 6c) |
+| K12 | Giữ, đã làm | Slice 5c; quét thật bằng iPhone hoàn tất liên kết |
+| K13 | Giữ | Có test cho lỗi độc, lỗi hạ tầng tạm và lỗi ghi dedupe |
+| K14 | Giữ | Panel không có trong DOM khi `enabled=false` (unit và E2E) |
+| K15 | Giữ, **vẫn là điều kiện chặn của slice 2B** | Tin xác nhận nêu tên, panel hiển thị `@username` (hoặc tên nếu người dùng Telegram không có username, như tài khoản thử), có audit. Chưa có bước xác nhận trong chat; bắt buộc bổ sung trước khi chatbot được ghi dữ liệu |
+| K16 | Giữ | Đã ghi vào runbook mục 12.6 |
+| K17 | Giữ | Kiểm trực tiếp: log backend và poller không chứa token |
+| K18 | Giữ (lớp test tích hợp) | Đã xác minh chạy trong `backend-test` trên `postgres-test` (51 test); mutation cho thấy test bắt được lỗi bỏ `FOR UPDATE` và bỏ savepoint |
+| K19 | Giữ | Kiểm trên dev khi tắt cờ: `GET` 200 `enabled=false`, `POST` 503, webhook 404 |
+
+**Bộ tin nhắn của bot:** giữ nguyên toàn bộ bảng "Bộ Tin Nhắn Của Bot". Đã thấy trên Telegram thật: lời chào `/start`, tin liên kết thành công, tin "không hợp lệ" cho đường dẫn hết hạn. Một điểm có thể cải thiện sau, không chặn: khi người dùng bấm lại một mã đã dùng của chính mình, bot đang báo "không hợp lệ" (đúng K3) thay vì "đã liên kết"; chưa sửa vì người dùng vẫn thấy trạng thái đúng ở trang Hồ sơ.
 
 ## Hợp Đồng API (đóng băng ở Slice 3a, frontend dựa vào đây)
 
@@ -334,7 +362,7 @@ Chốt điều kiện ngoài code và các điểm Telegram chưa nêu rõ **tr�
    - **Vào từ ngoài:** gọi `https://quotify.honghafeed.com.vn/health` từ mạng ngoài công ty (ví dụ 4G), xác nhận không bị chặn bởi tường lửa hay allow-list.
    - DNS: có bản ghi A, và nếu có bản ghi AAAA thì xác nhận không làm Telegram gọi nhầm (Telegram không hỗ trợ IPv6 cho webhook).
    - Xác nhận production đang chạy `prod.conf`, **không** phải `prod-http-only.conf` (`docker compose` đọc `NGINX_CONF_FILE`).
-4. **Xác nhận bảng quyết định K1 đến K19** và bộ tin nhắn. Quyết định K18 (lớp test tích hợp DB thật) cần người quyết định rõ vì thêm hạ tầng test.
+4. **Xác nhận bảng quyết định K1 đến K19** và bộ tin nhắn (đã chốt 2026-10-04, xem kết quả rà soát). Quyết định K18 (lớp test tích hợp DB thật) cần người quyết định rõ vì thêm hạ tầng test.
 5. **Cập nhật tài liệu:**
    - `CONTEXT.md`: bảng thuật ngữ ở trên (kèm cột "Tránh").
    - `docs/quotify/Requirements.txt` (mục 3.4 và 3.9) và `docs/quotify/quotify-implementation-plan.md` ("Nhật ký thay đổi"): thông báo giá và chatbot nay nằm trong phạm vi, giọng trung tính, không khuyến nghị mua bán.
@@ -346,7 +374,7 @@ Chốt điều kiện ngoài code và các điểm Telegram chưa nêu rõ **tr�
 - [x] Có bot dev, token trong `.env` dev, không có trong git.
 - [x] Phụ lục A điền xong T2, T3, T5, T5b. Nếu kết quả khác giả định thì sửa quyết định liên quan trước Slice 1.
 - [ ] Hạ tầng production: ra ngoài được, chứng chỉ hợp lệ, vào được từ mạng ngoài, DNS ổn. Nếu không đạt thì dừng và xử lý trước khi sang Slice 2. *(CHƯA: việc trên VPS, thuộc Slice 7)*
-- [ ] K1 đến K19 và bộ tin nhắn được xác nhận (hoặc sửa), bao gồm quyết định K18. *(CHƯA: đã triển khai theo mặc định, người dùng chưa xác nhận chính thức từng mục)*
+- [x] K1 đến K19 và bộ tin nhắn được xác nhận (hoặc sửa), bao gồm quyết định K18. *(người dùng ủy quyền cho agent quyết ngày 2026-10-04; đã rà và giữ nguyên, K18 giữ lớp test tích hợp)*
 - [x] Các tài liệu ở mục 5 được cập nhật và commit. *(`CONTEXT.md`, `Requirements.txt`, `quotify-implementation-plan.md`, tài liệu cha)*
 
 ---

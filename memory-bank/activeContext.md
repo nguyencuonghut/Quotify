@@ -102,4 +102,4 @@ The repository has been prepared with:
 
 1. Điều tra nợ kỹ thuật frontend đang chặn quality gate toàn repo: `make docker-test-frontend` fail ở lint/typecheck do các lỗi hiện hữu trong cụm Quote/QuoteEditor/QuoteDetail/QuotesPage và một warning CSS `:deep(...)` trong backup style; các file Phase 9 Frontend đã qua lint mục tiêu và unit test mục tiêu.
 2. Nếu muốn hoàn tất Slice 15 của `docs/quotify/plan-ui-ux-improvements.md` (đồng bộ tính năng 3 chart Dashboard), cần quyết định sản phẩm từ người yêu cầu trước — không tự ý code.
-3. Telegram 1A: cần người dùng tạo bot dev (BotFather) và đặt token vào `.env` để chạy xác minh với Telegram thật (T2/T3/T5), xác nhận K1–K19 trong plan, quyết định có làm S5c (QR) và S6c hay không, rồi mới sang S7 (production).
+3. Telegram 1A: cần người dùng tạo bot dev (BotFather) và đặt token vào `.env` để chạy xác minh với Telegram thật (T2/T3/T5), rồi mới sang S7 (production). K1–K19 đã được chốt giữ nguyên ngày 2026-10-04 (người dùng ủy quyền cho agent quyết); S5c và S6c đã làm xong.
