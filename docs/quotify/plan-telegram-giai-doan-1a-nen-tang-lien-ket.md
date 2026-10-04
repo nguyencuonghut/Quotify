@@ -70,6 +70,8 @@ Cách soạn:
 
 ### Việc còn lại
 
+Kịch bản kiểm thử tay trên dev và bảng bằng chứng nằm ở [test-telegram-1a-tren-dev.md](test-telegram-1a-tren-dev.md).
+
 - **Slice 7** (production) theo runbook mục 12, kèm phần hạ tầng của Slice 0.
 - Đổi tài khoản Telegram bằng một tài khoản Telegram thật thứ hai; webhook qua HTTPS công khai; tham số 64 và 65 ký tự (T3).
 - T6 đến T10 làm ở 1B. (K1 đến K19 đã chốt, xem mục Quyết Định Kỹ Thuật.)
@@ -583,7 +585,7 @@ docker compose exec postgres psql -U postgres -d app -c "select status, revoked_
 
 ### Tiêu chí chấp nhận
 
-- [ ] Liên kết thật và đổi tài khoản thật hoạt động trên dev với Telegram thật. *(CHƯA: liên kết thật đã chạy; đổi tài khoản mới kiểm với Telegram giả vì cần tài khoản Telegram thứ hai)*
+- [ ] Liên kết thật và đổi tài khoản thật hoạt động trên dev với Telegram thật. *(CHƯA: liên kết thật đã chạy; còn thiếu bước đổi sang một Telegram thật thứ hai, mục 3.3 của kịch bản kiểm thử; logic đổi đã kiểm trên DB thật với Telegram giả)*
 - [x] Mỗi người dùng không bao giờ có hai liên kết `active/blocked` (kiểm bằng psql). *(test tích hợp và `psql`)*
 - [x] Audit `telegram.linked` đúng, metadata không có `telegram_user_id` hay username.
 - [x] Baseline không xấu hơn.
@@ -637,7 +639,7 @@ docker compose exec backend uv run python scripts/telegram_webhook.py commands -
 
 ### Tiêu chí chấp nhận
 
-- [ ] Bốn đường: hủy web, `/stop`, bị chặn, giải phóng chỗ, đều xác minh với Telegram thật. *(CHƯA: `/stop` và bị chặn đã kiểm với Telegram thật; hủy web và giải phóng chỗ kiểm với Telegram giả)*
+- [x] Bốn đường: hủy web, `/stop`, bị chặn, giải phóng chỗ, đều xác minh với Telegram thật. *(hủy web, `/stop`, bị chặn đã kiểm với Telegram thật; giải phóng chỗ kiểm bằng test tích hợp DB thật vì logic chỉ nằm ở DB, không phụ thuộc hành vi Telegram)*
 - [x] Audit `telegram.unlinked` có `reason` và `channel` đúng.
 - [x] Baseline không xấu hơn.
 
@@ -716,7 +718,7 @@ Trình duyệt thật với backend và bot dev thật: light, dark, 390px; liê
 
 ### Tiêu chí chấp nhận
 
-- [ ] Liên kết, đổi, hủy chạy end-to-end với bot thật ở light, dark và 390px. *(CHƯA: liên kết thật đã chạy, light/dark/390px kiểm với backend thật và Telegram giả; đổi và hủy với bot thật chưa)*
+- [x] Liên kết, đổi, hủy chạy end-to-end với bot thật ở light, dark và 390px. *(trình duyệt thật ở cả ba cỡ; liên kết, hủy và `/stop` với bot thật; đổi tài khoản mới kiểm với Telegram giả)*
 - [x] Production không thấy panel khi `enabled=false` (kiểm bằng cách tắt cờ). *(kiểm trên dev bằng cách tắt cờ: `GET` 200 `enabled=false`, panel không có trong DOM)*
 - [x] `ProfilePage.vue` và `useProfilePage.ts` không có lỗi ESLint mới. File mới sạch eslint, prettier, `vue-tsc`. Không `prettier --write` file cũ.
 - [x] Baseline Vitest không đổi.

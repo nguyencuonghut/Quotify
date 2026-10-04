@@ -4,6 +4,24 @@ Bảng kịch bản để kiểm tay toàn bộ tính năng Telegram đã có (G
 
 **Phạm vi.** Chỉ 1A: liên kết, đổi, hủy, `/start`, `/stop`, `/help`, bị chặn, nhật ký audit, cờ bật/tắt. **Chưa có** (1B trở đi): tính biến động giá, gửi thông báo giá, biểu đồ, chatbot. **Không kiểm được trên dev:** webhook qua HTTPS công khai (dev dùng polling); phần đó kiểm ở Slice 7.
 
+## Bằng chứng đã có (cập nhật 2026-10-04)
+
+Người dùng báo đã thử trên dev trước khi có bảng kịch bản này; các lần thử đó không ghi lại từng dòng, nên bảng dưới tổng hợp **nhóm kịch bản nào đã được chứng minh bằng cách nào**. Ký hiệu: **[Thật]** người dùng thao tác trên Telegram thật với bot dev `@HHQuotifyBot` và DB ghi nhận; **[Tự động]** test tự động chạy trên PostgreSQL thật (có Telegram giả); **[Trình duyệt]** trình duyệt thật với backend thật và Telegram giả; **[Lệnh]** kiểm trực tiếp bằng lệnh.
+
+| Nhóm | Bằng chứng | Còn thiếu |
+|---|---|---|
+| 1 Liên kết cơ bản | [Thật] liên kết, QR bằng iPhone, `/help`, `/start`, hủy từ web rồi liên kết lại, `/stop`. [Trình duyệt] giao diện đầy đủ | Tin lạ (1.9) và `/stop` hai lần (1.13) chỉ có [Tự động] |
+| 2 Đường dẫn | [Thật] mã hết hạn và mã đã dùng bị bấm lại, bot báo "không hợp lệ". [Trình duyệt] hai tab, F5. [Lệnh] giới hạn 5 lần mỗi phút trả 429 | Rút ngắn hạn bằng SQL (2.3) chỉ có [Tự động] |
+| 3 Nhiều tài khoản | [Tự động] Telegram bị người khác giữ, không đốt mã, đổi tài khoản nguyên tử, rollback khi tranh chấp, hai người cùng mở một link | **Chưa có [Thật]**, đặc biệt đổi sang Telegram thứ hai (3.3) |
+| 4 Chặn, bỏ chặn | [Thật] `member → kicked → member`, DB `blocked → active`, `sendMessage` trả 403. [Trình duyệt] giao diện "Bot đang bị chặn" | |
+| 5 Vòng đời người dùng | [Tự động] người dùng không hoạt động, nhường chỗ `owner_inactive`; [Trình duyệt] khóa người dùng qua API admin | Chưa có [Thật] (logic chỉ nằm ở DB, không phụ thuộc hành vi Telegram) |
+| 6 Audit | [Tự động] nhãn tiếng Việt và bộ lọc; [Lệnh] metadata chỉ có `channel`, `reason`, `telegram_account_id` | |
+| 7 Cờ bật/tắt | [Lệnh] `GET` 200 `enabled=false`, `POST` 503, webhook 404; [Trình duyệt] panel biến mất | Chưa thử trên chính dev stack bằng docker (đổi `.env` rồi recreate) |
+| 8 Bảo mật, log | [Lệnh] token xuất hiện 0 lần trong log backend, poller, frontend, worker; [Trình duyệt] không có mã trong storage; [Tự động] bỏ qua tin trong nhóm và giới hạn 10 tin mỗi phút | |
+| 9 Giao diện | [Trình duyệt] light, dark, 390px, không tràn ngang | |
+
+Nếu muốn chắc hơn trước production, nên làm thêm bằng Telegram thật các mục **3.1.2** (Telegram đang gắn với người khác, hai tài khoản Quotify) và **3.3** (cần Telegram thứ hai). Hai mục này không chặn nếu chấp nhận rủi ro thấp (logic đã được test tích hợp trên DB thật).
+
 ## 0. Chuẩn bị
 
 | Việc | Lệnh hoặc cách làm |
@@ -128,6 +146,8 @@ Dùng tài khoản admin thật của bạn ở một cửa sổ khác. Vào **N
 | 9.3 | Dùng bàn phím (Tab) | Các nút và ô đường dẫn lấy được focus; thông báo lỗi có `role="alert"` | |
 
 ## 10. Dọn dẹp sau khi test
+
+(Hai tài khoản `tg.test.a` và `tg.test.b` đã được xóa ngày 2026-10-04; nếu cần thử lại thì tạo mới.)
 
 ```bash
 # Xóa dữ liệu liên kết (dev, an toàn)
