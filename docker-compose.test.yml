@@ -21,6 +21,11 @@ services:
       REDIS_URL: redis://redis-test:6379/0
       SMTP_HOST: mailpit-test
       SMTP_PORT: 1025
+      # `.env` dev có thể chứa bot Telegram thật: test không bao giờ được dùng nó.
+      TELEGRAM_ENABLED: "false"
+      TELEGRAM_BOT_TOKEN: ""
+      TELEGRAM_BOT_USERNAME: ""
+      TELEGRAM_WEBHOOK_SECRET: ""
     depends_on:
       postgres-test:
         condition: service_healthy
@@ -87,6 +92,15 @@ services:
       REDIS_URL: redis://redis-test:6379/0
       SMTP_HOST: mailpit-test
       SMTP_PORT: 1025
+      # Mỗi test E2E đăng nhập lại; giới hạn 5 lần/phút mặc định làm các test chạy sát nhau bị 429.
+      RATE_LIMIT_AUTH_LOGIN: "100"
+      # Telegram bật nhưng trỏ tới Telegram giả (service fake-telegram), không bao giờ ra internet.
+      TELEGRAM_ENABLED: "true"
+      TELEGRAM_MODE: webhook
+      TELEGRAM_BOT_TOKEN: e2e-fake-bot-token
+      TELEGRAM_BOT_USERNAME: quotify_e2e_bot
+      TELEGRAM_WEBHOOK_SECRET: "${E2E_TELEGRAM_WEBHOOK_SECRET:-e2e_webhook_secret_value}"
+      TELEGRAM_API_BASE_URL: http://fake-telegram:8081
     depends_on:
       postgres-test:
         condition: service_healthy
@@ -95,6 +109,8 @@ services:
       redis-test:
         condition: service_healthy
       mailpit-test:
+        condition: service_healthy
+      fake-telegram:
         condition: service_healthy
     healthcheck:
       test:
@@ -118,12 +134,33 @@ services:
     environment:
       E2E_ADMIN_EMAIL: "${AUTH_SEED_ADMIN_EMAIL:?AUTH_SEED_ADMIN_EMAIL is required for E2E tests}"
       E2E_ADMIN_PASSWORD: "${AUTH_SEED_ADMIN_PASSWORD:?AUTH_SEED_ADMIN_PASSWORD is required for E2E tests}"
+      E2E_TELEGRAM_WEBHOOK_SECRET: "${E2E_TELEGRAM_WEBHOOK_SECRET:-e2e_webhook_secret_value}"
+      E2E_FAKE_TELEGRAM_URL: http://fake-telegram:8081
     volumes:
       - ./frontend/test-results:/app/test-results
       - ./frontend/playwright-report:/app/playwright-report
     depends_on:
       frontend-e2e:
         condition: service_healthy
+
+  fake-telegram:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+      target: dev
+    command: python scripts/fake_telegram_server.py --port 8081
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import urllib.request
+          urllib.request.urlopen("http://127.0.0.1:8081/health", timeout=3)
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   postgres-test:
     image: postgres:16-bookworm

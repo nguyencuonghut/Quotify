@@ -254,6 +254,13 @@
   - npm 12 chuẩn hóa lại toàn bộ cờ `dev` khi `npm install`, gây nhiễu hàng chục dòng trong `package-lock.json`; khi thêm gói hãy khôi phục lock rồi chỉ thêm mục của gói mới, và kiểm bằng `npm ci --dry-run`
   - `make frontend-dependency-audit` đang báo 5 lỗi mức cao có sẵn (`brace-expansion`, `immutable`...) không liên quan `uqr`; chưa chạy `npm audit fix`
 
+- Verified Telegram full-stack E2E in the docker test stack (2026-10-04):
+  - service `fake-telegram` trong `docker-compose.test.yml` chạy `backend/scripts/fake_telegram_server.py` (chỉ thư viện chuẩn; có test `backend/tests/test_fake_telegram_server.py`): nhận mọi `POST /bot<token>/<method>`, ghi `sendMessage`, `GET /__sent?chat_id=`, `POST /__block`, `POST /__reset`
+  - `backend-e2e` bật Telegram trỏ vào `fake-telegram`, `backend-test` ép `TELEGRAM_ENABLED=false` và token rỗng (để `.env` dev có bot thật không lọt vào test), `RATE_LIMIT_AUTH_LOGIN=100` cho `backend-e2e` vì mỗi test đăng nhập lại
+  - `frontend/tests/e2e/profile-telegram-full.spec.ts`: giao diện + backend + DB thật, test gọi webhook thay Telegram (`telegram_user_id` ngẫu nhiên mỗi lần vì khóa unique), kiểm tin bot gửi qua `E2E_FAKE_TELEGRAM_URL`; tự `skip` khi thiếu `E2E_TELEGRAM_WEBHOOK_SECRET`
+  - chạy riêng hai spec Telegram: `docker compose -f docker-compose.test.yml run --rm e2e-test npx playwright test --config=playwright.docker.config.ts tests/e2e/profile-telegram.spec.ts tests/e2e/profile-telegram-full.spec.ts` (6 pass)
+  - toàn bộ `make docker-test-e2e`: 9 pass, 4 lỗi có sẵn (đã xác nhận lỗi y hệt với compose gốc): `audit-logs`, `quote-detail-filters`, `smoke` (còn tìm tiêu đề "Hồng Hà HRMS"), `suppliers`
+
 ## Planned Stack
 
 - Backend: FastAPI `0.136.3`, Python `3.12` or `3.13` target, Pydantic v2, SQLAlchemy, Alembic
