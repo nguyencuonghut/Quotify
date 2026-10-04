@@ -459,9 +459,15 @@ Hàm thuần nhận điểm mới, các điểm tham chiếu trong cửa sổ v�
 
 ### Tiêu chí chấp nhận
 
-- [ ] Ba ví dụ D2, các biên và thuộc tính đều xanh.
-- [ ] Hàm không import `sqlalchemy`, `httpx`, hay đọc thời gian hệ thống.
-- [ ] File mới sạch ruff, mypy (strict), bandit; baseline không xấu hơn.
+- [x] Ba ví dụ D2, các biên và thuộc tính đều xanh.
+- [x] Hàm không import `sqlalchemy`, `httpx`, hay đọc thời gian hệ thống.
+- [x] File mới sạch ruff, mypy (strict), bandit; baseline không xấu hơn.
+
+### Kết quả (2026-10-04)
+
+- `services/price_alert_rules.py`: `PricePoint`, `Thresholds`, `ChangeEvaluation`, `evaluate_change(new_point, prior_points, thresholds)`. Hàm thuần (có test kiểm import chỉ gồm thư viện chuẩn và không đọc giờ hệ thống).
+- 32 test: ba ví dụ D2, mọi biên, hòa |%|, hòa giá min/max, đối chiếu một cài đặt độc lập trên 3.000 chuỗi ngẫu nhiên (hạt giống cố định, không dùng `hypothesis` vì dự án chưa có). pytest 707 pass; ruff 62, mypy 13 và bandit 16 không đổi.
+- **Rà soát agent độc lập đã bổ sung:** chỉ dùng điểm trước ngày điểm mới; trùng ngày thì lấy giá thấp nhất để kết quả không phụ thuộc thứ tự; điểm giá 0 bị bỏ có chủ ý (L7); thêm test R2 ở biên và các trường ngày. Thứ tự ngưỡng không kiểm trong hàm vì đã kiểm ở API cấu hình và CHECK của DB (Slice 1).
 
 ### Rollback
 

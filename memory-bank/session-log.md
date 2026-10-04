@@ -1041,3 +1041,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B Slice 2: ngày làm việc và daily-min
 - Tom tat: Thêm working_days.py và daily_min_series.py, 42 test mới, pytest 675 pass, khớp truy vấn độc lập trên 5 chuỗi dev, rà soát bằng agent độc lập nên bổ sung điều kiện confirmed_at và tie-break.
+
+## 2026-10-04 10:37:20Z - claude
+
+- Tieu de: Telegram 1B Slice 3: lõi đánh giá R1/R2/R3
+- Tom tat: Thêm price_alert_rules.py (evaluate_change), 32 test gồm đối chiếu cài đặt độc lập và ba ví dụ D2; agent rà soát bổ sung lọc điểm trước ngày mới và gộp trùng ngày. pytest 707 pass.
