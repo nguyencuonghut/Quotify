@@ -265,6 +265,8 @@
 
 - Kiểm thử tay Telegram 1A trên dev: kịch bản ở `docs/quotify/test-telegram-1a-tren-dev.md`; xem trạng thái bằng `bash scripts/ops/telegram-dev-state.sh` (chỉ đọc, giờ UTC). Tài khoản Quotify thử `tg.test.a@example.com` và `tg.test.b@example.com` (vai trò `user`) được tạo cho đợt kiểm thử này và phải xóa theo mục 10 của kịch bản.
 
+- Bot Telegram: dev `@HHQuotifyBot`, production `@HonghaQuotifyBot` (đã tạo 2026-10-04). Token production chưa được cấu hình ở đâu trong repo và chỉ được đặt trên VPS; vì token từng bị dán vào chat, phải `/revoke` ở @BotFather rồi lấy token mới trước khi đưa lên VPS.
+
 ## Planned Stack
 
 - Backend: FastAPI `0.136.3`, Python `3.12` or `3.13` target, Pydantic v2, SQLAlchemy, Alembic

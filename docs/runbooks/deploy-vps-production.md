@@ -554,8 +554,27 @@ openssl rand -hex 32
 
 ### 12.2 Dev và production dùng hai bot khác nhau
 
-Mỗi môi trường một bot riêng (tạo bằng @BotFather: `/newbot`). Không bao giờ dùng token bot
-production trong `.env` dev. Các lệnh `set`, `delete`, `commands` in `@username` của bot và URL
+Mỗi môi trường một bot riêng (tạo bằng @BotFather: `/newbot`):
+
+| Môi trường | Bot | Token nằm ở |
+|---|---|---|
+| Dev | `@HHQuotifyBot` | `.env` trên máy dev (git bỏ qua) |
+| Production | `@HonghaQuotifyBot` | **Chỉ** `.env` (hoặc file secret) trên VPS |
+
+Lý do: một bot chỉ có một "đường nhận tin" (webhook hoặc `getUpdates`, loại trừ nhau). Poller dev gọi
+`deleteWebhook` khi khởi động, nên nếu dev dùng chung token production thì bật poller dev sẽ xóa webhook
+production và tin của người dùng thật chạy vào DB dev.
+
+Không bao giờ dùng token bot production trong `.env` dev, và không dán token vào chat, ticket, email.
+**Nếu token đã từng bị dán ở đâu đó, thu hồi trước khi dùng:** @BotFather → `/revoke` → chọn bot → chép
+token mới thẳng vào VPS.
+
+Thiết lập một lần cho bot production ở @BotFather (không bắt buộc về kỹ thuật, nhưng nên làm):
+`/setjoingroups` → **Disable** (bot bỏ qua nhóm, nên không cho thêm vào nhóm), `/setdescription` và
+`/setabouttext` (tiếng Việt, nêu rõ bot chỉ gửi thông báo của Quotify), `/setuserpic`. Lệnh `/start`,
+`/stop`, `/help` đăng ký bằng `scripts/telegram_webhook.py commands --yes` (mục 12.4), không cần `/setcommands`.
+
+Các lệnh `set`, `delete`, `commands` của `scripts/telegram_webhook.py` in `@username` của bot và URL
 webhook hiện tại rồi **từ chối chạy** nếu `TELEGRAM_BOT_USERNAME` khác bot thật (exit 2), và
 chỉ thay đổi khi có `--yes`.
 
