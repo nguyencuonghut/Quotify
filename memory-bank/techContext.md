@@ -263,6 +263,8 @@
 
 - Telegram dev: service `telegram-poller` (profile `telegram`) KHÔNG chạy với `docker compose up` thường; thiếu nó thì bấm Start trên Telegram bot im lặng và `telegram_processed_updates` luôn 0. Bật bằng `docker compose --profile telegram up -d telegram-poller`. Telegram giữ update 24 giờ nên khi bật muộn bot nhắn bù các tin "không hợp lệ". Kết quả đo với bot dev thật nằm ở Phụ lục A của `docs/quotify/plan-telegram-giai-doan-1a-nen-tang-lien-ket.md` (T2 409, T3 bấm lại vẫn gửi `/start <mã>`, T5 403 `bot was blocked by the user`, T5b 400 `chat not found`).
 
+- Kiểm thử tay Telegram 1A trên dev: kịch bản ở `docs/quotify/test-telegram-1a-tren-dev.md`; xem trạng thái bằng `bash scripts/ops/telegram-dev-state.sh` (chỉ đọc, giờ UTC). Tài khoản Quotify thử `tg.test.a@example.com` và `tg.test.b@example.com` (vai trò `user`) được tạo cho đợt kiểm thử này và phải xóa theo mục 10 của kịch bản.
+
 ## Planned Stack
 
 - Backend: FastAPI `0.136.3`, Python `3.12` or `3.13` target, Pydantic v2, SQLAlchemy, Alembic
