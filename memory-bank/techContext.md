@@ -261,6 +261,8 @@
   - chạy riêng hai spec Telegram: `docker compose -f docker-compose.test.yml run --rm e2e-test npx playwright test --config=playwright.docker.config.ts tests/e2e/profile-telegram.spec.ts tests/e2e/profile-telegram-full.spec.ts` (6 pass)
   - toàn bộ `make docker-test-e2e`: 9 pass, 4 lỗi có sẵn (đã xác nhận lỗi y hệt với compose gốc): `audit-logs`, `quote-detail-filters`, `smoke` (còn tìm tiêu đề "Hồng Hà HRMS"), `suppliers`
 
+- Telegram dev: service `telegram-poller` (profile `telegram`) KHÔNG chạy với `docker compose up` thường; thiếu nó thì bấm Start trên Telegram bot im lặng và `telegram_processed_updates` luôn 0. Bật bằng `docker compose --profile telegram up -d telegram-poller`. Telegram giữ update 24 giờ nên khi bật muộn bot nhắn bù các tin "không hợp lệ". Kết quả đo với bot dev thật nằm ở Phụ lục A của `docs/quotify/plan-telegram-giai-doan-1a-nen-tang-lien-ket.md` (T2 409, T3 bấm lại vẫn gửi `/start <mã>`, T5 403 `bot was blocked by the user`, T5b 400 `chat not found`).
+
 ## Planned Stack
 
 - Backend: FastAPI `0.136.3`, Python `3.12` or `3.13` target, Pydantic v2, SQLAlchemy, Alembic

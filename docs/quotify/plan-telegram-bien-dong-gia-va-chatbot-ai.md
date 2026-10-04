@@ -1,6 +1,6 @@
 # Kế hoạch: Thông báo biến động giá qua Telegram và Chatbot AI
 
-> **Trạng thái:** ĐANG HOÀN THIỆN. Chưa có dòng code nào được viết. Các quyết định D1 đến D12 đã chốt. Các tham số mặc định ở mục 3 ("Tham số mặc định của 1B") chưa được xác nhận từng giá trị.
+> **Trạng thái:** ĐANG HOÀN THIỆN. **Giai đoạn 1A (nền tảng liên kết tài khoản Telegram) đã có code và chạy trên dev** (xem mục "Kết Quả Triển Khai" của kế hoạch 1A); Slice 7 (production) chưa làm. Từ 1B trở đi (tính biến động, gửi tin, chatbot) chưa có dòng code nào. Các quyết định D1 đến D12 đã chốt. Các tham số mặc định ở mục 3 ("Tham số mặc định của 1B") chưa được xác nhận từng giá trị.
 > **Ngày soạn:** 2026-10-03. **Cập nhật:** 2026-10-04 (áp dụng kết quả rà soát độc lập và quyết định Q1 đến Q4).
 > **Phạm vi:** Bước 1 (thông báo biến động giá qua Telegram) và Bước 2 (nâng cấp thành chatbot AI).
 > **Nguyên tắc nền:** Production đã chạy. Mọi thay đổi chỉ được **additive** (thêm bảng, thêm cột nullable, thêm file). Không sửa migration cũ, không đổi hành vi API cũ.
@@ -22,7 +22,7 @@ Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, A
 
 ## 0. Tóm tắt điều hành
 
-1. Hiện **chưa có gì** về Telegram, LLM, OCR hay PDF trong repo (code, cấu hình). Đây là tính năng hoàn toàn mới. Hai tài liệu kế hoạch (tài liệu này và kế hoạch 1A) mới là nơi mô tả.
+1. **Cập nhật 2026-10-04:** phần liên kết tài khoản Telegram (Giai đoạn 1A) đã có code, tắt mặc định bằng `TELEGRAM_ENABLED=false`. Phần thông báo biến động giá (1B trở đi), LLM, OCR và PDF **chưa có** trong repo. Hai tài liệu kế hoạch (tài liệu này và kế hoạch 1A) là nơi mô tả.
 2. Hạ tầng tái dùng được: worker **arq + Redis** (đã có cron), pattern adapter `httpx` (Vietcombank), `EmailService` (mẫu "thông báo không làm hỏng nghiệp vụ"), cơ chế audit, nginx đã proxy `/api/`. Truy vấn daily-min theo chuỗi **chưa có** (`QuotifyDashboardService` chỉ trả điểm thô và tóm tắt), phải viết hàm mới (mục 4.3).
 3. Điểm mới cần thêm: bảng liên kết Telegram, bảng sự kiện, tin và quét, bảng cấu hình ngưỡng, engine tính biến động, bộ vẽ biểu đồ ảnh phía server, webhook nhận tin từ Telegram.
 4. **Bước 1 đã cần nhận tin từ Telegram.** Để liên kết tài khoản an toàn bằng mã `/start <mã liên kết>`, bot phải nhận được update. Vì vậy webhook (hoặc long-polling) phải có ngay ở Bước 1.
@@ -30,7 +30,7 @@ Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, A
 6. Chatbot hỏi đáp dùng **tool-calling với các hàm cố định**, không cho AI tự sinh SQL. Điều này đáp ứng "chỉ READ" và "cấm SQL nguy hiểm" bằng thiết kế.
 7. **Điều kiện gửi tin đã chốt:** bộ ba quy tắc R1/R2/R3 so với 7 ngày làm việc liền trước (D2, D3), ngưỡng 2,5 / 5 / 10% cấu hình được theo từng vật tư (D4). **Nguồn kích hoạt** là version không do tài khoản seed admin tạo và có độ trễ không quá 3 ngày làm việc (D6, QĐ-16). **Tin** gộp theo vật tư trong một lần quét, chỉ gửi bổ sung khi leo thang (D5, QĐ-17). **Giá bất thường** có vòng đời riêng (D12, QĐ-18). Trưởng phòng được sửa ngưỡng và bật/tắt tính năng (QĐ-19).
 8. **Tải tin thật cao hơn con số backtest.** 82,5% dòng trong 12 tháng là dữ liệu import một lần, dữ liệu nhập thật chỉ có 6,3 tuần. Với nguồn kích hoạt theo D6 mới, ước lượng khoảng 17,7 tin gộp mỗi tuần (7,3 tin Trung bình và Lớn), cao hơn 7,8 và 2,9 của backtest (Phụ lục B.8). Cần dry-run ở chế độ replay trước khi chốt các trần.
-9. Việc tiếp theo: triển khai theo kế hoạch 1A (đã có tài liệu riêng), rồi soạn kế hoạch 1B riêng theo mẫu 1A.
+9. Việc tiếp theo: Slice 7 của kế hoạch 1A (đưa lên production, thao tác trên VPS), rồi soạn kế hoạch 1B riêng theo mẫu 1A. Kết quả kiểm chứng với Telegram thật (T2, T3, T5, T5b) nằm ở Phụ lục A của kế hoạch 1A.
 
 ---
 
@@ -914,7 +914,7 @@ Mã rủi ro là `RR-n` (khác với quy tắc R1, R2, R3 ở D2).
 Mỗi lát cắt có migration (nếu cần), backend, giao diện (nếu cần), test, tài liệu. Làm theo TDD. Mỗi lát cắt phát hành **tắt** bằng cờ cấu hình, bật dần.
 
 ### Giai đoạn 0: Chốt phạm vi và điều kiện (không code)
-- Các quyết định D1 đến D12 đã chốt. Việc còn lại và chi tiết nằm ở **Slice 0 của kế hoạch 1A**: tạo bot dev, kiểm chứng các điểm Telegram chưa nêu rõ, kiểm hạ tầng production hai chiều (ra `api.telegram.org`, và Telegram vào được `443`), cập nhật `CONTEXT.md`, `Requirements.txt`, `quotify-implementation-plan.md`.
+- Các quyết định D1 đến D12 đã chốt. Việc còn lại và chi tiết nằm ở **Slice 0 của kế hoạch 1A** (đã làm một phần: bot dev và T2, T3, T5, T5b; còn phần hạ tầng production): tạo bot dev, kiểm chứng các điểm Telegram chưa nêu rõ, kiểm hạ tầng production hai chiều (ra `api.telegram.org`, và Telegram vào được `443`), cập nhật `CONTEXT.md`, `Requirements.txt`, `quotify-implementation-plan.md`.
 - Kiểm tra DB production: role `manager` có tồn tại không, số người dùng theo role, tên role thật (cần cho migration cấp quyền).
 
 ### Giai đoạn 1A: Nền tảng Telegram và liên kết tài khoản

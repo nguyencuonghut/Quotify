@@ -603,7 +603,7 @@ HTTPS cổng 443/80/88/8443, TLS 1.2+, chứng chỉ có CN trùng domain và đ
    docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py info
    ```
 
-4. Thử với **một** tài khoản: trang Hồ sơ → "Liên kết Telegram" → mở đường dẫn → Start → bot trả
+4. Thử với **một** tài khoản: trang Hồ sơ → "Liên kết Telegram" → mở đường dẫn (hoặc quét mã QR hiện cạnh nút; iPhone chỉ nhận ra mã, phải chạm vào nhãn hiện ở đầu màn hình camera để mở Telegram) → Start → bot trả
    "Đã liên kết". Thử `/help`, đổi sang tài khoản Telegram khác, rồi "Hủy liên kết". Xem
    nhật ký audit (`telegram.link_requested`, `telegram.linked`, `telegram.unlinked`).
 5. **Sau khi có tin thật đi qua**, chạy lại `... telegram_webhook.py info`: kỳ vọng
@@ -638,6 +638,13 @@ Dev dùng **polling** (không cần domain công khai).
    docker compose --profile telegram up -d telegram-poller
    ```
 
+   **`docker compose up` thường không bật poller** (nó nằm sau profile `telegram`), nên nếu chưa
+   chạy lệnh trên thì bấm Start trên Telegram sẽ không có phản hồi nào và liên kết không hoàn tất.
+   Kiểm tra: `docker compose --profile telegram logs --tail=5 telegram-poller` phải có dòng
+   `telegram.poller_started username=<bot dev>`. Telegram giữ update tới 24 giờ, nên khi bật poller
+   muộn, các lần bấm trước đó được xử lý ngay và bot nhắn bù các tin "không hợp lệ" cho đường dẫn đã
+   hết hạn; đó là bình thường.
+
    Poller **từ chối chạy** khi `APP_ENV=production`, `TELEGRAM_ENABLED=false` hoặc
    `TELEGRAM_MODE` khác `polling`. Nó tự gọi `deleteWebhook` khi khởi động vì `getUpdates` và
    webhook loại trừ nhau.
@@ -664,6 +671,7 @@ Dev dùng **polling** (không cần domain công khai).
 | Webhook trả 404 | Cờ tắt, `TELEGRAM_MODE` không phải `webhook`, hoặc chưa đặt `TELEGRAM_WEBHOOK_SECRET` | Kiểm tra `.env` |
 | Webhook trả 403 | Secret ở Telegram khác `TELEGRAM_WEBHOOK_SECRET` | Chạy lại `set --yes` |
 | `info` có `last_error_message` | Telegram không gọi vào được (chứng chỉ, tường lửa, DNS/AAAA) | Kiểm tra mục 12.4 phần điều kiện |
+| Bấm Start trên Telegram mà bot im lặng (dev) | `telegram-poller` chưa chạy | `docker compose --profile telegram up -d telegram-poller` (mục 12.6) |
 | Người dùng bấm đường dẫn nhưng không liên kết | Đường dẫn hết hạn (10 phút), đã dùng, hoặc bị thay bởi đường dẫn mới hơn | Tạo đường dẫn mới trong trang Hồ sơ |
 | Bot báo "đang liên kết với một tài khoản Quotify khác" | Telegram đó đang giữ bởi người dùng khác còn hoạt động | Người kia hủy liên kết (web hoặc `/stop`); chủ cũ bị khóa/vô hiệu thì tự được giải phóng |
 | `docker compose ... logs` có chuỗi giống token | Không được xảy ra | Dừng ngay, thu hồi token ở @BotFather (`/revoke`), báo người phụ trách |

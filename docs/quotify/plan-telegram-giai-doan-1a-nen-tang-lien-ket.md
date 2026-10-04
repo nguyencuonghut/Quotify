@@ -2,7 +2,9 @@
 
 ## Trạng Thái
 
-BẢN NHÁP ĐỂ XÁC NHẬN (bản 3). Chưa có dòng code nào được viết. Ngày soạn: 2026-10-03. Cập nhật 2026-10-04: đồng bộ với tài liệu cha sau vòng rà soát độc lập (tài liệu cha đã được sửa theo bảng "Độ Lệch Có Chủ Đích" và thêm điều kiện bảo mật K15).
+**ĐÃ TRIỂN KHAI TRÊN DEV (cập nhật 2026-10-04).** Backend S1 đến S4, frontend S5a, S5b, S5c, nhãn audit S6a, tài liệu và hồi quy S6b, E2E S6c đã xong và commit trên nhánh `feat/telegram-1a-foundation` (chưa push, chưa merge vào `main`). **Chưa làm:** Slice 7 (production, thao tác trên VPS), phần hạ tầng của Slice 0 (VPS ra được `api.telegram.org`, Telegram vào được cổng 443), và kiểm chứng đổi tài khoản bằng một tài khoản Telegram thứ hai. Tính năng **tắt mặc định** (`TELEGRAM_ENABLED=false`) nên merge không làm đổi hành vi nhìn thấy trên production.
+
+Phần còn lại của tài liệu giữ nguyên là **kế hoạch gốc** (ngày soạn 2026-10-03, bản 3, đồng bộ với tài liệu cha ngày 2026-10-04). Kết quả thực tế, các chỗ lệch so với kế hoạch và việc còn lại nằm ở mục "Kết Quả Triển Khai" ngay sau đây.
 
 Kế hoạch này là phần triển khai chi tiết của Giai đoạn 1A trong
 [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md)
@@ -12,6 +14,66 @@ Cách soạn:
 - Local skill `to-issues`: chia lát cắt dọc (tracer bullet). Mỗi slice đi qua đủ các tầng cần thiết, tự xác minh được, có loại **HITL** (cần người quyết định hoặc thao tác ngoài code) hoặc **AFK** (agent làm và merge được), "chặn bởi" và tiêu chí chấp nhận. Không đăng issue lên tracker nào.
 - Local skill `tdd`: trong mỗi slice, test đầu tiên là **tracer bullet** (hành vi chính đi hết đường), sau đó mới tới từng hành vi nhỏ, một test một đoạn code. Test đo hành vi qua giao diện công khai (HTTP ra vào, DB, request gửi đi Telegram), không đo chi tiết cài đặt.
 - Local agent: 3 agent đọc song song ngày 2026-10-03 (công thức backend, công thức frontend, xác minh Telegram Bot API từ tài liệu chính thức), và 1 agent rà soát độc lập kế hoạch bản 1. Số liệu baseline do các agent đo trên cây git sạch.
+
+## Kết Quả Triển Khai (2026-10-04)
+
+### Tiến độ theo slice
+
+| Slice | Trạng thái | Ghi chú |
+|---|---|---|
+| 0 Chuẩn bị, kiểm chứng | **Một phần** | Có bot dev `@HHQuotifyBot`, token trong `.env` (git bỏ qua). Phụ lục A: T2, T3, T5, T5b đã có kết quả. Chưa làm: hạ tầng production, xác nhận chính thức K1 đến K19 (đã triển khai theo mặc định), T6 đến T10 (thuộc 1B) |
+| 1 Cấu hình, client an toàn | Xong | Token không lọt log, traceback, `repr`, span OTel (có test và kiểm trực tiếp) |
+| 2 Update, dedupe, webhook, polling | Xong | `/help` được bot dev thật trả lời. Webhook 404/403/200/503 đúng K6 và K13 |
+| 3a Cấp mã, đóng băng API | Xong | Hai migration, hai partial unique, thử vi phạm bằng `psql` trong `BEGIN ... ROLLBACK` |
+| 3b Liên kết qua Telegram, đổi tài khoản | Xong | Liên kết thật đã chạy với bot dev. Đổi tài khoản đã kiểm trên DB thật với Telegram giả, **chưa** với Telegram thật (cần tài khoản thứ hai) |
+| 4 Hủy, `/stop`, bị chặn, giải phóng chỗ | Xong | `/stop` và chặn/bỏ chặn đã kiểm với Telegram thật. Hủy từ web và `owner_inactive` kiểm với Telegram giả |
+| 5a Frontend logic | Xong | `useTelegramLink`, mapper, api |
+| 5b Panel trang Hồ sơ | Xong | Kiểm trình duyệt thật ở light, dark, 390px; liên kết thật bằng bot dev |
+| 5c Mã QR | Xong | `uqr` nạp lười. Quét thật bằng iPhone: nhận ra mã, liên kết hoàn tất |
+| 6a Nhãn audit | Xong | |
+| 6b Vận hành, tài liệu | Xong | Runbook mục 12, `CONTEXT.md`, memory-bank |
+| 6c E2E toàn chuỗi với Telegram giả | Xong | `profile-telegram-full.spec.ts` chạy 6/6 (cùng E2E-A) trong stack docker test |
+| 7 Production | **Chưa làm** | Cần bot production riêng và thao tác trên VPS theo runbook mục 12 |
+
+### Số liệu kiểm chứng
+
+| Hạng mục | Kết quả |
+|---|---|
+| pytest | 559 pass khi có DB (gồm 51 test tích hợp); 508 pass và 51 skip khi không có DB; 385 test baseline cũ vẫn xanh |
+| Lớp tích hợp trong `backend-test` (compose test) | 51 test xanh trên `postgres-test` qua `DATABASE_URL` (đáp ứng K18, cách nối ghi ở Phụ lục A) |
+| ruff, mypy, bandit | 62, 13 lỗi ở file không đụng, 16: bằng baseline |
+| Vitest | 247 pass và đúng 4 lỗi cũ; ESLint 69, Prettier 74 file, vue-tsc 0 lỗi: bằng baseline |
+| Playwright | E2E-A 4/4 (mock endpoint); E2E toàn chuỗi 2/2; chạy cả hai trong docker: 6/6 |
+| `make docker-test-e2e` đầy đủ | 9 pass, 4 lỗi **có sẵn** (`audit-logs`, `quote-detail-filters`, `smoke`, `suppliers`), đã xác nhận lỗi y hệt với `docker-compose.test.yml` gốc |
+| Migration | `20261004_1000` và `20261004_1100`, upgrade/downgrade/upgrade chạy được, đúng một head |
+
+### Lệch so với kế hoạch gốc
+
+1. **`/start <mã>` được xử lý trước bước kiểm tra "người dùng không còn `ACTIVE`"**, nếu không chủ cũ đã bị khóa không bao giờ liên kết lại được Telegram đó cho tài khoản mới (Slice 4 mục 4 sẽ không chạy được). Các lệnh khác vẫn bị chặn như kế hoạch.
+2. `GET /users/me/telegram` khi tắt tính năng trả `account` và `pending_link` đều `null` và **không truy vấn DB** (kế hoạch chỉ nói `enabled=false`).
+3. `DELETE /users/me/telegram` **không phụ thuộc cờ bật/tắt**, để tắt tính năng không làm kẹt việc hủy liên kết.
+4. Nhận tin từ liên kết đang `blocked` thì đưa về `active` (người dùng nhắn được tức là đã bỏ chặn, kể cả khi lỡ mất update `my_chat_member`).
+5. Bấm lại **đúng mã đã dùng** (kể cả cùng người, cùng Telegram) thì bot báo "không hợp lệ" (K3). Chỉ một **mã mới** của cùng người trên cùng Telegram mới được xử lý idempotent ("đã liên kết").
+6. Từ chối liên kết do Telegram đang bị người khác giữ hoặc người dùng không hoạt động **không "đốt" mã**, để sau khi giải phóng vẫn dùng lại được.
+7. Audit `telegram.unlinked` do hệ thống giải phóng (`owner_inactive`) **không có actor** (`actor_user_id` rỗng), `request_id` dạng `tg-update-<id>`.
+8. Frontend: thêm số phiên bản trạng thái (`stateVersion`) để bỏ phản hồi poll đã cũ sau khi người dùng tạo hoặc hủy yêu cầu; phát hiện đường dẫn đã bị tab khác thay bằng cách so `expires_at`; panel chỉ poll khi đang có yêu cầu chờ nên trạng thái "bị chặn" chỉ hiện sau khi cửa sổ lấy lại focus hoặc tải lại trang.
+9. E2E-A đăng nhập chỉ chờ rời trang login (không chờ "Bảng điều khiển"), vì trang Hồ sơ không cần quyền và người dùng không có vai trò không thấy dashboard.
+10. Hạ tầng test: `backend-e2e` nới `RATE_LIMIT_AUTH_LOGIN=100` (mỗi test đăng nhập lại); `backend-test` ép `TELEGRAM_ENABLED=false` và token rỗng để `.env` dev có bot thật không lọt vào test; hai test "mặc định tắt" ở `test_production_readiness.py` bỏ qua `.env` của máy.
+11. Tên enum `RedeemOutcome.INVALID_LINK` (không dùng `INVALID_TOKEN` vì bandit B105 báo nhầm "hardcoded password").
+12. Marker `integration` đăng ký ở `pyproject.toml` (kế hoạch đã nêu "nếu K18").
+
+### Điều rút ra khi chạy với Telegram thật
+
+- Telegram **giữ update tới 24 giờ**: nếu người dùng bấm Start khi chưa bật poller, update tồn đọng được xử lý ngay khi poller chạy và bot nhắn bù các tin "không hợp lệ" cho đường dẫn cũ đã hết hạn. Trên dev, `docker compose up` thường **không** bật `telegram-poller` (nằm sau profile `telegram`); phải chạy `docker compose --profile telegram up -d telegram-poller`.
+- Người dùng Telegram có thể **không có username** (tài khoản thử không có); giao diện hiển thị tên (`first_name`) thay thế.
+- iPhone chỉ nhận ra mã QR rồi hiện nhãn ở đầu màn hình camera; phải chạm vào nhãn đó mới mở Telegram.
+
+### Việc còn lại
+
+- **Slice 7** (production) theo runbook mục 12, kèm phần hạ tầng của Slice 0.
+- Đổi tài khoản Telegram bằng một tài khoản Telegram thật thứ hai; webhook qua HTTPS công khai; tham số 64 và 65 ký tự (T3).
+- Xác nhận chính thức K1 đến K19; T6 đến T10 làm ở 1B.
+- Nợ có sẵn, ngoài phạm vi: 4 spec E2E cũ đang lỗi, `DELETE /users/{id}` trả 500 với người dùng đã đăng nhập, `npm audit` có 5 lỗi mức cao không liên quan.
 
 ## Mục Tiêu
 
@@ -32,7 +94,7 @@ Chưa gửi thông báo giá nào ở giai đoạn này (đó là 1B).
 - Chatbot, LLM, ngân sách (Giai đoạn 2). Xử lý update qua hàng đợi arq (Giai đoạn 2A).
 - Hạn mức bằng Redis, metric và cảnh báo cho webhook (1C).
 - Bước xác nhận trong chat khi liên kết (xem K15, xét lại ở Giai đoạn 2).
-- Mã QR là **tùy chọn** (Slice 5c).
+- Mã QR là **tùy chọn** (Slice 5c; đã làm theo yêu cầu ngày 2026-10-04).
 
 ## Thuật Ngữ (đưa vào `CONTEXT.md` ở Slice 0)
 
@@ -140,7 +202,7 @@ Mỗi điểm có mặc định, chỉ cần sửa nếu không đồng ý.
 | K9 | Biến cấu hình | Thêm so với tài liệu cha: `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_API_BASE_URL` (mặc định `https://api.telegram.org`), `RATE_LIMIT_TELEGRAM_LINK_TOKEN` |
 | K10 | Lệnh bot | `setMyCommands` phạm vi `all_private_chats`: `/start`, `/stop`, `/help` |
 | K11 | E2E | E2E-A (chỉ giao diện, mock mạng) bắt buộc ở Slice 5b. E2E-B (toàn bộ, fake Telegram) tùy chọn ở Slice 6c |
-| K12 | Mã QR | Không làm ở 1A. Nếu cần thì Slice 5c |
+| K12 | Mã QR | Mặc định là không làm ở 1A; **đã làm ở Slice 5c theo yêu cầu** (2026-10-04) |
 | K13 | Phân loại lỗi trong runner | **Lỗi "độc"** (dữ liệu hoặc lỗi lập trình): rollback, ghi `telegram_processed_updates` trong transaction mới, trả 200, gửi tin lỗi hệ thống. **Lỗi hạ tầng tạm** (mất kết nối DB, deadlock, timeout): rollback, **không** ghi dedupe, trả 503 để Telegram thử lại (poller: không tăng offset, backoff). Nếu transaction ghi dedupe cũng lỗi thì coi là hạ tầng tạm |
 | K14 | Giao diện khi tính năng tắt | `GET /users/me/telegram` trả `enabled=false` thì **panel không hiển thị**. Production không đổi gì cho tới khi bật |
 | K15 | Mô hình đe dọa đường dẫn liên kết | Ai có đường dẫn trong 10 phút có thể gắn Telegram của mình vào tài khoản của chủ đường dẫn, và ngược lại lừa người khác bấm đường dẫn của mình. Giảm thiểu ở 1A: mã sống ngắn, dùng một lần, tin xác nhận nêu **tên** (không nêu email), trang Hồ sơ hiển thị `@username` và thời điểm liên kết để người dùng nhận ra liên kết lạ, audit đầy đủ. **Không có bước xác nhận trong chat ở 1A**. Phải xét lại bằng một bước xác nhận trước khi chatbot Giai đoạn 2 được phép ghi dữ liệu. **Điều kiện này đã được đưa vào tài liệu cha** (Mục 5.3 và slice 2B) như một điều kiện chặn |
@@ -281,11 +343,11 @@ Chốt điều kiện ngoài code và các điểm Telegram chưa nêu rõ **tr�
 
 ### Tiêu chí chấp nhận
 
-- [ ] Có bot dev, token trong `.env` dev, không có trong git.
-- [ ] Phụ lục A điền xong T2, T3, T5, T5b. Nếu kết quả khác giả định thì sửa quyết định liên quan trước Slice 1.
-- [ ] Hạ tầng production: ra ngoài được, chứng chỉ hợp lệ, vào được từ mạng ngoài, DNS ổn. Nếu không đạt thì dừng và xử lý trước khi sang Slice 2.
-- [ ] K1 đến K19 và bộ tin nhắn được xác nhận (hoặc sửa), bao gồm quyết định K18.
-- [ ] Các tài liệu ở mục 5 được cập nhật và commit.
+- [x] Có bot dev, token trong `.env` dev, không có trong git.
+- [x] Phụ lục A điền xong T2, T3, T5, T5b. Nếu kết quả khác giả định thì sửa quyết định liên quan trước Slice 1.
+- [ ] Hạ tầng production: ra ngoài được, chứng chỉ hợp lệ, vào được từ mạng ngoài, DNS ổn. Nếu không đạt thì dừng và xử lý trước khi sang Slice 2. *(CHƯA: việc trên VPS, thuộc Slice 7)*
+- [ ] K1 đến K19 và bộ tin nhắn được xác nhận (hoặc sửa), bao gồm quyết định K18. *(CHƯA: đã triển khai theo mặc định, người dùng chưa xác nhận chính thức từng mục)*
+- [x] Các tài liệu ở mục 5 được cập nhật và commit. *(`CONTEXT.md`, `Requirements.txt`, `quotify-implementation-plan.md`, tài liệu cha)*
 
 ---
 
@@ -326,11 +388,11 @@ docker compose exec -T backend sh -c '
 
 ### Tiêu chí chấp nhận
 
-- [ ] `me` trả đúng username bot dev.
-- [ ] Không có token trong log, traceback, repr (test và kiểm trực tiếp).
-- [ ] `TELEGRAM_ENABLED=false` mặc định, backend và worker khởi động không cần biến Telegram.
-- [ ] pytest 385 test cũ vẫn xanh. File mới sạch ruff, mypy, bandit.
-- [ ] `.env.example`, `.env.production.example` có biến mới, giá trị mẫu không phải secret thật.
+- [x] `me` trả đúng username bot dev. *(`@HHQuotifyBot`)*
+- [x] Không có token trong log, traceback, repr (test và kiểm trực tiếp).
+- [x] `TELEGRAM_ENABLED=false` mặc định, backend và worker khởi động không cần biến Telegram.
+- [x] pytest 385 test cũ vẫn xanh. File mới sạch ruff, mypy, bandit.
+- [x] `.env.example`, `.env.production.example` có biến mới, giá trị mẫu không phải secret thật.
 
 ### Rollback
 
@@ -391,12 +453,12 @@ docker compose logs backend telegram-poller 2>&1 | python3 -c "import os,sys; t=
 
 ### Tiêu chí chấp nhận
 
-- [ ] Nhắn `/help` cho bot dev bằng Telegram thật được trả lời tiếng Việt có dấu.
-- [ ] Gửi trùng `update_id` không trả lời hai lần. Body hỏng vẫn 200 khi đã xác thực.
-- [ ] Webhook 403, 404, 200, 503 đúng như K6 và K13. Route không lộ ra OpenAPI.
-- [ ] Poller dừng sạch dưới 10 giây, từ chối khi sai điều kiện.
-- [ ] Log backend và poller không chứa token.
-- [ ] Baseline không xấu hơn. Migration lên xuống được trên dev, đúng 1 head.
+- [x] Nhắn `/help` cho bot dev bằng Telegram thật được trả lời tiếng Việt có dấu. *(xác nhận bằng phản hồi `/start` tiếng Việt có dấu trên Telegram thật; `/help` được xử lý không có lỗi gửi)*
+- [x] Gửi trùng `update_id` không trả lời hai lần. Body hỏng vẫn 200 khi đã xác thực.
+- [x] Webhook 403, 404, 200, 503 đúng như K6 và K13. Route không lộ ra OpenAPI.
+- [x] Poller dừng sạch dưới 10 giây, từ chối khi sai điều kiện.
+- [x] Log backend và poller không chứa token.
+- [x] Baseline không xấu hơn. Migration lên xuống được trên dev, đúng 1 head.
 
 ### Rollback
 
@@ -442,10 +504,10 @@ curl -s http://localhost:8000/api/v1/users/me/telegram -H "Authorization: Bearer
 
 ### Tiêu chí chấp nhận
 
-- [ ] Hợp đồng API đóng băng đúng như mục Hợp Đồng API, commit làm căn cứ cho Slice 5a.
-- [ ] Hai partial unique index hoạt động (thử vi phạm trong `psql`).
-- [ ] Không có token (gốc hoặc băm) lộ ngoài `deep_link` của `POST`.
-- [ ] Baseline không xấu hơn.
+- [x] Hợp đồng API đóng băng đúng như mục Hợp Đồng API, commit làm căn cứ cho Slice 5a.
+- [x] Hai partial unique index hoạt động (thử vi phạm trong `psql`).
+- [x] Không có token (gốc hoặc băm) lộ ngoài `deep_link` của `POST`.
+- [x] Baseline không xấu hơn.
 
 ### Rollback
 
@@ -493,10 +555,10 @@ docker compose exec postgres psql -U postgres -d app -c "select status, revoked_
 
 ### Tiêu chí chấp nhận
 
-- [ ] Liên kết thật và đổi tài khoản thật hoạt động trên dev với Telegram thật.
-- [ ] Mỗi người dùng không bao giờ có hai liên kết `active/blocked` (kiểm bằng psql).
-- [ ] Audit `telegram.linked` đúng, metadata không có `telegram_user_id` hay username.
-- [ ] Baseline không xấu hơn.
+- [ ] Liên kết thật và đổi tài khoản thật hoạt động trên dev với Telegram thật. *(CHƯA: liên kết thật đã chạy; đổi tài khoản mới kiểm với Telegram giả vì cần tài khoản Telegram thứ hai)*
+- [x] Mỗi người dùng không bao giờ có hai liên kết `active/blocked` (kiểm bằng psql). *(test tích hợp và `psql`)*
+- [x] Audit `telegram.linked` đúng, metadata không có `telegram_user_id` hay username.
+- [x] Baseline không xấu hơn.
 
 ### Rollback
 
@@ -547,9 +609,9 @@ docker compose exec backend uv run python scripts/telegram_webhook.py commands -
 
 ### Tiêu chí chấp nhận
 
-- [ ] Bốn đường: hủy web, `/stop`, bị chặn, giải phóng chỗ, đều xác minh với Telegram thật.
-- [ ] Audit `telegram.unlinked` có `reason` và `channel` đúng.
-- [ ] Baseline không xấu hơn.
+- [ ] Bốn đường: hủy web, `/stop`, bị chặn, giải phóng chỗ, đều xác minh với Telegram thật. *(CHƯA: `/stop` và bị chặn đã kiểm với Telegram thật; hủy web và giải phóng chỗ kiểm với Telegram giả)*
+- [x] Audit `telegram.unlinked` có `reason` và `channel` đúng.
+- [x] Baseline không xấu hơn.
 
 ### Rollback
 
@@ -586,9 +648,9 @@ Toàn bộ logic của panel Telegram, kiểm thử được độc lập với 
 
 ### Tiêu chí chấp nhận
 
-- [ ] Test của các file mới xanh. File mới sạch eslint, prettier, `vue-tsc`.
-- [ ] Không chạm `ProfilePage.vue`, `useProfilePage.ts`, `http.ts`, `auth.store.ts`.
-- [ ] Baseline Vitest không đổi (4 fail cũ).
+- [x] Test của các file mới xanh. File mới sạch eslint, prettier, `vue-tsc`.
+- [x] Không chạm `ProfilePage.vue`, `useProfilePage.ts`, `http.ts`, `auth.store.ts`. *(`ProfilePage.vue` chỉ được thêm ở Slice 5b như kế hoạch; ba file còn lại không đổi)*
+- [x] Baseline Vitest không đổi (4 fail cũ).
 
 ### Rollback
 
@@ -626,11 +688,11 @@ Trình duyệt thật với backend và bot dev thật: light, dark, 390px; liê
 
 ### Tiêu chí chấp nhận
 
-- [ ] Liên kết, đổi, hủy chạy end-to-end với bot thật ở light, dark và 390px.
-- [ ] Production không thấy panel khi `enabled=false` (kiểm bằng cách tắt cờ).
-- [ ] `ProfilePage.vue` và `useProfilePage.ts` không có lỗi ESLint mới. File mới sạch eslint, prettier, `vue-tsc`. Không `prettier --write` file cũ.
-- [ ] Baseline Vitest không đổi.
-- [ ] Không `v-html`, không lưu đường dẫn liên kết vào `localStorage`/`sessionStorage`.
+- [ ] Liên kết, đổi, hủy chạy end-to-end với bot thật ở light, dark và 390px. *(CHƯA: liên kết thật đã chạy, light/dark/390px kiểm với backend thật và Telegram giả; đổi và hủy với bot thật chưa)*
+- [x] Production không thấy panel khi `enabled=false` (kiểm bằng cách tắt cờ). *(kiểm trên dev bằng cách tắt cờ: `GET` 200 `enabled=false`, panel không có trong DOM)*
+- [x] `ProfilePage.vue` và `useProfilePage.ts` không có lỗi ESLint mới. File mới sạch eslint, prettier, `vue-tsc`. Không `prettier --write` file cũ.
+- [x] Baseline Vitest không đổi.
+- [x] Không `v-html`, không lưu đường dẫn liên kết vào `localStorage`/`sessionStorage`. *(có test và kiểm trong trình duyệt)*
 
 ### Rollback
 
@@ -649,6 +711,8 @@ Chỉ làm nếu muốn quét bằng điện thoại thay vì mở đường d�
 
 Tiêu chí: quét được mã bằng điện thoại thật ở light và dark; audit không có lỗi mức cao.
 
+**Đã làm (2026-10-04).** `uqr@0.1.3`, nạp lười thành chunk riêng khoảng 10 KB; `src/utils/qr-path.ts` (hàm thuần, có test), `src/composables/useQrCode.ts`, token `--app-qr-bg` và `--app-qr-fg` trong cả hai khối theme. Ảnh chụp trình duyệt ở light, dark, 390px được giải mã bằng `zbarimg` ra đúng đường dẫn; quét thật bằng iPhone nhận ra mã và liên kết hoàn tất. `package-lock.json` chỉ thêm 7 dòng (npm 12 chuẩn hóa lại cờ `dev` của cả file, nên khôi phục lock rồi thêm tay đúng mục của `uqr`, kiểm bằng `npm ci --dry-run`). `make frontend-dependency-audit` báo 5 lỗi mức cao có sẵn, không liên quan `uqr`; chưa chạy `npm audit fix`.
+
 ---
 
 ## Slice 6a: Nhãn Audit Phía Giao Diện
@@ -664,8 +728,8 @@ Tiêu chí: quét được mã bằng điện thoại thật ở light và dark;
 
 ### Tiêu chí chấp nhận
 
-- [ ] Nhật ký audit lọc được theo `telegram.*` và hiển thị nhãn tiếng Việt.
-- [ ] Vitest baseline không đổi.
+- [x] Nhật ký audit lọc được theo `telegram.*` và hiển thị nhãn tiếng Việt.
+- [x] Vitest baseline không đổi.
 
 ---
 
@@ -682,9 +746,9 @@ Tiêu chí: quét được mã bằng điện thoại thật ở light và dark;
 
 ### Tiêu chí chấp nhận
 
-- [ ] Một người khác làm theo runbook mà không phải hỏi lại.
-- [ ] Số liệu baseline không xấu hơn (so với bảng ở Căn Cứ).
-- [ ] Đã chạy `agent-task-close.sh`, `memory-bank` và `CONTEXT.md` được cập nhật.
+- [ ] Một người khác làm theo runbook mà không phải hỏi lại. *(CHƯA: chưa có người thứ hai thử theo runbook)*
+- [x] Số liệu baseline không xấu hơn (so với bảng ở Căn Cứ).
+- [x] Đã chạy `agent-task-close.sh`, `memory-bank` và `CONTEXT.md` được cập nhật.
 
 ---
 
@@ -693,6 +757,8 @@ Tiêu chí: quét được mã bằng điện thoại thật ở light và dark;
 **Loại:** AFK | **Chặn bởi:** Slice 6b | **Cỡ:** vừa
 
 `docker-compose.test.yml` service `backend-e2e` thêm `TELEGRAM_ENABLED=true`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_API_BASE_URL` trỏ fake server; service `e2e-test` thêm `E2E_TELEGRAM_WEBHOOK_SECRET`. Test lấy mã từ `deep_link`, mô phỏng Telegram bằng `POST /api/v1/telegram/webhook` (dùng `telegram_user_id` ngẫu nhiên mỗi lần chạy vì khóa unique), mở `/profile` kỳ vọng "Đã liên kết", gọi `DELETE` để dọn.
+
+**Đã làm (2026-10-04).** Server Telegram giả `backend/scripts/fake_telegram_server.py` (chỉ thư viện chuẩn, có test) chạy thành service `fake-telegram` trong `docker-compose.test.yml`; `backend-e2e` bật Telegram trỏ vào đó; `e2e-test` nhận `E2E_TELEGRAM_WEBHOOK_SECRET` và `E2E_FAKE_TELEGRAM_URL`. `tests/e2e/profile-telegram-full.spec.ts` đi qua giao diện, backend và DB thật: liên kết, dùng lại mã đã dùng, đổi tài khoản, hủy, `/stop`, webhook sai secret; tự `skip` khi thiếu secret. Chạy 6/6 trong docker cùng E2E-A.
 
 ---
 
@@ -715,10 +781,10 @@ Tiêu chí: quét được mã bằng điện thoại thật ở light và dark;
 
 ### Tiêu chí chấp nhận
 
-- [ ] Webhook đăng ký được, `getWebhookInfo` sạch lỗi sau tin thật.
-- [ ] Liên kết, đổi, hủy chạy trên production với một tài khoản thử, có audit.
-- [ ] Mọi chức năng cũ không đổi. Production không thấy panel trước khi bật.
-- [ ] Token bot không có trong log và span.
+- [ ] Webhook đăng ký được, `getWebhookInfo` sạch lỗi sau tin thật. *(CHƯA: Slice 7)*
+- [ ] Liên kết, đổi, hủy chạy trên production với một tài khoản thử, có audit. *(CHƯA: Slice 7)*
+- [ ] Mọi chức năng cũ không đổi. Production không thấy panel trước khi bật. *(CHƯA: Slice 7)*
+- [ ] Token bot không có trong log và span. *(CHƯA: Slice 7)*
 
 ### Rollback (theo thứ tự, không đảo)
 
@@ -805,7 +871,7 @@ Test hiện có bị ảnh hưởng: `test_audit_log_service.py` (thêm test key
 | T9 | Giới hạn ảnh 10MB, caption 1025 ký tự (cho 1B) | | |
 | T10 | Retry, timeout, cổng webhook (kiểm ở Slice 7) | | |
 | Hạ tầng | Ra ngoài từ VPS, chứng chỉ, vào từ mạng ngoài, DNS A và AAAA, `prod.conf` đang dùng | | |
-| K18 | Cách `backend-test` nối `postgres-test` | | |
+| K18 | Cách `backend-test` nối `postgres-test` | `tests/integration/conftest.py` dùng `INTEGRATION_DATABASE_URL`, nếu không có thì `DATABASE_URL` (trong `backend-test` đã trỏ `postgres-test`), tạo database tạm `it_<ngẫu nhiên>` rồi xóa. Chạy `docker compose -f docker-compose.test.yml run --rm backend-test sh -lc "uv sync; .venv/bin/pytest -m integration"`: 51 test xanh. Không có URL thì skip | 2026-10-04 |
 
 ## Phụ Lục B: Danh Sách File
 
@@ -832,3 +898,16 @@ Chỉ nếu làm QR: `src/utils/qr-path.ts`, `tests/unit/qr-path.spec.ts`.
 **Không đụng:** `app/models/user.py`, `app/api/v1/users.py`, `app/worker.py`, `app/auth/seed_data.py`, `docker-compose.prod.yml`, `docker/nginx/prod.conf`, `backend/pyproject.toml` (trừ marker nếu K18), `uv.lock`, `useProfilePage.ts`, `http.ts`, `auth.store.ts`, hàm `actionSeverity`.
 
 **Tài liệu bền vững:** `CONTEXT.md`, `docs/quotify/Requirements.txt`, `docs/quotify/quotify-implementation-plan.md`, tài liệu cha, `memory-bank/*`, `.agent-memory` (qua `agent-task-close.sh`).
+
+### Danh sách file thực tế (đối chiếu với kế hoạch trên)
+
+Khác kế hoạch ở chỗ tách thêm một số file; không có file nào trong mục "Không đụng" bị sửa (`backend/pyproject.toml` chỉ thêm marker `integration`).
+
+**Backend, tạo mới:** hai migration `20261004_1000_create_telegram_processed_updates.py` và `20261004_1100_create_telegram_accounts_and_link_tokens.py`; model `telegram_processed_update.py`, `telegram_account.py`, `telegram_link_token.py`; `schemas/telegram.py`; `integrations/telegram.py`; services `telegram_bot_messages.py`, `telegram_link_service.py`, `telegram_update_runner.py`, `telegram_update_service.py`; `api/v1/telegram.py` (webhook), `api/v1/telegram_link.py`; `app/telegram_cli.py`, `app/telegram_poller.py`; `scripts/telegram_webhook.py`, `scripts/fake_telegram_server.py`.
+Test: `test_telegram_client.py`, `test_telegram_cli.py`, `test_telegram_link_api.py`, `test_telegram_poller.py`, `test_telegram_update_parsing.py`, `test_telegram_update_runner.py`, `test_telegram_webhook_api.py`, `test_logging_redaction.py`, `test_otel_telegram_exclusion.py`, `test_fake_telegram_server.py`, công cụ dùng chung `telegram_fakes.py`, lớp tích hợp `tests/integration/` (`conftest.py`, `db_helpers.py`, `bot_harness.py`, `test_telegram_updates_db.py`, `test_telegram_link_db.py`, `test_telegram_redeem_db.py`, `test_telegram_lifecycle_db.py`).
+
+**Backend và hạ tầng, sửa:** `api/v1/router.py`, `core/application.py`, `core/config.py`, `core/logging.py`, `core/observability.py`, `db/base.py`, `models/__init__.py`, `services/audit_log.py`, `tests/test_audit_log_service.py`, `tests/test_production_readiness.py`, `pyproject.toml`, `.env.example`, `.env.production.example`, `docker-compose.yml` (service `telegram-poller`, profile `telegram`), `docker-compose.test.yml`, `docs/runbooks/deploy-vps-production.md`.
+
+**Frontend, tạo mới:** `types/telegram.ts`, `api/telegram.api.ts`, `api/telegram.mappers.ts`, `composables/useTelegramLink.ts`, `composables/useQrCode.ts`, `utils/qr-path.ts`; test `telegram.mappers.spec.ts`, `useTelegramLink.spec.ts`, `ProfilePage.spec.ts`, `qr-path.spec.ts`, `useQrCode.spec.ts`; E2E `profile-telegram.spec.ts` và `profile-telegram-full.spec.ts`.
+
+**Frontend, sửa:** `pages/ProfilePage.vue`, `styles/pages/_profile-page.scss`, `styles/tokens/theme.scss`, `api/audit-logs.mappers.ts`, `pages/AuditLogsPage.vue`, `tests/unit/audit-logs.mappers.spec.ts`, `package.json`, `package-lock.json`.
