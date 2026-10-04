@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, MutableMapping
 from typing import Any, cast
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, Response, status
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
@@ -180,8 +183,38 @@ def configure_open_telemetry(app: FastAPI, settings: Settings) -> None:
     trace.set_tracer_provider(tracer_provider)
 
     FastAPIInstrumentor.instrument_app(app, excluded_urls="health,metrics,ready")
+    # Phải đặt TRƯỚC `instrument()`: biến này chỉ được đọc một lần lúc cài instrumentation.
+    exclude_telegram_from_httpx_instrumentation(settings.telegram_api_base_url)
     HTTPXClientInstrumentor().instrument()
     _otel_configured = True
+
+
+HTTPX_EXCLUDED_URLS_ENV = "OTEL_PYTHON_HTTPX_EXCLUDED_URLS"
+_DEFAULT_TELEGRAM_HOST = "api.telegram.org"
+
+
+def exclude_telegram_from_httpx_instrumentation(
+    api_base_url: str,
+    environ: MutableMapping[str, str] | None = None,
+) -> str:
+    """Loại URL Telegram khỏi span của HTTPXClientInstrumentor.
+
+    Token bot nằm trong path (`/bot<token>/METHOD`) và OTel ghi nguyên URL vào span, nên
+    phải bỏ hẳn span của các request tới Telegram. Giá trị có sẵn được giữ nguyên, host lấy
+    theo cấu hình (cả khi trỏ tới fake server) kèm host mặc định.
+    """
+    env = os.environ if environ is None else environ
+    configured_host = urlparse(api_base_url).hostname or _DEFAULT_TELEGRAM_HOST
+    patterns = [
+        item.strip() for item in env.get(HTTPX_EXCLUDED_URLS_ENV, "").split(",") if item.strip()
+    ]
+    for host in (_DEFAULT_TELEGRAM_HOST, configured_host):
+        escaped = re.escape(host)
+        if escaped not in patterns:
+            patterns.append(escaped)
+    value = ",".join(patterns)
+    env[HTTPX_EXCLUDED_URLS_ENV] = value
+    return value
 
 
 def instrument_sqlalchemy_engine(engine: Any) -> None:

@@ -17,6 +17,8 @@ from app.api.v1.quotify_dashboard import router as quotify_dashboard_router
 from app.api.v1.quotify_settings import router as quotify_settings_router
 from app.api.v1.roles import router as roles_router
 from app.api.v1.suppliers import router as suppliers_router
+from app.api.v1.telegram import router as telegram_router
+from app.api.v1.telegram_link import router as telegram_link_router
 from app.api.v1.users import router as users_router
 
 router = APIRouter()
@@ -31,6 +33,8 @@ router.include_router(jobs_router)
 router.include_router(material_types_router)
 router.include_router(materials_router)
 router.include_router(suppliers_router)
+router.include_router(telegram_router)
+router.include_router(telegram_link_router)
 router.include_router(quotes_router)
 router.include_router(quote_backfill_imports_router)
 router.include_router(quotify_dashboard_router)

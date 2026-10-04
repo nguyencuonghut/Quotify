@@ -20,6 +20,9 @@ from app.models.role import Role
 from app.models.supplier import Supplier
 from app.models.supplier_contact import SupplierContact
 from app.models.supplier_material import SupplierMaterial
+from app.models.telegram_account import TelegramAccount
+from app.models.telegram_link_token import TelegramLinkToken
+from app.models.telegram_processed_update import TelegramProcessedUpdate
 from app.models.user import User, UserStatus, user_roles
 
 __all__ = [
@@ -43,6 +46,9 @@ __all__ = [
     "Supplier",
     "SupplierContact",
     "SupplierMaterial",
+    "TelegramAccount",
+    "TelegramLinkToken",
+    "TelegramProcessedUpdate",
     "User",
     "UserStatus",
     "role_permissions",

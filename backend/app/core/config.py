@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -147,6 +147,31 @@ class Settings(BaseSettings):
         default=20,
         alias="RATE_LIMIT_EXCHANGE_RATES",
     )
+    rate_limit_telegram_link_token: int = Field(
+        default=5,
+        alias="RATE_LIMIT_TELEGRAM_LINK_TOKEN",
+    )
+    # Telegram: tính năng tắt mặc định, không cần secret để khởi động. Token bot nằm trong URL
+    # gọi Telegram nên TUYỆT ĐỐI không được log (xem core/logging.py, core/observability.py).
+    telegram_enabled: bool = Field(default=False, alias="TELEGRAM_ENABLED")
+    telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
+    telegram_bot_token_file: str | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN_FILE")
+    telegram_bot_username: str = Field(default="", alias="TELEGRAM_BOT_USERNAME")
+    telegram_webhook_secret: str = Field(default="", alias="TELEGRAM_WEBHOOK_SECRET")
+    telegram_webhook_secret_file: str | None = Field(
+        default=None,
+        alias="TELEGRAM_WEBHOOK_SECRET_FILE",
+    )
+    telegram_webhook_url: str = Field(default="", alias="TELEGRAM_WEBHOOK_URL")
+    telegram_api_base_url: str = Field(
+        default="https://api.telegram.org",
+        alias="TELEGRAM_API_BASE_URL",
+    )
+    telegram_mode: Literal["webhook", "polling"] = Field(default="webhook", alias="TELEGRAM_MODE")
+    telegram_http_timeout_seconds: float = Field(
+        default=10.0,
+        alias="TELEGRAM_HTTP_TIMEOUT_SECONDS",
+    )
     vietcombank_exchange_rate_url: str = Field(
         default="https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx",
         alias="VIETCOMBANK_EXCHANGE_RATE_URL",
@@ -216,6 +241,13 @@ class Settings(BaseSettings):
         self._apply_secret_file("database_url", self.database_url_file)
         self._apply_secret_file("minio_access_key", self.minio_access_key_file)
         self._apply_secret_file("minio_secret_key", self.minio_secret_key_file)
+        self._apply_secret_file("telegram_bot_token", self.telegram_bot_token_file)
+        self._apply_secret_file("telegram_webhook_secret", self.telegram_webhook_secret_file)
+
+    @field_validator("telegram_bot_username")
+    @classmethod
+    def _strip_telegram_username_at_sign(cls, value: str) -> str:
+        return value.strip().lstrip("@")
 
     def _apply_secret_file(self, field_name: str, secret_file: str | None) -> None:
         if not secret_file:

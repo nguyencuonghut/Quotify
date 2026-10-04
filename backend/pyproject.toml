@@ -54,6 +54,9 @@ minversion = "9.0"
 addopts = "--strict-markers --strict-config --cov=app --cov-report=term-missing --cov-report=xml --cov-report=html"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "integration: chạy trên PostgreSQL thật (cần INTEGRATION_DATABASE_URL hoặc DATABASE_URL), tự bỏ qua nếu không có",
+]
 
 [tool.ruff]
 line-length = 100

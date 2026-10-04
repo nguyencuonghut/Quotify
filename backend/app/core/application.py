@@ -40,6 +40,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    telegram_runner = getattr(app.state, "telegram_runner", None)
+    if telegram_runner is not None:
+        await telegram_runner.aclose()
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     app_settings = settings or get_settings()

@@ -268,3 +268,36 @@ def test_sanitize_audit_metadata_preserves_quote_draft_delete_keys() -> None:
     }
 
     assert sanitize_audit_metadata(metadata) == metadata
+
+
+def test_sanitize_audit_metadata_preserves_telegram_link_keys() -> None:
+    metadata = {
+        "channel": "telegram",
+        "telegram_account_id": "account-1",
+        "replaced_account_id": "account-0",
+        "reason": "replaced",
+    }
+
+    assert sanitize_audit_metadata(metadata) == metadata
+
+
+def test_sanitize_audit_metadata_still_redacts_telegram_secrets_and_identity() -> None:
+    sanitized = sanitize_audit_metadata(
+        {
+            "link_token": "abc",
+            "token_hash": "def",
+            "telegram_bot_token": "123:ABC",
+            "telegram_user_id": 123456,
+            "telegram_username": "an_nguyen",
+            "chat_id": 123456,
+        },
+    )
+
+    assert sanitized == {
+        "link_token": REDACTED_METADATA_VALUE,
+        "token_hash": REDACTED_METADATA_VALUE,
+        "telegram_bot_token": REDACTED_METADATA_VALUE,
+        "telegram_user_id": REDACTED_METADATA_VALUE,
+        "telegram_username": REDACTED_METADATA_VALUE,
+        "chat_id": REDACTED_METADATA_VALUE,
+    }

@@ -167,6 +167,35 @@ services:
       - backend_venv:/app/.venv
       - ./backups:/app/backups
 
+  # Polling Telegram CHỈ DÙNG CHO DEV (production dùng webhook). Không tự chạy: cần cấu hình
+  # TELEGRAM_ENABLED=true, TELEGRAM_MODE=polling và bot token DEV trong .env, rồi chạy
+  #   docker compose --profile telegram up -d telegram-poller
+  # `exec` để SIGTERM tới được Python và dừng sạch. `depends_on: backend` để bảng đã được migrate.
+  telegram-poller:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+      target: dev
+    profiles:
+      - telegram
+    command: >
+      sh -lc "uv sync &&
+      exec uv run python -m app.telegram_poller"
+    stop_grace_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/app
+    volumes:
+      - ./backend:/app
+      - backend_venv:/app/.venv
+
 volumes:
   backend_venv:
   frontend_node_modules:

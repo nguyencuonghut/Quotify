@@ -24,5 +24,8 @@ from app.models import (  # noqa: F401,E402
     supplier,
     supplier_contact,
     supplier_material,
+    telegram_account,
+    telegram_link_token,
+    telegram_processed_update,
     user,
 )
