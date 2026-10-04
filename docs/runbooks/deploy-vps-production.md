@@ -694,3 +694,118 @@ Dev dùng **polling** (không cần domain công khai).
 | Người dùng bấm đường dẫn nhưng không liên kết | Đường dẫn hết hạn (10 phút), đã dùng, hoặc bị thay bởi đường dẫn mới hơn | Tạo đường dẫn mới trong trang Hồ sơ |
 | Bot báo "đang liên kết với một tài khoản Quotify khác" | Telegram đó đang giữ bởi người dùng khác còn hoạt động | Người kia hủy liên kết (web hoặc `/stop`); chủ cũ bị khóa/vô hiệu thì tự được giải phóng |
 | `docker compose ... logs` có chuỗi giống token | Không được xảy ra | Dừng ngay, thu hồi token ở @BotFather (`/revoke`), báo người phụ trách |
+
+### 12.8 Trình tự đưa Telegram lên production lần đầu (Slice 7)
+
+Làm theo thứ tự. Mỗi giai đoạn có điểm dừng: nếu kết quả không như kỳ vọng thì **dừng** và xử lý trước khi sang giai đoạn sau. Chọn khung giờ ít người dùng; cả quy trình khoảng 45 đến 60 phút. Các lệnh trên VPS chạy ở `/opt/quotify`.
+
+**A. Trên máy dev: đưa code lên GitHub (VPS deploy bằng `git pull` từ `main`)**
+
+```bash
+git push -u origin feat/telegram-1a-foundation
+# Cách 1: tạo Pull Request trên GitHub rồi merge (origin/main là tổ tiên nên không xung đột)
+# Cách 2: merge cục bộ rồi đẩy lên main
+git switch main && git merge --ff-only feat/telegram-1a-foundation && git push origin main
+```
+
+Nhánh này có 17 commit và 86 file (code, test, tài liệu); không có `.env` hay bí mật. Image production của backend và frontend đã được build thử thành công ở máy dev.
+
+**B. Chuẩn bị bot và bí mật**
+
+1. @BotFather → `/revoke` → chọn `HonghaQuotifyBot` → lấy **token mới** (token cũ đã từng bị dán vào chat). Chỉ chép token mới vào VPS.
+2. @BotFather → `/setjoingroups` → Disable; `/setdescription`, `/setabouttext`, `/setuserpic` (tùy chọn).
+3. Trên VPS, thêm khối cấu hình vào `.env` với **cờ vẫn tắt**. Nhập token mà không để lọt vào lịch sử lệnh:
+
+```bash
+cd /opt/quotify
+read -rs TG_TOKEN                                  # dán token mới rồi Enter (không hiện ra màn hình)
+{
+  echo "TELEGRAM_ENABLED=false"
+  echo "TELEGRAM_MODE=webhook"
+  echo "TELEGRAM_BOT_TOKEN=$TG_TOKEN"
+  echo "TELEGRAM_BOT_USERNAME=HonghaQuotifyBot"
+  echo "TELEGRAM_WEBHOOK_SECRET=$(openssl rand -hex 32)"
+  echo "TELEGRAM_WEBHOOK_URL=https://quotify.honghafeed.com.vn/api/v1/telegram/webhook"
+  echo "RATE_LIMIT_TELEGRAM_LINK_TOKEN=5"
+} >> .env
+unset TG_TOKEN
+ls -l .env                                         # nên là quyền 600 (chỉ chủ sở hữu đọc)
+```
+
+Nếu `.env` đã có sẵn một số dòng `TELEGRAM_*` (từ lần so sánh với `.env.production.example`), sửa tại chỗ thay vì thêm trùng.
+
+**C. Kiểm tra hạ tầng (chỉ đọc, chưa thay đổi gì)**
+
+```bash
+# 1. VPS gọi ra được Telegram (bất kỳ mã HTTP nào cũng là đạt; treo hoặc lỗi kết nối là không đạt)
+curl -sS -o /dev/null -w '%{http_code}\n' https://api.telegram.org/
+
+# 2. Từ MẠNG NGOÀI công ty (ví dụ điện thoại dùng 4G), mở: https://quotify.honghafeed.com.vn/health
+
+# 3. Chứng chỉ hợp lệ và đủ chuỗi trung gian
+openssl s_client -connect quotify.honghafeed.com.vn:443 -servername quotify.honghafeed.com.vn </dev/null 2>/dev/null | openssl x509 -noout -issuer -subject -dates
+
+# 4. DNS: có bản ghi A đúng IP VPS. Nếu có bản ghi AAAA thì phải trỏ đúng VPS hoặc xóa (Telegram không gọi webhook qua IPv6)
+dig +short A quotify.honghafeed.com.vn; dig +short AAAA quotify.honghafeed.com.vn
+
+# 5. Nginx đang dùng prod.conf (có cổng 443), không phải prod-http-only.conf
+docker compose -f docker-compose.prod.yml exec reverse-proxy nginx -T 2>/dev/null | grep -c "listen 443"
+```
+
+Lưu ý: IP của Telegram không cố định, **không** chặn cổng 443 bằng danh sách IP cho phép. Không đạt mục nào thì dừng và xử lý trước.
+
+**D. Deploy code với cờ tắt (theo mục 9)**
+
+```bash
+cd /opt/quotify && git status                              # phải sạch
+export COMPOSE_FILE=docker-compose.prod.yml
+bash scripts/ops/backup-postgres.sh && bash scripts/ops/backup-minio.sh
+ls -lht backups | head -5                                  # file backup không được 0 byte
+git pull && git log --oneline -3
+docker compose -f docker-compose.prod.yml build backend frontend worker
+docker compose -f docker-compose.prod.yml run --rm backend uv run alembic upgrade head   # 2 migration additive, tạo 3 bảng mới
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml restart reverse-proxy                          # bắt buộc, kẻo 502
+```
+
+Kiểm tra (điểm dừng): `curl -I https://quotify.honghafeed.com.vn/health` và `/ready`; đăng nhập; trang Hồ sơ cũ (đổi avatar, đổi mật khẩu) vẫn chạy và **không thấy panel Telegram**; webhook phải trả 404 khi cờ tắt:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://quotify.honghafeed.com.vn/api/v1/telegram/webhook   # 404
+```
+
+Token không có trong log (kết quả phải là `0`, không in token ra màn hình):
+
+```bash
+docker compose -f docker-compose.prod.yml logs backend | grep -c -F "$(grep '^TELEGRAM_BOT_TOKEN=' .env | cut -d= -f2-)"
+```
+
+Có sự cố thì làm theo mục 10 (checkout commit cũ, build, `up -d`, `restart reverse-proxy`). **Không** `alembic downgrade` trên production: ba bảng mới tương thích với code cũ.
+
+**E. Bật tính năng**
+
+```bash
+sed -i 's/^TELEGRAM_ENABLED=.*/TELEGRAM_ENABLED=true/' .env
+docker compose -f docker-compose.prod.yml up -d --force-recreate backend
+docker compose -f docker-compose.prod.yml restart reverse-proxy
+
+docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py me     # phải in @HonghaQuotifyBot
+docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py set    # xem @username và URL, chưa thay đổi gì
+docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py set --yes
+docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py commands --yes
+docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py info
+```
+
+Kiểm tra: `me` phải in đúng `@HonghaQuotifyBot` (nếu không, script từ chối với exit 2, đừng bỏ qua); webhook không secret phải trả **403** (`curl -s -o /dev/null -w '%{http_code}\n' -X POST https://quotify.honghafeed.com.vn/api/v1/telegram/webhook -H 'Content-Type: application/json' -d '{}'`).
+
+**F. Thử với một tài khoản**
+
+1. Đăng nhập, trang Hồ sơ → "Liên kết Telegram" → mở đường dẫn (hoặc quét QR) → Start → bot trả "Đã liên kết".
+2. Gõ `/help`; (nếu có Telegram thứ hai) thử "Đổi tài khoản Telegram"; rồi "Hủy liên kết".
+3. Vào Nhật ký audit, kiểm có `telegram.link_requested`, `telegram.linked`, `telegram.unlinked`.
+4. **Sau khi đã có tin thật đi qua**, chạy lại `... telegram_webhook.py info`: kỳ vọng `pending_update_count: 0` và `last_error_message: None` (kiểm ngay sau `set` luôn "sạch", chỉ sau tin thật mới chứng minh Telegram gọi vào được).
+5. Chạy lại lệnh kiểm token trong log ở mục D (phải `0`) và kiểm các chức năng cũ vẫn bình thường.
+
+Từ lúc bật cờ, panel Telegram hiện cho **mọi** người dùng; nên báo trước trong nhóm nội bộ.
+
+**G. Tắt khẩn cấp (đúng thứ tự, mục 12.5)**: `delete --yes` trước, rồi `TELEGRAM_ENABLED=false`, `up -d --force-recreate backend`, `restart reverse-proxy`.
