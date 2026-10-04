@@ -5,6 +5,7 @@ from __future__ import annotations
 import itertools
 import uuid
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -12,6 +13,7 @@ from app.models import (
     Material,
     MaterialType,
     Quote,
+    QuoteLine,
     QuoteVersion,
     Supplier,
     TelegramAccount,
@@ -131,3 +133,58 @@ async def create_confirmed_quote_version(
         await session.commit()
     return version.id
 
+
+async def create_priced_line(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    material_id: uuid.UUID,
+    price: int | str | Decimal,
+    received_date: date,
+    delivery_month: date = date(2026, 12, 1),
+    status: str = "confirmed",
+    cancelled: bool = False,
+    created_by_id: uuid.UUID | None = None,
+    confirmed_at: datetime | None = None,
+    confirmed_at_null: bool = False,
+    price_converted: int | str | Decimal | None = None,
+) -> tuple[uuid.UUID, uuid.UUID]:
+    """Dựng phiếu + version + MỘT dòng giá; trả về `(version_id, line_id)`."""
+    suffix = uuid.uuid4().hex[:8].upper()
+    moment = confirmed_at or datetime.now(UTC)
+    async with session_factory() as session:
+        supplier = Supplier(code=f"IT{suffix}", name="Nhà cung cấp thử", supplier_type="domestic")
+        session.add(supplier)
+        await session.flush()
+        quote = Quote(
+            supplier_id=supplier.id,
+            created_by_id=created_by_id,
+            cancelled_at=moment if cancelled else None,
+        )
+        session.add(quote)
+        await session.flush()
+        version = QuoteVersion(
+            quote_id=quote.id,
+            version_number=1,
+            received_date=received_date,
+            status=status,
+            created_by_id=created_by_id,
+            confirmed_at=(
+                moment if status in ("confirmed", "superseded") and not confirmed_at_null else None
+            ),
+        )
+        session.add(version)
+        await session.flush()
+        line = QuoteLine(
+            quote_version_id=version.id,
+            material_id=material_id,
+            price_original=Decimal(price),
+            currency="VND",
+            unit="KG",
+            delivery_month=delivery_month,
+            price_converted_vnd_per_kg=Decimal(
+                price if price_converted is None else price_converted
+            ),
+        )
+        session.add(line)
+        await session.commit()
+    return version.id, line.id

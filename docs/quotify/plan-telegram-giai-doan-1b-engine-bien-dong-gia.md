@@ -417,9 +417,17 @@ So sánh `get_daily_min_series` với truy vấn SQL độc lập cho 5 chuỗi 
 
 ### Tiêu chí chấp nhận
 
-- [ ] Hàm thuần có test biên đầy đủ; hàm SQL có test tích hợp và khớp truy vấn gốc trên dev.
-- [ ] Không sửa dashboard (hai nơi có thể lệch nhau; ghi nhận ở rủi ro RR-42).
+- [x] Hàm thuần có test biên đầy đủ; hàm SQL có test tích hợp và khớp truy vấn gốc trên dev.
+- [x] Không sửa dashboard (hai nơi có thể lệch nhau; ghi nhận ở rủi ro RR-42).
 - [ ] Baseline không xấu hơn.
+
+### Kết quả (2026-10-04)
+
+- **Code:** `services/working_days.py` (`is_working_day`, `working_days_between` đếm `(start, end]`, `reference_window(day, working_days=7)` trả `[start, end]` với `end = day - 1` nên điểm cuối tuần nằm giữa vẫn là điểm tham chiếu), `services/daily_min_series.py` (`get_daily_min_series(session, *, material_id, delivery_month, start, end, exclude_line_ids)` trả `DailyMinPoint(received_date, price, line_id, version_id)`; điều kiện như dashboard gồm `confirmed`, `confirmed_at` không NULL, phiếu chưa hủy; tie-break giá, `confirmed_at`, id). Helper `create_priced_line` ở `db_helpers.py`.
+- **Test mới (42):** 28 hàm thuần, 11 tích hợp. pytest 675 pass; ruff 62, mypy 13, bandit 16 không đổi.
+- **Dev:** 5 chuỗi lớn nhất (460 đến 577 dòng, 191 đến 203 điểm) khớp truy vấn SQL độc lập; khoảng 9 ms cho toàn lịch sử (cửa sổ 7 ngày nhỏ hơn nhiều).
+- **Rà soát bằng agent độc lập:** thêm điều kiện `confirmed_at` không NULL (thiếu so với dashboard), tie-break xác định, test hòa giá, test giá quy đổi khác giá gốc, test ngày chốt khác ngày nhận, `working_days` mặc định 7. Chưa làm: bọc `date_trunc` trên cột `delivery_month` làm mất index (đo 9 ms, chấp nhận; xét lại ở 1C).
+- Tên tham số là `start`/`end` (L6 ghi `date_from`/`date_to`); Slice 3 dùng đúng tên này.
 
 ### Rollback
 

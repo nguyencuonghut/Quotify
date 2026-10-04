@@ -1036,3 +1036,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B Slice 1: nền tảng dữ liệu, quyền và API cấu hình
 - Tom tat: Thêm sáu bảng price_alert_* và user_alert_preferences (migration 20261004_1200), quyền price_alerts.manage và receive_all gán cho manager và admin bằng migration (20261004_1300), GET và PUT /price-alert-settings với watermark khi bật, audit price_alerts.settings_updated. 74 test mới, pytest 633 pass, ruff 62, mypy 13, bandit 16 không đổi. Xác minh thật trên dev. Sửa test Telegram cũ flaky (canary 555). Bước tiếp Slice 2.
+
+## 2026-10-04 10:31:54Z - claude
+
+- Tieu de: Telegram 1B Slice 2: ngày làm việc và daily-min
+- Tom tat: Thêm working_days.py và daily_min_series.py, 42 test mới, pytest 675 pass, khớp truy vấn độc lập trên 5 chuỗi dev, rà soát bằng agent độc lập nên bổ sung điều kiện confirmed_at và tie-break.
