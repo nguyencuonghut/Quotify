@@ -28,6 +28,8 @@ from app.models import (
     PriceAlertScanRun,
     PriceAlertScanState,
     PriceAlertSetting,
+    QuoteLine,
+    QuoteVersion,
 )
 from app.services.daily_min_series import get_daily_min_series
 from app.services.price_alert_candidates import record_scanned_version, resolve_candidate_lines
@@ -776,3 +778,94 @@ async def test_a_failure_while_building_messages_keeps_the_events_and_the_waterm
         state = (await session.execute(select(PriceAlertScanState))).scalar_one()
     assert run is not None and "lỗi dựng tin" in (run.last_error or "")
     assert state.watermark_confirmed_at == day.at(0, 4)
+
+
+async def _usd_point(
+    session_factory: async_sessionmaker[AsyncSession],
+    material: uuid.UUID,
+    day: Day,
+    offset: int,
+    converted: int,
+    original: str,
+    *,
+    usd: bool = True,
+) -> None:
+    version, _ = await create_priced_line(
+        session_factory,
+        material_id=material,
+        price=converted,
+        received_date=day.day(offset),
+        delivery_month=DEC,
+        confirmed_at=day.at(offset),
+        currency="USD" if usd else "VND",
+        unit="MT" if usd else "KG",
+        price_original=original if usd else None,
+    )
+    async with session_factory() as session:
+        await record_scanned_version(
+            session, version_id=version, is_trigger_source=True, trigger_delay_working_days=0
+        )
+        await session.commit()
+
+
+async def _usd_new_quote(
+    session_factory: async_sessionmaker[AsyncSession],
+    material: uuid.UUID,
+    day: Day,
+    converted: int,
+    original: str,
+    *,
+    usd: bool = True,
+) -> None:
+    quote = await create_quote_shell(session_factory)
+    async with session_factory() as session:
+        version = QuoteVersion(
+            quote_id=quote,
+            version_number=1,
+            received_date=day.day(0),
+            status="confirmed",
+            confirmed_at=day.at(0, 4),
+        )
+        session.add(version)
+        await session.flush()
+        session.add(
+            QuoteLine(
+                quote_version_id=version.id,
+                material_id=material,
+                price_original=Decimal(original) if usd else Decimal(converted),
+                currency="USD" if usd else "VND",
+                unit="MT" if usd else "KG",
+                delivery_month=DEC,
+                price_converted_vnd_per_kg=Decimal(converted),
+            )
+        )
+        await session.commit()
+
+
+async def test_a_usd_mt_point_stores_the_cnf_price_and_the_reference_only_when_it_is_usd_too(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    both = await create_material(session_factory)
+    mixed = await create_material(session_factory)
+    vnd = await create_material(session_factory)
+    await enable(session_factory, day)
+    await _usd_point(session_factory, both, day, -1, 7720, "287.00")
+    await _usd_new_quote(session_factory, both, day, 8150, "303.50")
+    await _usd_point(session_factory, mixed, day, -1, 7720, "0", usd=False)
+    await _usd_new_quote(session_factory, mixed, day, 8150, "303.50")
+    await _usd_point(session_factory, vnd, day, -1, 7720, "0", usd=False)
+    await _usd_new_quote(session_factory, vnd, day, 8150, "0", usd=False)
+
+    await run_once(session_factory, day.at(0, 5))
+
+    [e_both] = await events(session_factory, both)
+    [e_mixed] = await events(session_factory, mixed)
+    [e_vnd] = await events(session_factory, vnd)
+    assert (e_both.cnf_price_new, e_both.cnf_price_ref) == (Decimal("303.50"), Decimal("287.00"))
+    assert e_both.cnf_date_ref == day.day(-1)
+    assert (e_mixed.cnf_price_new, e_mixed.cnf_price_ref, e_mixed.cnf_date_ref) == (
+        Decimal("303.50"),
+        None,
+        None,
+    )
+    assert (e_vnd.cnf_price_new, e_vnd.cnf_price_ref, e_vnd.cnf_date_ref) == (None, None, None)

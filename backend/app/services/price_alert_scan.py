@@ -17,6 +17,7 @@ from app.models import (
     PriceAlertMaterialThreshold,
     PriceAlertScanRun,
     PriceAlertSetting,
+    QuoteLine,
     User,
 )
 from app.services.daily_min_series import get_daily_min_series
@@ -282,6 +283,11 @@ class PriceAlertScanService:
             return 0
         if await self._is_repeat(material_id, delivery_month, evaluation, settings, now):
             return 0
+        ref_line_id = next(
+            (p.line_id for p in series if p.received_date == evaluation.received_date_ref),
+            None,
+        )
+        cnf = await self._cnf(new_point.line_id, ref_line_id, evaluation.received_date_ref)
 
         result = await self.session.execute(
             pg_insert(PriceAlertEvent)
@@ -312,6 +318,9 @@ class PriceAlertScanService:
                 ),
                 secondary_price_ref=evaluation.secondary_price_ref,
                 secondary_date_ref=evaluation.secondary_date_ref,
+                cnf_price_new=cnf[0],
+                cnf_price_ref=cnf[1],
+                cnf_date_ref=cnf[2],
                 created_at=now,
             )
             .on_conflict_do_nothing(
@@ -320,6 +329,31 @@ class PriceAlertScanService:
             ),
         )
         return int(result.rowcount or 0)  # type: ignore[attr-defined]
+
+    async def _cnf(
+        self,
+        new_line_id: UUID,
+        ref_line_id: UUID | None,
+        ref_date: date,
+    ) -> tuple[Decimal | None, Decimal | None, date | None]:
+        """QĐ-8: CNF (USD/MT) chỉ có khi dòng là USD/MT; mốc so sánh chỉ khi cả hai bên đều vậy."""
+        ids = [new_line_id, *([ref_line_id] if ref_line_id is not None else [])]
+        rows = (
+            await self.session.execute(
+                select(
+                    QuoteLine.id,
+                    QuoteLine.currency,
+                    QuoteLine.unit,
+                    QuoteLine.price_original,
+                ).where(QuoteLine.id.in_(ids)),
+            )
+        ).all()
+        usd = {row[0]: row[3] for row in rows if (row[1], row[2]) == ("USD", "MT")}
+        new_cnf = usd.get(new_line_id)
+        if new_cnf is None:
+            return None, None, None
+        ref_cnf = usd.get(ref_line_id) if ref_line_id is not None else None
+        return new_cnf, ref_cnf, ref_date if ref_cnf is not None else None
 
     async def _is_repeat(
         self,

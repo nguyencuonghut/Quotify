@@ -28,7 +28,11 @@ CMD ["sh", "-lc", "uv sync && uvicorn app.main:app --host 0.0.0.0 --port 8000 --
 FROM base AS prod
 
 COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
-RUN uv sync --frozen --no-dev
+# --no-cache: không giữ bộ nhớ đệm của uv trong layer (giảm khoảng 137 MB, bù cho matplotlib).
+RUN uv sync --frozen --no-dev --no-cache
+
+# matplotlib cần thư mục cấu hình ghi được (biểu đồ thông báo biến động giá).
+ENV MPLCONFIGDIR=/tmp/mpl
 
 COPY backend /app
 

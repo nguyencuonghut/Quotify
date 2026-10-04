@@ -693,10 +693,23 @@ Xuất vài ảnh mẫu (Trung bình tăng, Lớn giảm, Nhẹ, ngày cuối tu
 
 ### Tiêu chí chấp nhận
 
-- [ ] Ảnh mẫu và câu chữ được bạn duyệt.
-- [ ] `send_photo` và các method mới có test và fake tương ứng; test cũ của 1A vẫn xanh.
-- [ ] `uv.lock` chỉ thêm các gói của matplotlib (không nâng gói cũ); image production build được.
-- [ ] Baseline không xấu hơn; mypy strict sạch cho file mới.
+- [ ] Ảnh mẫu và câu chữ được bạn duyệt (chờ bạn).
+- [x] `send_photo` và các method mới có test và fake tương ứng; test cũ của 1A vẫn xanh.
+- [x] `uv.lock` chỉ thêm các gói của matplotlib (không nâng gói cũ); image production build được.
+- [x] Baseline không xấu hơn; mypy strict sạch cho file mới.
+
+### Kết quả (2026-10-04)
+
+- **Làm song song:** client Telegram và biểu đồ do hai agent làm trong worktree riêng (cherry-pick `548de83`, `5903844`); formatter, bộ dựng dữ liệu tin và CNF do tôi làm; một agent độc lập rà soát toàn bộ.
+- **Client** (`integrations/telegram.py`): `send_photo` (multipart, `reply_markup` là chuỗi JSON, caption > 1.024 bị chặn trước khi gọi mạng), `answer_callback_query`, `edit_message_text`, `edit_message_caption` (tin ảnh không dùng được `editMessageText`), `edit_message_reply_markup`; lỗi `message is not modified` trả `False` thay vì raise; fake server và `Outbox` hiểu multipart và các method mới. Lỗi mạng vẫn `from None`, không lộ token.
+- **Biểu đồ** (`services/price_alert_chart.py`): `ChartSpec`, `render_price_chart` (`Figure` + `FigureCanvasAgg`, `asyncio.to_thread`, khóa toàn module vì cache font của matplotlib không an toàn đa luồng, PNG 900 x 500 xác định, không emoji, DejaVu nhúng, không glyph thiếu, `$` được thoát). `matplotlib==3.11.2`; `uv.lock` chỉ thêm 9 gói, không nâng gói cũ. Import +91 MB RSS, khoảng 0,06 giây mỗi ảnh.
+- **Formatter** (`services/price_alert_formatter.py`): caption (≤ 1.024) và tin chi tiết (≤ 4.096) khớp mẫu 4.2 **từng ký tự**; dòng phụ chỉ khi khác điểm tham chiếu; CNF theo QĐ-8 (có chú thích "chênh lệch do tỷ giá" khi CNF đứng yên hoặc ngược chiều); nhiều kỳ giao hàng thì một khối mỗi kỳ, đánh dấu hướng từng kỳ khi khác hướng, cắt có chú thích; cắt không bao giờ chẻ giữa thực thể HTML và luôn giữ liên kết; tên vật tư qua `escape_html`. `price_alert_message_view.py`: `load_message_view` và `load_chart_spec` dựng dữ liệu từ sự kiện đã lưu.
+- **Engine ghi CNF** (`price_alert_scan.py`): `cnf_price_new` khi dòng mới là USD/MT, `cnf_price_ref` và `cnf_date_ref` chỉ khi dòng tham chiếu cũng là USD/MT.
+- **Dockerfile (Q6):** `uv sync --frozen --no-dev --no-cache` và `MPLCONFIGDIR` ở stage production. Image production dựng được: 692 MB, `import matplotlib` và vẽ một ảnh chạy trong container. Cấu hình mới `APP_PUBLIC_URL` (liên kết trong tin).
+- **Test mới:** 51 (formatter 22, chart 15, client 7 và fake 3, CNF 1, dựng dữ liệu tin 3). pytest 907 pass; ruff 62, mypy 13, bandit 16 không đổi.
+- **Rà soát độc lập đã xử lý:** cắt không chẻ thực thể HTML; khối đầu quá dài vẫn giữ liên kết và không vượt giới hạn; chú thích tỷ giá khi CNF đứng yên; thoát `$` trong chữ của biểu đồ.
+- **Ghi nhận cho Slice 9:** `load_chart_spec` trả `None` khi không có dữ liệu giá, nên đường gửi phải có nhánh chỉ gửi tin văn bản; biểu đồ tính lại daily-min lúc vẽ (có thể lệch nhãn nếu có dòng thấp hơn xuất hiện sau khi quét) và chưa loại dòng bị gắn cờ (đợt β); câu "Giá thấp nhất hôm nay" giữ theo mẫu 4.2 dù điểm mới có thể trễ tới 3 ngày làm việc.
+- **Chờ bạn duyệt bằng mắt (HITL):** 5 ảnh mẫu ở `docs/quotify/analysis-1b/slice8-samples/` (Trung bình tăng, Lớn giảm, Nhẹ, cuối tuần, tên dài; phụ đề trong ảnh mẫu là chuỗi thử glyph, không phải câu chữ thật) và câu chữ caption và tin chi tiết ở trên.
 
 ### Rollback
 

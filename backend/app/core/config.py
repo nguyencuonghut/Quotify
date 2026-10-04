@@ -175,6 +175,11 @@ class Settings(BaseSettings):
     # Danh sách email người nhận thử thông báo biến động giá (cách nhau bằng dấu phẩy). Rỗng nghĩa
     # là không giới hạn; có giá trị thì CHỈ những người này nhận tin (giai đoạn pilot).
     price_alert_recipient_emails: str = Field(default="", alias="PRICE_ALERT_RECIPIENT_EMAILS")
+    # Địa chỉ web công khai, dùng cho liên kết trong tin Telegram.
+    app_public_url: str = Field(
+        default="https://quotify.honghafeed.com.vn",
+        alias="APP_PUBLIC_URL",
+    )
     vietcombank_exchange_rate_url: str = Field(
         default="https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx",
         alias="VIETCOMBANK_EXCHANGE_RATE_URL",

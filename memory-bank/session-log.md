@@ -1066,3 +1066,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B Slice 7: gộp tin và chống lặp theo người nhận
 - Tom tat: Thêm price_alert_messages, PriceAlertMessageService (gộp D5b, leo thang cùng ngày, Nhẹ digest_queued, trần theo lần quét và 10 phút, một tin tóm tắt mỗi cửa sổ, pilot skipped), tích hợp run_once trong savepoint, replay theo ô 30 giây. 15 test mới, pytest 856 pass, replay dev 65 so với tham chiếu 63. Agent rà soát bổ sung savepoint, tin tóm tắt, tin bị trần cắt.
+
+## 2026-10-04 14:28:34Z - claude
+
+- Tieu de: Telegram 1B Slice 8: soạn tin, biểu đồ, gửi ảnh
+- Tom tat: Client send_photo và edit, biểu đồ matplotlib 3.11.2, formatter khớp mẫu 4.2, load_message_view và load_chart_spec, CNF ở engine, Dockerfile --no-cache, APP_PUBLIC_URL. Hai agent worktree làm client và chart, agent rà soát bổ sung cắt an toàn thực thể HTML. 51 test mới, pytest 907 pass, image prod 692 MB.

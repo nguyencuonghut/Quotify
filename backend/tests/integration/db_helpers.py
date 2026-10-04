@@ -185,6 +185,9 @@ async def create_priced_line(
     confirmed_at: datetime | None = None,
     confirmed_at_null: bool = False,
     price_converted: int | str | Decimal | None = None,
+    currency: str = "VND",
+    unit: str = "KG",
+    price_original: int | str | Decimal | None = None,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     """Dựng phiếu + version + MỘT dòng giá; trả về `(version_id, line_id)`."""
     suffix = uuid.uuid4().hex[:8].upper()
@@ -215,9 +218,9 @@ async def create_priced_line(
         line = QuoteLine(
             quote_version_id=version.id,
             material_id=material_id,
-            price_original=Decimal(price),
-            currency="VND",
-            unit="KG",
+            price_original=Decimal(price if price_original is None else price_original),
+            currency=currency,
+            unit=unit,
             delivery_month=delivery_month,
             price_converted_vnd_per_kg=Decimal(
                 price if price_converted is None else price_converted

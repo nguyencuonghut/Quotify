@@ -208,3 +208,9 @@ def test_export_sample_images_for_eyeballing(tmp_path: Path) -> None:
         path.write_bytes(render_price_chart_sync(spec))
         assert _decode(path.read_bytes()).size == (900, 500)
     assert len(list(tmp_path.glob("*.png"))) == 5
+
+
+def test_dollar_signs_in_a_material_name_do_not_break_the_chart() -> None:
+    spec = replace(_spec(), title="▲ TĂNG · Hóa chất $A$ và $B")
+
+    assert render_price_chart_sync(spec).startswith(b"\x89PNG")

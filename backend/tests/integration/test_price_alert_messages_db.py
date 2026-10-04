@@ -13,6 +13,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import (
+    Material,
     PriceAlertEvent,
     PriceAlertMessage,
     PriceAlertMessageEvent,
@@ -81,6 +82,12 @@ async def add_event(
             price_new=Decimal(106),
             price_ref=Decimal(100),
             received_date_new=date(2047, 3, 3),
+            received_date_ref=date(2047, 3, 2),
+            window_min=Decimal(95),
+            window_max=Decimal(105),
+            window_min_date=date(2047, 2, 28),
+            window_max_date=date(2047, 3, 1),
+            reference_point_count=3,
         )
         session.add(event)
         await session.commit()
@@ -406,3 +413,80 @@ async def test_the_local_date_is_the_vietnam_date_not_the_utc_date(scene: Scene)
 
     [message] = await messages(sf, scene)
     assert message.local_date == date(2048, 5, 11)
+
+
+async def test_a_stored_message_loads_into_the_view_the_formatter_needs(scene: Scene) -> None:
+    from app.services.price_alert_formatter import chart_title, format_caption, format_details
+    from app.services.price_alert_message_view import load_message_view
+
+    sf = scene.sf
+    await scene.person("it-manager")
+    at = moment()
+    run = await new_run(sf, at)
+    await add_event(sf, run, scene.material, "medium", month=date(2047, 11, 1))
+    await add_event(sf, run, scene.material, "large", "down", month=date(2047, 12, 1))
+    await build(sf, run, at, scene)
+    [message] = await messages(sf, scene)
+    async with sf() as session:
+        settings = (await session.execute(select(PriceAlertSetting))).scalar_one()
+        view = await load_message_view(session, message.id, settings)
+        material_name = (
+            await session.execute(select(Material.name).where(Material.id == scene.material))
+        ).scalar_one()
+
+    assert view is not None
+    assert view.material_name == material_name
+    assert [e.delivery_month for e in view.events] == [date(2047, 11, 1), date(2047, 12, 1)]
+    assert view.reference_working_days == 7
+    assert chart_title(view).startswith("▼ GIẢM LỚN")
+    assert "Kỳ 12/2047" in format_caption(view)
+    assert "kỳ giao hàng 11/2047" in format_details(view, base_url="https://x.example")
+
+
+async def test_loading_a_digest_or_unknown_message_returns_nothing(scene: Scene) -> None:
+    from app.services.price_alert_message_view import load_message_view
+
+    async with scene.sf() as session:
+        settings = (await session.execute(select(PriceAlertSetting))).scalar_one()
+        assert await load_message_view(session, uuid.uuid4(), settings) is None
+
+
+async def test_a_stored_message_renders_a_decodable_chart_for_its_strongest_period(
+    scene: Scene,
+) -> None:
+    import io
+
+    from db_helpers import create_priced_line
+    from PIL import Image
+
+    from app.services.price_alert_chart import render_price_chart
+    from app.services.price_alert_message_view import load_chart_spec, load_message_view
+
+    sf = scene.sf
+    await scene.person("it-manager")
+    at = moment()
+    new_day = date(2047, 3, 3)
+    for offset, price in {-4: 7900, -3: 7720, -1: 7800, 0: 8150}.items():
+        await create_priced_line(
+            sf,
+            material_id=scene.material,
+            price=price,
+            received_date=new_day + timedelta(days=offset),
+            delivery_month=date(2047, 12, 1),
+        )
+    run = await new_run(sf, at)
+    await add_event(sf, run, scene.material, "medium", month=date(2047, 12, 1))
+    await build(sf, run, at, scene)
+    [message] = await messages(sf, scene)
+
+    async with sf() as session:
+        settings = (await session.execute(select(PriceAlertSetting))).scalar_one()
+        view = await load_message_view(session, message.id, settings)
+        assert view is not None
+        spec = await load_chart_spec(session, message.id, view)
+
+    assert spec is not None
+    assert [p[0] for p in spec.points][-1] == new_day
+    assert spec.title.startswith("▲ TĂNG TRUNG BÌNH")
+    png = await render_price_chart(spec)
+    assert Image.open(io.BytesIO(png)).size == (900, 500)

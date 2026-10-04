@@ -13,9 +13,10 @@ from __future__ import annotations
 import asyncio
 import io
 import os
+import tempfile
 import threading
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -23,7 +24,7 @@ from typing import Literal
 
 # Thư mục cache font/cấu hình của matplotlib phải ghi được (container chạy user không có HOME).
 # Phải đặt TRƯỚC khi import matplotlib; setdefault để không đè giá trị do môi trường cấu hình.
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")  # noqa: S108
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "mpl"))
 
 import matplotlib  # noqa: E402
 from matplotlib.backends.backend_agg import FigureCanvasAgg  # noqa: E402
@@ -269,10 +270,28 @@ def _render(spec: ChartSpec) -> bytes:
     return buf.getvalue()
 
 
+def _escape_math(spec: ChartSpec) -> ChartSpec:
+    """`$...$` trong tên vật tư sẽ bị matplotlib hiểu là mathtext; thoát dấu đô la."""
+
+    def plain(text: str) -> str:
+        return text.replace("$", "\\$")
+
+    return replace(
+        spec,
+        title=plain(spec.title),
+        subtitle=plain(spec.subtitle),
+        last_label=plain(spec.last_label),
+        ref_min_label=plain(spec.ref_min_label),
+        ref_max_label=plain(spec.ref_max_label),
+        unit=plain(spec.unit),
+        zone_caption=plain(spec.zone_caption),
+    )
+
+
 def render_price_chart_sync(spec: ChartSpec) -> bytes:
     """Vẽ biểu đồ thành PNG 900x500; hàm đồng bộ, xác định và an toàn đa luồng."""
     with _RENDER_LOCK:
-        return _render(spec)
+        return _render(_escape_math(spec))
 
 
 async def render_price_chart(spec: ChartSpec) -> bytes:
