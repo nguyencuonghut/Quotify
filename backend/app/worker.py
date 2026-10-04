@@ -1018,7 +1018,11 @@ async def poll_price_alerts(ctx: dict[str, Any]) -> None:
     session_factory = ctx["session_factory"]
     async with session_factory() as session:
         seed_user_id = await get_seed_user_id(session, settings.auth_seed_admin_email)
-        outcome = await PriceAlertScanService(session, seed_user_id=seed_user_id).run_once(
+        outcome = await PriceAlertScanService(
+            session,
+            seed_user_id=seed_user_id,
+            pilot_emails=settings.price_alert_recipient_email_set,
+        ).run_once(
             datetime.now(UTC),
         )
         await session.commit()

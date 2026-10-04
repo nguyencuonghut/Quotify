@@ -81,7 +81,9 @@ async def test_the_scan_task_runs_the_service_and_commits(monkeypatch: pytest.Mo
     calls: list[tuple[object, datetime]] = []
 
     class FakeService:
-        def __init__(self, given_session: object, *, seed_user_id: object) -> None:
+        def __init__(
+            self, given_session: object, *, seed_user_id: object, pilot_emails: object
+        ) -> None:
             calls.append((seed_user_id, datetime.min))
 
         async def run_once(self, now: datetime) -> ScanOutcome:
@@ -94,7 +96,11 @@ async def test_the_scan_task_runs_the_service_and_commits(monkeypatch: pytest.Mo
     monkeypatch.setattr(
         worker,
         "get_settings",
-        lambda: SimpleNamespace(telegram_enabled=True, auth_seed_admin_email="admin@example.com"),
+        lambda: SimpleNamespace(
+            telegram_enabled=True,
+            auth_seed_admin_email="admin@example.com",
+            price_alert_recipient_email_set=frozenset(),
+        ),
     )
     monkeypatch.setattr(worker, "PriceAlertScanService", FakeService)
     monkeypatch.setattr(worker, "get_seed_user_id", fake_seed)

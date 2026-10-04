@@ -12,6 +12,8 @@ from app.models.permission import Permission, role_permissions
 from app.models.price_alert import (
     PriceAlertEvent,
     PriceAlertMaterialThreshold,
+    PriceAlertMessage,
+    PriceAlertMessageEvent,
     PriceAlertScannedVersion,
     PriceAlertScanRun,
     PriceAlertScanState,
@@ -46,6 +48,8 @@ __all__ = [
     "Permission",
     "PriceAlertEvent",
     "PriceAlertMaterialThreshold",
+    "PriceAlertMessage",
+    "PriceAlertMessageEvent",
     "PriceAlertScanRun",
     "PriceAlertScanState",
     "PriceAlertScannedVersion",

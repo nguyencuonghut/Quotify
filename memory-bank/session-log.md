@@ -1061,3 +1061,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B Slice 6: người nhận, ngưỡng theo vật tư, tùy chọn cá nhân
 - Tom tat: resolve_recipients (D7-D10, pilot), API ngưỡng theo vật tư và alert-preferences do agent worktree làm rồi cherry-pick, 77 test mới, pytest 843 pass, baseline lint không đổi.
+
+## 2026-10-04 11:40:47Z - claude
+
+- Tieu de: Telegram 1B Slice 7: gộp tin và chống lặp theo người nhận
+- Tom tat: Thêm price_alert_messages, PriceAlertMessageService (gộp D5b, leo thang cùng ngày, Nhẹ digest_queued, trần theo lần quét và 10 phút, một tin tóm tắt mỗi cửa sổ, pilot skipped), tích hợp run_once trong savepoint, replay theo ô 30 giây. 15 test mới, pytest 856 pass, replay dev 65 so với tham chiếu 63. Agent rà soát bổ sung savepoint, tin tóm tắt, tin bị trần cắt.

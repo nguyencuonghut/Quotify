@@ -645,9 +645,18 @@ Từ các sự kiện sinh ra **tin** đúng đơn vị D5(b): một tin cho m�
 
 ### Tiêu chí chấp nhận
 
-- [ ] Replay (Slice 5) in thêm số tin theo đơn vị D5(b), khớp Phụ lục C trong ±15% (19,1 mỗi tuần, 7,6 Trung bình và Lớn).
-- [ ] Không có tin sai hướng trong replay.
-- [ ] Baseline không xấu hơn.
+- [x] Replay (Slice 5) in thêm số tin theo đơn vị D5(b), khớp Phụ lục C trong ±15% (19,1 mỗi tuần, 7,6 Trung bình và Lớn).
+- [x] Không có tin sai hướng trong replay.
+- [x] Baseline không xấu hơn.
+
+### Kết quả (2026-10-04)
+
+- **Code mới:** migration `20261004_1500` (`price_alert_messages` có `sequence_number` tự tăng và `status_reason`; `price_alert_message_events`; UNIQUE `(user_id, material_id, scan_run_id, kind)` và chỉ mục một phần cho tin tóm tắt), model, `services/price_alert_messages.py` (`PriceAlertMessageService.build_for_run`), `run_once` gọi bước này trong savepoint, worker truyền danh sách pilot, replay chạy theo từng ô 30 giây (mỗi ô một `scan_run`) và in số tin theo trạng thái.
+- **Quy tắc đã làm:** gộp sự kiện theo (người nhận, vật tư, lần quét), hướng và mức theo kỳ có mức cao nhất; cùng ngày VN chỉ có tin mới khi mức cao hơn mức cao nhất đã có hoặc đổi chiều so với tin gần nhất, nếu không thì `suppressed`; Nhẹ thành `digest_queued` (lý do `light`); trần theo lần quét và trần 30 tin trong 10 phút cho mỗi người (mức cao xử lý trước), phần vượt thành `digest_queued` (lý do `cap`) kèm **một** tin tóm tắt `kind='digest'` trong mỗi cửa sổ 10 phút; người ngoài danh sách pilot ghi `skipped` (lý do `pilot`); chạy lại cùng lần quét không tạo tin trùng.
+- **Test mới (15):** tracer hai kỳ giao hàng một tin, Nhẹ, cùng ngày (suppressed, leo thang, đổi chiều), ngày mới, trần theo lần quét có ưu tiên mức cao, trần 10 phút và tính lại sau 11 phút, hai lần quét 20 tin chia sẻ một trần và một tin tóm tắt, tin bị trần cắt không chặn sự kiện sau, ngày VN lúc 00:30, pilot, idempotent, lỗi bước tin không làm hỏng lần quét. pytest toàn bộ xanh; ruff 62, mypy 13, bandit 16 không đổi. Đột biến (leo thang, trần 10 phút, trần theo lần quét, ưu tiên mức, Nhẹ, một tin tóm tắt, loại tin bị trần) đều bị bắt.
+- **Replay trên dev (người nhận là Manager thử):** 65 tin gửi ngay và 3 tin bị chặn cùng ngày trong 6,29 tuần, so với tham chiếu không chặn bất thường 63 tin Trung bình và Lớn theo đơn vị D5(b): lệch khoảng 3%. Không lần nào chạm trần.
+- **Rà soát agent độc lập đã xử lý:** bước tin nằm trong savepoint (nếu không, một lỗi sẽ rollback cả lần quét và lặp mãi mỗi 30 giây); tin tóm tắt không sinh mỗi 30 giây; tin bị trần cắt không còn làm sự kiện sau bị `suppressed`; ghi `message_events` theo lô; thêm test ngày VN và cộng dồn giữa hai lần quét.
+- **Chấp nhận có chủ ý (ghi lại):** hướng của tin gộp lấy theo kỳ có mức cao nhất (giống engine tham chiếu), hai kỳ cùng mức khác hướng chỉ lưu hướng kỳ sớm nhất, chi tiết từng kỳ nằm ở `message_events`; `local_date` theo giờ quét chứ không theo giờ chốt (lệch chỉ khi quét qua nửa đêm VN); mỗi nhóm vẫn gọi `resolve_recipients` riêng (đủ nhanh với tải thật 7 tin mỗi lần quét, tối ưu nếu import lớn ở 1C); người ngoài pilot mỗi nhóm một dòng `skipped` (phình bảng nếu pilot kéo dài, bảng được dọn sau 180 ngày); `scan_run_id` có thể NULL sau khi dọn `scan_runs` (không còn bảo vệ UNIQUE cho dòng cũ, không có luồng ghi nào dùng NULL).
 
 ### Rollback
 

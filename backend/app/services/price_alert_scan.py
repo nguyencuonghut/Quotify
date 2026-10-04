@@ -29,6 +29,7 @@ from app.services.price_alert_candidates import (
     select_versions_to_scan,
     trigger_delay_working_days,
 )
+from app.services.price_alert_messages import PriceAlertMessageService
 from app.services.price_alert_rules import (
     ChangeEvaluation,
     PricePoint,
@@ -79,9 +80,11 @@ class PriceAlertScanService:
         *,
         seed_user_id: UUID | None,
         batch_limit: int = DEFAULT_BATCH_LIMIT,
+        pilot_emails: frozenset[str] = frozenset(),
     ) -> None:
         self.session = session
         self.seed_user_id = seed_user_id
+        self.pilot_emails = pilot_emails
         self.batch_limit = batch_limit
 
     async def run_once(self, now: datetime) -> ScanOutcome:
@@ -126,6 +129,19 @@ class PriceAlertScanService:
             watermark,
             min(max(version.confirmed_at for version in versions), now),
         )
+        try:
+            async with self.session.begin_nested():
+                messages = await PriceAlertMessageService(
+                    self.session,
+                    seed_user_id=self.seed_user_id,
+                    pilot_emails=self.pilot_emails,
+                ).build_for_run(scan_run_id=run.id, now=now, settings=settings)
+            run.messages_created = messages.created
+        except Exception as exc:
+            # Lỗi ở bước tin không được làm hỏng lần quét: sự kiện đã ghi và watermark vẫn tiến.
+            logger.warning("price_alert.messages_failed error=%s", type(exc).__name__)
+            counters.errors += 1
+            counters.last_error = f"messages {type(exc).__name__}: {exc}"[:_MAX_ERROR_LENGTH]
         run.finished_at = now
         run.versions_scanned = counters.versions
         run.events_created = counters.events

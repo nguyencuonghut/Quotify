@@ -18,6 +18,7 @@ from sqlalchemy import (
     Numeric,
     SmallInteger,
     String,
+    UniqueConstraint,
     func,
     text,
 )
@@ -435,4 +436,110 @@ class PriceAlertEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
+    )
+
+
+class PriceAlertMessage(Base):
+    """Một tin Telegram cho một người nhận, một vật tư, một lần quét (D5b)."""
+
+    __tablename__ = "price_alert_messages"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('change','anomaly','digest')",
+            name="ck_price_alert_messages_kind",
+        ),
+        CheckConstraint(
+            "status IN ('pending','sending','sent','failed',"
+            "'suppressed','digest_queued','skipped')",
+            name="ck_price_alert_messages_status",
+        ),
+        CheckConstraint(
+            "level_max IS NULL OR level_max IN ('light','medium','large')",
+            name="ck_price_alert_messages_level",
+        ),
+        CheckConstraint(
+            "direction IS NULL OR direction IN ('up','down')",
+            name="ck_price_alert_messages_direction",
+        ),
+        CheckConstraint(
+            "kind = 'digest' OR material_id IS NOT NULL",
+            name="ck_price_alert_messages_material_required",
+        ),
+        UniqueConstraint(
+            "user_id",
+            "material_id",
+            "scan_run_id",
+            "kind",
+            name="uq_price_alert_messages_unit",
+        ),
+        Index(
+            "uq_price_alert_messages_digest",
+            "user_id",
+            "scan_run_id",
+            unique=True,
+            postgresql_where=text("kind = 'digest' AND material_id IS NULL"),
+        ),
+        Index("ix_price_alert_messages_status", "status", "created_at"),
+        Index("ix_price_alert_messages_user_material_day", "user_id", "material_id", "local_date"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    sequence_number: Mapped[int] = mapped_column(
+        BigInteger,
+        Identity(always=False),
+        nullable=False,
+        unique=True,
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+    )
+    telegram_account_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("telegram_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    material_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("materials.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    local_date: Mapped[date] = mapped_column(Date)
+    scan_run_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("price_alert_scan_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    kind: Mapped[str] = mapped_column(String(10))
+    level_max: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    direction: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    status: Mapped[str] = mapped_column(String(20))
+    status_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    telegram_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PriceAlertMessageEvent(Base):
+    """Một tin gộp nhiều sự kiện (các kỳ giao hàng của cùng vật tư)."""
+
+    __tablename__ = "price_alert_message_events"
+
+    message_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("price_alert_messages.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    event_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("price_alert_events.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
     )

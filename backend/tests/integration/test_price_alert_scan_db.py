@@ -750,3 +750,29 @@ async def test_dry_run_replay_gives_way_to_a_running_scan(
         )
 
     assert report is None
+
+
+async def test_a_failure_while_building_messages_keeps_the_events_and_the_watermark(
+    session_factory: async_sessionmaker[AsyncSession], day: Day, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.price_alert_messages import PriceAlertMessageService
+
+    material = await create_material(session_factory)
+    await enable(session_factory, day)
+    await prior_points(session_factory, material, day, {-1: 100})
+    await new_quote(session_factory, material, day, 110)
+
+    async def broken(self: object, **kwargs: object) -> None:
+        raise RuntimeError("lỗi dựng tin")
+
+    monkeypatch.setattr(PriceAlertMessageService, "build_for_run", broken)
+
+    outcome = await run_once(session_factory, day.at(0, 6))
+
+    assert (outcome.status, outcome.events_created, outcome.error_count) == ("scanned", 1, 1)
+    assert len(await events(session_factory, material)) == 1
+    async with session_factory() as session:
+        run = await session.get(PriceAlertScanRun, outcome.scan_run_id)
+        state = (await session.execute(select(PriceAlertScanState))).scalar_one()
+    assert run is not None and "lỗi dựng tin" in (run.last_error or "")
+    assert state.watermark_confirmed_at == day.at(0, 4)

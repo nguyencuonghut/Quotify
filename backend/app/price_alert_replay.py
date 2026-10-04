@@ -23,6 +23,7 @@ from app.core.config import get_settings
 from app.db.session import get_sessionmaker
 from app.models import (
     PriceAlertEvent,
+    PriceAlertMessage,
     PriceAlertScannedVersion,
     PriceAlertScanRun,
 )
@@ -31,6 +32,7 @@ from app.services.price_alert_candidates import (
     VersionToScan,
     select_versions_to_scan,
 )
+from app.services.price_alert_messages import PriceAlertMessageService
 from app.services.price_alert_scan import (
     SCAN_ADVISORY_LOCK_KEY,
     PriceAlertScanService,
@@ -40,6 +42,7 @@ from app.services.price_alert_settings_service import PriceAlertSettingsService
 
 _HISTORY_FOR_REPEAT_RULE = timedelta(days=14)
 _EPOCH = datetime(2000, 1, 1, tzinfo=UTC)
+SLOT_SECONDS = 30
 
 
 @dataclass(slots=True)
@@ -62,6 +65,8 @@ class ReplayReport:
     material_days: int
     medium_or_large_material_days: int
     tables_unchanged: bool
+    messages_by_status: dict[str, int] = field(default_factory=dict)
+    immediate_messages_per_week: list[tuple[tuple[int, int], int]] = field(default_factory=list)
 
     @property
     def weeks_in_period(self) -> float:
@@ -75,6 +80,7 @@ async def run_replay(
     ignore_trigger_source: bool,
     seed_email: str,
     now: datetime | None = None,
+    pilot_emails: frozenset[str] = frozenset(),
 ) -> ReplayReport | None:
     """Chạy replay rồi LUÔN hủy giao dịch. Trả `None` nếu cron đang giữ khóa quét."""
     moment = now or datetime.now(UTC)
@@ -94,6 +100,7 @@ async def run_replay(
             before = await _table_counts(session)
 
             # Trong giao dịch này coi như chưa từng quét; rollback sẽ trả lại nguyên trạng.
+            await session.execute(delete(PriceAlertMessage))
             await session.execute(delete(PriceAlertEvent))
             await session.execute(delete(PriceAlertScannedVersion))
             settings = await PriceAlertSettingsService(session).get_or_create_settings()
@@ -104,14 +111,32 @@ async def run_replay(
                 if version.confirmed_at >= since - _HISTORY_FOR_REPEAT_RULE
             ]
             service = PriceAlertScanService(session, seed_user_id=seed_user_id)
-            counters = await service.scan_versions(
-                versions,
-                settings=settings,
-                scan_run_id=None,
-                now_for=lambda version: version.confirmed_at,
-                ignore_trigger_source=ignore_trigger_source,
+            messages = PriceAlertMessageService(
+                session,
+                seed_user_id=seed_user_id,
+                pilot_emails=pilot_emails,
             )
-            report = await _build_report(session, versions, counters.errors, since)
+            errors = 0
+            # Mỗi ô 30 giây là một lần quét (một `scan_run`), như cron thật.
+            slots: dict[int, list[VersionToScan]] = defaultdict(list)
+            for version in versions:
+                slots[int(version.confirmed_at.timestamp() // SLOT_SECONDS)].append(version)
+            for slot in sorted(slots):
+                slot_versions = slots[slot]
+                slot_time = datetime.fromtimestamp((slot + 1) * SLOT_SECONDS, tz=UTC)
+                run = PriceAlertScanRun(started_at=slot_time)
+                session.add(run)
+                await session.flush()
+                counters = await service.scan_versions(
+                    slot_versions,
+                    settings=settings,
+                    scan_run_id=run.id,
+                    now_for=lambda version: version.confirmed_at,
+                    ignore_trigger_source=ignore_trigger_source,
+                )
+                errors += counters.errors
+                await messages.build_for_run(scan_run_id=run.id, now=slot_time, settings=settings)
+            report = await _build_report(session, versions, errors, since)
         finally:
             await session.rollback()
 
@@ -122,7 +147,12 @@ async def run_replay(
 
 async def _table_counts(session: AsyncSession) -> dict[str, int]:
     counts = {}
-    for model in (PriceAlertEvent, PriceAlertScannedVersion, PriceAlertScanRun):
+    for model in (
+        PriceAlertEvent,
+        PriceAlertMessage,
+        PriceAlertScannedVersion,
+        PriceAlertScanRun,
+    ):
         counts[model.__tablename__] = (
             await session.execute(select(func.count()).select_from(model))
         ).scalar_one()
@@ -171,6 +201,21 @@ async def _build_report(
         )
     ).scalar_one()
     period_days = (max(local_dates) - min(local_dates)).days + 1 if local_dates else 0
+    message_status: dict[str, int] = defaultdict(int)
+    immediate_by_week: dict[tuple[int, int], int] = defaultdict(int)
+    message_rows = (
+        await session.execute(
+            select(PriceAlertMessage.status, PriceAlertMessage.created_at).where(
+                PriceAlertMessage.kind == "change",
+                PriceAlertMessage.created_at >= since,
+            ),
+        )
+    ).all()
+    for status, created_at in message_rows:
+        message_status[status] += 1
+        if status == "pending":
+            iso = created_at.astimezone(BUSINESS_TIMEZONE).date().isocalendar()
+            immediate_by_week[(iso[0], iso[1])] += 1
     return ReplayReport(
         versions_scanned=sum(1 for v in versions if v.confirmed_at >= since),
         trigger_versions=trigger_versions,
@@ -182,6 +227,8 @@ async def _build_report(
         material_days=len(material_days),
         medium_or_large_material_days=sum(material_days.values()),
         tables_unchanged=False,
+        messages_by_status=dict(message_status),
+        immediate_messages_per_week=sorted(immediate_by_week.items()),
     )
 
 
@@ -196,6 +243,8 @@ def format_report(report: ReplayReport) -> str:
         f"Gộp theo (vật tư, ngày): {report.material_days} = {report.material_days / per_week:.1f} "
         f"mỗi tuần; Trung bình và Lớn: {report.medium_or_large_material_days} = "
         f"{report.medium_or_large_material_days / per_week:.1f} mỗi tuần.",
+        f"Tin theo đơn vị D5(b) (một tin cho mỗi người nhận, mỗi vật tư, mỗi lần quét): "
+        f"{report.messages_by_status}",
         "",
         "Tuần ISO   Sự kiện   Trung bình+Lớn   Vật tư-ngày",
     ]
