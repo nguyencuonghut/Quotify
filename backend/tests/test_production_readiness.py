@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -66,8 +67,21 @@ def test_settings_can_read_secret_values_from_files(tmp_path: Path) -> None:
     assert settings.database_url == "postgresql+asyncpg://readonly:secret@db.internal:5432/app"
 
 
-def test_telegram_settings_are_disabled_and_need_no_secrets_by_default() -> None:
-    settings = Settings.model_validate({})
+def _settings_without_ambient_telegram_config(monkeypatch: pytest.MonkeyPatch) -> Settings:
+    """Cấu hình sạch: bỏ `.env` của máy dev (có thể bật Telegram) và biến môi trường TELEGRAM_*."""
+    for name in list(os.environ):
+        if name.startswith("TELEGRAM_") or name == "RATE_LIMIT_TELEGRAM_LINK_TOKEN":
+            monkeypatch.delenv(name)
+    # `_env_file` là tham số của pydantic-settings nhưng mypy không thấy trong chữ ký của Settings.
+    settings_class: Any = Settings
+    settings: Settings = settings_class(_env_file=None)
+    return settings
+
+
+def test_telegram_settings_are_disabled_and_need_no_secrets_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = _settings_without_ambient_telegram_config(monkeypatch)
 
     assert settings.telegram_enabled is False
     assert settings.telegram_bot_token == ""
@@ -111,11 +125,11 @@ def test_telegram_bot_username_is_normalized_without_at_sign() -> None:
     assert settings.telegram_bot_username == "quotify_dev_bot"
 
 
-def test_telegram_client_requires_a_configured_token() -> None:
+def test_telegram_client_requires_a_configured_token(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.integrations.telegram import TelegramClient, TelegramConfigurationError
 
     with pytest.raises(TelegramConfigurationError):
-        TelegramClient.from_settings(Settings.model_validate({}))
+        TelegramClient.from_settings(_settings_without_ambient_telegram_config(monkeypatch))
 
     client = TelegramClient.from_settings(
         Settings.model_validate(
