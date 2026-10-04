@@ -17,6 +17,7 @@ from app.services.price_alert_formatter import (
 )
 
 BASE_URL = "https://quotify.honghafeed.com.vn"
+MOBILE_WIDTH = 34  # số ký tự tối đa mỗi dòng để không xuống dòng trên điện thoại
 
 
 def _event(**overrides: object) -> EventView:
@@ -51,47 +52,51 @@ def _message(*events: EventView, name: str = "Ngô hạt") -> MessageView:
     return MessageView(material_name=name, events=events or (_event(),), quote_id="abc-123")
 
 
-def test_example_1_caption_matches_the_plan_character_for_character() -> None:
+def _lines(text: str) -> list[str]:
+    return text.splitlines()
+
+
+def test_example_1_caption_shows_from_to_and_the_difference() -> None:
     assert format_caption(_message()) == (
-        "🔺🟠 TĂNG TRUNG BÌNH · Ngô hạt\n"
-        "Giá thấp nhất hôm nay: 8,150.00 VNĐ/KG (giá quy đổi, 02/10/2026)\n"
-        "Kỳ 12/2026: +5.57% so với giá thấp nhất 7 ngày làm việc"
+        "<b>🟠 TĂNG TRUNG BÌNH · Ngô hạt</b>\n"
+        "7,720 → 8,150 VNĐ/KG (+430)\n"
+        "<b>▲5.57%</b> so với thấp nhất 7 ngày"
     )
 
 
-def test_example_1_details_match_the_plan_character_for_character() -> None:
+def test_example_1_details_are_compact_labelled_lines_with_a_short_link() -> None:
     assert format_details(_message(), base_url=BASE_URL) == (
-        "Ngô hạt · kỳ giao hàng 12/2026\n"
-        "Lý do chính: so với giá thấp nhất 7 ngày làm việc\n"
-        "  +5.57%  (7,720.00 · 25/09/2026)\n"
-        "So sánh khác: so với điểm giá gần nhất\n"
-        "  +4.49%  (7,800.00 · 30/09/2026)\n"
-        "Vùng tham chiếu 7 ngày làm việc\n"
-        "  Thấp nhất: 7,720.00 (25/09) · Cao nhất: 7,900.00 (23/09)\n"
-        "CNF (USD/MT): 303.50 (02/10/2026), so với 287.00 (25/09/2026): +5.75%\n"
+        "<b>Chi tiết kỳ 12/2026</b>\n"
+        "So với giá thấp nhất 7 ngày\n"
+        "  7,720 (25/09)\n"
+        "Giá mới: 8,150 (02/10)\n"
+        "Cũng: ▲4.49% so với điểm gần nhất\n"
+        "7 ngày qua: 7,720 – 7,900\n"
+        "CNF: 303.50 USD/MT\n"
+        "  ▲5.75% so với 287.00 (25/09)\n"
         "\n"
-        "Lưu ý: điểm giá có thể thuộc nhà cung cấp khác với lần trước.\n"
-        "🔗 Xem chi tiết: https://quotify.honghafeed.com.vn/quotes/abc-123"
+        '🔗 <a href="https://quotify.honghafeed.com.vn/quotes/abc-123">Xem phiếu →</a>\n'
+        "ℹ️ Điểm giá có thể thuộc nhà cung cấp khác lần trước."
     )
 
 
-def test_a_vnd_line_has_no_cnf_and_no_converted_price_note() -> None:
+def test_a_vnd_line_has_no_cnf() -> None:
     event = _event(cnf_price_new=None, cnf_price_ref=None, cnf_date_ref=None)
 
     caption = format_caption(_message(event))
     details = format_details(_message(event), base_url=BASE_URL)
 
-    assert "giá quy đổi" not in caption
-    assert "(02/10/2026)" in caption
+    assert "7,720 → 8,150 VNĐ/KG" in caption
     assert "CNF" not in details
 
 
 def test_cnf_without_a_usd_reference_prints_only_the_new_price() -> None:
     event = _event(cnf_price_ref=None, cnf_date_ref=None)
 
-    assert "CNF (USD/MT): 303.50 (02/10/2026)\n" in format_details(
-        _message(event), base_url=BASE_URL
-    )
+    details = format_details(_message(event), base_url=BASE_URL)
+
+    assert "CNF: 303.50 USD/MT\n\n" in details
+    assert "so với 287" not in details
 
 
 def test_cnf_moving_against_the_vnd_direction_is_flagged_as_exchange_rate() -> None:
@@ -99,21 +104,29 @@ def test_cnf_moving_against_the_vnd_direction_is_flagged_as_exchange_rate() -> N
 
     details = format_details(_message(event), base_url=BASE_URL)
 
-    assert "−5.16% (chênh lệch do tỷ giá)" in details
+    assert "▼5.16% so với 320.00 (25/09)\n  (chênh lệch do tỷ giá)" in details
+
+
+def test_a_flat_cnf_with_a_moving_vnd_price_is_flagged_as_exchange_rate() -> None:
+    event = _event(cnf_price_ref=Decimal("303.50"))
+
+    assert "0.00% so với 303.50 (25/09)\n  (chênh lệch do tỷ giá)" in format_details(
+        _message(event), base_url=BASE_URL
+    )
 
 
 def test_the_other_comparison_is_hidden_when_it_has_the_same_reference_point() -> None:
     event = _event(
         rule="R1",
-        percent_change=Decimal("4.0"),
         level="light",
+        percent_change=Decimal("4.0"),
         secondary_rule=None,
         secondary_percent=None,
         secondary_price_ref=None,
         secondary_date_ref=None,
     )
 
-    assert "So sánh khác" not in format_details(_message(event), base_url=BASE_URL)
+    assert "Cũng:" not in format_details(_message(event), base_url=BASE_URL)
 
 
 def test_a_fall_uses_the_down_arrow_and_the_highest_reference() -> None:
@@ -128,16 +141,17 @@ def test_a_fall_uses_the_down_arrow_and_the_highest_reference() -> None:
 
     caption = format_caption(_message(event))
 
-    assert caption.startswith("🔻🔴 GIẢM LỚN · Ngô hạt")
-    assert "Kỳ 12/2026: −10.58% so với giá cao nhất 7 ngày làm việc" in caption
+    assert caption.startswith("<b>🔴 GIẢM LỚN · Ngô hạt</b>")
+    assert "10,400 → 9,300 VNĐ/KG (−1,100)" in caption
+    assert "<b>▼10.58%</b> so với cao nhất 7 ngày" in caption
 
 
 @pytest.mark.parametrize(
     ("level", "direction", "expected"),
     [
-        ("light", "up", "🔺🟡 TĂNG NHẸ"),
-        ("medium", "down", "🔻🟠 GIẢM TRUNG BÌNH"),
-        ("large", "up", "🔺🔴 TĂNG LỚN"),
+        ("light", "up", "🟡 TĂNG NHẸ"),
+        ("medium", "down", "🟠 GIẢM TRUNG BÌNH"),
+        ("large", "up", "🔴 TĂNG LỚN"),
     ],
 )
 def test_titles_follow_the_level_and_direction_table(
@@ -156,10 +170,9 @@ def test_markup_characters_in_the_material_name_are_escaped() -> None:
     message = _message(name="Lysine <99%> & Co")
 
     assert "Lysine &lt;99%&gt; &amp; Co" in format_caption(message)
-    assert "Lysine &lt;99%&gt; &amp; Co · kỳ giao hàng" in format_details(
-        message, base_url=BASE_URL
-    )
-    assert "<99%>" not in format_details(message, base_url=BASE_URL)
+    details = format_details(message, base_url=BASE_URL)
+    assert "<99%>" not in details
+    assert "&lt;99%&gt;" in format_caption(message)
 
 
 def test_the_caption_never_exceeds_telegram_limit_even_with_a_huge_name() -> None:
@@ -169,55 +182,117 @@ def test_the_caption_never_exceeds_telegram_limit_even_with_a_huge_name() -> Non
     assert caption.endswith("…")
 
 
-def test_the_strongest_period_leads_and_the_rest_are_counted_in_the_caption() -> None:
-    medium = _event(delivery_month=date(2026, 11, 1))
-    large = _event(delivery_month=date(2026, 12, 1), level="large", percent_change=Decimal("12"))
+def test_several_periods_open_with_a_one_line_per_period_table() -> None:
+    medium = _event(delivery_month=date(2027, 1, 1), percent_change=Decimal("19.28"))
+    large_a = _event(delivery_month=date(2026, 11, 1), level="large", percent_change=Decimal("20"))
+    large_b = _event(delivery_month=date(2026, 12, 1), level="large", percent_change=Decimal("20"))
 
-    caption = format_caption(_message(medium, large))
+    details = format_details(_message(medium, large_b, large_a), base_url=BASE_URL)
+    caption = format_caption(_message(medium, large_b, large_a))
 
+    lines = _lines(details)
+    assert lines[0] == "<b>Các kỳ giao hàng vượt ngưỡng</b>"
+    assert lines[1:3] == [
+        "🔴 11/2026, 12/2026 · <b>▲20.00%</b>",  # hai kỳ cùng số liệu gộp một dòng
+        "🟠 01/2027 · <b>▲19.28%</b>",
+    ]
+    assert lines[3] == ""  # dòng trống tách bảng khỏi phần chi tiết
+    assert "<b>Chi tiết kỳ 11/2026</b> (kỳ trong ảnh)" in details
+    assert "mạnh nhất" not in details
+    assert details.count("Giá mới") == 1  # chỉ giải thích kỳ đang vẽ trong ảnh
     assert "TĂNG LỚN" in caption.splitlines()[0]
-    assert "Kỳ 12/2026" in caption
-    assert "Và 1 kỳ giao hàng khác vượt ngưỡng" in caption
+    assert "➕ Kỳ 11/2026 và 2 kỳ khác ↓" in caption
 
 
-def test_several_periods_get_one_block_each_ordered_by_delivery_month() -> None:
-    later = _event(delivery_month=date(2027, 1, 1))
-    earlier = _event(delivery_month=date(2026, 11, 1))
+def test_many_identical_periods_collapse_into_a_range_not_a_long_list() -> None:
+    events = [
+        replace(_event(), delivery_month=date(2026 + index // 12, index % 12 + 1, 1))
+        for index in range(6)
+    ]
 
-    details = format_details(_message(later, earlier), base_url=BASE_URL)
+    details = format_details(_message(*events), base_url=BASE_URL)
 
-    assert details.index("kỳ giao hàng 11/2026") < details.index("kỳ giao hàng 01/2027")
-    assert details.count("Lưu ý:") == 1
+    assert "🟠 01/2026–06/2026 (6 kỳ) · <b>▲5.57%</b>" in details
 
 
-def test_mixed_directions_are_marked_per_period() -> None:
+def test_periods_with_different_numbers_stay_on_separate_lines() -> None:
+    a = _event(delivery_month=date(2026, 12, 1), percent_change=Decimal("39.53"))
+    b = _event(delivery_month=date(2027, 1, 1), percent_change=Decimal("28.00"))
+
+    details = format_details(_message(a, b), base_url=BASE_URL)
+
+    assert "🟠 12/2026 · <b>▲39.53%</b>" in details
+    assert "🟠 01/2027 · <b>▲28.00%</b>" in details
+
+
+def test_a_huge_jump_adds_a_check_the_quote_warning() -> None:
+    big = _event(percent_change=Decimal("39.53"))
+    message = MessageView("Ngô hạt", (big,), "abc", warn_percent=Decimal("30"))
+
+    assert "⚠️ Tăng rất mạnh, nên kiểm tra phiếu" in format_caption(message)
+    assert "⚠️" not in format_caption(_message(_event(percent_change=Decimal("29.9"))))
+    fall = _event(direction="down", percent_change=Decimal("-35"))
+    assert "⚠️ Giảm rất mạnh" in format_caption(
+        MessageView("Ngô hạt", (fall,), "abc", warn_percent=Decimal("30"))
+    )
+
+
+def test_mixed_directions_are_visible_in_the_table() -> None:
     up = _event(delivery_month=date(2026, 11, 1))
     down = _event(delivery_month=date(2026, 12, 1), direction="down", percent_change=Decimal("-6"))
 
     details = format_details(_message(up, down), base_url=BASE_URL)
 
-    assert "🔺 Ngô hạt · kỳ giao hàng 11/2026" in details
-    assert "🔻 Ngô hạt · kỳ giao hàng 12/2026" in details
+    assert "🟠 11/2026 · <b>▲5.57%</b>" in details
+    assert "🟠 12/2026 · <b>▼6.00%</b>" in details
 
 
-def test_too_many_periods_are_cut_with_a_note_and_stay_under_the_limit() -> None:
+def test_a_long_table_is_limited_and_points_to_the_web() -> None:
     events = [
-        replace(_event(), delivery_month=date(2026 + index // 12, index % 12 + 1, 1))
+        replace(
+            _event(),
+            delivery_month=date(2026 + index // 12, index % 12 + 1, 1),
+            percent_change=Decimal(5 + index) / 10,
+        )
         for index in range(60)
     ]
 
     details = format_details(_message(*events), base_url=BASE_URL)
 
     assert len(details) <= 4096
-    assert "kỳ giao hàng nữa, xem trên web." in details
-    assert details.rstrip().endswith("/quotes/abc-123")
-    assert "kỳ giao hàng 01/2026" in details
+    assert "nhóm kỳ nữa, xem trên web." in details
+    assert "/quotes/abc-123" in details
 
 
-def test_a_single_oversized_block_is_hard_cut_to_the_limit() -> None:
+def test_every_line_of_a_typical_message_fits_a_phone_without_wrapping() -> None:
+    events = [
+        _event(delivery_month=date(2026, 11, 1), level="large", percent_change=Decimal("20")),
+        _event(delivery_month=date(2026, 12, 1), level="large", percent_change=Decimal("20")),
+    ]
+    message = _message(*events, name="Lúa mỳ 3")
+    text = format_caption(message) + "\n" + format_details(message, base_url=BASE_URL)
+
+    for line in text.splitlines():
+        if "http" in line or "ℹ️" in line:
+            continue  # liên kết và ghi chú được phép xuống dòng
+        plain = line.replace("<b>", "").replace("</b>", "")
+        assert len(plain) <= MOBILE_WIDTH, plain
+
+
+def test_cutting_never_splits_an_html_entity() -> None:
+    caption = format_caption(_message(name="&" * 2000))
+
+    assert len(caption) <= CAPTION_MAX_LENGTH
+    body = caption.rstrip("…")
+    assert body.endswith("&amp;") or "&" not in body[-5:].replace("&amp;", "")
+
+
+def test_an_oversized_name_is_cut_but_keeps_the_footer_link() -> None:
     details = format_details(_message(name="Y" * 6000), base_url=BASE_URL)
 
     assert len(details) <= 4096
+    assert "/quotes/abc-123" in details
+    assert details.endswith("khác lần trước.")
 
 
 def test_money_and_percent_formatting_edge_cases() -> None:
@@ -229,28 +304,63 @@ def test_money_and_percent_formatting_edge_cases() -> None:
 
     details = format_details(_message(event), base_url=BASE_URL)
 
-    assert "0.00%" in details
-    assert "−0.50%" in details
-    assert "1,234,567.50" in format_caption(_message(event))
+    assert "▼0.50% so với điểm gần nhất" in details
+    assert "→ 1,234,568 VNĐ/KG" in format_caption(_message(event))
+    assert "." not in format_caption(_message(event)).split("\n")[1]  # VNĐ/KG không có số lẻ
 
 
-def test_cutting_never_splits_an_html_entity() -> None:
-    caption = format_caption(_message(name="&" * 2000))
+def test_direction_is_written_once_with_a_text_arrow_and_the_dot_only_carries_the_level() -> None:
+    up = _event(delivery_month=date(2026, 11, 1))
+    down = _event(delivery_month=date(2026, 12, 1), direction="down", percent_change=Decimal("-6"))
+    message = _message(up, down)
+    text = format_caption(message) + "\n" + format_details(message, base_url=BASE_URL)
 
-    assert len(caption) <= CAPTION_MAX_LENGTH
-    body = caption.rstrip("…")
-    assert body.endswith("&amp;") or "&" not in body[-5:].replace("&amp;", "")
-
-
-def test_an_oversized_first_block_is_cut_but_keeps_the_footer_link() -> None:
-    details = format_details(_message(name="Y" * 6000), base_url=BASE_URL)
-
-    assert len(details) <= 4096
-    assert details.endswith("/quotes/abc-123")
-    assert "Lưu ý:" in details
+    assert "🔺" not in text and "🔻" not in text  # không còn emoji mũi tên đỏ cạnh chấm màu
+    assert "🟠 11/2026 · <b>▲5.57%</b>" in text
+    assert "🟠 12/2026 · <b>▼6.00%</b>" in text
+    assert "+5.57%" not in text and "−6.00%" not in text  # không lặp chiều bằng dấu
 
 
-def test_a_flat_cnf_with_a_moving_vnd_price_is_flagged_as_exchange_rate() -> None:
-    event = _event(cnf_price_ref=Decimal("303.50"))
+def test_a_follow_up_alert_names_the_previous_price_and_the_move_since() -> None:
+    event = _event(
+        direction="down",
+        level="large",
+        rule="R1",
+        percent_change=Decimal("-29.5"),
+        price_new=Decimal(5500),
+        price_ref=Decimal(7800),
+        prior_alert_price=Decimal(6500),
+        prior_alert_date=date(2026, 10, 4),
+    )
 
-    assert ": 0.00% (chênh lệch do tỷ giá)" in format_details(_message(event), base_url=BASE_URL)
+    caption = format_caption(_message(event))
+
+    assert "↻ Báo tiếp: lần trước 6,500 (▼15.38%)" in caption
+
+
+def test_a_fallback_reference_says_how_old_it_is_and_drops_the_empty_window_line() -> None:
+    event = _event(
+        rule="R1",
+        secondary_rule=None,
+        secondary_percent=None,
+        secondary_price_ref=None,
+        secondary_date_ref=None,
+        reference_age_days=12,
+        cnf_price_new=None,
+        cnf_price_ref=None,
+        cnf_date_ref=None,
+    )
+
+    caption = format_caption(_message(event))
+    details = format_details(_message(event), base_url=BASE_URL)
+
+    assert "⏳ Gốc cách đây 12 ngày" in caption
+    assert "So với điểm gần nhất (cách 12 ngày)" in details
+    assert "Không có giá nào trong 7 ngày qua" in details
+    assert "7 ngày qua: 7,720" not in details
+
+
+def test_a_normal_alert_has_neither_follow_up_nor_age_lines() -> None:
+    caption = format_caption(_message())
+
+    assert "↻" not in caption and "⏳" not in caption

@@ -46,6 +46,7 @@ DEFAULTS: dict[str, Any] = {
     "dedupe_window_days": 14,
     "immediate_cap_per_scan": 30,
     "digest_hour_local": 8,
+    "reference_fallback_days": 30,
 }
 
 
@@ -294,6 +295,8 @@ async def test_two_concurrent_enables_set_the_watermark_only_once(
         {"dedupe_window_days": 91},
         {"immediate_cap_per_scan": 501},
         {"digest_hour_local": 24},
+        {"reference_fallback_days": 366},
+        {"reference_fallback_days": -1},
     ],
 )
 async def test_settings_check_constraints_reject_invalid_rows(

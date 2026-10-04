@@ -47,6 +47,7 @@ def _build_settings_response(
         dedupe_window_days=setting.dedupe_window_days,
         immediate_cap_per_scan=setting.immediate_cap_per_scan,
         digest_hour_local=setting.digest_hour_local,
+        reference_fallback_days=setting.reference_fallback_days,
         enabled_since=scan_state.enabled_since,
         updated_at=setting.updated_at,
         updated_by_id=setting.updated_by_id,

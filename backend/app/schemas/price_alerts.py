@@ -20,6 +20,7 @@ class PriceAlertSettingsUpdateRequest(BaseModel):
     dedupe_window_days: int = Field(ge=0, le=90)
     immediate_cap_per_scan: int = Field(ge=1, le=500)
     digest_hour_local: int = Field(ge=0, le=23)
+    reference_fallback_days: int = Field(ge=0, le=365)
 
 
 class PriceAlertSettingsResponse(BaseModel):
@@ -35,6 +36,7 @@ class PriceAlertSettingsResponse(BaseModel):
     dedupe_window_days: int
     immediate_cap_per_scan: int
     digest_hour_local: int
+    reference_fallback_days: int
     enabled_since: datetime | None = None
     updated_at: datetime
     updated_by_id: UUID | None = None

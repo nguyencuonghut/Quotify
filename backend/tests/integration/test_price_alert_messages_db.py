@@ -66,6 +66,7 @@ async def add_event(
     level: str,
     direction: str = "up",
     month: date = date(2047, 12, 1),
+    prior_alert_price: Decimal | None = None,
 ) -> uuid.UUID:
     version = await create_confirmed_quote_version(sf)
     async with sf() as session:
@@ -88,6 +89,7 @@ async def add_event(
             window_min_date=date(2047, 2, 28),
             window_max_date=date(2047, 3, 1),
             reference_point_count=3,
+            prior_alert_price=prior_alert_price,
         )
         session.add(event)
         await session.commit()
@@ -439,8 +441,8 @@ async def test_a_stored_message_loads_into_the_view_the_formatter_needs(scene: S
     assert [e.delivery_month for e in view.events] == [date(2047, 11, 1), date(2047, 12, 1)]
     assert view.reference_working_days == 7
     assert chart_title(view).startswith("▼ GIẢM LỚN")
-    assert "Kỳ 12/2047" in format_caption(view)
-    assert "kỳ giao hàng 11/2047" in format_details(view, base_url="https://x.example")
+    assert "➕ Kỳ 12/2047 và 1 kỳ khác" in format_caption(view)
+    assert "🟠 11/2047" in format_details(view, base_url="https://x.example")
 
 
 async def test_loading_a_digest_or_unknown_message_returns_nothing(scene: Scene) -> None:
@@ -490,3 +492,85 @@ async def test_a_stored_message_renders_a_decodable_chart_for_its_strongest_peri
     assert spec.title.startswith("▲ TĂNG TRUNG BÌNH")
     png = await render_price_chart(spec)
     assert Image.open(io.BytesIO(png)).size == (900, 500)
+
+
+async def test_a_message_made_only_of_a_cancelled_quotes_event_does_not_suppress_the_next_one(
+    scene: Scene,
+) -> None:
+    from sqlalchemy import update as sa_update
+
+    from app.models import Quote, QuoteVersion
+
+    sf = scene.sf
+    await scene.person("it-manager")
+    base = moment()
+    run_one = await new_run(sf, base)
+    event_one = await add_event(sf, run_one, scene.material, "medium")
+    await build(sf, run_one, base, scene)
+    async with sf() as session:
+        quote_id = (
+            await session.execute(
+                select(QuoteVersion.quote_id)
+                .join(PriceAlertEvent, PriceAlertEvent.quote_version_id == QuoteVersion.id)
+                .where(PriceAlertEvent.id == event_one)
+            )
+        ).scalar_one()
+        await session.execute(
+            sa_update(Quote).where(Quote.id == quote_id).values(cancelled_at=base)
+        )
+        await session.commit()
+    later = base + timedelta(minutes=1)
+    run_two = await new_run(sf, later)
+    await add_event(sf, run_two, scene.material, "medium")
+
+    await build(sf, run_two, later, scene)
+
+    assert [m.status for m in await messages(sf, scene)] == ["pending", "pending"]
+
+
+async def test_a_follow_up_event_gets_a_message_even_though_the_level_did_not_rise(
+    scene: Scene,
+) -> None:
+    sf = scene.sf
+    await scene.person("it-manager")
+    base = moment()
+    run_one = await new_run(sf, base)
+    await add_event(sf, run_one, scene.material, "large", "down")
+    await build(sf, run_one, base, scene)
+    later = base + timedelta(minutes=1)
+    plain = await new_run(sf, later)
+    await add_event(sf, plain, scene.material, "large", "down")
+    await build(sf, plain, later, scene)
+    final = base + timedelta(minutes=2)
+    follow = await new_run(sf, final)
+    await add_event(sf, follow, scene.material, "large", "down", prior_alert_price=Decimal(6500))
+
+    await build(sf, follow, final, scene)
+
+    assert [m.status for m in await messages(sf, scene)] == ["pending", "suppressed", "pending"]
+
+
+async def test_a_follow_up_in_a_weaker_period_does_not_unlock_the_whole_group(scene: Scene) -> None:
+    sf = scene.sf
+    await scene.person("it-manager")
+    base = moment()
+    first = await new_run(sf, base)
+    await add_event(sf, first, scene.material, "large", "down", month=date(2047, 11, 1))
+    await build(sf, first, base, scene)
+    later = base + timedelta(minutes=1)
+    second = await new_run(sf, later)
+    # kỳ đứng đầu (Lớn) là lặp thường; chỉ kỳ yếu hơn là báo tiếp
+    await add_event(sf, second, scene.material, "large", "down", month=date(2047, 11, 1))
+    await add_event(
+        sf,
+        second,
+        scene.material,
+        "medium",
+        "down",
+        month=date(2047, 12, 1),
+        prior_alert_price=Decimal(100),
+    )
+
+    await build(sf, second, later, scene)
+
+    assert [m.status for m in await messages(sf, scene)] == ["pending", "suppressed"]

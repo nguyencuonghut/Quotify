@@ -28,6 +28,7 @@ from app.models import (
     PriceAlertScanRun,
     PriceAlertScanState,
     PriceAlertSetting,
+    Quote,
     QuoteLine,
     QuoteVersion,
 )
@@ -73,7 +74,9 @@ async def reset_state(session_factory: async_sessionmaker[AsyncSession]) -> Asyn
     async def reset() -> None:
         async with session_factory() as session:
             await session.execute(
-                update(PriceAlertSetting).values(is_enabled=False, dedupe_window_days=14)
+                update(PriceAlertSetting).values(
+                    is_enabled=False, dedupe_window_days=14, reference_fallback_days=30
+                )
             )
             await session.execute(
                 update(PriceAlertScanState).values(
@@ -108,6 +111,7 @@ async def enable(
             "dedupe_window_days": setting.dedupe_window_days,
             "immediate_cap_per_scan": setting.immediate_cap_per_scan,
             "digest_hour_local": setting.digest_hour_local,
+            "reference_fallback_days": setting.reference_fallback_days,
             **overrides,
         }
         await PriceAlertSettingsService(session).update_settings(
@@ -869,3 +873,134 @@ async def test_a_usd_mt_point_stores_the_cnf_price_and_the_reference_only_when_i
         None,
     )
     assert (e_vnd.cnf_price_new, e_vnd.cnf_price_ref, e_vnd.cnf_date_ref) == (None, None, None)
+
+
+async def test_an_event_of_a_cancelled_quote_does_not_block_the_next_alert(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day)
+    await prior_points(session_factory, material, day, {-1: 100})
+    first = await new_quote(session_factory, material, day, 130)  # giảm/tăng lớn đầu tiên
+    await run_once(session_factory, day.at(0, 4))
+    assert len(await events(session_factory, material)) == 1
+    async with session_factory() as session:
+        quote_id = (
+            await session.execute(select(QuoteVersion.quote_id).where(QuoteVersion.id == first))
+        ).scalar_one()
+        await session.execute(
+            update(Quote).where(Quote.id == quote_id).values(cancelled_at=day.at(0, 5))
+        )
+        await session.commit()
+    await new_quote(session_factory, material, day, 135, offset=0)
+
+    await run_once(session_factory, day.at(0, 6))
+
+    live = [e for e in await events(session_factory, material) if e.price_new == Decimal(135)]
+    assert len(live) == 1
+
+
+async def test_with_an_empty_window_the_latest_confirmed_point_in_30_days_is_the_reference(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day)
+    await prior_points(session_factory, material, day, {-12: 21000, -20: 21800, -45: 99999})
+    await new_quote(session_factory, material, day, 16000)
+
+    await run_once(session_factory, day.at(0, 5))
+
+    [event] = await events(session_factory, material)
+    assert (event.direction, event.level, event.rule) == ("down", "large", "R1")
+    assert event.price_ref == Decimal(21000) and event.received_date_ref == day.day(-12)
+    assert event.reference_age_days == 12
+    assert event.reference_point_count == 1
+
+
+async def test_a_point_older_than_the_fallback_days_or_fallback_off_gives_no_event(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    too_old, switched_off = (
+        await create_material(session_factory),
+        await create_material(session_factory),
+    )
+    await enable(session_factory, day)
+    await prior_points(session_factory, too_old, day, {-31: 21000})
+    await prior_points(session_factory, switched_off, day, {-5 - 7: 21000})
+    await new_quote(session_factory, too_old, day, 16000)
+    await run_once(session_factory, day.at(0, 5))
+    assert await events(session_factory, too_old) == []
+
+    await enable(session_factory, day, reference_fallback_days=0)
+    async with session_factory() as session:
+        await session.execute(
+            update(PriceAlertScanState).values(watermark_confirmed_at=day.midnight)
+        )
+        await session.commit()
+    await new_quote(session_factory, switched_off, day, 16000)
+    await run_once(session_factory, day.at(0, 6))
+    assert await events(session_factory, switched_off) == []
+
+
+async def test_the_normal_window_wins_over_the_fallback(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day)
+    await prior_points(session_factory, material, day, {-1: 100, -15: 500})
+    await new_quote(session_factory, material, day, 130)
+
+    await run_once(session_factory, day.at(0, 5))
+
+    [event] = await events(session_factory, material)
+    assert event.price_ref == Decimal(100) and event.reference_age_days is None
+
+
+async def test_a_second_alert_is_sent_when_the_price_moved_5_percent_since_the_last_one(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day)
+    await prior_points(session_factory, material, day, {-1: 1000})
+    await new_quote(session_factory, material, day, 600)  # giảm Lớn
+    await run_once(session_factory, day.at(0, 4))
+    await new_quote(session_factory, material, day, 560)  # -6,7% so với giá đã báo: báo tiếp
+    await run_once(session_factory, day.at(0, 5))
+    await new_quote(session_factory, material, day, 550)  # -1,8% so với 560: vẫn bị chặn
+    await run_once(session_factory, day.at(0, 6))
+
+    found = await events(session_factory, material)
+
+    assert [e.price_new for e in found] == [Decimal(600), Decimal(560)]
+    assert found[0].prior_alert_price is None
+    assert found[1].prior_alert_price == Decimal(600)
+    assert found[1].prior_alert_date is not None
+
+
+async def test_a_price_that_turns_around_or_oscillates_does_not_trigger_follow_ups(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day)
+    await prior_points(session_factory, material, day, {-1: 100})
+    await new_quote(session_factory, material, day, 150)  # tăng Lớn
+    await run_once(session_factory, day.at(0, 4))
+    for minute, price in enumerate((140, 150, 142, 151), start=5):  # dao động, không đi thêm
+        await new_quote(session_factory, material, day, price)
+        await run_once(session_factory, day.at(0, minute))
+
+    assert [e.price_new for e in await events(session_factory, material)] == [Decimal(150)]
+
+
+async def test_the_fallback_skips_a_zero_priced_latest_point(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day)
+    await prior_points(session_factory, material, day, {-16: 200, -3: 0})
+    await new_quote(session_factory, material, day, 150)
+
+    await run_once(session_factory, day.at(0, 5))
+
+    [event] = await events(session_factory, material)
+    assert event.price_ref == Decimal(200) and event.reference_age_days == 16

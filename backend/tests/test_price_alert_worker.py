@@ -111,3 +111,119 @@ async def test_the_scan_task_runs_the_service_and_commits(monkeypatch: pytest.Mo
     assert calls[1][0] == "run_once"
     assert calls[1][1].tzinfo is not None
     assert session.committed is True
+
+
+def _send_cron() -> Any:
+    [job] = [
+        job for job in worker.WorkerSettings.cron_jobs if job.coroutine is worker.send_price_alerts
+    ]
+    return job
+
+
+def test_the_send_cron_runs_out_of_phase_with_the_scan_cron() -> None:
+    job = _send_cron()
+
+    assert job.second == {15, 45}
+    assert job.unique is True
+    assert _price_alert_cron().second.isdisjoint(job.second)
+    assert worker.send_price_alerts in worker.WorkerSettings.functions
+
+
+@pytest.mark.asyncio
+async def test_the_send_task_does_nothing_without_a_client_or_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(worker, "get_settings", lambda: SimpleNamespace(telegram_enabled=True))
+    await worker.send_price_alerts({"telegram_client": None})
+    monkeypatch.setattr(worker, "get_settings", lambda: SimpleNamespace(telegram_enabled=False))
+    await worker.send_price_alerts({"telegram_client": object()})
+
+
+@pytest.mark.asyncio
+async def test_the_send_task_runs_the_sender_with_the_shared_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, Any] = {}
+
+    class FakeSender:
+        def __init__(
+            self, session_factory: object, client: object, *, base_url: str, pilot_emails: object
+        ) -> None:
+            seen.update(session_factory=session_factory, client=client, base_url=base_url)
+
+        async def run_once(self, now: datetime) -> Any:
+            seen["now"] = now
+            return SimpleNamespace(claimed=0, sent=0, retried=0, failed=0, skipped=0)
+
+    monkeypatch.setattr(
+        worker,
+        "get_settings",
+        lambda: SimpleNamespace(
+            telegram_enabled=True,
+            app_public_url="https://x.example",
+            price_alert_recipient_email_set=frozenset(),
+        ),
+    )
+    monkeypatch.setattr(worker, "PriceAlertSender", FakeSender)
+    client = object()
+
+    await worker.send_price_alerts({"telegram_client": client, "session_factory": "sf"})
+
+    assert (seen["client"], seen["session_factory"], seen["base_url"]) == (
+        client,
+        "sf",
+        "https://x.example",
+    )
+    assert seen["now"].tzinfo is not None
+
+
+@pytest.mark.asyncio
+async def test_startup_builds_the_client_once_and_shutdown_closes_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    closed: list[bool] = []
+
+    class FakeClient:
+        async def aclose(self) -> None:
+            closed.append(True)
+
+    settings = SimpleNamespace(
+        telegram_enabled=True,
+        telegram_bot_token="x",  # noqa: S106
+        log_level="INFO",
+        log_format="plain",
+        app_env="test",
+    )
+    monkeypatch.setattr(worker, "get_settings", lambda: settings)
+    monkeypatch.setattr(worker, "get_sessionmaker", lambda: "factory")
+    monkeypatch.setattr(worker, "build_minio_client", lambda _s: "minio")
+    monkeypatch.setattr(
+        worker.TelegramClient, "from_settings", classmethod(lambda cls, s: FakeClient())
+    )
+    ctx: dict[str, Any] = {}
+
+    await worker.startup(ctx)
+    assert isinstance(ctx["telegram_client"], FakeClient)
+    await worker.shutdown(ctx)
+
+    assert closed == [True]
+
+
+@pytest.mark.asyncio
+async def test_startup_without_telegram_builds_no_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = SimpleNamespace(
+        telegram_enabled=False,
+        telegram_bot_token="",
+        log_level="INFO",
+        log_format="plain",
+        app_env="test",
+    )
+    monkeypatch.setattr(worker, "get_settings", lambda: settings)
+    monkeypatch.setattr(worker, "get_sessionmaker", lambda: "factory")
+    monkeypatch.setattr(worker, "build_minio_client", lambda _s: "minio")
+    ctx: dict[str, Any] = {}
+
+    await worker.startup(ctx)
+    await worker.shutdown(ctx)
+
+    assert ctx["telegram_client"] is None

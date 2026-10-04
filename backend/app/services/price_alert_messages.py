@@ -14,6 +14,8 @@ from app.models import (
     PriceAlertMessage,
     PriceAlertMessageEvent,
     PriceAlertSetting,
+    Quote,
+    QuoteVersion,
 )
 from app.services.price_alert_candidates import BUSINESS_TIMEZONE
 from app.services.price_alert_recipients import (
@@ -41,6 +43,7 @@ class _Group:
     level: str
     direction: str
     event_ids: list[UUID]
+    is_followup: bool = False
 
 
 class PriceAlertMessageService:
@@ -148,6 +151,7 @@ class PriceAlertMessageService:
                     PriceAlertEvent.level,
                     PriceAlertEvent.direction,
                     PriceAlertEvent.delivery_month,
+                    PriceAlertEvent.prior_alert_price,
                 )
                 .where(
                     PriceAlertEvent.scan_run_id == scan_run_id,
@@ -156,14 +160,16 @@ class PriceAlertMessageService:
                 .order_by(PriceAlertEvent.material_id, PriceAlertEvent.delivery_month),
             )
         ).all()
-        by_material: dict[UUID, list[tuple[UUID, str, str]]] = defaultdict(list)
-        for event_id, material_id, level, direction, _month in rows:
-            by_material[material_id].append((event_id, level, direction))
+        by_material: dict[UUID, list[tuple[UUID, str, str, bool]]] = defaultdict(list)
+        for event_id, material_id, level, direction, _month, prior_price in rows:
+            by_material[material_id].append((event_id, level, direction, prior_price is not None))
         groups = []
         for material_id, events in by_material.items():
             # Tiêu đề theo kỳ có mức cao nhất; hòa thì lấy kỳ giao hàng sớm nhất (đã sắp theo kỳ).
             top = max(events, key=lambda e: LEVEL_ORDER[e[1]])
-            groups.append(_Group(material_id, top[1], top[2], [e[0] for e in events]))
+            # Chỉ khi kỳ đứng đầu là báo tiếp mới bỏ qua giới hạn 'leo thang trong ngày'.
+            followup = top[3]
+            groups.append(_Group(material_id, top[1], top[2], [e[0] for e in events], followup))
         return groups
 
     async def _decide(
@@ -177,7 +183,10 @@ class PriceAlertMessageService:
         immediate_in_scan: dict[UUID, int],
         rolling_base: dict[UUID, int],
     ) -> tuple[str, str | None]:
-        if not await self._escalates(recipient.user_id, group, local_date):
+        # Tin báo tiếp (giá đi thêm đáng kể so với lần báo trước) không bị coi là lặp trong ngày.
+        if not group.is_followup and not await self._escalates(
+            recipient.user_id, group, local_date
+        ):
             return "suppressed", "no_escalation"
         if group.level == "light":
             return "digest_queued", "light"
@@ -201,6 +210,17 @@ class PriceAlertMessageService:
                     PriceAlertMessage.status.in_(_COUNTED_STATUSES),
                     # Tin bị trần cắt chưa từng được gửi riêng nên không chặn tin sau (D5b).
                     func.coalesce(PriceAlertMessage.status_reason, "") != "cap",
+                    # Tin chỉ gồm sự kiện của phiếu đã hủy không được tính là "đã có tin" hôm nay.
+                    PriceAlertMessage.id.in_(
+                        select(PriceAlertMessageEvent.message_id)
+                        .join(
+                            PriceAlertEvent,
+                            PriceAlertEvent.id == PriceAlertMessageEvent.event_id,
+                        )
+                        .join(QuoteVersion, QuoteVersion.id == PriceAlertEvent.quote_version_id)
+                        .join(Quote, Quote.id == QuoteVersion.quote_id)
+                        .where(Quote.cancelled_at.is_(None)),
+                    ),
                 )
                 .order_by(PriceAlertMessage.sequence_number),
             )

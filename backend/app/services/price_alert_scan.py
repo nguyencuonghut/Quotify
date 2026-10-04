@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 from uuid import UUID
@@ -17,7 +17,9 @@ from app.models import (
     PriceAlertMaterialThreshold,
     PriceAlertScanRun,
     PriceAlertSetting,
+    Quote,
     QuoteLine,
+    QuoteVersion,
     User,
 )
 from app.services.daily_min_series import get_daily_min_series
@@ -47,6 +49,14 @@ SCAN_ADVISORY_LOCK_KEY = 7_620_261_004
 DEFAULT_BATCH_LIMIT = 500
 _CENT = Decimal("0.01")
 _MAX_ERROR_LENGTH = 255
+
+
+@dataclass(frozen=True, slots=True)
+class _RepeatDecision:
+    is_repeat: bool
+    prior_price: Decimal | None = None
+    prior_date: date | None = None
+
 
 ScanStatus = Literal["disabled", "locked", "idle", "scanned"]
 
@@ -271,8 +281,25 @@ class PriceAlertScanService:
         prior = [
             PricePoint(point.received_date, point.price)
             for point in series
-            if point.received_date < version.received_date
+            if point.received_date < version.received_date and point.price > 0
         ]
+        reference_age_days: int | None = None
+        if not prior and settings.reference_fallback_days > 0:
+            # Cửa sổ tham chiếu trống (vật tư ít báo giá): lấy điểm đã xác nhận gần nhất trong
+            # `reference_fallback_days` ngày làm gốc và ghi tuổi của gốc để tin nói rõ.
+            older = await get_daily_min_series(
+                self.session,
+                material_id=material_id,
+                delivery_month=delivery_month,
+                start=version.received_date - timedelta(days=settings.reference_fallback_days),
+                end=version.received_date - timedelta(days=1),
+            )
+            usable = [point for point in older if point.price > 0]
+            if usable:
+                fallback = usable[-1]
+                series = [fallback, *series]
+                prior = [PricePoint(fallback.received_date, fallback.price)]
+                reference_age_days = (version.received_date - fallback.received_date).days
         thresholds = await load_thresholds(self.session, material_id, settings)
         evaluation = evaluate_change(
             PricePoint(new_point.received_date, new_point.price),
@@ -281,7 +308,10 @@ class PriceAlertScanService:
         )
         if evaluation is None:
             return 0
-        if await self._is_repeat(material_id, delivery_month, evaluation, settings, now):
+        repeat = await self._repeat_check(
+            material_id, delivery_month, evaluation, settings, thresholds, now
+        )
+        if repeat.is_repeat:
             return 0
         ref_line_id = next(
             (p.line_id for p in series if p.received_date == evaluation.received_date_ref),
@@ -318,6 +348,9 @@ class PriceAlertScanService:
                 ),
                 secondary_price_ref=evaluation.secondary_price_ref,
                 secondary_date_ref=evaluation.secondary_date_ref,
+                prior_alert_price=repeat.prior_price,
+                prior_alert_date=repeat.prior_date,
+                reference_age_days=reference_age_days,
                 cnf_price_new=cnf[0],
                 cnf_price_ref=cnf[1],
                 cnf_date_ref=cnf[2],
@@ -355,19 +388,31 @@ class PriceAlertScanService:
         ref_cnf = usd.get(ref_line_id) if ref_line_id is not None else None
         return new_cnf, ref_cnf, ref_date if ref_cnf is not None else None
 
-    async def _is_repeat(
+    async def _repeat_check(
         self,
         material_id: UUID,
         delivery_month: date,
         evaluation: ChangeEvaluation,
         settings: PriceAlertSetting,
+        thresholds: Thresholds,
         now: datetime,
-    ) -> bool:
-        """D5(a): cùng chiều và cùng mức với sự kiện gần nhất của chuỗi trong cửa sổ chống lặp."""
+    ) -> _RepeatDecision:
+        """D5(a): cùng chiều và mức với sự kiện gần nhất của chuỗi trong cửa sổ chống lặp thì bỏ,
+        trừ khi giá đã đi thêm từ ngưỡng Trung bình trở lên so với giá của lần báo đó (báo tiếp).
+        """
         last = (
             await self.session.execute(
-                select(PriceAlertEvent.direction, PriceAlertEvent.level, PriceAlertEvent.created_at)
+                select(
+                    PriceAlertEvent.direction,
+                    PriceAlertEvent.level,
+                    PriceAlertEvent.created_at,
+                    PriceAlertEvent.price_new,
+                )
+                .join(QuoteVersion, QuoteVersion.id == PriceAlertEvent.quote_version_id)
+                .join(Quote, Quote.id == QuoteVersion.quote_id)
                 .where(
+                    # Sự kiện của phiếu đã hủy không được chặn các tin sau (D5a).
+                    Quote.cancelled_at.is_(None),
                     PriceAlertEvent.kind == "change",
                     PriceAlertEvent.material_id == material_id,
                     PriceAlertEvent.delivery_month == delivery_month,
@@ -377,14 +422,24 @@ class PriceAlertScanService:
             )
         ).first()
         if last is None:
-            return False
-        last_direction, last_level, last_created_at = last
+            return _RepeatDecision(False)
+        last_direction, last_level, last_created_at, last_price = last
         age_days = (_local_date(now) - _local_date(last_created_at)).days
-        return (
+        same = (
             age_days <= settings.dedupe_window_days
             and last_direction == evaluation.direction
             and last_level == evaluation.level
         )
+        if not same:
+            return _RepeatDecision(False)
+        # Báo tiếp chỉ khi giá đi THÊM theo đúng chiều của biến động (giảm tiếp khi đang báo giảm):
+        # giá quay đầu hoặc dao động quanh mức đã báo không sinh tin liên tục.
+        change = evaluation.price_new - last_price
+        continues = (change < 0) == (evaluation.direction == "down") and change != 0
+        moved = abs(change) / last_price * 100 if last_price > 0 else 0
+        if continues and moved >= thresholds.medium:
+            return _RepeatDecision(False, last_price, _local_date(last_created_at))
+        return _RepeatDecision(True)
 
 
 async def load_thresholds(

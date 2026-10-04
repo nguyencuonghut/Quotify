@@ -22,10 +22,10 @@ _LEVEL_LABEL = {"light": "NHẸ", "medium": "TRUNG BÌNH", "large": "LỚN"}
 _LEVEL_DOT = {"light": "🟡", "medium": "🟠", "large": "🔴"}
 _LEVEL_ORDER = {"light": 1, "medium": 2, "large": 3}
 _DIRECTION_WORD = {"up": "TĂNG", "down": "GIẢM"}
-_DIRECTION_ARROW = {"up": "🔺", "down": "🔻"}
 _CHART_ARROW = {"up": "▲", "down": "▼"}
+_DIRECTION_ADVERB = {"up": "Tăng", "down": "Giảm"}
 
-FOOTER_NOTE = "Lưu ý: điểm giá có thể thuộc nhà cung cấp khác với lần trước."
+FOOTER_NOTE = "Điểm giá có thể thuộc nhà cung cấp khác lần trước."
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +52,9 @@ class EventView:
     cnf_price_new: Decimal | None = None
     cnf_price_ref: Decimal | None = None
     cnf_date_ref: date | None = None
+    prior_alert_price: Decimal | None = None  # báo tiếp: giá của lần báo trước
+    prior_alert_date: date | None = None
+    reference_age_days: int | None = None  # gốc dự phòng: gốc cách bao nhiêu ngày
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +63,7 @@ class MessageView:
     events: Sequence[EventView]
     quote_id: str
     reference_working_days: int = 7
+    warn_percent: Decimal | None = None  # |%| từ mức này trở lên thì nhắc kiểm tra phiếu
 
 
 def top_event(message: MessageView) -> EventView:
@@ -71,8 +75,8 @@ def top_event(message: MessageView) -> EventView:
 
 
 def title(level: Level, direction: Direction) -> str:
-    arrow, dot = _DIRECTION_ARROW[direction], _LEVEL_DOT[level]
-    return f"{arrow}{dot} {_DIRECTION_WORD[direction]} {_LEVEL_LABEL[level]}"
+    """Chấm màu là MỨC, chữ là CHIỀU: mỗi ý chỉ xuất hiện một lần."""
+    return f"{_LEVEL_DOT[level]} {_DIRECTION_WORD[direction]} {_LEVEL_LABEL[level]}"
 
 
 def chart_title(message: MessageView) -> str:
@@ -85,111 +89,170 @@ def chart_title(message: MessageView) -> str:
 
 
 def format_caption(message: MessageView) -> str:
-    """Caption ngắn (≤ 1.024 ký tự) của ảnh: tiêu đề, giá mới và lý do chính."""
+    """Caption ngắn của ảnh (≤ 1.024 ký tự), mỗi dòng ngắn để không xuống dòng trên điện thoại.
+
+    Tiêu đề, "gốc → giá mới (chênh lệch)", phần trăm in đậm kèm gốc so sánh; có thể thêm dòng
+    nhắc các kỳ khác và dòng cảnh báo khi biến động rất lớn (nghi nhập nhầm).
+    """
     top = top_event(message)
-    when = _day(top.received_date_new)
-    if top.cnf_price_new is not None:
-        when = f"giá quy đổi, {when}"
+    delta = top.price_new - top.price_ref
     lines = [
-        f"{title(top.level, top.direction)} · {escape_html(message.material_name)}",
-        f"Giá thấp nhất hôm nay: {_money(top.price_new)} VNĐ/KG ({when})",
-        f"Kỳ {_month(top.delivery_month)}: {_percent(top.percent_change)} "
-        f"so với {_reference_target(top.rule, message.reference_working_days)}",
+        f"<b>{title(top.level, top.direction)} · {escape_html(message.material_name)}</b>",
+        f"{_money_short(top.price_ref)} → {_money_short(top.price_new)} VNĐ/KG "
+        f"({_signed_money(delta)})",
+        f"<b>{_percent(top.percent_change)}</b> "
+        f"{_reference_short(top.rule, message.reference_working_days)}",
     ]
+    if top.prior_alert_price is not None and top.prior_alert_price > 0:
+        since_last = (top.price_new - top.prior_alert_price) / top.prior_alert_price * 100
+        lines.append(
+            f"↻ Báo tiếp: lần trước {_money_short(top.prior_alert_price)} ({_percent(since_last)})",
+        )
+    if top.reference_age_days is not None:
+        lines.append(f"⏳ Gốc cách đây {top.reference_age_days} ngày")
     others = len(message.events) - 1
     if others > 0:
-        lines.append(f"Và {others} kỳ giao hàng khác vượt ngưỡng, xem chi tiết ở tin kế tiếp.")
+        lines.append(f"➕ Kỳ {_month(top.delivery_month)} và {others} kỳ khác ↓")
+    if message.warn_percent is not None and abs(top.percent_change) >= message.warn_percent:
+        lines.append(f"⚠️ {_DIRECTION_ADVERB[top.direction]} rất mạnh, nên kiểm tra phiếu")
     return _fit(lines, CAPTION_MAX_LENGTH)
 
 
 def format_details(message: MessageView, *, base_url: str) -> str:
-    """Tin chi tiết (≤ 4.096 ký tự): một khối cho mỗi kỳ giao hàng, cắt có chú thích nếu dài."""
-    footer = [
-        "",
-        FOOTER_NOTE,
-        f"🔗 Xem chi tiết: {base_url.rstrip('/')}/quotes/{escape_html(message.quote_id)}",
-    ]
+    """Tin chi tiết (≤ 4.096 ký tự), gọn cho điện thoại và gửi im lặng.
+
+    Nhiều kỳ giao hàng thì mở đầu bằng bảng một dòng mỗi kỳ (các kỳ cùng số liệu được gộp một
+    dòng), rồi giải thích chi tiết kỳ đang vẽ trong ảnh.
+    """
+    top = top_event(message)
     events = sorted(message.events, key=lambda e: e.delivery_month)
-    mixed = len({e.direction for e in events}) > 1
-    blocks = [_block(message, event, mixed) for event in events]
-
-    footer_text = "\n" + "\n".join(footer)
-    kept: list[str] = []
-    for index, block in enumerate(blocks):
-        remaining = len(blocks) - index - 1
-        candidate = [*kept, block]
-        note = [f"… còn {remaining} kỳ giao hàng nữa, xem trên web."] if remaining else []
-        if len(_join(candidate, note, footer)) > TELEGRAM_MESSAGE_MAX_LENGTH:
-            if kept:
-                skipped = len(blocks) - len(kept)
-                return _join(kept, [f"… còn {skipped} kỳ giao hàng nữa, xem trên web."], footer)
-            # Khối đầu tiên một mình đã quá dài: cắt khối, giữ nguyên phần chân có liên kết.
-            room = TELEGRAM_MESSAGE_MAX_LENGTH - len(footer_text) - 2
-            only = [_fit_text(block, room)]
-            return _join(only, [], footer)
-        kept = candidate
-    return _join(kept, [], footer)
+    sections = []
+    if len(events) > 1:
+        sections.append(_summary(events))
+    sections.append(_detail(message, top, many=len(events) > 1))
+    url = escape_html(f"{base_url.rstrip('/')}/quotes/{message.quote_id}")
+    footer = "\n".join(
+        [
+            f'🔗 <a href="{url}">Xem phiếu →</a>',
+            f"ℹ️ {FOOTER_NOTE}",
+        ],
+    )
+    body = "\n\n".join(sections)
+    room = TELEGRAM_MESSAGE_MAX_LENGTH - len(footer) - 2
+    # Cắt phần thân (không bao giờ cắt chân có liên kết) và không chẻ giữa thực thể HTML.
+    return _fit_text(body, room) + "\n\n" + footer
 
 
-def _block(message: MessageView, event: EventView, mixed: bool) -> str:
+_MAX_SUMMARY_LINES = 12
+
+
+def _summary(events: list[EventView]) -> str:
+    """Một dòng mỗi nhóm kỳ giao hàng; các kỳ cùng chiều, mức, phần trăm và giá thì gộp lại."""
+    groups: list[tuple[EventView, list[str]]] = []
+    for event in events:
+        key = (event.direction, event.level, _percent(event.percent_change), event.price_ref)
+        for head, months in groups:
+            head_key = (head.direction, head.level, _percent(head.percent_change), head.price_ref)
+            if head_key == key:
+                months.append(_month(event.delivery_month))
+                break
+        else:
+            groups.append((event, [_month(event.delivery_month)]))
+    lines = ["<b>Các kỳ giao hàng vượt ngưỡng</b>"]
+    for head, months in groups[:_MAX_SUMMARY_LINES]:
+        label = (
+            ", ".join(months)
+            if len(months) <= 2
+            else f"{months[0]}–{months[-1]} ({len(months)} kỳ)"
+        )
+        lines.append(
+            f"{_LEVEL_DOT[head.level]} {label} · <b>{_percent(head.percent_change)}</b>",
+        )
+    hidden = len(groups) - _MAX_SUMMARY_LINES
+    if hidden > 0:
+        lines.append(f"… và {hidden} nhóm kỳ nữa, xem trên web.")
+    return "\n".join(lines)
+
+
+def _detail(message: MessageView, event: EventView, *, many: bool) -> str:
     window = message.reference_working_days
-    prefix = f"{_DIRECTION_ARROW[event.direction]} " if mixed else ""
+    heading = f"<b>Chi tiết kỳ {_month(event.delivery_month)}</b>"
+    if many:
+        heading += " (kỳ trong ảnh)"
     lines = [
-        f"{prefix}{escape_html(message.material_name)} · "
-        f"kỳ giao hàng {_month(event.delivery_month)}",
-        f"Lý do chính: so với {_reference_target(event.rule, window)}",
-        f"  {_percent(event.percent_change)}  "
-        f"({_money(event.price_ref)} · {_day(event.received_date_ref)})",
+        heading,
+        f"So với {_reference_target_short(event.rule, window)}"
+        + (f" (cách {event.reference_age_days} ngày)" if event.reference_age_days else ""),
+        f"  {_money_short(event.price_ref)} ({_short_day(event.received_date_ref)})",
+        f"Giá mới: {_money_short(event.price_new)} ({_short_day(event.received_date_new)})",
     ]
     if (
         event.secondary_rule is not None
         and event.secondary_percent is not None
         and event.secondary_price_ref is not None
-        and event.secondary_date_ref is not None
     ):
-        lines += [
-            f"So sánh khác: so với {_reference_target(event.secondary_rule, window)}",
-            f"  {_percent(event.secondary_percent)}  "
-            f"({_money(event.secondary_price_ref)} · {_day(event.secondary_date_ref)})",
-        ]
-    lines += [
-        f"Vùng tham chiếu {window} ngày làm việc",
-        f"  Thấp nhất: {_money(event.window_min)} ({_short_day(event.window_min_date)}) · "
-        f"Cao nhất: {_money(event.window_max)} ({_short_day(event.window_max_date)})",
-    ]
-    cnf = _cnf_line(event)
-    if cnf:
-        lines.append(cnf)
+        lines.append(
+            f"Cũng: {_percent(event.secondary_percent)} "
+            f"{_reference_short(event.secondary_rule, window)}",
+        )
+    if event.reference_age_days:
+        lines.append(f"Không có giá nào trong {window} ngày qua")
+    else:
+        lines.append(
+            f"{window} ngày qua: {_money_short(event.window_min)} – "
+            f"{_money_short(event.window_max)}",
+        )
+    lines.extend(_cnf_lines(event))
     return "\n".join(lines)
 
 
-def _cnf_line(event: EventView) -> str | None:
+def _cnf_lines(event: EventView) -> list[str]:
     """QĐ-8: chỉ khi điểm mới là USD/MT; dòng 'so với' chỉ khi điểm tham chiếu cũng là USD/MT."""
     if event.cnf_price_new is None:
-        return None
-    line = f"CNF (USD/MT): {_money(event.cnf_price_new)} ({_day(event.received_date_new)})"
+        return []
+    lines = [f"CNF: {_money(event.cnf_price_new)} USD/MT"]
     if (
         event.cnf_price_ref is not None
         and event.cnf_date_ref is not None
         and event.cnf_price_ref > 0
     ):
         change = (event.cnf_price_new - event.cnf_price_ref) / event.cnf_price_ref * 100
-        line += (
-            f", so với {_money(event.cnf_price_ref)} ({_day(event.cnf_date_ref)}): "
-            f"{_percent(change)}"
+        lines.append(
+            f"  {_percent(change)} so với {_money(event.cnf_price_ref)} "
+            f"({_short_day(event.cnf_date_ref)})",
         )
         # CNF đứng yên hoặc ngược chiều VNĐ/KG đều là chênh lệch do tỷ giá (QĐ-8).
         if change == 0 or (change > 0) != (event.direction == "up"):
-            line += " (chênh lệch do tỷ giá)"
-    return line
+            lines.append("  (chênh lệch do tỷ giá)")
+    return lines
 
 
-def _reference_target(rule: str, working_days: int) -> str:
+def _reference_target_short(rule: str, working_days: int) -> str:
     return {
-        "R1": "điểm giá gần nhất",
-        "R2": f"giá thấp nhất {working_days} ngày làm việc",
-        "R3": f"giá cao nhất {working_days} ngày làm việc",
+        "R1": "điểm gần nhất",
+        "R2": f"giá thấp nhất {working_days} ngày",
+        "R3": f"giá cao nhất {working_days} ngày",
     }[rule]
+
+
+def _reference_short(rule: str, working_days: int) -> str:
+    """Cụm ngắn cho dòng có số phần trăm (giữ dưới độ rộng một dòng trên điện thoại)."""
+    return {
+        "R1": "so với điểm gần nhất",
+        "R2": f"so với thấp nhất {working_days} ngày",
+        "R3": f"so với cao nhất {working_days} ngày",
+    }[rule]
+
+
+def _money_short(value: Decimal) -> str:
+    """Giá VNĐ/KG làm tròn nguyên có dấu phẩy nghìn (phần lẻ không có ý nghĩa), ví dụ 13,215."""
+    return f"{value.quantize(Decimal('1'), rounding=ROUND_HALF_UP):,}"
+
+
+def _signed_money(value: Decimal) -> str:
+    rounded = value.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    sign = "+" if rounded > 0 else _MINUS if rounded < 0 else ""
+    return f"{sign}{abs(rounded):,}"
 
 
 def format_price_short(value: Decimal) -> str:
@@ -198,7 +261,10 @@ def format_price_short(value: Decimal) -> str:
 
 
 def format_percent(value: Decimal) -> str:
-    return _percent(value)
+    """Phần trăm có dấu (+5.57%, −3.20%), dùng cho nhãn trên biểu đồ."""
+    rounded = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    sign = "+" if rounded > 0 else _MINUS if rounded < 0 else ""
+    return f"{sign}{abs(rounded):.2f}%"
 
 
 def _money(value: Decimal) -> str:
@@ -206,9 +272,10 @@ def _money(value: Decimal) -> str:
 
 
 def _percent(value: Decimal) -> str:
+    """Phần trăm trong tin: mũi tên chữ thay cho dấu (▲5.57%, ▼3.20%); chiều chỉ ghi một chỗ."""
     rounded = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    sign = "+" if rounded > 0 else _MINUS if rounded < 0 else ""
-    return f"{sign}{abs(rounded):.2f}%"
+    arrow = "▲" if rounded > 0 else "▼" if rounded < 0 else ""
+    return f"{arrow}{abs(rounded):.2f}%"
 
 
 def _day(value: date) -> str:

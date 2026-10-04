@@ -402,29 +402,37 @@ Quy ước màu theo **mức độ biến động**, không theo ý nghĩa thu�
 
 Mỗi thông báo gồm **một ảnh kèm caption ngắn** (tối đa 1.024 ký tự theo giới hạn Telegram) và **một tin văn bản chi tiết** (tối đa 4.096 ký tự) gửi ngay sau ảnh (D5(b)). Dùng ví dụ 1 ở D2.
 
-Caption:
+Thiết kế cho **điện thoại** (đã chỉnh sau lần thử thật ngày 04/10/2026: bản đầu có nhiều dòng dài, các kỳ giao hàng sát nhau và thiếu điểm nhấn): dòng ngắn (khoảng 34 ký tự trở xuống), tiêu đề in đậm, phần trăm in đậm, các phần cách nhau bằng dòng trống, nhiều kỳ giao hàng thì **một dòng mỗi kỳ** rồi chỉ giải thích kỳ mạnh nhất.
+
+Caption (ảnh):
 
 ```
-🔺🟠 TĂNG TRUNG BÌNH · Ngô hạt
-Giá thấp nhất hôm nay: 8,150.00 VNĐ/KG (02/10/2026)
-Kỳ 12/2026: +5.57% so với giá thấp nhất 7 ngày làm việc
+🟠 TĂNG TRUNG BÌNH · Ngô hạt            (in đậm)
+7,720 → 8,150 VNĐ/KG (+430)
+▲5.57% so với thấp nhất 7 ngày          (phần trăm in đậm)
 ```
 
-Tin chi tiết (khi gộp theo vật tư thì có một khối cho mỗi kỳ giao hàng vượt ngưỡng, ảnh vẽ kỳ có mức cao nhất):
+Dòng thêm khi cần: `➕ Kỳ 11/2026 và 2 kỳ khác ↓` (nhiều kỳ giao hàng) và `⚠️ Tăng rất mạnh, nên kiểm tra phiếu` (khi |%| từ ngưỡng giá bất thường trở lên, nghi nhập nhầm). Giá VNĐ/KG luôn làm tròn nguyên.
+
+**Quy ước biểu tượng (2026-10-04):** chấm màu chỉ **mức** (🟡 Nhẹ, 🟠 Trung bình, 🔴 Lớn), chữ TĂNG/GIẢM và mũi tên chữ ▲ ▼ đặt ngay trước con số chỉ **chiều**; không dùng emoji mũi tên 🔺🔻 (luôn đỏ, dễ nhầm với mức Lớn) và không lặp chiều bằng dấu `+`/`−`. Không dùng màu xanh lá cho mức nhỏ vì dễ hiểu thành "tin tốt".
+
+Tin chi tiết (gửi **im lặng** vì ảnh đã báo; một kỳ giao hàng):
 
 ```
-Ngô hạt · kỳ giao hàng 12/2026
-Lý do chính: so với giá thấp nhất 7 ngày làm việc
-  +5.57%  (7,720.00 · 25/09/2026)
-So sánh khác: so với điểm giá gần nhất
-  +4.49%  (7,800.00 · 30/09/2026)
-Vùng tham chiếu 7 ngày làm việc
-  Thấp nhất: 7,720.00 (25/09) · Cao nhất: 7,900.00 (23/09)
-CNF (USD/MT): 303.50 (02/10/2026), so với 287.00 (25/09/2026): +5.75%
+Chi tiết kỳ 12/2026                      (in đậm)
+So với giá thấp nhất 7 ngày
+  7,720 (25/09)
+Giá mới: 8,150 (02/10)
+Cũng: ▲4.49% so với điểm gần nhất
+7 ngày qua: 7,720 – 7,900
+CNF: 303.50 USD/MT
+  ▲5.75% so với 287.00 (25/09)
 
-Lưu ý: điểm giá có thể thuộc nhà cung cấp khác với lần trước.
-🔗 Xem chi tiết: https://quotify.honghafeed.com.vn/quotes/<id>
+🔗 Xem phiếu →                           (liên kết nhúng, không in UUID)
+ℹ️ Điểm giá có thể thuộc nhà cung cấp khác lần trước.
 ```
+
+Nhiều kỳ giao hàng: mở đầu bằng bảng `Các kỳ giao hàng vượt ngưỡng`, mỗi nhóm kỳ một dòng (`🔴 12/2026 · ▲39.53%`; các kỳ cùng số liệu gộp một dòng, từ ba kỳ trở lên ghi dạng khoảng `12/2026–05/2027 (6 kỳ)`; tối đa 12 dòng), rồi `Chi tiết kỳ ... (kỳ trong ảnh)`. Không hiển thị giờ nhập (quyết định 2026-10-04). Vẫn **hai tin** cho mỗi sự kiện (quyết định 2026-10-04).
 
 Quy tắc hiển thị:
 - Vùng tham chiếu (thấp nhất, cao nhất) là của **7 ngày làm việc không gồm điểm mới**, giống đường min và max trên biểu đồ (4.3). Không dùng thống kê "14 ngày qua gồm điểm mới" nữa để hai số khớp nhau.

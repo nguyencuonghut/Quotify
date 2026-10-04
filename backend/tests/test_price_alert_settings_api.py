@@ -44,6 +44,7 @@ VALID_PAYLOAD: dict[str, Any] = {
     "dedupe_window_days": 14,
     "immediate_cap_per_scan": 30,
     "digest_hour_local": 8,
+    "reference_fallback_days": 30,
 }
 
 
@@ -85,6 +86,7 @@ class MockPriceAlertSettingsService:
             dedupe_window_days=14,
             immediate_cap_per_scan=30,
             digest_hour_local=8,
+            reference_fallback_days=30,
             is_enabled=False,
             created_at=now,
             updated_at=now,
@@ -234,6 +236,7 @@ async def test_get_returns_every_contract_field_with_decimal_strings(
         "dedupe_window_days",
         "immediate_cap_per_scan",
         "digest_hour_local",
+        "reference_fallback_days",
         "enabled_since",
         "updated_at",
         "updated_by_id",
@@ -342,6 +345,8 @@ async def test_unordered_thresholds_are_rejected_with_422(
         {"immediate_cap_per_scan": 501},
         {"digest_hour_local": 24},
         {"digest_hour_local": -1},
+        {"reference_fallback_days": -1},
+        {"reference_fallback_days": 366},
         {"is_enabled": "maybe"},
     ],
 )
@@ -370,10 +375,13 @@ async def test_put_requires_every_field_because_it_replaces_the_configuration(
     ],
 ) -> None:
     partial = {key: value for key, value in VALID_PAYLOAD.items() if key != "digest_hour_local"}
+    no_fallback = {k: v for k, v in VALID_PAYLOAD.items() if k != "reference_fallback_days"}
 
     response = await client.put("/api/v1/price-alert-settings", json=partial)
+    without_fallback = await client.put("/api/v1/price-alert-settings", json=no_fallback)
 
     assert response.status_code == 422
+    assert without_fallback.status_code == 422  # không âm thầm đặt lại gốc dự phòng về 30
 
 
 @pytest.mark.asyncio

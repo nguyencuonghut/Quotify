@@ -448,3 +448,21 @@ async def test_edit_length_limits_are_checked_before_any_request() -> None:
     await http_client.aclose()
 
     assert requests == []
+
+
+@pytest.mark.asyncio
+async def test_send_message_can_be_silent() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 7}})
+
+    client, http_client = make_client(httpx.MockTransport(handler))
+
+    await client.send_message(1, "a", disable_notification=True)
+    await client.send_message(1, "b")
+    await http_client.aclose()
+
+    assert json.loads(seen[0].content)["disable_notification"] is True
+    assert "disable_notification" not in json.loads(seen[1].content)

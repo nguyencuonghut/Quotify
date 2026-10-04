@@ -127,6 +127,7 @@ class TelegramClient:
         *,
         parse_mode: str | None = "HTML",
         reply_markup: dict[str, Any] | None = None,
+        disable_notification: bool = False,
     ) -> int:
         if len(text) > TELEGRAM_MESSAGE_MAX_LENGTH:
             raise TelegramMessageTooLongError(
@@ -141,6 +142,8 @@ class TelegramClient:
             payload["parse_mode"] = parse_mode
         if reply_markup is not None:
             payload["reply_markup"] = reply_markup
+        if disable_notification:
+            payload["disable_notification"] = True
         result = await self._call("sendMessage", payload)
         return int(result["message_id"])
 

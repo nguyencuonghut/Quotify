@@ -26,6 +26,7 @@ SETTINGS_FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("dedupe_window_days", "Cửa sổ chống lặp (ngày)"),
     ("immediate_cap_per_scan", "Trần tin gửi ngay mỗi lần quét"),
     ("digest_hour_local", "Giờ bản tin tổng hợp"),
+    ("reference_fallback_days", "Số ngày tối đa của gốc dự phòng"),
 )
 
 _PERCENT_FIELDS = frozenset(
@@ -52,6 +53,7 @@ class PriceAlertSettingsValues:
     dedupe_window_days: int
     immediate_cap_per_scan: int
     digest_hour_local: int
+    reference_fallback_days: int = 30
 
 
 @dataclass(frozen=True, slots=True)

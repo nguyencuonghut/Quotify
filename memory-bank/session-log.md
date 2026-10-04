@@ -1071,3 +1071,28 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B Slice 8: soạn tin, biểu đồ, gửi ảnh
 - Tom tat: Client send_photo và edit, biểu đồ matplotlib 3.11.2, formatter khớp mẫu 4.2, load_message_view và load_chart_spec, CNF ở engine, Dockerfile --no-cache, APP_PUBLIC_URL. Hai agent worktree làm client và chart, agent rà soát bổ sung cắt an toàn thực thể HTML. 51 test mới, pytest 907 pass, image prod 692 MB.
+
+## 2026-10-04 15:01:25Z - claude
+
+- Tieu de: Telegram 1B Slice 9: gửi tin trong worker
+- Tom tat: PriceAlertSender nhận từng tin với lease, gửi ảnh rồi chữ, phân loại lỗi 429/403/400/5xx/mạng/401, tin độc, tuổi tối đa, ghi kết quả có điều kiện; cron send_price_alerts {15,45}; TelegramClient dựng ở startup. 31 test mới, pytest 938 pass. Agent rà soát bổ sung nhận từng tin, try mỗi tin, 401/404, trần retry_after, kiểm lại pilot.
+
+## 2026-10-04 15:29:13Z - claude
+
+- Tieu de: Telegram 1B: thiết kế lại bố cục tin cho điện thoại
+- Tom tat: Sau thử thật: caption 3 dòng ngắn, bảng một dòng mỗi kỳ giao hàng, chỉ giải thích kỳ mạnh nhất, nhãn ngắn, dòng tối đa 34 ký tự, in đậm điểm nhấn; test kiểm độ rộng; cập nhật mục 4.2 plan cha. pytest 937 pass.
+
+## 2026-10-04 15:42:35Z - claude
+
+- Tieu de: Telegram 1B: bố cục tin vòng 2 theo góp ý chuyên gia
+- Tom tat: Bỏ mạnh nhất, caption gốc đến giá mới, cảnh báo cú nhảy lớn, gộp kỳ giống nhau, giá làm tròn, liên kết nhúng, tin chi tiết im lặng; giữ hai tin, không hiện giờ nhập. pytest 941 pass.
+
+## 2026-10-04 16:20:00Z - claude
+
+- Tieu de: Telegram 1B: quy ước biểu tượng chấm màu và mũi tên chữ
+- Tom tat: Chấm màu là mức, chữ và mũi tên chữ ▲▼ là chiều, bỏ emoji 🔺🔻 và dấu +/−. pytest 942 pass.
+
+## 2026-10-04 16:52:38Z - claude
+
+- Tieu de: Telegram 1B: phiếu hủy, báo tiếp, gốc dự phòng
+- Tom tat: Bỏ qua phiếu hủy khi chống lặp, báo tiếp khi giá đi thêm ≥5% đúng chiều, gốc dự phòng 30 ngày (reference_fallback_days, migration 1600). Agent rà soát bổ sung chiều báo tiếp, kỳ đứng đầu, PUT bắt buộc, lọc giá 0. pytest 959 pass.

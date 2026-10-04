@@ -28,6 +28,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.integrations.telegram import TelegramClient
 from app.db.session import get_sessionmaker
 from app.integrations.vietcombank import VietcombankExchangeRateClient
 from app.models import ExportJob, ImportJob, User, UserStatus
@@ -51,6 +52,7 @@ from app.services.quote_backfill_import import (
 from app.services.quote_pricing import QuotePricingService
 from app.services.quote_service import QuoteService
 from app.services.price_alert_scan import PriceAlertScanService, get_seed_user_id
+from app.services.price_alert_sender import PriceAlertSender
 from app.services.quotify_settings_service import QuotifySettingsService
 from app.services.user_admin import RoleNotFoundError, UserAdminService
 from app.storage.minio import build_minio_client
@@ -170,10 +172,19 @@ async def startup(ctx: dict[str, Any]) -> None:
     )
     ctx["session_factory"] = get_sessionmaker()
     ctx["minio_client"] = build_minio_client(settings)
+    # Client Telegram dựng một lần và dùng chung cho các lần gửi (đóng ở `shutdown`).
+    ctx["telegram_client"] = (
+        TelegramClient.from_settings(settings)
+        if settings.telegram_enabled and settings.telegram_bot_token
+        else None
+    )
     logger.info("Arq background worker started up successfully.")
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
+    client = ctx.get("telegram_client")
+    if client is not None:
+        await client.aclose()
     logger.info("Arq background worker shutting down.")
 
 
@@ -1035,6 +1046,30 @@ async def poll_price_alerts(ctx: dict[str, Any]) -> None:
         )
 
 
+async def send_price_alerts(ctx: dict[str, Any]) -> None:
+    """Cron lệch pha với cron quét (L27): gửi tin `pending` tới Telegram."""
+    settings = get_settings()
+    client = ctx.get("telegram_client")
+    if not settings.telegram_enabled or client is None:
+        return
+
+    outcome = await PriceAlertSender(
+        ctx["session_factory"],
+        client,
+        base_url=settings.app_public_url,
+        pilot_emails=settings.price_alert_recipient_email_set,
+    ).run_once(datetime.now(UTC))
+    if outcome.claimed:
+        logger.info(
+            "price_alert.send claimed=%s sent=%s retried=%s failed=%s skipped=%s",
+            outcome.claimed,
+            outcome.sent,
+            outcome.retried,
+            outcome.failed,
+            outcome.skipped,
+        )
+
+
 settings = get_settings()
 
 
@@ -1051,10 +1086,12 @@ class WorkerSettings:
         run_backup_task,
         poll_and_run_scheduled_backups,
         poll_price_alerts,
+        send_price_alerts,
     ]
     cron_jobs = [
         cron(poll_and_run_scheduled_backups, second=0),
         cron(poll_price_alerts, second={0, 30}),
+        cron(send_price_alerts, second={15, 45}),
     ]
     # Việt Nam không có DST; không đặt thì cron chạy theo giờ hệ thống (UTC trong container).
     timezone = ZoneInfo(settings.app_timezone)

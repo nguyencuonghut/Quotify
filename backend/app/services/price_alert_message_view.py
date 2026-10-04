@@ -59,6 +59,7 @@ async def load_message_view(
         events=events,
         quote_id=str(rows[0][1]),
         reference_working_days=settings.reference_working_days,
+        warn_percent=settings.anomaly_percent,
     )
     top = top_event(view)
     top_quote = next(
@@ -69,6 +70,7 @@ async def load_message_view(
         events=view.events,
         quote_id=top_quote,
         reference_working_days=view.reference_working_days,
+        warn_percent=view.warn_percent,
     )
 
 
@@ -105,6 +107,9 @@ def _event_view(event: PriceAlertEvent) -> EventView:
         cnf_price_new=event.cnf_price_new,
         cnf_price_ref=event.cnf_price_ref,
         cnf_date_ref=event.cnf_date_ref,
+        prior_alert_price=event.prior_alert_price,
+        prior_alert_date=event.prior_alert_date,
+        reference_age_days=event.reference_age_days,
     )
 
 

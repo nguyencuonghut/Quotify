@@ -74,6 +74,10 @@ class PriceAlertSetting(Base):
             "digest_hour_local BETWEEN 0 AND 23",
             name="ck_price_alert_settings_digest_hour",
         ),
+        CheckConstraint(
+            "reference_fallback_days BETWEEN 0 AND 365",
+            name="ck_price_alert_settings_reference_fallback_days",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -137,6 +141,13 @@ class PriceAlertSetting(Base):
         SmallInteger,
         default=8,
         server_default="8",
+    )
+    # Không có điểm nào trong cửa sổ tham chiếu thì lấy điểm đã xác nhận gần nhất trong số ngày
+    # này làm gốc (0 là tắt).
+    reference_fallback_days: Mapped[int] = mapped_column(
+        Integer,
+        default=30,
+        server_default="30",
     )
     is_enabled: Mapped[bool] = mapped_column(
         Boolean,
@@ -420,6 +431,11 @@ class PriceAlertEvent(Base):
     cnf_price_new: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     cnf_price_ref: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     cnf_date_ref: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Báo lại vì giá đã đi thêm đáng kể so với lần báo trước (cùng chiều và mức).
+    prior_alert_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    prior_alert_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Gốc dự phòng (ngoài cửa sổ tham chiếu): điểm gốc cách bao nhiêu ngày.
+    reference_age_days: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     review_status: Mapped[str | None] = mapped_column(String(10), nullable=True)
     attached_to_event_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
