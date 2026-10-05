@@ -116,8 +116,8 @@ async def run_replay(
             await session.execute(delete(PriceAlertEvent))
             await session.execute(delete(PriceAlertScannedVersion))
             settings = await PriceAlertSettingsService(session).get_or_create_settings()
-            if anomaly:
-                settings.anomaly_enabled = True  # chỉ trong giao dịch này; rollback trả lại
+            # Replay tự quyết định, không theo cờ trên DB; rollback trả lại sau khi chạy.
+            settings.anomaly_enabled = anomaly
             seed_user_id = await get_seed_user_id(session, seed_email)
             versions = [
                 version

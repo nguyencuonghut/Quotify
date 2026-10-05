@@ -1110,3 +1110,29 @@ Lệnh: `python -m app.price_alert_replay --weeks 12 --anomaly [--simulate-corre
 | Sự kiện biến động khi loại điểm bị cờ | 255 (trước đó 227): bỏ điểm sai làm lộ thêm biến động thật; cần xem lại mẫu |
 
 Chờ người dùng xét (Q4): mức 7,2 điểm mỗi tuần có chấp nhận được không, và xem mẫu 28 sự kiện biến động tăng thêm.
+
+### Kết quả cổng G2 (replay 12 tuần, DB dev, 2026-10-05, code Slice 14)
+
+Replay nay tự đặt `anomaly_enabled` theo cờ `--anomaly` (không theo DB). Hai lần chạy cùng dữ liệu:
+
+| | Tắt giá bất thường | Bật (`--anomaly --simulate-correct`) |
+|---|---|---|
+| Sự kiện biến động | 285 (43,4 mỗi tuần), Lớn 79 | 255 (38,8 mỗi tuần), Lớn 42 |
+| Tin biến động gửi ngay | 98 | 79 |
+| Điểm bất thường | 0 | 49 điểm (7,5 mỗi tuần), 20 thẻ theo (vật tư, ngày), 5 điểm gắn vào thẻ có sẵn |
+| Thẻ hoặc tin tóm tắt gửi người nhận | 0 | 19 trong 6,57 tuần (W34=5, W35=1, W37=2, W38=5, W39=2, W40=3, W41=1) = khoảng 2,9 mỗi tuần cho một trưởng phòng |
+
+Loại bỏ điểm bị cờ làm giảm 30 sự kiện biến động (15 sự kiện Lớn), nghĩa là tham chiếu sạch hơn chứ không thêm cảnh báo. Con số 227 của G1 thấp hơn 285 vì G1 chạy trước ba chỉnh sửa engine L29 đến L31, không liên quan giá bất thường.
+
+Phân loại 49 điểm bằng mắt:
+
+| Nhóm | Số điểm | Nhận xét |
+|---|---|---|
+| Nhập sai thật (lệch -96%: Threonine 970, Lysine 600, Arginin 2.615 và 2.550, Tryptophan 3.575 và 3.565) | 11 | Đúng mục tiêu, bắt được cả ví dụ Threonine |
+| Biến động thị trường hoặc đáng ngờ (Methionine tháng 3 đến 4 tăng gấp đôi, Choline Chloride 18.000 lên 31.200, Khô đậu tương +40%, Lysine 70% +49%, Cám mỳ +30,2%) | 26 | Cờ giả cần người bấm "Giá đúng"; chuỗi tăng liên tục (Choline) sinh nhiều thẻ vì điểm chờ không được tính vào trung vị |
+| Khô cọ (tham chiếu 187 sai ngay từ điểm đầu chuỗi, điểm đầu không bao giờ bị cờ) | 4 | Tiêu chí "Khô cọ không còn cờ giả" CHƯA đạt |
+| Phiếu thử của người dùng (Ngô hạt) | 8 | Không tính |
+
+Mô phỏng "Giá đúng" chỉ xác nhận 3 điểm vì tiêu chí khắt khe (cần 2 điểm sau cùng mức 2,5%); người thật bấm sớm hơn nên số thẻ thực tế dự kiến thấp hơn, nhất là chuỗi Choline và Methionine.
+
+Chờ người dùng quyết (Q4): chấp nhận khoảng 3 thẻ mỗi tuần và 26 cờ thị trường, hay điều chỉnh (ví dụ ngưỡng riêng cho vật tư biến động mạnh, tính điểm chờ vào trung vị sau lần xác nhận đầu, hoặc xử lý điểm đầu chuỗi).
