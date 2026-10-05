@@ -31,7 +31,8 @@ Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, A
 6. Chatbot hỏi đáp dùng **tool-calling với các hàm cố định**, không cho AI tự sinh SQL. Điều này đáp ứng "chỉ READ" và "cấm SQL nguy hiểm" bằng thiết kế.
 7. **Điều kiện gửi tin đã chốt:** bộ ba quy tắc R1/R2/R3 so với 7 ngày làm việc liền trước (D2, D3), ngưỡng 2,5 / 5 / 10% cấu hình được theo từng vật tư (D4). **Nguồn kích hoạt** là version không do tài khoản seed admin tạo và có độ trễ không quá 3 ngày làm việc (D6, QĐ-16). **Tin** gộp theo vật tư trong một lần quét, chỉ gửi bổ sung khi leo thang (D5, QĐ-17). **Giá bất thường** có vòng đời riêng (D12, QĐ-18). Trưởng phòng được sửa ngưỡng và bật/tắt tính năng (QĐ-19).
 8. **Tải tin thật cao hơn con số backtest.** 82,5% dòng trong 12 tháng là dữ liệu import một lần, dữ liệu nhập thật chỉ có 6,3 tuần. Với nguồn kích hoạt theo D6 mới, ước lượng khoảng 17,7 tin gộp mỗi tuần (7,3 tin Trung bình và Lớn), cao hơn 7,8 và 2,9 của backtest (Phụ lục B.8). Cần dry-run ở chế độ replay trước khi chốt các trần.
-9. Việc tiếp theo: Slice 7 của kế hoạch 1A (đưa lên production, thao tác trên VPS), rồi soạn kế hoạch 1B riêng theo mẫu 1A. Kết quả kiểm chứng với Telegram thật (T2, T3, T5, T5b) nằm ở Phụ lục A của kế hoạch 1A.
+**Cập nhật 2026-10-05:** code Giai đoạn 1B đã xong (engine biến động, tin, gửi ảnh, giá bất thường, nút duyệt, nhắc, hết hạn, dọn dữ liệu), chạy trên dev; còn đưa lên production một lần (Slice 11 và 15 của kế hoạch 1B). Chatbot AI (Bước 2) chưa có. Các điểm 7 và 8 bên dưới là bản dự kiến; số liệu thật nằm ở kế hoạch 1B.
+9. Việc tiếp theo (lịch sử): Slice 7 của kế hoạch 1A (đưa lên production, thao tác trên VPS), rồi soạn kế hoạch 1B riêng theo mẫu 1A. Kết quả kiểm chứng với Telegram thật (T2, T3, T5, T5b) nằm ở Phụ lục A của kế hoạch 1A.
 
 ---
 

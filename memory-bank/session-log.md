@@ -1101,3 +1101,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B Slice 10: cổng G1
 - Tom tat: Replay khớp engine tham chiếu trong 1%, 10/10 mẫu đối chiếu đúng bởi agent độc lập, chốt tham số mặc định, thêm --dump-events và script theo dõi pilot; cron nhiều ngày còn chờ.
+
+## 2026-10-05 07:09:03Z - claude
+
+- Tieu de: Telegram 1B Slice 12 den 14 va cong G2
+- Tom tat: Hoan tat code 1B: gia bat thuong (cong tac anomaly_enabled, loai diem bi co khoi daily-min va tham chieu), nut duyet callback_query (hang 4 giay, tra loi callback truoc khi sua tin), nhac/het han/don du lieu theo gio VN, replay G2 (285 xuong 255 su kien, 49 diem bat thuong, 11 nhap sai that, 26 co thi truong, Kho coc con lai). Quyet dinh: phat hanh gop mot lan, bo yeu cau theo doi nhieu ngay tren dev. Con lai: deploy production theo runbook muc 13.

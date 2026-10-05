@@ -820,3 +820,64 @@ Từ lúc bật cờ, panel Telegram hiện cho **mọi** người dùng; nên b
 - Nhập token bằng `read -rs`: kiểm tra **độ dài** (khoảng 45 đến 47) trước khi ghi; dán hai lần sẽ cho độ dài khoảng 92 và Telegram trả "Not Found". Sau khi ghi, kiểm định dạng: `grep -c -E '^TELEGRAM_BOT_TOKEN=[0-9]{8,12}:[A-Za-z0-9_-]{35}$' .env` phải in `1`. Chạy `read` và `sed` thành **hai lệnh riêng**; nếu chạy `sed` khi biến rỗng thì `.env` bị ghi token rỗng.
 - Log backend production có cảnh báo OpenTelemetry không tìm thấy `otel-collector` khi stack observability chưa chạy; đã có sẵn từ trước, không liên quan Telegram.
 - Sau khi bật, xóa bản sao `.env` có chứa token (`shred -u .env.bak-before-enable`).
+
+## 13. Thông báo biến động giá (giai đoạn 1B)
+
+Tính năng: cron trong `worker` quét phiếu vừa chốt (mỗi 30 giây), tính biến động giá, gửi tin Telegram (ảnh biểu đồ và tin chi tiết) và thẻ giá bất thường có nút **Giá đúng** / **Nhập sai**. Kế hoạch và quyết định ở `docs/quotify/plan-telegram-giai-doan-1b-engine-bien-dong-gia.md`. Mục này là trình tự đưa lên production **một lần** (gồm giá bất thường, nút bấm, nhắc, hết hạn, dọn dữ liệu). Điều kiện: 1A đã chạy (mục 12), bot production có token và webhook.
+
+### 13.1 Khác biệt so với deploy thường
+
+- **Chỉ build `backend` và `worker`**, không build `frontend` (1B không đổi giao diện).
+- **Có 5 migration mới** (`20261004_1200` đến `20261004_1700`): thêm bảng, cột và quyền `price_alerts.manage`, `price_alerts.receive_all` (gán cho role `manager` và `admin`). Không sửa dữ liệu cũ. Không `alembic downgrade` trên production.
+- **Webhook phải đăng ký lại** để nhận `callback_query` (nút bấm): thiếu bước này nút không hoạt động.
+- Hai cờ bật tính năng: `TELEGRAM_ENABLED` trong `.env` (cần) và `price_alert_settings.is_enabled` trong DB (đủ). Giá bất thường có cờ riêng `anomaly_enabled` (mặc định tắt).
+- Giai đoạn đầu giới hạn người nhận bằng `PRICE_ALERT_RECIPIENT_EMAILS` (email các tài khoản người thật, cách nhau dấu phẩy). Người ngoài danh sách bị ghi `skipped` (lý do `pilot`), không nhận tin. Tài khoản seed admin không bao giờ nhận tin. Production chưa có liên kết Telegram nào đang hoạt động, nên từng người pilot phải tự liên kết ở trang Hồ sơ.
+
+### 13.2 Trình tự
+
+Làm theo thứ tự; mỗi bước không như kỳ vọng thì dừng. Lệnh chạy ở `/opt/quotify`.
+
+1. **Đưa code lên `main`** (VPS deploy bằng `git pull`): merge `feat/telegram-1b-alpha` vào `main`, push.
+2. **Backup** (mục 9.2): `export POSTGRES_DB=quotify` rồi `backup-postgres.sh`, kiểm file có dung lượng hợp lý.
+3. **`git pull`** và so `.env` với `.env.production.example`. Thêm `PRICE_ALERT_RECIPIENT_EMAILS=email1@...,email2@...` (người pilot). `APP_PUBLIC_URL` phải là `https://quotify.honghafeed.com.vn` (link trong tin trỏ về đây).
+4. **Build** `backend` và `worker` (`docker compose -f docker-compose.prod.yml build backend worker`). Image backend có thêm matplotlib (khoảng +130 MB); kiểm dung lượng và thời gian build.
+5. **Migrate** bằng container tạm: `docker compose -f docker-compose.prod.yml run --rm backend uv run alembic upgrade head`. Kiểm số dòng bảng cũ (quotes, quote_lines, users) không đổi.
+6. **Lên stack:** `up -d backend worker`, rồi `restart reverse-proxy` (mục 9.7). Kiểm `/health`, `/ready`, đăng nhập, các chức năng cũ. `docker compose logs worker` không có lỗi khi khởi động và không có token.
+7. **Kiểm quyền:** `select r.name, p.code from roles r join role_permissions rp on rp.role_id=r.id join permissions p on p.id=rp.permission_id where p.code like 'price_alerts.%' order by 1,2;` phải có hàng cho `manager` và `admin`. Kiểm tên role trưởng phòng thật khớp `manager`.
+8. **Đăng ký lại webhook** (đối chiếu `@username` và URL trước khi thêm `--yes`):
+
+   ```bash
+   docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py set
+   docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py set --yes
+   docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py info
+   ```
+
+   `info` phải có `allowed_updates` gồm `message`, `my_chat_member`, `callback_query`.
+9. **Người pilot liên kết Telegram** ở trang Hồ sơ (mục 12.4 bước 4). Ít nhất một trưởng phòng (nhận thẻ có nút) và một người nhập phiếu.
+10. **Bật tính năng bằng API** (cần token của người có `price_alerts.manage`; đăng nhập bằng `curl`, không dán mật khẩu vào chat): `GET /api/v1/price-alert-settings`, đổi `is_enabled` thành `true` (và `anomaly_enabled` thành `true` nếu bật luôn giá bất thường), rồi `PUT` lại nguyên body. Bật `is_enabled` đặt watermark là thời điểm bật, nên phiếu cũ không sinh tin.
+11. **Theo dõi:** chờ một phiếu thật được chốt; tin đến đúng người trong danh sách pilot và không đến ai ngoài danh sách. Xem 13.3.
+
+### 13.3 Giám sát (chỉ đọc)
+
+```sql
+-- Nhịp tim: last_run_at cũ hơn 2 phút khi cờ đang bật nghĩa là cron hoặc worker hỏng
+select last_run_at, watermark_confirmed_at from price_alert_scan_state;
+-- Lỗi quét gần nhất
+select started_at, error_count, last_error from price_alert_scan_runs where error_count > 0 order by started_at desc limit 5;
+-- Tin theo trạng thái
+select status, status_reason, count(*) from price_alert_messages where created_at > now() - interval '2 days' group by 1,2 order by 3 desc;
+-- Thẻ giá bất thường đang chờ
+select count(*) from price_alert_events where kind='anomaly' and review_status='pending';
+```
+
+Trên dev có script gộp: `bash scripts/ops/price-alert-dev-state.sh [số ngày]`. Cần theo dõi: `failed` hoặc `sending` kẹt, `skipped` lý do `blocked` (người dùng chặn bot), thẻ `pending` quá lâu. Log worker không được chứa token (`price_alert.*` chỉ log số lượng).
+
+### 13.4 Tắt khẩn cấp và rollback (đúng thứ tự)
+
+1. `PUT /price-alert-settings` với `is_enabled=false` (hiệu lực trong 30 giây), hoặc chỉ tắt giá bất thường bằng `anomaly_enabled=false`.
+2. Nếu cần dừng hẳn: `TELEGRAM_ENABLED=false` trong `.env`, tạo lại `backend` và `worker`, `restart reverse-proxy`.
+3. Giữ nguyên schema (additive, tương thích code cũ). Không `alembic downgrade`. Webhook vẫn nhận `callback_query` nhưng không còn thẻ để bấm.
+
+### 13.5 Mở rộng sau pilot
+
+Sau vài tuần ổn định: bỏ `PRICE_ALERT_RECIPIENT_EMAILS` (để trống) rồi tạo lại `worker` để mọi người nhận tin theo vai trò (trưởng phòng, người nhập); nhắc mọi người liên kết Telegram. Trong pilot cần xem lại các cờ giả của giá bất thường (chuỗi thị trường tăng liên tục, điểm đầu chuỗi sai) để quyết có chỉnh ngưỡng riêng theo vật tư hay không.

@@ -850,6 +850,42 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: quy tắc khi viết test kiểu "giá trị X không xuất hiện trong đầu ra": chọn X đủ dài, không phải số nhỏ hay chuỗi ngắn; chạy lại test vài lần.
 - Related files: `backend/tests/test_telegram_link_api.py`
 
+### 2026-10-05: Trạng thái `expired` chưa nằm trong danh sách loại điểm nên dòng hết hạn bị tính lại
+
+- Area: Backend `price_alert_anomaly.excluded_line_ids` (Slice 14)
+- Trigger: Thẻ giá bất thường hết hạn sau 7 ngày làm việc nhưng dòng sai quay lại đường giá.
+- Root cause: `EXCLUDING_STATUSES` chỉ có `pending` và `rejected`; trạng thái mới `expired` bị bỏ sót.
+- Fix: thêm `expired` vào `EXCLUDING_STATUSES`.
+- Regression guard: `test_a_card_older_than_seven_working_days_expires_and_stays_excluded`. Khi thêm một trạng thái duyệt mới, rà mọi chỗ lọc theo `review_status`.
+- Related files: `backend/app/services/price_alert_anomaly.py`, `price_alert_maintenance.py`
+
+### 2026-10-05: Lần thử lại gửi ghi đè `status_reason` làm tin tóm tắt mất nút
+
+- Area: Backend `price_alert_sender` (Slice 12)
+- Trigger: tin tóm tắt giá bất thường gặp lỗi mạng một lần rồi gửi lại: người nhận chỉ thấy tin "còn N thay đổi" chung chung, không có điểm và nút.
+- Root cause: tin tóm tắt được nhận diện bằng `status_reason='anomaly_cluster'` nhưng `_retry` ghi mã lỗi vào cùng cột.
+- Fix: nhận diện bằng cột `audience` (tin tràn trần không có), bộ đếm trần 10 phút lọc `audience IS NULL`.
+- Regression guard: `test_a_cluster_summary_keeps_its_buttons_after_a_failed_send_is_retried`. Không dùng cột trạng thái có thể bị ghi đè để mang ý nghĩa loại tin.
+- Related files: `backend/app/services/price_alert_sender.py`, `price_alert_messages.py`, `price_alert_anomaly_messages.py`
+
+### 2026-10-05: Phiếu sửa và chốt lại sao chép dòng sang version mới nên cờ không còn khớp
+
+- Area: Backend `price_alert_anomaly.excluded_line_ids` (Slice 12)
+- Trigger: giá nhập sai đã bị cờ và loại, người nhập sửa phiếu nhưng giữ nguyên dòng đó rồi chốt lại; giá sai quay lại đường giá.
+- Root cause: loại theo `quote_line_id`, trong khi version mới có dòng mới (id khác).
+- Fix: ngoài id, loại thêm các dòng cùng phiếu, vật tư, tháng và giá bằng giá bị cờ.
+- Regression guard: `test_a_copy_of_a_flagged_price_in_a_corrected_version_stays_excluded`.
+- Related files: `backend/app/services/price_alert_anomaly.py`
+
+### 2026-10-05: Hàm dọn dữ liệu với giờ giả xa trong tương lai xóa dữ liệu của test khác
+
+- Area: Test tích hợp trên DB dùng chung (`test_price_alert_maintenance_db.py`)
+- Trigger: sau khi thêm test dọn dữ liệu, một test quét ở file khác chọn nhầm hàng chục version (đáng lẽ một).
+- Root cause: `cleanup(now=năm 2053)` xóa mọi `price_alert_scanned_versions` có `scanned_at` (giờ thật) cũ hơn mốc, nên mọi version đã quét của test khác thành "chưa quét".
+- Fix: test dọn dữ liệu dùng giờ thật và đặt dữ liệu của chính test cũ hơn 180 ngày.
+- Regression guard: tránh thao tác hàng loạt theo thời gian trong test dùng DB chung khi `now` giả khác xa giờ thật; mọi dữ liệu thử phải được ghi nhận đã quét (`record_scanned_version`).
+- Related files: `backend/tests/integration/test_price_alert_maintenance_db.py`, `test_price_alert_anomaly_messages_db.py`
+
 ## Usage Rule
 
 Before changing behavior in an area with prior bugs, read the relevant entries first and explicitly avoid repeating the same failure mode.

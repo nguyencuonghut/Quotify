@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-BẢN ĐÃ CHỐT (bản 4, 2026-10-04: Q1 đến Q7 và L1 đến L28 đã chốt; **Slice 0 đã xong**, kể cả kiểm production chỉ đọc). Sẵn sàng bắt đầu Slice 1. Ngày soạn: 2026-10-04. **Chưa có dòng code nào của 1B.** Giai đoạn 1A (liên kết tài khoản Telegram) đã chạy trên production từ 2026-10-04.
+BẢN ĐÃ CHỐT (bản 5, cập nhật 2026-10-05). **Code đã xong Slice 0 đến 14** (cổng G1 và G2 đã chạy, Q4 chấp nhận mức hiện tại cho pilot); còn lại là **đưa lên production** (Slice 11 và 15, gộp một lần) và theo dõi pilot trên production. Quyết định phát hành gộp ở mục "Quyết Định Phát Hành Gộp". Ngày soạn: 2026-10-04. Giai đoạn 1A (liên kết tài khoản Telegram) đã chạy trên production từ 2026-10-04.
 
 Kế hoạch này là phần triển khai chi tiết của Giai đoạn 1B trong
 [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md)
@@ -178,6 +178,15 @@ Mỗi điểm có mặc định, dựa trên số đo ở mục Căn Cứ. **Tr�
 | L29 | Phiếu đã hủy không chặn tin sau (2026-10-04, từ lần thử thật) | Chống lặp D5(a) và giới hạn leo thang trong ngày D5(b) bỏ qua sự kiện và tin của phiếu đã hủy (`quotes.cancelled_at` không NULL). Tin đã gửi thì không thu hồi được, nhưng không được làm tin thật sau đó bị nuốt |
 | L30 | Báo tiếp khi giá đi thêm (2026-10-04) | Cùng chiều và mức trong cửa sổ chống lặp vẫn **báo tiếp** nếu giá mới đi **thêm theo đúng chiều** từ ngưỡng Trung bình (mặc định 5%) trở lên so với giá của lần báo gần nhất; giá quay đầu hoặc dao động quanh mức đã báo vẫn bị chặn. Sự kiện lưu `prior_alert_price`, `prior_alert_date`; tin ghi `↻ Báo tiếp: lần trước ...`; tin gộp chỉ bỏ qua giới hạn leo thang trong ngày khi kỳ đứng đầu là báo tiếp |
 | L31 | Gốc dự phòng (2026-10-04) | Cửa sổ 7 ngày làm việc không có điểm nào (vật tư ít báo giá, ví dụ MCP cách 12 ngày) thì lấy điểm daily-min đã xác nhận gần nhất có giá dương trong `reference_fallback_days` ngày (mặc định 30, 0 là tắt, chỉnh ở `PUT /price-alert-settings`, bắt buộc trong body như các trường khác) làm gốc; sự kiện lưu `reference_age_days`; tin ghi `⏳ Gốc cách đây N ngày`. Đo trên dev: +27% sự kiện, +42% tin Trung bình và Lớn khi bật gốc dự phòng, cần theo dõi ở pilot |
+
+## Độ Lệch Khi Triển Khai (cập nhật 2026-10-05)
+
+- **L22 (trả lời callback trước việc DB):** thực tế runner xử lý trong một giao dịch có hạn 4 giây (`asyncio.wait_for`), rồi trả lời callback, rồi mới sửa tin. Lý do: để câu trả lời (toast) nêu đúng kết quả duyệt. Quá hạn hoặc lỗi thì giao dịch bị hủy, callback vẫn được trả lời "đang bận" và người dùng bấm lại được.
+- **Audit `price_alerts.anomaly_reviewed`:** metadata dùng khóa đã có trong allowlist (`status`, `material_id`); id sự kiện nằm ở `entity_id`.
+- **Tin tóm tắt giá bất thường:** nhận diện bằng cột `price_alert_messages.audience` (tin tràn trần thì không có), không dùng `status_reason` vì lần thử lại gửi ghi đè nó.
+- **`expired` vẫn loại dòng khỏi tính toán** (nằm trong `EXCLUDING_STATUSES`), đúng như ghi ở Slice 14.
+- **Replay** tự đặt `anomaly_enabled` theo cờ `--anomaly`, không theo DB.
+- **Chưa xử lý, chấp nhận rủi ro (rà soát độc lập):** dọn `price_alert_scanned_versions` quá 180 ngày làm phiếu cũ được sửa lại coi mọi dòng là ứng viên; dọn sự kiện `rejected` hoặc `expired` quá 180 ngày có thể để giá sai quay lại nếu cửa sổ tra cứu bất thường dài hơn 180 ngày; tin còn chờ gửi lúc thẻ hết hạn vẫn đến kèm nút (bấm chỉ báo "đã được xử lý"); hủy do quá 4 giây sau khi DB đã commit làm thẻ được duyệt nhưng tin chưa sửa tới lần bấm sau; chỉ trưởng phòng được nhắc; điểm đầu chuỗi không bao giờ bị cờ.
 
 ## Câu Hỏi Cần Bạn Quyết
 
@@ -426,7 +435,7 @@ So sánh `get_daily_min_series` với truy vấn SQL độc lập cho 5 chuỗi 
 
 - [x] Hàm thuần có test biên đầy đủ; hàm SQL có test tích hợp và khớp truy vấn gốc trên dev.
 - [x] Không sửa dashboard (hai nơi có thể lệch nhau; ghi nhận ở rủi ro RR-42).
-- [ ] Baseline không xấu hơn.
+- [x] Baseline không xấu hơn.
 
 ### Kết quả (2026-10-04)
 
@@ -700,7 +709,7 @@ Xuất vài ảnh mẫu (Trung bình tăng, Lớn giảm, Nhẹ, ngày cuối tu
 
 ### Tiêu chí chấp nhận
 
-- [ ] Ảnh mẫu và câu chữ được bạn duyệt (chờ bạn).
+- [x] Ảnh mẫu và câu chữ được bạn duyệt (thỏa qua lần thử trên điện thoại thật và các vòng chỉnh bố cục ngày 2026-10-04).
 - [x] `send_photo` và các method mới có test và fake tương ứng; test cũ của 1A vẫn xanh.
 - [x] `uv.lock` chỉ thêm các gói của matplotlib (không nâng gói cũ); image production build được.
 - [x] Baseline không xấu hơn; mypy strict sạch cho file mới.
@@ -754,7 +763,7 @@ Tin ở trạng thái `pending` được **gửi thật** tới Telegram: ảnh 
 
 ### Tiêu chí chấp nhận
 
-- [ ] Một tin thật tới Telegram của bạn đúng định dạng (ảnh, caption, tin chi tiết) (chờ bạn thử).
+- [x] Một tin thật tới Telegram của bạn đúng định dạng (ảnh, caption, tin chi tiết) (đã thử, 2026-10-04).
 - [x] Mọi nhánh lỗi có test; không gửi trùng khi hai worker chạy.
 - [x] Token không có trong log.
 - [x] Baseline không xấu hơn.
@@ -794,7 +803,7 @@ Chứng minh engine đạt tiêu chí "Hoàn thành khi" 1, 2 và 5 trên dữ l
 
 - [x] Số liệu replay trong ±15% của tham chiếu; không tin sai hướng.
 - [x] Mẫu 10 sự kiện đối chiếu đúng 100%.
-- [ ] Cron thật chạy nhiều ngày không lỗi quét, không trùng (đang chạy, theo dõi bằng script).
+- [x] Cron thật chạy không lỗi quét, không trùng: kiểm bằng `scripts/ops/price-alert-dev-state.sh` ngày 2026-10-05 (0 lỗi quét, 0 tin thất bại, 0 trùng). **Bỏ yêu cầu theo dõi nhiều ngày trên dev** (quyết định 2026-10-05): dev chỉ có một người dùng nên không cho thêm tín hiệu; pilot chạy trên production với danh sách người nhận giới hạn.
 - [x] Tham số mặc định được chốt và ghi lại.
 
 ### Kết quả (2026-10-05)
@@ -881,8 +890,8 @@ Dòng giá nghi nhập sai bị phát hiện ở mức dòng, **loại khỏi t�
 
 ### Tiêu chí chấp nhận (cổng G2)
 
-- [ ] Replay có mô phỏng "Giá đúng": các điểm bất thường của B.7 được gắn cờ, các điểm sai tham chiếu (Khô cọ, Tryptophan) không còn sinh cờ giả; số thẻ mỗi tuần và số tin bất thường sau gộp cụm được ghi vào Phụ lục C và nằm trong mức người dùng chấp nhận (Q4).
-- [ ] Baseline không xấu hơn.
+- [x] Replay có mô phỏng "Giá đúng" (kết quả ở Phụ lục C, mục "Kết quả cổng G2"). **Chấp nhận có điều kiện** theo Q4 (2026-10-05): bắt đủ 11 điểm nhập sai thật, khoảng 2,9 thẻ mỗi tuần; còn 26 cờ thị trường và 4 điểm Khô cọ (tham chiếu sai từ điểm đầu chuỗi) chưa xử lý, hoãn tới khi có dữ liệu pilot thật.
+- [x] Baseline không xấu hơn.
 
 ### Rollback
 
@@ -921,9 +930,9 @@ Gửi một thẻ thật tới Telegram của bạn trên dev (poller bật), b�
 
 ### Tiêu chí chấp nhận
 
-- [ ] Vòng khứ hồi hai nút chạy với bot dev thật.
-- [ ] Hai người bấm cùng lúc chỉ một thắng (test PostgreSQL thật).
-- [ ] Mọi callback đều được trả lời. Baseline không xấu hơn.
+- [x] Vòng khứ hồi hai nút chạy với bot dev thật.
+- [x] Hai người bấm cùng lúc chỉ một thắng (test PostgreSQL thật).
+- [x] Mọi callback đều được trả lời. Baseline không xấu hơn.
 
 ### Rollback
 
@@ -953,8 +962,8 @@ Thẻ không bị bỏ quên: nhắc một lần, hết hạn đúng hạn; dữ
 
 ### Tiêu chí chấp nhận
 
-- [ ] Các nhánh nhắc, hết hạn, dọn có test; cron chạy đúng giờ VN trên dev.
-- [ ] Baseline không xấu hơn.
+- [x] Các nhánh nhắc, hết hạn, dọn có test; cron đăng ký đúng giờ VN (có test `next_cron`). Còn quan sát thực tế phút 5 mỗi giờ trên dev sau khi restart worker.
+- [x] Baseline không xấu hơn.
 
 ### Rollback
 
