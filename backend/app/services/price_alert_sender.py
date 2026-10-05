@@ -19,6 +19,7 @@ from app.integrations.telegram import (
     TelegramRateLimitError,
 )
 from app.models import (
+    PriceAlertEvent,
     PriceAlertMessage,
     PriceAlertMessageEvent,
     PriceAlertSetting,
@@ -50,6 +51,7 @@ CONFIG_ERROR_DELAY = timedelta(minutes=5)
 DEFAULT_BATCH_LIMIT = 20
 _PHOTO_SENT = "photo_sent"
 _BUTTON_AUDIENCES = ("manager", "admin")
+REMINDER_PREFIX = "⏰ <b>Nhắc lại:</b> thẻ này vẫn chưa được xử lý.\n\n"
 _MAX_ERROR_LENGTH = 255
 
 
@@ -319,7 +321,25 @@ class PriceAlertSender:
                 base_url=self.base_url,
                 with_buttons=with_buttons,
             )
+        if await self._is_reminder(session, message):
+            text = f"{REMINDER_PREFIX}{text}"
         return _Content(account.chat_id, account.telegram_user_id, None, text, text, False, markup)
+
+    @staticmethod
+    async def _is_reminder(session: AsyncSession, message: PriceAlertMessage) -> bool:
+        """Tin nhắc lại (Slice 14) được tạo cùng lúc với `reminded_at` của sự kiện của nó."""
+        found = (
+            await session.execute(
+                select(PriceAlertEvent.id)
+                .join(PriceAlertMessageEvent, PriceAlertMessageEvent.event_id == PriceAlertEvent.id)
+                .where(
+                    PriceAlertMessageEvent.message_id == message.id,
+                    PriceAlertEvent.reminded_at == message.created_at,
+                )
+                .limit(1)
+            )
+        ).first()
+        return found is not None
 
     async def _remember_photo(self, message_id: UUID, photo_id: int) -> None:
         """Nhớ ảnh đã gửi để lần thử lại sau lỗi ở tin chi tiết không gửi ảnh lần hai."""

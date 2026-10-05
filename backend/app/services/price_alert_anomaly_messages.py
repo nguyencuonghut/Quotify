@@ -24,7 +24,7 @@ CLUSTER_REASON = "anomaly_cluster"
 
 
 @dataclass(frozen=True, slots=True)
-class _Flag:
+class AnomalyFlag:
     event_id: UUID
     material_id: UUID
     direction: str
@@ -34,7 +34,7 @@ class _Flag:
 @dataclass(slots=True)
 class _Inbox:
     recipient: Recipient
-    flags: list[_Flag] = field(default_factory=list)
+    flags: list[AnomalyFlag] = field(default_factory=list)
 
 
 async def build_anomaly_messages(
@@ -53,6 +53,31 @@ async def build_anomaly_messages(
     vật tư. Từ 3 điểm trở lên cho cùng một người trong một lần quét thì gộp thành một tin tóm tắt.
     """
     flags = await _new_flags(session, scan_run_id)
+    return await build_messages_for_flags(
+        session,
+        flags,
+        scan_run_id=scan_run_id,
+        now=now,
+        settings=settings,
+        seed_user_id=seed_user_id,
+        pilot_emails=pilot_emails,
+    )
+
+
+async def build_messages_for_flags(
+    session: AsyncSession,
+    flags: list[AnomalyFlag],
+    *,
+    scan_run_id: UUID | None,
+    now: datetime,
+    settings: PriceAlertSetting,
+    seed_user_id: UUID | None,
+    pilot_emails: frozenset[str] = frozenset(),
+) -> tuple[int, dict[str, int]]:
+    """Dựng tin cho một danh sách điểm đã biết (lần quét mới, hoặc nhắc lại ở Slice 14).
+
+    `entered_by_id=None` thì chỉ trưởng phòng (và admin bật tùy chọn) nhận, không có người nhập.
+    """
     if not flags:
         return 0, {}
 
@@ -153,7 +178,7 @@ async def build_anomaly_messages(
                 event_ids=[f.event_id for f in inbox.flags],
             )
             continue
-        by_material: dict[UUID, list[_Flag]] = defaultdict(list)
+        by_material: dict[UUID, list[AnomalyFlag]] = defaultdict(list)
         for flag in inbox.flags:
             by_material[flag.material_id].append(flag)
         for material_id, material_flags in by_material.items():
@@ -171,7 +196,7 @@ async def build_anomaly_messages(
     return created, dict(by_status)
 
 
-async def _new_flags(session: AsyncSession, scan_run_id: UUID) -> list[_Flag]:
+async def _new_flags(session: AsyncSession, scan_run_id: UUID) -> list[AnomalyFlag]:
     rows = (
         await session.execute(
             select(
@@ -194,4 +219,4 @@ async def _new_flags(session: AsyncSession, scan_run_id: UUID) -> list[_Flag]:
             ),
         )
     ).all()
-    return [_Flag(r[0], r[1], r[2], r[3]) for r in rows]
+    return [AnomalyFlag(r[0], r[1], r[2], r[3]) for r in rows]

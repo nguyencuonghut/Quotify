@@ -21,7 +21,7 @@ from app.services.daily_min_series import get_daily_min_series
 
 ATTACH_PERCENT = Decimal("2.5")  # lệch dưới mức này so với điểm đang pending thì gắn vào thẻ đó
 # Điểm bị gắn cờ bị loại khỏi tính toán khi chưa duyệt hoặc đã bị đánh dấu nhập sai (D12).
-EXCLUDING_STATUSES = ("pending", "rejected")
+EXCLUDING_STATUSES = ("pending", "rejected", "expired")
 _CENT = Decimal("0.01")
 _MAX_REFERENCE_SHOWN = 3
 

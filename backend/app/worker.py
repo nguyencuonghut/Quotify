@@ -28,8 +28,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
-from app.integrations.telegram import TelegramClient
 from app.db.session import get_sessionmaker
+from app.integrations.telegram import TelegramClient
 from app.integrations.vietcombank import VietcombankExchangeRateClient
 from app.models import ExportJob, ImportJob, User, UserStatus
 from app.models.backup_log import BackupLog
@@ -44,6 +44,10 @@ from app.services.catalog_import import (
 from app.services.email import EmailService
 from app.services.exchange_rate_service import ExchangeRateService
 from app.services.file_admin import FileAdminService
+from app.services.price_alert_maintenance import PriceAlertMaintenanceService, edit_expired_cards
+from app.services.price_alert_scan import PriceAlertScanService, get_seed_user_id
+from app.services.price_alert_sender import PriceAlertSender
+from app.services.price_alert_settings_service import PriceAlertSettingsService
 from app.services.quote_backfill_import import (
     QuoteBackfillImportHeaderError,
     QuoteBackfillImportService,
@@ -51,8 +55,6 @@ from app.services.quote_backfill_import import (
 )
 from app.services.quote_pricing import QuotePricingService
 from app.services.quote_service import QuoteService
-from app.services.price_alert_scan import PriceAlertScanService, get_seed_user_id
-from app.services.price_alert_sender import PriceAlertSender
 from app.services.quotify_settings_service import QuotifySettingsService
 from app.services.user_admin import RoleNotFoundError, UserAdminService
 from app.storage.minio import build_minio_client
@@ -493,9 +495,7 @@ async def import_catalog_task(ctx: dict[str, Any], job_id: UUID) -> None:
             return
 
         job.status = (
-            "completed"
-            if summary.total_rows > 0 and summary.processed_rows > 0
-            else "failed"
+            "completed" if summary.total_rows > 0 and summary.processed_rows > 0 else "failed"
         )
         if summary.total_rows == 0:
             job.error_summary = "File import không có dòng dữ liệu."
@@ -637,9 +637,7 @@ async def import_quote_backfill_task(ctx: dict[str, Any], job_id: UUID) -> None:
             return
 
         job.status = (
-            "completed"
-            if summary.total_rows > 0 and summary.processed_rows > 0
-            else "failed"
+            "completed" if summary.total_rows > 0 and summary.processed_rows > 0 else "failed"
         )
         if summary.total_rows == 0:
             job.error_summary = "File import không có dòng dữ liệu."
@@ -1070,6 +1068,56 @@ async def send_price_alerts(ctx: dict[str, Any]) -> None:
         )
 
 
+async def remind_price_alerts(ctx: dict[str, Any]) -> None:
+    """Cron hằng giờ (giờ VN): nhắc thẻ giá bất thường chưa xử lý và cho thẻ quá hạn hết hạn."""
+    settings = get_settings()
+    client = ctx.get("telegram_client")
+    if not settings.telegram_enabled or client is None:
+        return
+
+    session_factory = ctx["session_factory"]
+    now = datetime.now(UTC)
+    async with session_factory() as session:
+        alert_settings = await PriceAlertSettingsService(session).get_or_create_settings()
+        if not (alert_settings.is_enabled and alert_settings.anomaly_enabled):
+            return
+        seed_user_id = await get_seed_user_id(session, settings.auth_seed_admin_email)
+        result = await PriceAlertMaintenanceService(
+            session,
+            seed_user_id=seed_user_id,
+            pilot_emails=settings.price_alert_recipient_email_set,
+        ).remind_and_expire(now=now, settings=alert_settings)
+        await session.commit()
+    edited = await edit_expired_cards(
+        session_factory,
+        client,
+        result.expired_event_ids,
+        base_url=settings.app_public_url,
+    )
+    if result.reminded or result.expired_event_ids:
+        logger.info(
+            "price_alert.maintenance reminded=%s reminder_messages=%s expired=%s edited=%s",
+            result.reminded,
+            result.reminder_messages,
+            len(result.expired_event_ids),
+            edited,
+        )
+
+
+async def cleanup_price_alerts(ctx: dict[str, Any]) -> None:
+    """Cron hằng ngày (giờ VN): xóa dữ liệu thông báo cũ hơn 180 ngày (L19)."""
+    if not get_settings().telegram_enabled:
+        return
+
+    async with ctx["session_factory"]() as session:
+        deleted = await PriceAlertMaintenanceService(session, seed_user_id=None).cleanup(
+            now=datetime.now(UTC)
+        )
+        await session.commit()
+    if any(deleted.values()):
+        logger.info("price_alert.cleanup deleted=%s", deleted)
+
+
 settings = get_settings()
 
 
@@ -1087,11 +1135,15 @@ class WorkerSettings:
         poll_and_run_scheduled_backups,
         poll_price_alerts,
         send_price_alerts,
+        remind_price_alerts,
+        cleanup_price_alerts,
     ]
     cron_jobs = [
         cron(poll_and_run_scheduled_backups, second=0),
         cron(poll_price_alerts, second={0, 30}),
         cron(send_price_alerts, second={15, 45}),
+        cron(remind_price_alerts, hour=set(range(8, 18)), minute=5, second=0),
+        cron(cleanup_price_alerts, hour=3, minute=30, second=0),
     ]
     # Việt Nam không có DST; không đặt thì cron chạy theo giờ hệ thống (UTC trong container).
     timezone = ZoneInfo(settings.app_timezone)

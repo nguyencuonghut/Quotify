@@ -227,3 +227,23 @@ async def test_startup_without_telegram_builds_no_client(monkeypatch: pytest.Mon
     await worker.shutdown(ctx)
 
     assert ctx["telegram_client"] is None
+
+
+def test_reminders_run_hourly_and_cleanup_daily_in_vietnam_time() -> None:
+    [remind] = [
+        j for j in worker.WorkerSettings.cron_jobs if j.coroutine is worker.remind_price_alerts
+    ]
+    [cleanup] = [
+        j for j in worker.WorkerSettings.cron_jobs if j.coroutine is worker.cleanup_price_alerts
+    ]
+
+    assert (remind.hour, remind.minute, remind.second) == (set(range(8, 18)), 5, 0)
+    assert (cleanup.hour, cleanup.minute, cleanup.second) == (3, 30, 0)
+    assert worker.remind_price_alerts in worker.WorkerSettings.functions
+    assert worker.cleanup_price_alerts in worker.WorkerSettings.functions
+    tz = worker.WorkerSettings.timezone
+    start = datetime(2052, 6, 3, 10, 40, tzinfo=tz)
+    assert next_cron(start, hour=3, minute=30, second=0).astimezone(tz).hour == 3
+    assert next_cron(start, hour=set(range(8, 18)), minute=5, second=0).astimezone(tz).replace(
+        microsecond=0
+    ) == datetime(2052, 6, 3, 11, 5, tzinfo=tz)
