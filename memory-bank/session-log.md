@@ -1096,3 +1096,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B: phiếu hủy, báo tiếp, gốc dự phòng
 - Tom tat: Bỏ qua phiếu hủy khi chống lặp, báo tiếp khi giá đi thêm ≥5% đúng chiều, gốc dự phòng 30 ngày (reference_fallback_days, migration 1600). Agent rà soát bổ sung chiều báo tiếp, kỳ đứng đầu, PUT bắt buộc, lọc giá 0. pytest 959 pass.
+
+## 2026-10-05 03:56:41Z - claude
+
+- Tieu de: Telegram 1B Slice 10: cổng G1
+- Tom tat: Replay khớp engine tham chiếu trong 1%, 10/10 mẫu đối chiếu đúng bởi agent độc lập, chốt tham số mặc định, thêm --dump-events và script theo dõi pilot; cron nhiều ngày còn chờ.

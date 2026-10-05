@@ -306,7 +306,7 @@ Giới hạn:
 
 ### Tham số mặc định của 1B
 
-Các giá trị dưới đây là mặc định đề xuất, **chưa được xác nhận từng giá trị**, cần đo ở dry-run replay rồi chốt.
+Các giá trị dưới đây đã **chốt ở cổng G1 (2026-10-05)** sau dry-run replay trên dữ liệu dev (kế hoạch 1B, Slice 10). Riêng các tham số của đợt β (gắn cờ bất thường, gộp cụm, nhắc, hết hạn thẻ) chờ cổng G2.
 
 | Tham số | Mặc định | Ghi chú |
 |---|---|---|
@@ -322,6 +322,10 @@ Các giá trị dưới đây là mặc định đề xuất, **chưa được x
 | Nhân viên nhận tin của vật tư mình nhập | 90 ngày (xem D8) | D8 |
 | Giờ bản tin tổng hợp | 08:00 giờ VN | D5(c) |
 | Lưu giữ sự kiện, tin, lần quét | 180 ngày | 4.5 |
+| Gốc dự phòng khi cửa sổ trống | 30 ngày lịch (0 là tắt, chỉnh ở cấu hình) | 1B, L31; thêm +27% sự kiện, theo dõi ở pilot |
+| Báo tiếp khi giá đi thêm | từ 5% (ngưỡng Trung bình) theo đúng chiều so với lần báo gần nhất | 1B, L30 |
+| Tuổi tối đa của tin chờ gửi | 24 giờ (quá hạn thì `failed`) | 1B, Slice 9 |
+| Thử lại gửi tin | 5 lượt, chờ 30, 60, 120, 240 giây; 429 chờ `retry_after` tối đa 5 phút | 1B, L25 |
 
 ### Nhóm B: Người nhận
 

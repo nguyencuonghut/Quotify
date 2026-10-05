@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from uuid import UUID
 
 from sqlalchemy import delete, func, select, text
@@ -81,6 +83,7 @@ async def run_replay(
     seed_email: str,
     now: datetime | None = None,
     pilot_emails: frozenset[str] = frozenset(),
+    dump_events_to: str | None = None,
 ) -> ReplayReport | None:
     """Chạy replay rồi LUÔN hủy giao dịch. Trả `None` nếu cron đang giữ khóa quét."""
     moment = now or datetime.now(UTC)
@@ -137,6 +140,8 @@ async def run_replay(
                 errors += counters.errors
                 await messages.build_for_run(scan_run_id=run.id, now=slot_time, settings=settings)
             report = await _build_report(session, versions, errors, since)
+            if dump_events_to:
+                await _dump_events(session, dump_events_to, since)
         finally:
             await session.rollback()
 
@@ -232,6 +237,38 @@ async def _build_report(
     )
 
 
+async def _dump_events(session: AsyncSession, path: str, since: datetime) -> None:
+    """Ghi sự kiện của lần replay ra tệp JSON để đối chiếu thủ công (trước khi hủy giao dịch)."""
+    rows = (
+        await session.execute(
+            select(PriceAlertEvent)
+            .where(PriceAlertEvent.created_at >= since)
+            .order_by(
+                PriceAlertEvent.sequence_number,
+            ),
+        )
+    ).scalars()
+    dump = [
+        {
+            column.name: (
+                value.isoformat()
+                if hasattr(value, "isoformat")
+                else str(value)
+                if value is not None and not isinstance(value, int | float | bool)
+                else value
+            )
+            for column in PriceAlertEvent.__table__.columns
+            for value in [getattr(row, column.name)]
+        }
+        for row in rows
+    ]
+    # Tệp nhỏ, ghi một lần trong lệnh CLI: không cần I/O bất đồng bộ.
+    Path(path).write_text(  # noqa: ASYNC240
+        json.dumps(dump, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+
+
 def format_report(report: ReplayReport) -> str:
     per_week = report.weeks_in_period
     lines = [
@@ -266,6 +303,9 @@ async def amain(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Dry-run replay thông báo biến động giá")
     parser.add_argument("--weeks", type=int, default=8)
     parser.add_argument(
+        "--dump-events", help="Ghi các sự kiện của replay ra tệp JSON để đối chiếu."
+    )
+    parser.add_argument(
         "--ignore-trigger-source",
         action="store_true",
         help="Bỏ điều kiện D6 (tài khoản seed, độ trễ) để thấy nhiều dữ liệu hơn.",
@@ -277,6 +317,7 @@ async def amain(argv: list[str]) -> int:
         weeks=args.weeks,
         ignore_trigger_source=args.ignore_trigger_source,
         seed_email=settings.auth_seed_admin_email,
+        dump_events_to=args.dump_events,
     )
     if report is None:
         print("Cron đang giữ khóa quét; thử lại sau ít giây.", file=sys.stderr)

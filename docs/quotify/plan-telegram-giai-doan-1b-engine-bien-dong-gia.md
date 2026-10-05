@@ -788,10 +788,28 @@ Chứng minh engine đạt tiêu chí "Hoàn thành khi" 1, 2 và 5 trên dữ l
 
 ### Tiêu chí chấp nhận
 
-- [ ] Số liệu replay trong ±15% của tham chiếu; không tin sai hướng.
-- [ ] Mẫu 10 sự kiện đối chiếu đúng 100%.
-- [ ] Cron thật chạy nhiều ngày không lỗi quét, không trùng.
-- [ ] Tham số mặc định được chốt và ghi lại.
+- [x] Số liệu replay trong ±15% của tham chiếu; không tin sai hướng.
+- [x] Mẫu 10 sự kiện đối chiếu đúng 100%.
+- [ ] Cron thật chạy nhiều ngày không lỗi quét, không trùng (đang chạy, theo dõi bằng script).
+- [x] Tham số mặc định được chốt và ghi lại.
+
+### Kết quả (2026-10-05)
+
+- **Replay 12 tuần trên dev (kỳ 46 ngày = 6,57 tuần) so với engine tham chiếu độc lập chạy lại trên cùng dữ liệu** (`analysis-1b`, bản **không** chặn bất thường vì đợt α chưa có):
+
+| Mỗi tuần | Engine thật (gốc dự phòng tắt) | Tham chiếu không chặn bất thường | Lệch |
+|---|---|---|---|
+| Sự kiện theo chuỗi | 34,2 (225) | 34,5 (227) | −0,9% |
+| Gộp vật tư-ngày | 18,1 (119) | 18,1 (119) | 0% |
+| Trung bình và Lớn (vật tư-ngày) | 9,1 (60) | 9,1 (60) | 0% |
+| Tin theo đơn vị D5(b), một trưởng phòng | 71 gửi + 4 chặn cùng ngày | 66 (Trung bình và Lớn) | +9% đến +14% |
+
+  Chênh ở dòng cuối do tính năng **báo tiếp** (L30) mà engine tham chiếu không có. So với Phụ lục C (có chặn bất thường, đợt β): 29,5 / 16,4 / 6,8 mỗi tuần; phần cao hơn là các điểm bất thường sẽ bị loại ở đợt β. Với cấu hình mặc định (gốc dự phòng 30 ngày): 285 sự kiện (43,4 mỗi tuần), 150 vật tư-ngày (22,8), Trung bình và Lớn 85 (12,9), 98 tin gửi ngay: tăng **+27%, +26%, +42%** do thiết kế (L31), cần theo dõi ở pilot. Chế độ `--ignore-trigger-source`: 2.037 sự kiện (303 mỗi tuần, gồm cả ngày import), chỉ để xem tải tối đa.
+- **Không có tin sai hướng:** mọi sự kiện có hướng bằng dấu của phần trăm; 10/10 mẫu bên dưới đúng chiều.
+- **Đối chiếu 10 sự kiện ngẫu nhiên** (hạt giống 20261005, gồm 2 gốc dự phòng, 1 báo tiếp, 1 CNF) do một agent độc lập tự tính lại từ dữ liệu gốc bằng SQL: **10/10 đúng** mọi trường (hướng, mức, lý do chính, phần trăm, giá mới, giá gốc, ngày gốc, vùng tham chiếu, tuổi gốc dự phòng, giá báo trước, dòng "so sánh khác"); chưa đối chiếu giá CNF.
+- **Công cụ mới:** `python -m app.price_alert_replay --dump-events <tệp>` ghi sự kiện của replay ra JSON để đối chiếu; `scripts/ops/price-alert-dev-state.sh [số ngày]` theo dõi pilot chỉ đọc (nhịp tim cron, lần quét có việc hoặc lỗi, tin theo trạng thái, tin kẹt, kiểm trùng, sự kiện theo mức).
+- **Pilot trên dev:** cron quét và gửi đang chạy; 12 sự kiện, 4 tin đã gửi, 0 lỗi, 0 trùng trong ngày đầu (dev ngừng khoảng 10 giờ ban đêm). Cần chạy tiếp nhiều ngày (HITL) và xem script theo dõi mỗi ngày.
+- **Tham số mặc định đã chốt:** xem bảng ở Mục 3 của tài liệu cha.
 
 ### Rollback
 
@@ -1071,5 +1089,7 @@ Chi tiết kịch bản D6:
 - Người nhận (ước lượng D8): trung bình 1,94 nhân viên mỗi tin. Mỗi người một tuần: người nhiều nhất 7,6 tin tức thời (Trung bình và Lớn) và 16,4 tin nếu tính cả mức Nhẹ (hai trưởng phòng là 7,6/16,4 và 7,6/9,2); nhân viên nhiều nhất 4,3/9,4; thấp nhất 0,2/0,5.
 - Bất thường (D12, mức dòng, trung vị 30 ngày, **bất thường bị loại vĩnh viễn**, không mô phỏng "Giá đúng"): 47 dòng, 43 điểm (6,8 mỗi tuần), 28 chuỗi, 11 vật tư; sau gộp cụm khoảng 16 tin, 2,6 mỗi tuần cho trưởng phòng. Chặn bất thường giảm khoảng 13% tin theo chuỗi và 24% Trung bình và Lớn.
 - So với B.8 của tài liệu cha (28,2 / 17,7 / 7,3): +7%, −5%, −7%, trong ±30%.
+
+**Cập nhật cổng G1 (2026-10-05):** engine thật khớp engine tham chiếu không chặn bất thường trong 1% (225 so với 227 sự kiện, 119 so với 119 vật tư-ngày, 60 so với 60 Trung bình và Lớn mỗi 46 ngày); xem Kết quả của Slice 10.
 
 Giới hạn: chu kỳ quét 30 giây được xấp xỉ bằng ô 30 giây theo `confirmed_at` (không mô phỏng giờ chạy thật của cron); không có người bấm nút; danh sách người nhận là ước lượng; dữ liệu là DB dev, không phải production. Slice 0 nên chạy lại bộ truy vấn `analysis-1b/sql/` trên bản sao production (chỉ đọc) để so.
