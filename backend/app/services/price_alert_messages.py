@@ -299,6 +299,7 @@ class PriceAlertMessageService:
                 .where(
                     PriceAlertMessage.user_id == recipient.user_id,
                     PriceAlertMessage.kind == "digest",
+                    PriceAlertMessage.audience.is_(None),
                     PriceAlertMessage.created_at > self._now - ROLLING_WINDOW,
                     PriceAlertMessage.created_at <= self._now,
                 ),

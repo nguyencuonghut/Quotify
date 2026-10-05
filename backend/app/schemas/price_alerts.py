@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 class PriceAlertSettingsUpdateRequest(BaseModel):
     is_enabled: bool
+    anomaly_enabled: bool
     reference_working_days: int = Field(ge=1, le=30)
     light_from_percent: Decimal = Field(gt=0, le=100, max_digits=5, decimal_places=2)
     medium_from_percent: Decimal = Field(gt=0, le=100, max_digits=5, decimal_places=2)
@@ -25,6 +26,7 @@ class PriceAlertSettingsUpdateRequest(BaseModel):
 
 class PriceAlertSettingsResponse(BaseModel):
     is_enabled: bool
+    anomaly_enabled: bool
     reference_working_days: int
     light_from_percent: Decimal
     medium_from_percent: Decimal

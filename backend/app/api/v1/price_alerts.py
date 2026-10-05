@@ -36,6 +36,7 @@ def _build_settings_response(
 ) -> PriceAlertSettingsResponse:
     return PriceAlertSettingsResponse(
         is_enabled=setting.is_enabled,
+        anomaly_enabled=setting.anomaly_enabled,
         reference_working_days=setting.reference_working_days,
         light_from_percent=setting.light_from_percent,
         medium_from_percent=setting.medium_from_percent,

@@ -29,7 +29,11 @@ Cuối Giai đoạn 1B, trên dev rồi production (cờ tắt rồi bật dần
 4. Tin mẫu đúng định dạng trên Telegram thật (ảnh 900 x 500, caption không quá 1.024 ký tự, tin chi tiết không quá 4.096), nút Giá đúng và Nhập sai chạy được vòng khứ hồi (đợt β).
 5. Chạy thật cron trên dev: quét an toàn (khóa, chồng lấp, cô lập lỗi) có test trên PostgreSQL thật; không gửi trùng khi thử lại.
 
-## Phát Hành Hai Đợt (đề xuất, Q3)
+## Quyết Định Phát Hành Gộp (2026-10-05, thay Q3)
+
+Người dùng muốn thông báo giá bất thường chạy ổn trên dev rồi mới đưa lên production, **một lần duy nhất cùng đợt α**. Thứ tự mới: Slice 12 (giá bất thường) → 13 (nút bấm) → 14 (nhắc, hết hạn, dọn) → cổng G2 (replay có mô phỏng "Giá đúng") → **một lần deploy** gồm Slice 10, 12 và các bước của Slice 11 và 15 (kể cả đăng ký lại webhook với `callback_query`). Giá bất thường có công tắc độc lập `price_alert_settings.anomaly_enabled` (mặc định tắt) nên bật riêng được dù cả khối đã lên production. Bảng hai đợt dưới đây giữ làm lịch sử.
+
+## Phát Hành Hai Đợt (đã thay bằng mục trên, Q3 cũ)
 
 | Đợt | Slice | Nội dung | Cổng |
 |---|---|---|---|
@@ -1093,3 +1097,16 @@ Chi tiết kịch bản D6:
 **Cập nhật cổng G1 (2026-10-05):** engine thật khớp engine tham chiếu không chặn bất thường trong 1% (225 so với 227 sự kiện, 119 so với 119 vật tư-ngày, 60 so với 60 Trung bình và Lớn mỗi 46 ngày); xem Kết quả của Slice 10.
 
 Giới hạn: chu kỳ quét 30 giây được xấp xỉ bằng ô 30 giây theo `confirmed_at` (không mô phỏng giờ chạy thật của cron); không có người bấm nút; danh sách người nhận là ước lượng; dữ liệu là DB dev, không phải production. Slice 0 nên chạy lại bộ truy vấn `analysis-1b/sql/` trên bản sao production (chỉ đọc) để so.
+
+### Số liệu giá bất thường (replay 12 tuần, DB dev, 2026-10-05)
+
+Lệnh: `python -m app.price_alert_replay --weeks 12 --anomaly [--simulate-correct]` (mô phỏng "Giá đúng" khi có từ 2 điểm sau, chốt trước thời điểm quét, cùng mặt bằng 2,5%).
+
+| Chỉ số | Giá trị |
+|---|---|
+| Điểm bất thường (kỳ 46 ngày = 6,57 tuần) | 47 = 7,2 mỗi tuần; 5 điểm gắn vào thẻ có sẵn, 42 thẻ chờ |
+| Mô phỏng "Giá đúng" | chỉ 3 điểm được xác nhận, 39 vẫn chờ |
+| Thẻ hoặc tin tóm tắt gửi người nhận (sau gộp cụm) | 18 trong 6,57 tuần (W34=5, W35=1, W37=2, W38=5, W39=2, W40=3) |
+| Sự kiện biến động khi loại điểm bị cờ | 255 (trước đó 227): bỏ điểm sai làm lộ thêm biến động thật; cần xem lại mẫu |
+
+Chờ người dùng xét (Q4): mức 7,2 điểm mỗi tuần có chấp nhận được không, và xem mẫu 28 sự kiện biến động tăng thêm.

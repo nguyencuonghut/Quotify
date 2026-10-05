@@ -15,6 +15,7 @@ _PERCENT_QUANTUM = Decimal("0.01")
 # (tên cột, nhãn hiển thị trong audit). Thứ tự này là thứ tự các dòng `changes[]`.
 SETTINGS_FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("is_enabled", "Bật thông báo biến động giá"),
+    ("anomaly_enabled", "Bật thông báo giá bất thường"),
     ("reference_working_days", "Số ngày làm việc tham chiếu"),
     ("light_from_percent", "Ngưỡng Nhẹ từ (%)"),
     ("medium_from_percent", "Ngưỡng Trung bình từ (%)"),
@@ -54,6 +55,7 @@ class PriceAlertSettingsValues:
     immediate_cap_per_scan: int
     digest_hour_local: int
     reference_fallback_days: int = 30
+    anomaly_enabled: bool = False
 
 
 @dataclass(frozen=True, slots=True)

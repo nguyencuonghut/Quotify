@@ -22,6 +22,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -148,6 +149,12 @@ class PriceAlertSetting(Base):
         Integer,
         default=30,
         server_default="30",
+    )
+    # Công tắc riêng của giá bất thường (D12): bật sau khi biến động giá đã chạy ổn.
+    anomaly_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
     )
     is_enabled: Mapped[bool] = mapped_column(
         Boolean,
@@ -436,6 +443,11 @@ class PriceAlertEvent(Base):
     prior_alert_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Gốc dự phòng (ngoài cửa sổ tham chiếu): điểm gốc cách bao nhiêu ngày.
     reference_age_days: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    # kind='anomaly': các giá hợp lệ gần đây (cũ đến mới) lúc gắn cờ, để dựng lại thẻ.
+    reference_prices: Mapped[list[Decimal] | None] = mapped_column(
+        ARRAY(Numeric(12, 2)),
+        nullable=True,
+    )
     review_status: Mapped[str | None] = mapped_column(String(10), nullable=True)
     attached_to_event_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -532,6 +544,7 @@ class PriceAlertMessage(Base):
     direction: Mapped[str | None] = mapped_column(String(4), nullable=True)
     status: Mapped[str] = mapped_column(String(20))
     status_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    audience: Mapped[str | None] = mapped_column(String(10), nullable=True)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_error: Mapped[str | None] = mapped_column(String(255), nullable=True)

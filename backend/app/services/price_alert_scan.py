@@ -23,8 +23,11 @@ from app.models import (
     User,
 )
 from app.services.daily_min_series import get_daily_min_series
+from app.services.price_alert_anomaly import LinePrice, detect_line, excluded_line_ids
+from app.services.price_alert_anomaly_messages import build_anomaly_messages
 from app.services.price_alert_candidates import (
     BUSINESS_TIMEZONE,
+    LineRef,
     VersionToScan,
     is_trigger_source,
     record_scanned_version,
@@ -153,6 +156,23 @@ class PriceAlertScanService:
             logger.warning("price_alert.messages_failed error=%s", type(exc).__name__)
             counters.errors += 1
             counters.last_error = f"messages {type(exc).__name__}: {exc}"[:_MAX_ERROR_LENGTH]
+        if settings.anomaly_enabled:
+            # Khối riêng: lỗi tin biến động không được làm mất thẻ bất thường (và ngược lại).
+            try:
+                async with self.session.begin_nested():
+                    anomaly_created, _ = await build_anomaly_messages(
+                        self.session,
+                        scan_run_id=run.id,
+                        now=now,
+                        settings=settings,
+                        seed_user_id=self.seed_user_id,
+                        pilot_emails=self.pilot_emails,
+                    )
+                run.messages_created += anomaly_created
+            except Exception as exc:
+                logger.warning("price_alert.anomaly_messages_failed error=%s", type(exc).__name__)
+                counters.errors += 1
+                counters.last_error = f"anomaly {type(exc).__name__}: {exc}"[:_MAX_ERROR_LENGTH]
         run.finished_at = now
         run.versions_scanned = counters.versions
         run.events_created = counters.events
@@ -230,8 +250,24 @@ class PriceAlertScanService:
             max_delay_working_days=settings.max_trigger_delay_working_days,
         )
         created = 0
-        if trigger:
+        candidates: list[LineRef] = []
+        if trigger or settings.anomaly_enabled:
             candidates = await resolve_candidate_lines(self.session, version)
+        if settings.anomaly_enabled:
+            # D12: xét mọi dòng ứng viên, kể cả version không phải nguồn kích hoạt (chỉ để gắn cờ).
+            for line in candidates:
+                await detect_line(
+                    self.session,
+                    version_id=version.version_id,
+                    received_date=version.received_date,
+                    material_id=line.material_id,
+                    delivery_month=line.delivery_month,
+                    line=LinePrice(line.line_id, line.price),
+                    settings=settings,
+                    now=now,
+                    scan_run_id=scan_run_id,
+                )
+        if trigger:
             chains = sorted(
                 {(line.material_id, line.delivery_month.replace(day=1)) for line in candidates},
             )
@@ -267,12 +303,19 @@ class PriceAlertScanService:
         now: datetime,
     ) -> int:
         start, _ = reference_window(version.received_date, settings.reference_working_days)
+        # Dòng bị gắn cờ (chưa được xác nhận đúng) bị loại trước khi tính daily-min (D12).
+        excluded = (
+            await excluded_line_ids(self.session, material_id, delivery_month)
+            if settings.anomaly_enabled
+            else set()
+        )
         series = await get_daily_min_series(
             self.session,
             material_id=material_id,
             delivery_month=delivery_month,
             start=start,
             end=version.received_date,
+            exclude_line_ids=excluded,
         )
         new_point = next((p for p in series if p.received_date == version.received_date), None)
         # Điểm của ngày chỉ đổi khi chính version này giữ giá thấp nhất của ngày (D2).
@@ -293,6 +336,7 @@ class PriceAlertScanService:
                 delivery_month=delivery_month,
                 start=version.received_date - timedelta(days=settings.reference_fallback_days),
                 end=version.received_date - timedelta(days=1),
+                exclude_line_ids=excluded,
             )
             usable = [point for point in older if point.price > 0]
             if usable:

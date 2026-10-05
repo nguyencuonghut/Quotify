@@ -75,7 +75,10 @@ async def reset_state(session_factory: async_sessionmaker[AsyncSession]) -> Asyn
         async with session_factory() as session:
             await session.execute(
                 update(PriceAlertSetting).values(
-                    is_enabled=False, dedupe_window_days=14, reference_fallback_days=30
+                    is_enabled=False,
+                    anomaly_enabled=False,
+                    dedupe_window_days=14,
+                    reference_fallback_days=30,
                 )
             )
             await session.execute(
@@ -100,6 +103,7 @@ async def enable(
         setting = await PriceAlertSettingsService(session).get_or_create_settings()
         values = {
             "is_enabled": True,
+            "anomaly_enabled": setting.anomaly_enabled,
             "reference_working_days": setting.reference_working_days,
             "light_from_percent": setting.light_from_percent,
             "medium_from_percent": setting.medium_from_percent,
@@ -1004,3 +1008,260 @@ async def test_the_fallback_skips_a_zero_priced_latest_point(
 
     [event] = await events(session_factory, material)
     assert event.price_ref == Decimal(200) and event.reference_age_days == 16
+
+
+async def anomalies(
+    session_factory: async_sessionmaker[AsyncSession], material: uuid.UUID
+) -> list[PriceAlertEvent]:
+    async with session_factory() as session:
+        return list(
+            (
+                await session.execute(
+                    select(PriceAlertEvent)
+                    .where(
+                        PriceAlertEvent.material_id == material,
+                        PriceAlertEvent.kind == "anomaly",
+                    )
+                    .order_by(PriceAlertEvent.sequence_number)
+                )
+            ).scalars()
+        )
+
+
+async def change_events(
+    session_factory: async_sessionmaker[AsyncSession], material: uuid.UUID
+) -> list[PriceAlertEvent]:
+    return [e for e in await events(session_factory, material) if e.kind == "change"]
+
+
+async def test_a_line_far_from_the_median_is_flagged_excluded_and_recomputes_the_day(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    """Ví dụ Threonine 15/09: 970 bị cờ, daily-min của ngày thành 26.000, không có tin biến động."""
+    material = await create_material(session_factory)
+    await enable(session_factory, day, anomaly_enabled=True)
+    await prior_points(session_factory, material, day, {-3: 25600, -2: 25435, -1: 25900})
+    good = await new_quote(session_factory, material, day, 26000)
+    bad = await new_quote(session_factory, material, day, 970)
+
+    await run_once(session_factory, day.at(0, 6))
+
+    [flag] = await anomalies(session_factory, material)
+    assert flag.quote_version_id == bad and flag.review_status == "pending"
+    assert flag.price_new == Decimal(970) and flag.price_ref == Decimal(25600)
+    assert flag.percent_change == Decimal("-96.21") and flag.direction == "down"
+    assert flag.reference_point_count == 3
+    assert sorted(flag.reference_prices or []) == [Decimal(25435), Decimal(25600), Decimal(25900)]
+    assert flag.attached_to_event_id is None and flag.level is None
+    assert await change_events(session_factory, material) == []  # 26.000 so với 25.900 là +0,4%
+    del good
+
+
+async def test_the_first_point_of_a_chain_cannot_be_flagged(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day, anomaly_enabled=True)
+    await new_quote(session_factory, material, day, 1)
+
+    await run_once(session_factory, day.at(0, 5))
+
+    assert await anomalies(session_factory, material) == []
+
+
+async def test_a_single_reference_point_is_flagged_with_low_confidence(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day, anomaly_enabled=True)
+    await prior_points(session_factory, material, day, {-2: 1000})
+    await new_quote(session_factory, material, day, 1400)
+
+    await run_once(session_factory, day.at(0, 5))
+
+    [flag] = await anomalies(session_factory, material)
+    assert (flag.reference_point_count, flag.direction) == (1, "up")
+
+
+async def test_deviation_below_the_threshold_or_with_a_per_material_override_is_not_flagged(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    default, overridden = (
+        await create_material(session_factory),
+        await create_material(session_factory),
+    )
+    await enable(session_factory, day, anomaly_enabled=True)
+    async with session_factory() as session:
+        session.add(
+            PriceAlertMaterialThreshold(material_id=overridden, anomaly_percent=Decimal(50))
+        )
+        await session.commit()
+    for material in (default, overridden):
+        await prior_points(session_factory, material, day, {-2: 1000})
+    await new_quote(session_factory, default, day, 1290)  # +29%: dưới 30%
+    await new_quote(session_factory, overridden, day, 1400)  # +40%: dưới ngưỡng ghi đè 50%
+
+    await run_once(session_factory, day.at(0, 5))
+
+    assert await anomalies(session_factory, default) == []
+    assert await anomalies(session_factory, overridden) == []
+
+
+async def test_a_point_on_the_same_level_as_a_pending_card_is_attached_to_it(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day, anomaly_enabled=True)
+    await prior_points(session_factory, material, day, {-2: 25000})
+    await new_quote(session_factory, material, day, 970)
+    await run_once(session_factory, day.at(0, 5))
+    await new_quote(session_factory, material, day, 980)  # lệch 1% so với điểm đang pending
+    await new_quote(session_factory, material, day, 5000)  # khác mặt bằng: thẻ mới
+    await run_once(session_factory, day.at(0, 6))
+
+    by_price = {e.price_new: e for e in await anomalies(session_factory, material)}
+    first, attached, other = by_price[Decimal(970)], by_price[Decimal(980)], by_price[Decimal(5000)]
+
+    assert first.attached_to_event_id is None
+    assert attached.attached_to_event_id == first.id
+    assert other.attached_to_event_id is None
+
+
+async def test_pending_and_rejected_points_are_excluded_but_accepted_ones_count(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day, anomaly_enabled=True)
+    await prior_points(session_factory, material, day, {-4: 1000})
+    await new_quote(session_factory, material, day, 300)  # bị gắn cờ, đang pending
+    await run_once(session_factory, day.at(0, 5))
+    # Ngày hôm sau giá 1070 (+7%) so với 1000 (điểm 300 bị loại): có biến động Trung bình.
+    await new_quote(session_factory, material, day, 1070, offset=1)
+    await run_once(session_factory, day.at(1, 5))
+    [change] = await change_events(session_factory, material)
+    assert (change.price_ref, change.level) == (Decimal(1000), "medium")
+
+    # Xác nhận điểm 300 là đúng: từ giờ nó là điểm tham chiếu hợp lệ.
+    async with session_factory() as session:
+        await session.execute(
+            update(PriceAlertEvent)
+            .where(PriceAlertEvent.kind == "anomaly", PriceAlertEvent.material_id == material)
+            .values(review_status="accepted")
+        )
+        await session.commit()
+    await new_quote(session_factory, material, day, 320, offset=2)
+    await run_once(session_factory, day.at(2, 5))
+    later = [
+        e
+        for e in await change_events(session_factory, material)
+        if e.received_date_new == day.day(2)
+    ]
+    assert later == [] or later[0].price_ref != Decimal(1070)
+
+
+async def test_a_flag_on_a_cancelled_quote_does_not_exclude_anything(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day, anomaly_enabled=True)
+    await prior_points(session_factory, material, day, {-4: 1000})
+    bad = await new_quote(session_factory, material, day, 300)
+    await run_once(session_factory, day.at(0, 5))
+    async with session_factory() as session:
+        quote_id = (
+            await session.execute(select(QuoteVersion.quote_id).where(QuoteVersion.id == bad))
+        ).scalar_one()
+        await session.execute(
+            update(Quote).where(Quote.id == quote_id).values(cancelled_at=day.at(0, 6))
+        )
+        await session.commit()
+
+    async with session_factory() as session:
+        from app.services.price_alert_anomaly import excluded_line_ids
+
+        assert await excluded_line_ids(session, material, DEC) == set()
+
+
+async def test_nothing_is_flagged_while_the_anomaly_switch_is_off(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    await enable(session_factory, day)  # anomaly_enabled mặc định tắt
+    await prior_points(session_factory, material, day, {-2: 25000})
+    await new_quote(session_factory, material, day, 970)
+
+    await run_once(session_factory, day.at(0, 5))
+
+    assert await anomalies(session_factory, material) == []
+    assert len(await change_events(session_factory, material)) == 1  # vẫn là biến động thường
+
+
+async def test_a_non_trigger_version_is_still_flagged_but_makes_no_change_alert(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    material = await create_material(session_factory)
+    seed = await create_user(session_factory)
+    await enable(session_factory, day, anomaly_enabled=True)
+    await prior_points(session_factory, material, day, {-2: 25000})
+    await new_quote(session_factory, material, day, 970, created_by=seed)
+
+    await run_once(session_factory, day.at(0, 5), seed_user_id=seed)
+
+    assert len(await anomalies(session_factory, material)) == 1
+    assert await change_events(session_factory, material) == []
+
+
+@pytest.mark.parametrize("switch", [True, False])
+async def test_anomaly_messages_are_built_only_when_the_anomaly_switch_is_on(
+    session_factory: async_sessionmaker[AsyncSession],
+    day: Day,
+    monkeypatch: pytest.MonkeyPatch,
+    switch: bool,
+) -> None:
+    calls: list[uuid.UUID] = []
+
+    async def spy(session: AsyncSession, *, scan_run_id: uuid.UUID, **kwargs: object):  # type: ignore[no-untyped-def]
+        calls.append(scan_run_id)
+        return 0, {}
+
+    monkeypatch.setattr(scan_module, "build_anomaly_messages", spy)
+    material = await create_material(session_factory)
+    await enable(session_factory, day, anomaly_enabled=switch)
+    await prior_points(session_factory, material, day, {-3: 25600, -2: 25435, -1: 25900})
+    await new_quote(session_factory, material, day, 970)
+
+    outcome = await run_once(session_factory, day.at(0, 6))
+
+    assert calls == ([outcome.scan_run_id] if switch else [])
+
+
+async def test_a_copy_of_a_flagged_price_in_a_corrected_version_stays_excluded(
+    session_factory: async_sessionmaker[AsyncSession], day: Day
+) -> None:
+    """Sửa phiếu và chốt lại sao chép dòng sang version mới; giá sai vẫn phải bị loại."""
+    from app.services.price_alert_anomaly import excluded_line_ids
+
+    material = await create_material(session_factory)
+    await enable(session_factory, day, anomaly_enabled=True)
+    await prior_points(session_factory, material, day, {-3: 25600, -2: 25435, -1: 25900})
+    version = await new_quote(session_factory, material, day, 970)
+    await run_once(session_factory, day.at(0, 6))
+    (flag,) = await anomalies(session_factory, material)
+    async with session_factory() as session:
+        quote_id = (
+            await session.execute(select(QuoteVersion.quote_id).where(QuoteVersion.id == version))
+        ).scalar_one()
+    _, copied = await create_version_with_lines(
+        session_factory,
+        quote_id=quote_id,
+        version_number=2,
+        received_date=day.day(0),
+        lines=[(material, 970, DEC)],
+        confirmed_at=day.at(0, 5),
+    )
+
+    async with session_factory() as session:
+        excluded = await excluded_line_ids(session, material, DEC)
+
+    assert flag.quote_line_id in excluded
+    assert set(copied) <= excluded

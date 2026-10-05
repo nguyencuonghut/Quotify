@@ -18,7 +18,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import and_, delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
@@ -28,7 +28,12 @@ from app.models import (
     PriceAlertMessage,
     PriceAlertScannedVersion,
     PriceAlertScanRun,
+    Quote,
+    QuoteLine,
+    QuoteVersion,
 )
+from app.services.price_alert_anomaly import ATTACH_PERCENT
+from app.services.price_alert_anomaly_messages import build_anomaly_messages
 from app.services.price_alert_candidates import (
     BUSINESS_TIMEZONE,
     VersionToScan,
@@ -69,6 +74,8 @@ class ReplayReport:
     tables_unchanged: bool
     messages_by_status: dict[str, int] = field(default_factory=dict)
     immediate_messages_per_week: list[tuple[tuple[int, int], int]] = field(default_factory=list)
+    anomaly: dict[str, int] = field(default_factory=dict)
+    anomaly_cards_per_week: list[tuple[tuple[int, int], int]] = field(default_factory=list)
 
     @property
     def weeks_in_period(self) -> float:
@@ -84,6 +91,8 @@ async def run_replay(
     now: datetime | None = None,
     pilot_emails: frozenset[str] = frozenset(),
     dump_events_to: str | None = None,
+    anomaly: bool = False,
+    simulate_correct: bool = False,
 ) -> ReplayReport | None:
     """Chạy replay rồi LUÔN hủy giao dịch. Trả `None` nếu cron đang giữ khóa quét."""
     moment = now or datetime.now(UTC)
@@ -107,6 +116,8 @@ async def run_replay(
             await session.execute(delete(PriceAlertEvent))
             await session.execute(delete(PriceAlertScannedVersion))
             settings = await PriceAlertSettingsService(session).get_or_create_settings()
+            if anomaly:
+                settings.anomaly_enabled = True  # chỉ trong giao dịch này; rollback trả lại
             seed_user_id = await get_seed_user_id(session, seed_email)
             versions = [
                 version
@@ -127,6 +138,8 @@ async def run_replay(
             for slot in sorted(slots):
                 slot_versions = slots[slot]
                 slot_time = datetime.fromtimestamp((slot + 1) * SLOT_SECONDS, tz=UTC)
+                if simulate_correct:
+                    await _accept_confirmed_flags(session, slot_time)
                 run = PriceAlertScanRun(started_at=slot_time)
                 session.add(run)
                 await session.flush()
@@ -139,7 +152,17 @@ async def run_replay(
                 )
                 errors += counters.errors
                 await messages.build_for_run(scan_run_id=run.id, now=slot_time, settings=settings)
+                if anomaly:
+                    await build_anomaly_messages(
+                        session,
+                        scan_run_id=run.id,
+                        now=slot_time,
+                        settings=settings,
+                        seed_user_id=seed_user_id,
+                        pilot_emails=pilot_emails,
+                    )
             report = await _build_report(session, versions, errors, since)
+            report.anomaly, report.anomaly_cards_per_week = await _anomaly_stats(session, since)
             if dump_events_to:
                 await _dump_events(session, dump_events_to, since)
         finally:
@@ -148,6 +171,91 @@ async def run_replay(
     async with session_factory() as check:
         report.tables_unchanged = await _table_counts(check) == before
     return report
+
+
+async def _accept_confirmed_flags(session: AsyncSession, at: datetime) -> None:
+    """Mô phỏng "Giá đúng": thẻ đang chờ được xác nhận khi đã có từ 2 điểm sau đó cùng mặt bằng.
+
+    Chỉ tính điểm đã chốt tới thời điểm `at` (không nhìn trước tương lai), phiếu chưa hủy.
+    """
+    pending = (
+        await session.execute(
+            select(
+                PriceAlertEvent.id,
+                PriceAlertEvent.material_id,
+                PriceAlertEvent.delivery_month,
+                PriceAlertEvent.price_new,
+                PriceAlertEvent.received_date_new,
+            ).where(
+                PriceAlertEvent.kind == "anomaly",
+                PriceAlertEvent.review_status == "pending",
+                PriceAlertEvent.attached_to_event_id.is_(None),
+            ),
+        )
+    ).all()
+    tolerance = ATTACH_PERCENT / 100
+    for event_id, material_id, month, price, received in pending:
+        if price <= 0:
+            continue
+        support = (
+            await session.execute(
+                select(func.count(func.distinct(QuoteVersion.received_date)))
+                .select_from(QuoteLine)
+                .join(QuoteVersion, QuoteVersion.id == QuoteLine.quote_version_id)
+                .join(Quote, Quote.id == QuoteVersion.quote_id)
+                .where(
+                    QuoteLine.material_id == material_id,
+                    func.date_trunc("month", QuoteLine.delivery_month) == month,
+                    QuoteVersion.status == "confirmed",
+                    QuoteVersion.confirmed_at <= at,
+                    Quote.cancelled_at.is_(None),
+                    QuoteVersion.received_date > received,
+                    and_(
+                        QuoteLine.price_converted_vnd_per_kg >= price * (1 - tolerance),
+                        QuoteLine.price_converted_vnd_per_kg <= price * (1 + tolerance),
+                    ),
+                ),
+            )
+        ).scalar_one()
+        if support >= 2:
+            await session.execute(
+                update(PriceAlertEvent)
+                .where(PriceAlertEvent.id == event_id)
+                .values(review_status="accepted"),
+            )
+
+
+async def _anomaly_stats(
+    session: AsyncSession, since: datetime
+) -> tuple[dict[str, int], list[tuple[tuple[int, int], int]]]:
+    events = (
+        await session.execute(
+            select(
+                PriceAlertEvent.review_status,
+                PriceAlertEvent.attached_to_event_id,
+                PriceAlertEvent.created_at,
+            ).where(PriceAlertEvent.kind == "anomaly", PriceAlertEvent.created_at >= since),
+        )
+    ).all()
+    counts: dict[str, int] = defaultdict(int)
+    for status, attached, _ in events:
+        counts["total"] += 1
+        counts["attached" if attached is not None else (status or "pending")] += 1
+    messages = (
+        await session.execute(
+            select(PriceAlertMessage.created_at).where(
+                PriceAlertMessage.kind.in_(("anomaly", "digest")),
+                PriceAlertMessage.status == "pending",
+                PriceAlertMessage.audience.is_not(None),
+                PriceAlertMessage.created_at >= since,
+            ),
+        )
+    ).scalars()
+    per_week: dict[tuple[int, int], int] = defaultdict(int)
+    for created_at in messages:
+        iso = created_at.astimezone(BUSINESS_TIMEZONE).date().isocalendar()
+        per_week[(iso[0], iso[1])] += 1
+    return dict(counts), sorted(per_week.items())
 
 
 async def _table_counts(session: AsyncSession) -> dict[str, int]:
@@ -176,7 +284,7 @@ async def _build_report(
                 PriceAlertEvent.material_id,
                 PriceAlertEvent.level,
                 PriceAlertEvent.created_at,
-            ).where(PriceAlertEvent.created_at >= since),
+            ).where(PriceAlertEvent.created_at >= since, PriceAlertEvent.kind == "change"),
         )
     ).all()
     weeks: dict[tuple[int, int], WeekRow] = {}
@@ -290,6 +398,16 @@ def format_report(report: ReplayReport) -> str:
             f"{row.iso_week[0]}-W{row.iso_week[1]:02d}   {row.events:7d}   "
             f"{row.medium_or_large:14d}   {len(row.material_days):11d}",
         )
+    if report.anomaly:
+        lines.append("")
+        lines.append(
+            f"Giá bất thường: {report.anomaly} = "
+            f"{report.anomaly.get('total', 0) / per_week:.1f} điểm mỗi tuần."
+        )
+        lines.append(
+            "Thẻ/tin tóm tắt gửi người nhận theo tuần: "
+            + ", ".join(f"{y}-W{w:02d}={n}" for (y, w), n in report.anomaly_cards_per_week)
+        )
     lines.append("")
     lines.append(
         "Giao dịch đã hủy: các bảng price_alert_* không đổi."
@@ -306,6 +424,14 @@ async def amain(argv: list[str]) -> int:
         "--dump-events", help="Ghi các sự kiện của replay ra tệp JSON để đối chiếu."
     )
     parser.add_argument(
+        "--anomaly", action="store_true", help="Bật phát hiện giá bất thường (D12) trong replay."
+    )
+    parser.add_argument(
+        "--simulate-correct",
+        action="store_true",
+        help='Mô phỏng nút "Giá đúng" khi có từ 2 điểm sau cùng mặt bằng (cần --anomaly).',
+    )
+    parser.add_argument(
         "--ignore-trigger-source",
         action="store_true",
         help="Bỏ điều kiện D6 (tài khoản seed, độ trễ) để thấy nhiều dữ liệu hơn.",
@@ -318,6 +444,8 @@ async def amain(argv: list[str]) -> int:
         ignore_trigger_source=args.ignore_trigger_source,
         seed_email=settings.auth_seed_admin_email,
         dump_events_to=args.dump_events,
+        anomaly=args.anomaly,
+        simulate_correct=args.simulate_correct,
     )
     if report is None:
         print("Cron đang giữ khóa quét; thử lại sau ít giây.", file=sys.stderr)

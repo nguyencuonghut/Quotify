@@ -33,6 +33,7 @@ from app.services.price_alert_settings_service import (
 
 VALID_PAYLOAD: dict[str, Any] = {
     "is_enabled": True,
+    "anomaly_enabled": False,
     "reference_working_days": 7,
     "light_from_percent": "2.50",
     "medium_from_percent": "5.00",
@@ -88,6 +89,7 @@ class MockPriceAlertSettingsService:
             digest_hour_local=8,
             reference_fallback_days=30,
             is_enabled=False,
+            anomaly_enabled=False,
             created_at=now,
             updated_at=now,
         )
@@ -225,6 +227,7 @@ async def test_get_returns_every_contract_field_with_decimal_strings(
     body = response.json()
     assert set(body) == {
         "is_enabled",
+        "anomaly_enabled",
         "reference_working_days",
         "light_from_percent",
         "medium_from_percent",

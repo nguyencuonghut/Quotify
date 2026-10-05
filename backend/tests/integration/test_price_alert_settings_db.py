@@ -35,6 +35,7 @@ T0 = datetime(2026, 10, 5, 8, 0, tzinfo=UTC)
 
 DEFAULTS: dict[str, Any] = {
     "is_enabled": False,
+    "anomaly_enabled": False,
     "reference_working_days": 7,
     "light_from_percent": Decimal("2.50"),
     "medium_from_percent": Decimal("5.00"),

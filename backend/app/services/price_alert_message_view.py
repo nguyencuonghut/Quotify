@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -15,6 +15,8 @@ from app.models import (
     QuoteVersion,
 )
 from app.services.daily_min_series import get_daily_min_series
+from app.services.price_alert_anomaly import excluded_line_ids
+from app.services.price_alert_anomaly_formatter import AnomalyPointView
 from app.services.price_alert_chart import ChartSpec
 from app.services.price_alert_formatter import (
     EventView,
@@ -132,6 +134,10 @@ async def load_chart_spec(
         delivery_month=top.delivery_month,
         start=top.received_date_new - timedelta(days=CHART_DAYS - 1),
         end=top.received_date_new,
+        # Dòng đang bị nghi nhập sai không được vẽ vào đường giá (cùng quy tắc với engine).
+        exclude_line_ids=await excluded_line_ids(
+            session, message.material_id, top.delivery_month.replace(day=1)
+        ),
     )
     if not series:
         return None
@@ -155,3 +161,46 @@ async def load_chart_spec(
         ref_max_label=f"Cao nhất: {format_price_short(top.window_max)}",
         zone_caption=f"Vùng tham chiếu {window} ngày làm việc",
     )
+
+
+async def load_anomaly_points(
+    session: AsyncSession,
+    message_id: UUID,
+) -> list[tuple[str, AnomalyPointView]]:
+    """Điểm bất thường của một tin (thẻ hoặc tóm tắt): (tên vật tư, điểm), theo vật tư rồi kỳ."""
+    rows = (
+        await session.execute(
+            select(PriceAlertEvent, QuoteVersion.quote_id, Material.name)
+            .join(PriceAlertMessageEvent, PriceAlertMessageEvent.event_id == PriceAlertEvent.id)
+            .join(QuoteVersion, QuoteVersion.id == PriceAlertEvent.quote_version_id)
+            .join(Material, Material.id == PriceAlertEvent.material_id)
+            .where(PriceAlertMessageEvent.message_id == message_id)
+            .order_by(Material.name, PriceAlertEvent.delivery_month),
+        )
+    ).all()
+    attached_rows = (
+        await session.execute(
+            select(PriceAlertEvent.attached_to_event_id, func.count())
+            .where(PriceAlertEvent.attached_to_event_id.in_([event.id for event, _, _ in rows]))
+            .group_by(PriceAlertEvent.attached_to_event_id),
+        )
+    ).all()
+    attached: dict[UUID, int] = {row[0]: row[1] for row in attached_rows if row[0] is not None}
+    return [
+        (
+            name,
+            AnomalyPointView(
+                event_id=str(event.id),
+                delivery_month=event.delivery_month,
+                price=event.price_new,
+                median=event.price_ref,
+                percent=event.percent_change,
+                received_date=event.received_date_new,
+                reference_values=tuple(event.reference_prices or ()),
+                reference_point_count=event.reference_point_count or 0,
+                quote_id=str(quote_id),
+                attached_count=attached.get(event.id, 0),
+            ),
+        )
+        for event, quote_id, name in rows
+    ]

@@ -4,6 +4,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, or_, select, update
@@ -25,9 +26,17 @@ from app.models import (
     User,
     UserStatus,
 )
+from app.services.price_alert_anomaly_formatter import (
+    format_anomaly_card,
+    format_anomaly_cluster,
+)
 from app.services.price_alert_chart import render_price_chart
 from app.services.price_alert_formatter import format_caption, format_details
-from app.services.price_alert_message_view import load_chart_spec, load_message_view
+from app.services.price_alert_message_view import (
+    load_anomaly_points,
+    load_chart_spec,
+    load_message_view,
+)
 from app.services.telegram_link_service import TelegramLinkService
 
 logger = logging.getLogger(__name__)
@@ -40,6 +49,7 @@ MAX_RETRY_AFTER = timedelta(minutes=5)
 CONFIG_ERROR_DELAY = timedelta(minutes=5)
 DEFAULT_BATCH_LIMIT = 20
 _PHOTO_SENT = "photo_sent"
+_BUTTON_AUDIENCES = ("manager", "admin")
 _MAX_ERROR_LENGTH = 255
 
 
@@ -66,6 +76,7 @@ class _Content:
     caption: str
     text: str
     photo_already_sent: bool
+    reply_markup: dict[str, Any] | None = None
 
 
 class PriceAlertSender:
@@ -132,7 +143,7 @@ class PriceAlertSender:
                             PriceAlertMessage.created_at,
                         )
                         .where(
-                            PriceAlertMessage.kind.in_(("change", "digest")),
+                            PriceAlertMessage.kind.in_(("change", "anomaly", "digest")),
                             or_(
                                 (PriceAlertMessage.status == "pending")
                                 & (
@@ -199,6 +210,7 @@ class PriceAlertSender:
                 content.chat_id,
                 content.text,
                 disable_notification=content.png is not None or content.photo_already_sent,
+                reply_markup=content.reply_markup,
             )
         except TelegramForbiddenError:
             await self._block(content.telegram_user_id)
@@ -250,6 +262,13 @@ class PriceAlertSender:
             if self.pilot_emails and user.email.lower() not in self.pilot_emails:
                 raise _SkipError("pilot")
 
+            # Tin tóm tắt bất thường có `audience`; tin tràn trần thì không. Không dựa vào
+            # `status_reason` vì lần thử lại ghi đè nó bằng mã lỗi.
+            if message.kind == "anomaly" or (
+                message.kind == "digest" and message.audience is not None
+            ):
+                return await self._anomaly_content(session, message, account)
+
             if message.kind == "digest":
                 count = (
                     await session.execute(
@@ -276,6 +295,31 @@ class PriceAlertSender:
             format_details(view, base_url=self.base_url),
             photo_done,
         )
+
+    async def _anomaly_content(
+        self,
+        session: AsyncSession,
+        message: PriceAlertMessage,
+        account: TelegramAccount,
+    ) -> _Content:
+        points = await load_anomaly_points(session, message.id)
+        if not points:
+            raise _FailError("no_content")
+        with_buttons = message.audience in _BUTTON_AUDIENCES
+        if message.kind == "anomaly":
+            text, markup = format_anomaly_card(
+                points[0][0],
+                [point for _, point in points],
+                base_url=self.base_url,
+                with_buttons=with_buttons,
+            )
+        else:
+            text, markup = format_anomaly_cluster(
+                points,
+                base_url=self.base_url,
+                with_buttons=with_buttons,
+            )
+        return _Content(account.chat_id, account.telegram_user_id, None, text, text, False, markup)
 
     async def _remember_photo(self, message_id: UUID, photo_id: int) -> None:
         """Nhớ ảnh đã gửi để lần thử lại sau lỗi ở tin chi tiết không gửi ảnh lần hai."""
