@@ -1,19 +1,33 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, Literal
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.models.telegram_account import TelegramAccount
 from app.models.telegram_processed_update import TelegramProcessedUpdate
 from app.models.user import UserStatus
 from app.services.audit_log import AuditLogContext, AuditLogService
+from app.services.price_alert_review_service import (
+    PriceAlertReviewService,
+    ReviewOutcome,
+    compose_review_edit,
+)
 from app.services.telegram_bot_messages import (
+    ACCEPTED_TOAST,
     HELP_TEXT,
+    INVALID_CARD_TEXT,
     INVALID_LINK_TEXT,
+    NO_REVIEW_PERMISSION_TEXT,
     NOT_LINKED_TEXT,
+    REJECTED_TOAST,
     REPLACED_TEXT,
     START_TEXT,
     STOPPED_TEXT,
@@ -21,6 +35,7 @@ from app.services.telegram_bot_messages import (
     UNKNOWN_TEXT,
     USER_INACTIVE_TEXT,
     already_linked_text,
+    already_reviewed_text,
     linked_text,
     reactivated_text,
 )
@@ -36,6 +51,37 @@ class OutboundMessage:
     chat_id: int
     text: str
     reply_markup: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CallbackAnswer:
+    """Trả lời một lần bấm nút (`answerCallbackQuery`); phải gửi trước mọi việc khác (L22)."""
+
+    callback_id: str
+    text: str | None = None
+    show_alert: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class MessageEdit:
+    """Sửa nội dung và bàn phím của tin chứa nút vừa bấm (`editMessageText`, L24)."""
+
+    chat_id: int
+    message_id: int
+    text: str
+    reply_markup: dict[str, Any] | None = None
+
+
+Outbound = OutboundMessage | CallbackAnswer | MessageEdit
+
+
+@dataclass(frozen=True, slots=True)
+class TelegramCallback:
+    id: str
+    from_user_id: int | None
+    chat_id: int | None
+    message_id: int | None
+    data: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +109,7 @@ class TelegramUpdate:
     update_id: int
     message: TelegramMessage | None
     chat_member: TelegramChatMemberChange | None = None
+    callback: TelegramCallback | None = None
 
 
 def _as_int(value: Any) -> int | None:
@@ -120,7 +167,34 @@ def parse_update(payload: Any) -> TelegramUpdate | None:
                 from_user_id=_as_int(sender.get("id")) if isinstance(sender, dict) else None,
                 new_status=new_status,
             )
-    return TelegramUpdate(update_id=update_id, message=message, chat_member=chat_member)
+    callback: TelegramCallback | None = None
+    raw_callback = payload.get("callback_query")
+    if isinstance(raw_callback, dict):
+        sender = raw_callback.get("from")
+        origin = raw_callback.get("message")
+        origin_chat = origin.get("chat") if isinstance(origin, dict) else None
+        callback_id = _as_str(raw_callback.get("id"))
+        data = _as_str(raw_callback.get("data"))
+        from_id = _as_int(sender.get("id")) if isinstance(sender, dict) else None
+        chat_id = _as_int(origin_chat.get("id")) if isinstance(origin_chat, dict) else None
+        message_id = _as_int(origin.get("message_id")) if isinstance(origin, dict) else None
+        # Chỉ cần `id` để còn trả lời được; thiếu trường khác thì xử lý sẽ báo thẻ không hợp lệ.
+        if callback_id is not None:
+            callback = TelegramCallback(callback_id, from_id, chat_id, message_id, data or "")
+    return TelegramUpdate(
+        update_id=update_id, message=message, chat_member=chat_member, callback=callback
+    )
+
+
+def _parse_review_data(data: str) -> tuple[Literal["ok", "no"], UUID] | None:
+    parts = data.split(":")
+    if len(parts) != 3 or parts[0] != "pa" or parts[1] not in ("ok", "no"):
+        return None
+    try:
+        event_id = UUID(parts[2])
+    except ValueError:
+        return None
+    return ("ok" if parts[1] == "ok" else "no"), event_id
 
 
 def parse_command(text: str | None) -> tuple[str | None, str]:
@@ -141,9 +215,12 @@ class TelegramUpdateService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def handle(self, update: TelegramUpdate) -> list[OutboundMessage]:
+    async def handle(self, update: TelegramUpdate) -> Sequence[Outbound]:
         if not await self._record_update(update.update_id):
             return []
+
+        if update.callback is not None:
+            return await self._handle_callback(update.update_id, update.callback)
 
         if update.chat_member is not None:
             await self._handle_chat_member(update.chat_member)
@@ -184,6 +261,59 @@ class TelegramUpdateService:
         if command == "/help":
             return [OutboundMessage(message.chat_id, HELP_TEXT)]
         return [OutboundMessage(message.chat_id, UNKNOWN_TEXT)]
+
+    async def _handle_callback(
+        self,
+        update_id: int,
+        callback: TelegramCallback,
+    ) -> list[Outbound]:
+        """Nút duyệt giá bất thường: `pa:ok:<id>` (Giá đúng) hoặc `pa:no:<id>` (Nhập sai)."""
+        parsed = _parse_review_data(callback.data)
+        if parsed is None or callback.chat_id is None or callback.message_id is None:
+            return [CallbackAnswer(callback.id, INVALID_CARD_TEXT, show_alert=True)]
+        action, event_id = parsed
+        user_id = await self._linked_user_id(callback.from_user_id)
+        if user_id is None:
+            return [CallbackAnswer(callback.id, NO_REVIEW_PERMISSION_TEXT, show_alert=True)]
+
+        result = await PriceAlertReviewService(self.session).review(
+            event_id,
+            action,
+            actor_user_id=user_id,
+            now=datetime.now(UTC),
+            request_id=f"tg-update-{update_id}",
+        )
+        match result.outcome:
+            case ReviewOutcome.FORBIDDEN:
+                return [CallbackAnswer(callback.id, NO_REVIEW_PERMISSION_TEXT, show_alert=True)]
+            case ReviewOutcome.NOT_FOUND:
+                return [CallbackAnswer(callback.id, INVALID_CARD_TEXT, show_alert=True)]
+            case ReviewOutcome.REVIEWED:
+                toast = ACCEPTED_TOAST if result.status == "accepted" else REJECTED_TOAST
+            case ReviewOutcome.ALREADY_REVIEWED:
+                toast = already_reviewed_text(result.reviewer_name)
+        outbound: list[Outbound] = [CallbackAnswer(callback.id, toast)]
+        edit = await compose_review_edit(
+            self.session,
+            chat_id=callback.chat_id,
+            message_id=callback.message_id,
+            base_url=get_settings().app_public_url,
+        )
+        if edit is not None:
+            outbound.append(MessageEdit(callback.chat_id, callback.message_id, edit[0], edit[1]))
+        return outbound
+
+    async def _linked_user_id(self, telegram_user_id: int | None) -> UUID | None:
+        if telegram_user_id is None:
+            return None
+        return (
+            await self.session.execute(
+                select(TelegramAccount.user_id).where(
+                    TelegramAccount.telegram_user_id == telegram_user_id,
+                    TelegramAccount.status == "active",
+                ),
+            )
+        ).scalar_one_or_none()
 
     async def _handle_chat_member(self, change: TelegramChatMemberChange) -> None:
         """Người dùng chặn (`kicked`) hoặc bỏ chặn (`member`) bot trong chat riêng."""

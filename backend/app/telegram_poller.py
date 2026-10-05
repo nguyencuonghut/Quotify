@@ -18,6 +18,7 @@ from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.session import get_sessionmaker
 from app.integrations.telegram import (
+    ALLOWED_UPDATES,
     TelegramApiError,
     TelegramClient,
     TelegramConfigurationError,
@@ -29,7 +30,6 @@ from app.services.telegram_update_runner import TelegramTemporaryError, Telegram
 
 logger = logging.getLogger("app.telegram")
 
-ALLOWED_UPDATES = ["message", "my_chat_member"]
 POLL_TIMEOUT_SECONDS = 25
 INITIAL_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 30.0

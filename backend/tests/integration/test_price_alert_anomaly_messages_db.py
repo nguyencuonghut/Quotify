@@ -9,7 +9,13 @@ from decimal import Decimal
 
 import httpx
 import pytest
-from db_helpers import create_confirmed_quote_version, create_material, ensure_role
+from db_helpers import (
+    create_confirmed_quote_version,
+    create_material,
+    create_quote_shell,
+    create_version_with_lines,
+    ensure_role,
+)
 from price_alert_scene import Scene
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -24,6 +30,7 @@ from app.models import (
     TelegramAccount,
 )
 from app.services.price_alert_anomaly_messages import build_anomaly_messages
+from app.services.price_alert_candidates import record_scanned_version
 from app.services.price_alert_sender import PriceAlertSender
 
 pytestmark = pytest.mark.integration
@@ -66,15 +73,34 @@ async def flag(
     month: date = MONTH,
     attached_to: uuid.UUID | None = None,
     price: int = 970,
+    with_line: bool = False,
 ) -> uuid.UUID:
-    version = await create_confirmed_quote_version(sf, created_by_id=enterer)
+    line_id: uuid.UUID | None = None
+    if with_line:
+        quote = await create_quote_shell(sf, created_by_id=enterer)
+        version, lines = await create_version_with_lines(
+            sf,
+            quote_id=quote,
+            version_number=1,
+            received_date=NOW.date(),
+            lines=[(material, price, month)],
+            confirmed_at=NOW,
+        )
+        line_id = lines[0]
+    else:
+        version = await create_confirmed_quote_version(sf, created_by_id=enterer)
     async with sf() as session:
+        # Đã quét rồi: phiếu thử không được lọt vào lô quét của test khác (DB dùng chung).
+        await record_scanned_version(
+            session, version_id=version, is_trigger_source=False, trigger_delay_working_days=None
+        )
         event = PriceAlertEvent(
             scan_run_id=run,
             quote_version_id=version,
             material_id=material,
             delivery_month=month,
             kind="anomaly",
+            quote_line_id=line_id,
             direction="down",
             percent_change=Decimal("-96.21"),
             price_new=Decimal(price),

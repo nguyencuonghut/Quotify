@@ -64,3 +64,16 @@ def already_linked_text(full_name: str) -> str:
         f"Tài khoản Telegram này đã liên kết với <b>{escape_html(full_name)}</b>. "
         "Gõ /help để xem hướng dẫn."
     )
+
+
+# Lời nhắn khi bấm nút duyệt giá bất thường: văn bản thuần (answerCallbackQuery không có HTML).
+ACCEPTED_TOAST = "Đã xác nhận giá đúng."
+REJECTED_TOAST = "Đã đánh dấu nhập sai."
+INVALID_CARD_TEXT = "Thẻ này không còn hợp lệ."
+NO_REVIEW_PERMISSION_TEXT = "Bạn không có quyền duyệt giá bất thường."
+BUSY_TEXT = "Hệ thống đang bận, vui lòng bấm lại sau ít giây."
+TOO_FAST_TEXT = "Bạn bấm quá nhanh, vui lòng thử lại sau."
+
+
+def already_reviewed_text(reviewer_name: str | None) -> str:
+    return f"Đã được xử lý bởi {reviewer_name}." if reviewer_name else "Đã được xử lý."

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import timedelta
 from typing import Any
 
@@ -15,16 +16,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.integrations.telegram import TelegramClient, TelegramForbiddenError
 from app.models.telegram_link_token import TelegramLinkToken
 from app.models.telegram_processed_update import TelegramProcessedUpdate
-from app.services.telegram_bot_messages import SYSTEM_ERROR_TEXT
+from app.services.telegram_bot_messages import BUSY_TEXT, SYSTEM_ERROR_TEXT, TOO_FAST_TEXT
 from app.services.telegram_link_service import TelegramLinkService
 from app.services.telegram_update_service import (
+    CallbackAnswer,
+    MessageEdit,
+    Outbound,
     OutboundMessage,
+    TelegramCallback,
     TelegramUpdate,
     TelegramUpdateService,
     parse_update,
 )
 
 logger = logging.getLogger("app.telegram")
+
+# Thời hạn xử lý một lần bấm nút để còn trả lời callback trong 5 giây (L22).
+CALLBACK_DEADLINE_SECONDS = 4.0
 
 # Lỗi hạ tầng tạm thời: trả 5xx để Telegram thử lại, KHÔNG ghi `update_id` đã xử lý.
 _TRANSIENT_ERRORS = (OperationalError, InterfaceError, TimeoutError, ConnectionError)
@@ -84,6 +92,8 @@ class TelegramUpdateRunner:
         session_factory: Callable[[], Any],
         client: TelegramClient,
         rate_limiter: TelegramUserRateLimiter | None = None,
+        callback_rate_limiter: TelegramUserRateLimiter | None = None,
+        callback_deadline_seconds: float = CALLBACK_DEADLINE_SECONDS,
         clock: Callable[[], float] = time.monotonic,
         cleanup_interval_seconds: float = 3600.0,
         processed_retention_days: int = 3,
@@ -92,6 +102,10 @@ class TelegramUpdateRunner:
         self._session_factory = session_factory
         self._client = client
         self._rate_limiter = rate_limiter or TelegramUserRateLimiter()
+        self._callback_rate_limiter = callback_rate_limiter or TelegramUserRateLimiter(
+            limit=30, clock=clock
+        )
+        self._callback_deadline = callback_deadline_seconds
         self._clock = clock
         self._cleanup_interval = cleanup_interval_seconds
         self._retention = timedelta(days=processed_retention_days)
@@ -104,6 +118,11 @@ class TelegramUpdateRunner:
     async def process(self, payload: Any) -> None:
         update = parse_update(payload)
         if update is None:
+            return
+
+        if update.callback is not None:
+            await self._process_callback(update, update.callback)
+            await self._maybe_cleanup()
             return
 
         message = update.message
@@ -133,7 +152,42 @@ class TelegramUpdateRunner:
         await self._send(update.update_id, outbound)
         await self._maybe_cleanup()
 
-    async def _handle_in_transaction(self, update: TelegramUpdate) -> list[OutboundMessage]:
+    async def _process_callback(self, update: TelegramUpdate, callback: TelegramCallback) -> None:
+        """Nút bấm: luôn trả lời callback (kể cả khi bị giới hạn, quá chậm hoặc lỗi).
+
+        `answerCallbackQuery` hết hạn sau khoảng 15 giây nên việc xử lý có thời hạn riêng; hết hạn
+        thì giao dịch bị hủy, update không được ghi nhận và người dùng bấm lại được.
+        """
+        sender = callback.from_user_id
+        if sender is not None and not self._callback_rate_limiter.allow(sender):
+            logger.info("telegram.callback_rate_limited update_id=%s", update.update_id)
+            await self._send(update.update_id, [CallbackAnswer(callback.id, TOO_FAST_TEXT)])
+            return
+        try:
+            outbound = await asyncio.wait_for(
+                self._handle_in_transaction(update), timeout=self._callback_deadline
+            )
+        except (TimeoutError, *_TRANSIENT_ERRORS) as exc:
+            logger.warning(
+                "telegram.callback_transient_failure update_id=%s error=%s",
+                update.update_id,
+                type(exc).__name__,
+            )
+            outbound = [CallbackAnswer(callback.id, BUSY_TEXT, show_alert=True)]
+        except Exception as exc:
+            logger.error(
+                "telegram.callback_failed update_id=%s error=%s",
+                update.update_id,
+                type(exc).__name__,
+                exc_info=True,
+            )
+            outbound = [CallbackAnswer(callback.id, SYSTEM_ERROR_TEXT, show_alert=True)]
+        if not outbound:
+            # Update trùng đã xử lý: vẫn trả lời để nút không quay mãi.
+            outbound = [CallbackAnswer(callback.id)]
+        await self._send(update.update_id, outbound)
+
+    async def _handle_in_transaction(self, update: TelegramUpdate) -> Sequence[Outbound]:
         async with self._session_factory() as session:
             try:
                 outbound = await TelegramUpdateService(session).handle(update)
@@ -143,7 +197,7 @@ class TelegramUpdateRunner:
                 raise
         return outbound
 
-    async def _record_poison_update(self, update: TelegramUpdate) -> list[OutboundMessage]:
+    async def _record_poison_update(self, update: TelegramUpdate) -> list[Outbound]:
         """Update "độc": ghi nhận đã xử lý (tránh vòng thử lại vô hạn) và báo lỗi hệ thống."""
         try:
             async with self._session_factory() as session:
@@ -166,14 +220,10 @@ class TelegramUpdateRunner:
             return []
         return [OutboundMessage(message.chat_id, SYSTEM_ERROR_TEXT)]
 
-    async def _send(self, update_id: int, outbound: list[OutboundMessage]) -> None:
+    async def _send(self, update_id: int, outbound: Sequence[Outbound]) -> None:
         for item in outbound:
             try:
-                await self._client.send_message(
-                    item.chat_id,
-                    item.text,
-                    reply_markup=item.reply_markup,
-                )
+                await self._deliver(item)
             except Exception as exc:
                 # Tin trả lời là "at-most-once": commit xong rồi mới gửi, lỗi chỉ được ghi nhận.
                 logger.warning(
@@ -181,8 +231,23 @@ class TelegramUpdateRunner:
                     update_id,
                     type(exc).__name__,
                 )
-                if isinstance(exc, TelegramForbiddenError):
+                if isinstance(exc, TelegramForbiddenError) and not isinstance(item, CallbackAnswer):
                     await self._mark_blocked(update_id, item.chat_id)
+
+    async def _deliver(self, item: Outbound) -> None:
+        match item:
+            case CallbackAnswer():
+                await self._client.answer_callback_query(
+                    item.callback_id, item.text, item.show_alert
+                )
+            case MessageEdit():
+                await self._client.edit_message_text(
+                    item.chat_id, item.message_id, item.text, reply_markup=item.reply_markup
+                )
+            case OutboundMessage():
+                await self._client.send_message(
+                    item.chat_id, item.text, reply_markup=item.reply_markup
+                )
 
     async def _mark_blocked(self, update_id: int, chat_id: int) -> None:
         """Telegram trả 403: người dùng đã chặn bot. Chat riêng có `chat_id` = id người dùng."""

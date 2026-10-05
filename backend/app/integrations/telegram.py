@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 TELEGRAM_MESSAGE_MAX_LENGTH = 4096
 TELEGRAM_CAPTION_MAX_LENGTH = 1024
+# Loại update webhook và poller cùng nhận; `callback_query` cho nút duyệt giá bất thường.
+ALLOWED_UPDATES = ["message", "my_chat_member", "callback_query"]
 _NOT_MODIFIED_MARKER = "message is not modified"
 DEFAULT_TELEGRAM_API_BASE_URL = "https://api.telegram.org"
 

@@ -175,7 +175,7 @@ async def test_set_webhook_with_yes_registers_it_without_printing_secrets() -> N
     )
     assert payload["url"] == "https://quotify.example.test/api/v1/telegram/webhook"
     assert payload["secret_token"] == "cli_secret-value_123"
-    assert payload["allowed_updates"] == ["message", "my_chat_member"]
+    assert payload["allowed_updates"] == ["message", "my_chat_member", "callback_query"]
     printed = out.getvalue() + err.getvalue()
     assert "cli_secret-value_123" not in printed
     assert FAKE_TOKEN not in printed

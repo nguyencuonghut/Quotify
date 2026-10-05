@@ -81,3 +81,34 @@ def test_message_sender_names_are_parsed() -> None:
 )
 def test_parse_command(text: str | None, expected: tuple[str | None, str]) -> None:
     assert parse_command(text) == expected
+
+
+def test_a_callback_query_is_parsed_with_its_message_and_data() -> None:
+    update = parse_update(
+        {
+            "update_id": 9,
+            "callback_query": {
+                "id": "abc",
+                "from": {"id": 42, "is_bot": False, "first_name": "An"},
+                "message": {"message_id": 7, "chat": {"id": 42, "type": "private"}},
+                "data": "pa:ok:123",
+            },
+        }
+    )
+
+    assert update is not None and update.callback is not None
+    assert (update.callback.id, update.callback.from_user_id) == ("abc", 42)
+    assert (update.callback.chat_id, update.callback.message_id) == (42, 7)
+    assert update.callback.data == "pa:ok:123"
+
+
+def test_a_callback_query_missing_its_message_still_keeps_the_id_so_it_can_be_answered() -> None:
+    update = parse_update({"update_id": 9, "callback_query": {"id": "abc", "from": {"id": 42}}})
+
+    assert update is not None and update.callback is not None
+    assert (update.callback.id, update.callback.chat_id, update.callback.message_id) == (
+        "abc",
+        None,
+        None,
+    )
+    assert parse_update({"update_id": 9, "callback_query": {"from": {"id": 42}}}).callback is None  # type: ignore[union-attr]

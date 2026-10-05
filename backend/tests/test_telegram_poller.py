@@ -116,7 +116,7 @@ async def test_poller_deletes_the_webhook_first_then_advances_the_offset() -> No
     polls = telegram.calls("getUpdates")
     assert "offset" not in polls[0]
     assert polls[1]["offset"] == 12
-    assert polls[0]["allowed_updates"] == ["message", "my_chat_member"]
+    assert polls[0]["allowed_updates"] == ["message", "my_chat_member", "callback_query"]
     assert runner.processed == [10, 11]
 
 

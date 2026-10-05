@@ -9,6 +9,7 @@ from typing import TextIO
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.integrations.telegram import (
+    ALLOWED_UPDATES,
     TelegramClient,
     TelegramConfigurationError,
     TelegramError,
@@ -33,8 +34,6 @@ async def me_command(
         return 2
     return 0
 
-
-ALLOWED_UPDATES = ["message", "my_chat_member"]
 
 BOT_COMMANDS = [
     {"command": "start", "description": "Bắt đầu hoặc xem trạng thái liên kết"},
