@@ -831,7 +831,7 @@ Tính năng: cron trong `worker` quét phiếu vừa chốt (mỗi 30 giây), t�
 - **Có 5 migration mới** (`20261004_1200` đến `20261004_1700`): thêm bảng, cột và quyền `price_alerts.manage`, `price_alerts.receive_all` (gán cho role `manager` và `admin`). Không sửa dữ liệu cũ. Không `alembic downgrade` trên production.
 - **Webhook phải đăng ký lại** để nhận `callback_query` (nút bấm): thiếu bước này nút không hoạt động.
 - Hai cờ bật tính năng: `TELEGRAM_ENABLED` trong `.env` (cần) và `price_alert_settings.is_enabled` trong DB (đủ). Giá bất thường có cờ riêng `anomaly_enabled` (mặc định tắt).
-- Giai đoạn đầu giới hạn người nhận bằng `PRICE_ALERT_RECIPIENT_EMAILS` (email các tài khoản người thật, cách nhau dấu phẩy). Người ngoài danh sách bị ghi `skipped` (lý do `pilot`), không nhận tin. Tài khoản seed admin không bao giờ nhận tin. Production chưa có liên kết Telegram nào đang hoạt động, nên từng người pilot phải tự liên kết ở trang Hồ sơ.
+- Giai đoạn đầu giới hạn người nhận bằng `PRICE_ALERT_RECIPIENT_EMAILS` (email các tài khoản người thật, cách nhau dấu phẩy). Người ngoài danh sách bị ghi `skipped` (lý do `pilot`), không nhận tin. **Tài khoản seed admin (`AUTH_SEED_ADMIN_EMAIL` trong `.env`) không bao giờ nhận tin, và phiếu nó nhập không bao giờ sinh tin** (nó là tài khoản import): đừng đưa vào danh sách pilot và đừng dùng nó để nhập phiếu thử. Kiểm trước: `grep -E '^AUTH_SEED_ADMIN_EMAIL=' .env`. Pilot cần ít nhất một trưởng phòng đã liên kết Telegram, và phiếu thử phải do tài khoản khác tài khoản seed nhập (trưởng phòng tự nhập cũng được). Tài khoản seed admin không bao giờ nhận tin. Production chưa có liên kết Telegram nào đang hoạt động, nên từng người pilot phải tự liên kết ở trang Hồ sơ.
 
 ### 13.2 Trình tự
 
