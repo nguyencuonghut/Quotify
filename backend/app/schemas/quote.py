@@ -55,6 +55,9 @@ class QuoteLineResponse(BaseModel):
     note: str | None = None
     purchase_marked_at: datetime | None = None
     purchase_marked_by_id: UUID | None = None
+    # Trạng thái duyệt giá bất thường của dòng (chỉ điền ở chi tiết phiếu): pending, accepted,
+    # rejected, expired; None nếu dòng chưa từng bị gắn cờ. Chỉ để xem, không đổi dữ liệu.
+    price_alert_status: str | None = None
 
     class Config:
         from_attributes = True

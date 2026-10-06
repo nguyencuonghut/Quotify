@@ -269,7 +269,20 @@
               </template>
             </Column>
             <Column field="materialCode" header="Mã vật tư" style="width: 120px" />
-            <Column field="materialName" header="Tên vật tư" />
+            <Column header="Tên vật tư" style="min-width: 13rem">
+              <template #body="slotProps">
+                <div class="quote-detail-page__material-cell">
+                  <span>{{ slotProps.data.materialName }}</span>
+                  <Tag
+                    v-if="lineBadge(slotProps.data)"
+                    :severity="lineBadge(slotProps.data)?.severity"
+                    :value="lineBadge(slotProps.data)?.label"
+                    :title="lineBadge(slotProps.data)?.title"
+                    data-testid="price-alert-status"
+                  />
+                </div>
+              </template>
+            </Column>
             <Column header="Giá gốc" style="width: 140px">
               <template #body="slotProps">
                 <span class="quote-detail-page__price-cell">
@@ -788,8 +801,10 @@ import Editor from 'primevue/editor'
 import DatePicker from 'primevue/datepicker'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 
+import { getPriceAlertStatusBadge } from '@/api/quotes.mappers'
 import { useAuthStore } from '@/stores/auth.store'
 import { usePermissionStore } from '@/stores/permission.store'
 import { useQuoteDetail } from '@/composables/useQuoteDetail'
@@ -843,6 +858,14 @@ const canMutateCurrentQuote = computed(() => {
   return Boolean(quote.value?.createdById && quote.value.createdById === authStore.currentUser?.id)
 })
 const canUpdateQuote = computed(() => permissionStore.can('quotes.update') && canMutateCurrentQuote.value)
+// Phiếu đã hủy thì không ai duyệt được nữa nên không hiện nhãn "chờ duyệt".
+function lineBadge(line: QuoteLineDomain) {
+  if (line.priceAlertStatus === 'pending' && quote.value?.cancelledAt) {
+    return null
+  }
+  return getPriceAlertStatusBadge(line.priceAlertStatus)
+}
+
 const canMarkPurchase = computed(() => permissionStore.can('quotes.mark_purchased') && canMutateCurrentQuote.value)
 // Trưởng phòng (permission "quotes.correct_user_quotes"): được tạo/tự hoàn
 // tất bản điều chỉnh trên phiếu do tài khoản role "user" tạo, KHÔNG áp dụng

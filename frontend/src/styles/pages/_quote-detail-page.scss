@@ -672,3 +672,11 @@
     margin-bottom: 0.25rem !important;
   }
 }
+
+.quote-detail-page__material-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
+}

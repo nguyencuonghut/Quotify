@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -155,3 +156,67 @@ async def list_anomalies(
         for event, name, quote_id, entered_name, reviewer_name, count in rows
     ]
     return items, int(total)
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteLineKey:
+    """Một dòng của phiếu để tra trạng thái giá bất thường."""
+
+    line_id: UUID
+    quote_id: UUID
+    material_id: UUID
+    delivery_month: date
+    price: Decimal
+
+
+def _month(value: date) -> date:
+    return value.replace(day=1)
+
+
+async def anomaly_status_by_line(
+    session: AsyncSession,
+    lines: Sequence[QuoteLineKey],
+) -> dict[UUID, str]:
+    """Trạng thái duyệt giá bất thường của từng dòng (M11); dòng chưa bị gắn cờ không có mặt.
+
+    Mỗi dòng có tối đa một sự kiện (chỉ mục duy nhất theo version và dòng). Phiếu được sửa và
+    chốt lại sao chép dòng sang version mới (id khác); bản sao giữ nguyên giá nên mang trạng
+    thái của dòng gốc, cùng cách `excluded_line_ids` nhận ra bản sao (phiếu, vật tư, tháng, giá).
+    """
+    if not lines:
+        return {}
+    rows = (
+        await session.execute(
+            select(
+                PriceAlertEvent.quote_line_id,
+                QuoteVersion.quote_id,
+                PriceAlertEvent.material_id,
+                PriceAlertEvent.delivery_month,
+                PriceAlertEvent.price_new,
+                PriceAlertEvent.review_status,
+            )
+            .join(QuoteVersion, QuoteVersion.id == PriceAlertEvent.quote_version_id)
+            .where(
+                PriceAlertEvent.kind == "anomaly",
+                PriceAlertEvent.review_status.is_not(None),
+                QuoteVersion.quote_id.in_({line.quote_id for line in lines}),
+            )
+            .order_by(PriceAlertEvent.sequence_number)
+        )
+    ).all()
+    direct: dict[UUID, str] = {}
+    by_copy: dict[tuple[UUID, UUID, date, Decimal], str] = {}
+    for line_id, quote_id, material_id, month, price, status in rows:
+        if not status:
+            continue
+        if line_id is not None:
+            direct[line_id] = status
+        by_copy[(quote_id, material_id, _month(month), price)] = status
+    result: dict[UUID, str] = {}
+    for line in lines:
+        status = direct.get(line.line_id) or by_copy.get(
+            (line.quote_id, line.material_id, _month(line.delivery_month), line.price)
+        )
+        if status:
+            result[line.line_id] = status
+    return result

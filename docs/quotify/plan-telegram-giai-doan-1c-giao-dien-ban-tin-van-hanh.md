@@ -387,12 +387,20 @@ Người nhập phiếu thấy trên trang chi tiết phiếu dòng nào đang b
 
 ### Tiêu chí chấp nhận
 
-- [ ] Nhãn hiển thị đúng sau khi duyệt từ Telegram hoặc web.
-- [ ] Không ảnh hưởng tốc độ trang chi tiết phiếu (đo truy vấn).
+- [x] Nhãn hiển thị đúng theo trạng thái duyệt (test HTTP trên PostgreSQL thật: chờ duyệt, bị bác, được xác nhận; e2e hiển thị bốn nhãn).
+- [x] Thêm đúng một truy vấn gộp cho mọi dòng của phiếu (không N+1).
 
 ### Rollback
 
 Gỡ trường và nhãn (chỉ đọc).
+
+### Kết quả Slice 6 (2026-10-06)
+
+- Backend: `QuoteLineResponse.price_alert_status` (chỉ đọc, chỉ điền ở `GET /quotes/{id}`) từ `anomaly_status_by_line`; frontend: nhãn màu trong cột "Tên vật tư" của trang chi tiết phiếu (`getPriceAlertStatusBadge`). 4 test HTTP PostgreSQL thật, 3 test đơn vị, 1 e2e.
+- Xem bằng trình duyệt thật: cột tên vật tư hẹp làm nhãn bẻ 3 đến 4 dòng; đã đặt chiều rộng tối thiểu.
+- Rà soát độc lập thấy và đã sửa (có test): dòng sao chép sang bản sửa không có nhãn dù giá vẫn bị loại (nay khớp theo phiếu, vật tư, tháng, giá như `excluded_line_ids`); phiếu đã hủy vẫn hiện "chờ duyệt" (nay ẩn nhãn đó); lời giải thích của nhãn "bị bác" chưa nói phiếu không đổi.
+- Giữ nguyên: các endpoint khác trả `QuoteLineResponse` để `price_alert_status` là null (trang tải lại phiếu sau khi chốt mua nên không mất nhãn).
+
 
 ---
 

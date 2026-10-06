@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getPriceAlertStatusBadge,
   mapQuoteLineDtoToDomain,
   mapQuoteVersionDtoToDomain,
   mapQuoteDtoToDomain,
@@ -45,6 +46,58 @@ describe('quotes.mappers', () => {
       expect(domain.deliveryMonth).toBe('2026-08-01')
       expect(domain.lineOrder).toBe(0)
       expect(domain.note).toBe('Nhập lại từ báo giá cũ.')
+    })
+
+    it('carries the price alert review state of a line and defaults to none', () => {
+      const base: QuoteLineDto = {
+        id: 'line-3',
+        material_id: 'mat-3',
+        material_code: 'M03',
+        material_name: 'Material 3',
+        price_original: '970.00',
+        currency: 'VND',
+        unit: 'KG',
+        delivery_month: '2026-11-01',
+        line_order: 0,
+        exchange_rate: null,
+        exchange_rate_source: null,
+        exchange_rate_source_mode: null,
+        exchange_rate_entered_at: null,
+        exchange_rate_manual_reason: null,
+        exchange_rate_actor_id: null,
+        import_tax_rate_percent: null,
+        processing_cost_vnd_per_kg: null,
+        price_converted_vnd_per_kg: '970.00',
+        note: null,
+        purchase_marked_at: null,
+        purchase_marked_by_id: null,
+      }
+
+      expect(mapQuoteLineDtoToDomain(base).priceAlertStatus).toBeNull()
+      expect(
+        mapQuoteLineDtoToDomain({ ...base, price_alert_status: 'pending' }).priceAlertStatus,
+      ).toBe('pending')
+    })
+
+    it('describes each review state as a badge and shows nothing for a normal line', () => {
+      expect(getPriceAlertStatusBadge(null)).toBeNull()
+      expect(getPriceAlertStatusBadge('pending')).toMatchObject({
+        label: 'Nghi nhập sai, chờ duyệt',
+        severity: 'warn',
+      })
+      expect(getPriceAlertStatusBadge('rejected')).toMatchObject({
+        label: 'Đã đánh dấu nhập sai',
+        severity: 'danger',
+      })
+      expect(getPriceAlertStatusBadge('rejected')?.title).toContain('phiếu không bị thay đổi')
+      expect(getPriceAlertStatusBadge('accepted')).toMatchObject({
+        label: 'Giá đã được xác nhận',
+        severity: 'success',
+      })
+      expect(getPriceAlertStatusBadge('expired')).toMatchObject({
+        label: 'Nghi nhập sai, hết hạn duyệt',
+        severity: 'secondary',
+      })
     })
 
     it('handles null values for exchange_rate, import_tax_rate_percent and processing_cost', () => {

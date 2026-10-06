@@ -1,3 +1,5 @@
+export type PriceAlertLineStatus = 'pending' | 'accepted' | 'rejected' | 'expired'
+
 export interface QuoteLineDto {
   id: string
   material_id: string
@@ -20,6 +22,8 @@ export interface QuoteLineDto {
   note: string | null
   purchase_marked_at: string | null
   purchase_marked_by_id: string | null
+  // Chỉ có ở chi tiết phiếu: trạng thái duyệt giá bất thường của dòng.
+  price_alert_status?: PriceAlertLineStatus | null
 }
 
 export interface QuoteLineDomain {
@@ -44,6 +48,7 @@ export interface QuoteLineDomain {
   note: string | null
   purchaseMarkedAt: string | null
   purchaseMarkedById: string | null
+  priceAlertStatus: PriceAlertLineStatus | null
 }
 
 export interface QuoteVersionDto {

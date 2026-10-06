@@ -1,4 +1,5 @@
 import type {
+  PriceAlertLineStatus,
   QuoteDomain,
   QuoteDto,
   QuoteLineDomain,
@@ -40,6 +41,7 @@ export function mapQuoteLineDtoToDomain(dto: QuoteLineDto): QuoteLineDomain {
     note: dto.note,
     purchaseMarkedAt: dto.purchase_marked_at,
     purchaseMarkedById: dto.purchase_marked_by_id,
+    priceAlertStatus: dto.price_alert_status ?? null,
   }
 }
 
@@ -136,4 +138,41 @@ export function mapQuoteFlattenedDtoToDomain(dto: QuoteFlattenedDto): QuoteFlatt
     createdAt: dto.created_at,
     isCancelled: dto.is_cancelled,
   }
+}
+
+export interface PriceAlertStatusBadge {
+  label: string
+  severity: 'warn' | 'danger' | 'success' | 'secondary'
+  title: string
+}
+
+const PRICE_ALERT_BADGES: Record<PriceAlertLineStatus, PriceAlertStatusBadge> = {
+  pending: {
+    label: 'Nghi nhập sai, chờ duyệt',
+    severity: 'warn',
+    title: 'Giá lệch lớn so với giá gần đây. Đang chờ trưởng phòng xác nhận.',
+  },
+  rejected: {
+    label: 'Đã đánh dấu nhập sai',
+    severity: 'danger',
+    title:
+      'Trưởng phòng đã đánh dấu giá này là nhập sai: giá bị loại khỏi tính biến động nhưng phiếu không bị thay đổi. Hãy tạo bản điều chỉnh nếu cần sửa.',
+  },
+  accepted: {
+    label: 'Giá đã được xác nhận',
+    severity: 'success',
+    title: 'Trưởng phòng đã xác nhận giá này là đúng.',
+  },
+  expired: {
+    label: 'Nghi nhập sai, hết hạn duyệt',
+    severity: 'secondary',
+    title: 'Giá lệch lớn nhưng không ai xác nhận trong thời hạn.',
+  },
+}
+
+/** Nhãn trạng thái duyệt giá bất thường của một dòng; `null` nếu dòng chưa từng bị gắn cờ. */
+export function getPriceAlertStatusBadge(
+  status: PriceAlertLineStatus | null | undefined,
+): PriceAlertStatusBadge | null {
+  return status ? PRICE_ALERT_BADGES[status] : null
 }

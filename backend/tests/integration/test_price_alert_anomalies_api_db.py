@@ -10,6 +10,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
+from db_helpers import ensure_role
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from price_alert_scene import Scene
@@ -353,3 +354,120 @@ async def test_all_lists_the_pending_queue_first_oldest_first_then_the_history(
     ).json()
 
     assert [i["id"] for i in body["items"]] == [str(old_pending), str(new_pending), str(resolved)]
+
+
+async def quote_reader(harness: Harness) -> uuid.UUID:
+    """Người chỉ có quyền xem phiếu. DB tích hợp không chạy seed nên tự tạo quyền `quotes.read`."""
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    from app.models import Permission
+
+    async with harness.scene.sf() as session:
+        await session.execute(
+            pg_insert(Permission)
+            .values(id=uuid.uuid4(), code="quotes.read", description="Xem phiếu báo giá")
+            .on_conflict_do_nothing(index_elements=["code"])
+        )
+        await session.commit()
+    await ensure_role(harness.scene.sf, "it-quote-reader", ["quotes.read"])
+    return await harness.scene.person("it-quote-reader")
+
+
+async def quote_detail(harness: Harness, user_id: uuid.UUID, quote_id: uuid.UUID) -> dict:  # type: ignore[type-arg]
+    response = await harness.client.get(
+        f"/api/v1/quotes/{quote_id}", headers=harness.headers(user_id)
+    )
+    assert response.status_code == 200, response.text
+    return response.json()  # type: ignore[no-any-return]
+
+
+async def quote_of(harness: Harness, event_id: uuid.UUID) -> uuid.UUID:
+    async with harness.scene.sf() as session:
+        return (
+            await session.execute(
+                select(QuoteVersion.quote_id)
+                .join(PriceAlertEvent, PriceAlertEvent.quote_version_id == QuoteVersion.id)
+                .where(PriceAlertEvent.id == event_id)
+            )
+        ).scalar_one()
+
+
+async def test_the_quote_detail_shows_the_review_state_of_each_flagged_line(
+    harness: Harness,
+) -> None:
+    reader = await quote_reader(harness)
+    manager = await harness.scene.person("it-manager")
+    event_id = await harness.card()
+    quote_id = await quote_of(harness, event_id)
+
+    detail = await quote_detail(harness, reader, quote_id)
+    [line] = detail["versions"][0]["lines"]
+    assert line["price_alert_status"] == "pending"
+
+    await harness.review(manager, event_id, "rejected")
+    detail = await quote_detail(harness, reader, quote_id)
+    assert detail["versions"][0]["lines"][0]["price_alert_status"] == "rejected"
+
+    async with harness.scene.sf() as session:
+        await session.execute(
+            update(PriceAlertEvent)
+            .where(PriceAlertEvent.id == event_id)
+            .values(review_status="accepted")
+        )
+        await session.commit()
+    detail = await quote_detail(harness, reader, quote_id)
+    assert detail["versions"][0]["lines"][0]["price_alert_status"] == "accepted"
+
+
+async def test_a_line_that_was_never_flagged_has_no_status(harness: Harness) -> None:
+    from db_helpers import create_priced_line
+
+    reader = await quote_reader(harness)
+    version_id, _ = await create_priced_line(
+        harness.scene.sf,
+        material_id=harness.scene.material,
+        price=8000,
+        received_date=date(2052, 5, 5),
+    )
+    async with harness.scene.sf() as session:
+        quote_id = (
+            await session.execute(
+                select(QuoteVersion.quote_id).where(QuoteVersion.id == version_id)
+            )
+        ).scalar_one()
+
+    detail = await quote_detail(harness, reader, quote_id)
+
+    assert detail["versions"][0]["lines"][0]["price_alert_status"] is None
+
+
+async def test_a_copy_of_a_flagged_line_in_a_corrected_version_shows_the_same_state(
+    harness: Harness,
+) -> None:
+    from db_helpers import create_version_with_lines
+
+    reader = await quote_reader(harness)
+    manager = await harness.scene.person("it-manager")
+    event_id = await harness.card(price=970, month=date(2052, 12, 1))
+    quote_id = await quote_of(harness, event_id)
+    await harness.review(manager, event_id, "rejected")
+    # Bản sửa giữ nguyên dòng giá sai (sao chép sang dòng mới) nên vẫn phải mang trạng thái.
+    await create_version_with_lines(
+        harness.scene.sf,
+        quote_id=quote_id,
+        version_number=2,
+        received_date=date(2052, 5, 5),
+        lines=[
+            (harness.scene.material, 970, date(2052, 12, 1)),
+            (harness.scene.material, 8000, date(2052, 12, 1)),
+        ],
+    )
+
+    detail = await quote_detail(harness, reader, quote_id)
+
+    versions = {v["version_number"]: v for v in detail["versions"]}
+    copied, other = versions[2]["lines"]
+    assert versions[1]["lines"][0]["price_alert_status"] == "rejected"
+    assert {copied["price_alert_status"], other["price_alert_status"]} == {"rejected", None}
+    flagged = copied if copied["price_alert_status"] else other
+    assert flagged["price_converted_vnd_per_kg"] == "970.00"

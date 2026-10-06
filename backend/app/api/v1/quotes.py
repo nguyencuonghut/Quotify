@@ -44,6 +44,7 @@ from app.services import (
     FileMetadataNotFoundError,
     QuotifySettingsService,
 )
+from app.services.price_alert_anomaly_query import QuoteLineKey, anomaly_status_by_line
 from app.services.quote_export_service import BUSINESS_TIMEZONE, build_quote_export_workbook
 from app.services.quote_note_service import QuoteNoteService
 from app.services.quote_pricing import QuotePricingService
@@ -483,6 +484,7 @@ async def get_quote(
     id: UUID,
     current_user: Annotated[User, Depends(require_permission("quotes.read"))],
     quote_service: Annotated[QuoteService, Depends(get_quote_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuoteResponse:
     quote = await quote_service.get_quote_by_id(id)
     if not quote:
@@ -490,7 +492,26 @@ async def get_quote(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Không tìm thấy phiếu báo giá.",
         )
-    return _build_quote_response(quote)
+    response = _build_quote_response(quote)
+    # Một truy vấn gộp cho mọi dòng của phiếu (không N+1).
+    statuses = await anomaly_status_by_line(
+        session,
+        [
+            QuoteLineKey(
+                line.id,
+                response.id,
+                line.material_id,
+                line.delivery_month,
+                line.price_converted_vnd_per_kg,
+            )
+            for version in response.versions
+            for line in version.lines
+        ],
+    )
+    for version in response.versions:
+        for line in version.lines:
+            line.price_alert_status = statuses.get(line.id)
+    return response
 
 
 @router.post("/{id}/versions", response_model=QuoteVersionResponse)

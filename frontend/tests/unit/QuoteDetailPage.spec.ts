@@ -250,6 +250,34 @@ describe('QuoteDetailPage cancel quote and delete confirmed line', () => {
     quoteDetailMock.handleDeleteLine.mockClear()
   })
 
+  it('marks a flagged line with its price alert review state and leaves normal lines alone', () => {
+    const line = (activeVersion.value as { lines: Record<string, unknown>[] }).lines[0]
+    ;(activeVersion.value as { lines: Record<string, unknown>[] }).lines = [
+      { ...line, id: 'line-flagged', priceAlertStatus: 'pending' },
+      { ...line, id: 'line-normal', materialName: 'Lúa mỳ 3', priceAlertStatus: null },
+    ]
+
+    const wrapper = mountQuoteDetailPageForCancelAndDeleteLineActions()
+
+    const badges = wrapper.findAll('[data-testid="price-alert-status"]')
+    expect(badges).toHaveLength(1)
+    expect(badges[0].text()).toBe('Nghi nhập sai, chờ duyệt')
+  })
+
+  it('does not offer a "pending review" badge on a cancelled quote (nobody can act on it)', () => {
+    const version = activeVersion.value as { lines: Record<string, unknown>[] }
+    version.lines = [
+      { ...version.lines[0], id: 'line-flagged', priceAlertStatus: 'pending' },
+      { ...version.lines[0], id: 'line-rejected', priceAlertStatus: 'rejected' },
+    ]
+    quote.value = { ...quote.value, cancelledAt: '2026-10-06T03:00:00Z' }
+
+    const wrapper = mountQuoteDetailPageForCancelAndDeleteLineActions()
+
+    const texts = wrapper.findAll('[data-testid="price-alert-status"]').map((b) => b.text())
+    expect(texts).toEqual(['Đã đánh dấu nhập sai'])
+  })
+
   it('shows the "Hủy phiếu" button and requires a reason before confirming', async () => {
     const wrapper = mountQuoteDetailPageForCancelAndDeleteLineActions()
 
