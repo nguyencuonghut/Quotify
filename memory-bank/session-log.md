@@ -1111,3 +1111,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B len production
 - Tom tat: Deploy gop 1B len production 2026-10-06: backup, pull, build, bat che do bao tri nginx (maintenance.conf), migrate 1200-1700, up backend/worker, tat bao tri, dang ky lai webhook co callback_query, bat is_enabled va anomaly_enabled bang API. Xac minh that: tin bien dong Lon va the gia bat thuong toi tai khoan pilot, nut Nhap sai ghi rejected. Bai hoc: tai khoan seed (AUTH_SEED_ADMIN_EMAIL) khong kich hoat va khong nhan tin nen pilot phai dung tai khoan khac. Con lai: lethihong lien ket Telegram, huy phieu thu, theo doi pilot, 1C.
+
+## 2026-10-06 09:06:34Z - claude
+
+- Tieu de: Telegram 1C len production
+- Tom tat: Hoan tat 1C Slice 0-7 va deploy len production 2026-10-06: ban tin 08:00 muc Nhe (digest_kind, cron phut 10), API va trang duyet gia bat thuong, trang cau hinh nguong, tuy chon ca nhan, nhan trang thai tren phieu, so do /metrics va luat canh bao, runbook muc 14. Deploy theo runbook: backup, build, bao tri 4 phut, migrate 20261006_0900, du lieu cu khop. Con lai: ban tin dau tien, bo gioi han pilot sau 2 tuan, lethihong lien ket Telegram, nap luat canh bao, Slice 8 chinh gia bat thuong theo du lieu pilot.

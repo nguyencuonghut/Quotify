@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-BẢN ĐÃ CHỐT (bản 2, 2026-10-06: Q1 đến Q7 đã chốt, xem mục "Câu Hỏi Đã Chốt"). Soạn 2026-10-06. **Chưa có dòng code nào của 1C.** Giai đoạn 1A (liên kết Telegram) và 1B (engine biến động giá, tin ảnh, giá bất thường, nút duyệt, nhắc, hết hạn, dọn dữ liệu) đã chạy trên production từ 2026-10-06 (pilot: `nguyencuonghut55@gmail.com`; `lethihong@honghafeed.com.vn` chưa liên kết).
+BẢN ĐÃ CHỐT (bản 3, 2026-10-06: Q1 đến Q7 đã chốt, xem mục "Câu Hỏi Đã Chốt"). Soạn 2026-10-06. **Code Slice 0 đến 7 đã xong và đã lên production ngày 2026-10-06 (Slice 9); còn Slice 8 chờ dữ liệu pilot.** Giai đoạn 1A (liên kết Telegram) và 1B (engine biến động giá, tin ảnh, giá bất thường, nút duyệt, nhắc, hết hạn, dọn dữ liệu) đã chạy trên production từ 2026-10-06 (pilot: `nguyencuonghut55@gmail.com`; `lethihong@honghafeed.com.vn` chưa liên kết).
 
 Kế hoạch này triển khai chi tiết "Giai đoạn 1C" trong [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md) (mục 7, 4.6, 4.8, 4.9) và nối tiếp [plan-telegram-giai-doan-1b-engine-bien-dong-gia.md](plan-telegram-giai-doan-1b-engine-bien-dong-gia.md). Chatbot AI (Giai đoạn 2) **không** thuộc kế hoạch này.
 
@@ -493,15 +493,22 @@ Mỗi mục là một thay đổi nhỏ có thể hoàn nguyên bằng commit; t
 
 ### Tiêu chí chấp nhận
 
-- [ ] Một bản tin thật đến người pilot; không có tin đến người ngoài danh sách (khi còn giới hạn).
-- [ ] Các trang mới dùng được bằng tài khoản người thật trên production; chức năng cũ không đổi.
-- [ ] Token không có trong log; `scan_runs` không lỗi; luật cảnh báo không báo nhầm.
+- [ ] Một bản tin thật đến người pilot; không có tin đến người ngoài danh sách (khi còn giới hạn). **Chờ**: bản tin đầu tiên đến vào 08:10 sau ngày có thay đổi mức Nhẹ của người đã đặt mức tối thiểu "Nhẹ".
+- [x] Các trang mới dùng được bằng tài khoản người thật trên production; chức năng cũ không đổi (người dùng đã kiểm sau deploy 2026-10-06).
+- [x] Token không có trong log worker; số đo `quotify_price_alert_*` đúng ở `/metrics` production (`metrics_up 1`, độ trễ quét 24 giây, không tin `failed`). Luật cảnh báo chưa nạp vì stack observability production chưa chạy.
 
 ### Rollback
 
 Tắt cờ `is_enabled` (hiệu lực 30 giây) hoặc quay về image trước (build lại từ commit cũ); schema additive, không `downgrade`.
 
 ---
+
+### Kết quả deploy 1C lên production (2026-10-06)
+
+- Trình tự theo runbook mục 14: backup (Postgres 1,7 MB, 36 bảng; MinIO), `git pull` tới `5e20868`, build `backend`, `worker`, `frontend` khi site còn chạy, bật chế độ bảo trì, migrate `20261004_1700` sang `20261006_0900`, tạo lại ba service, tắt bảo trì. Số liệu cũ trước và sau khớp (users 12, quotes 3.506, quote_lines 21.325, materials 95). Gián đoạn khoảng 4 phút.
+- Worker liệt kê 17 hàm gồm `send_price_alert_digest` và cron tương ứng; `/metrics` có `quotify_price_alert_metrics_up 1`, `quotify_price_alert_enabled 1`.
+- Đã sửa sau deploy: cảnh báo `SyntaxWarning` do ký hiệu `\|` trong hai chú thích (commit `557083e`, đi cùng lần deploy kế tiếp).
+- Còn lại: (1) bản tin 08:00 đầu tiên (chờ có thay đổi mức Nhẹ); (2) bỏ giới hạn pilot sau tối thiểu 2 tuần không lỗi, tức từ khoảng 2026-10-20 (Q7); (3) `lethihong@honghafeed.com.vn` liên kết Telegram; (4) nạp luật cảnh báo khi chạy stack observability; (5) Slice 8 chờ dữ liệu pilot 3 đến 4 tuần.
 
 ## Thứ Tự Và Phụ Thuộc
 
