@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-BẢN NHÁP ĐÃ CHỐT PHẦN NGHIỆP VỤ (bản 1, soạn 2026-10-06). Sáu quyết định nghiệp vụ đã chốt (mục "Câu Hỏi Đã Chốt"). **Bốn điểm còn lại (Q7 đến Q10) là đề xuất, chờ xác nhận**; kế hoạch đã ghi sẵn giá trị mặc định để slice nào không phụ thuộc thì làm được ngay. **Chưa có dòng code nào.**
+BẢN ĐÃ CHỐT (bản 2, 2026-10-06: Q1 đến Q10 đã chốt, xem mục "Câu Hỏi Đã Chốt"; bản 1 cùng ngày chốt Q1 đến Q6, bản 2 chốt Q7 đến Q10 bằng cách đồng ý nguyên đề xuất). Soạn 2026-10-06. **Chưa có dòng code nào.**
 
 Kế hoạch này nối tiếp [plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md](plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md) (1A, 1B, 1C đã chạy trên production từ 2026-10-06) và tái dùng hạ tầng Telegram của 1B và 1C. Đây là nhu cầu mới phát sinh sau khi 1C lên production, không có trong kế hoạch cha [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md) ban đầu; chatbot AI (Giai đoạn 2) không thuộc kế hoạch này.
 
@@ -18,7 +18,7 @@ Hiện tab "Tổng quan" của Dashboard chỉ cho biết **ai** nhập bao nhi�
 
 1. **Bảng "Độ mới của giá theo vật tư"** trong tab Tổng quan, đồng bộ với bộ chọn tuần có sẵn: mỗi dòng một vật tư với số lần cập nhật, số nhà cung cấp, ngày nhận giá gần nhất, số ngày chưa có giá mới và trạng thái.
 2. **Danh sách theo dõi và chu kỳ kỳ vọng theo vật tư**, để "chưa cập nhật" có nghĩa: 60% vật tư trên dev chưa từng có giá nên nếu không có danh sách theo dõi thì bảng toàn dòng "chưa cập nhật" vô nghĩa. Mặc định tính từ dữ liệu thật; quản lý chỉnh được từng vật tư.
-3. **Nhắc qua Telegram** (đề xuất, chờ xác nhận ở Q7 và Q8) gửi cho Manager và cho những User gần đây đã nhập vật tư đó, khi vật tư quá hạn chưa có giá mới.
+3. **Nhắc qua Telegram** (đã chốt ở Q7 và Q8) gửi cho Manager và cho những User gần đây đã nhập vật tư đó, khi vật tư quá hạn chưa có giá mới.
 
 ## Ngoài Scope
 
@@ -26,7 +26,7 @@ Hiện tab "Tổng quan" của Dashboard chỉ cho biết **ai** nhập bao nhi�
 - Quyền mới (đã chốt Phương án A: dùng lại `price_alerts.manage`).
 - Loại ngày lễ và Tết khỏi ngày làm việc: giữ như 1C (QĐ-11, backlog); `working_days.py` chỉ loại thứ Bảy và Chủ nhật.
 - Tự động đề xuất đưa vật tư mới vào danh sách theo dõi (chỉ làm tay qua trang cấu hình; xem rủi ro RF-8).
-- Công tắc nhắc riêng trong tùy chọn cá nhân (đề xuất không làm, Q10).
+- Công tắc nhắc riêng trong tùy chọn cá nhân (đã chốt không làm, Q10).
 
 ## Căn Cứ Đã Xác Minh (2026-10-06)
 
@@ -115,20 +115,22 @@ Như 1B và 1C, thêm:
 | F2 | Bản sửa phiếu | Bản cũ chuyển `superseded` nên không còn được đếm; bản mới được đếm theo `received_date` của nó. Sửa phiếu không đếm đôi |
 | F3 | Bảng cấu hình theo dõi | Bảng mới `price_freshness_materials(material_id PK FK materials ON DELETE CASCADE, is_watched bool not null, expected_interval_days int not null CHECK 1..365, updated_by_id FK users ON DELETE SET NULL, created_at, updated_at)`. Không có hàng nghĩa là không theo dõi. Bảng ngưỡng 1B giữ nguyên |
 | F4 | API đọc bảng | `GET /api/v1/dashboard/quotify/material-freshness?week_start=YYYY-MM-DD`, quyền **`price_alerts.manage`** (Phương án A, câu trả lời 5). Trả `{week_start, week_end, as_of_date, summary, items}` không phân trang (dưới 200 dòng, vì cả hệ thống 95 đến 122 vật tư). `summary`: `watched_count`, `updated_count`, `on_time_count`, `overdue_count` (gồm `never`) tính **chỉ trên vật tư đang theo dõi** nên cộng đúng bằng `watched_count`, thêm `unwatched_updated_count` |
-| F5 | Mỗi `item` | `material_id, material_code, material_name, material_type_id, material_type_name, is_watched, expected_interval_days (null nếu không theo dõi), update_count, supplier_count, last_received_date (null nếu chưa có), age_days (null nếu chưa có), status, last_enterer_id, last_enterer_label` (người tạo phiếu `quotes.created_by_id` của phiên bản gần nhất, cùng quy tắc xác định "người nhập" của 1B; hiển thị trên web phụ thuộc Q9) |
+| F5 | Mỗi `item` | `material_id, material_code, material_name, material_type_id, material_type_name, is_watched, expected_interval_days (null nếu không theo dõi), update_count, supplier_count, last_received_date (null nếu chưa có), age_days (null nếu chưa có), status, last_enterer_id, last_enterer_label` (người tạo phiếu `quotes.created_by_id` của phiên bản gần nhất, cùng quy tắc xác định "người nhập" của 1B; hiển thị trên web theo Q9) |
 | F6 | API cấu hình | Mở rộng mỗi mục của `GET /price-alert-settings/materials` thêm `freshness: {is_watched, expected_interval_days} \| null`; thêm `PUT /price-alert-settings/materials/{material_id}/freshness` (`{is_watched, expected_interval_days}`) và `DELETE` cùng đường dẫn (xóa hàng, idempotent). **Tách khỏi endpoint ngưỡng** để `DELETE` của ngưỡng không xóa cấu hình theo dõi. Quyền `price_alerts.manage`; audit `price_alerts.freshness_updated` (có `changes[]`); 404 khi không có vật tư, 422 khi chu kỳ ngoài 1 đến 365 |
 | F7 | Nạp danh sách mặc định | **Không** nạp trong migration (dữ liệu production bị ảnh hưởng bởi import cũ). Lệnh `python -m app.price_freshness_seed` mặc định `--dry-run` (in danh sách đề xuất và xuất CSV để trưởng phòng duyệt), `--apply` chỉ chèn hàng **chưa tồn tại** (`ON CONFLICT DO NOTHING`), không bao giờ ghi đè hàng quản lý đã sửa hoặc đã tắt |
 | F8 | Giao diện bảng | Component `MaterialFreshnessTable.vue` (kèm composable, api, mappers, types riêng) gắn trong tab Tổng quan **dưới** panel theo tuần, chỉ hiện khi `permissionStore.can('price_alerts.manage')`; gọi tải lại trong `applyWeeklyEntryFilters`, `resetWeeklyEntryFilters`, `bootstrap`; bộ lọc cục bộ: trạng thái và loại vật tư (lọc phía client vì dưới 200 dòng); mặc định sắp xếp: Quá hạn trước, rồi theo tuổi giảm dần; thẻ trạng thái màu (`Tag` severity success, info hoặc warning, danger); dòng quá hạn tô nổi như `.dashboard-page__weekly-row--warning`; khung mobile dạng thẻ như QuotesPage |
 | F9 | Giao diện cấu hình | Trong bảng "Ngưỡng theo vật tư" của `/price-alert-settings` thêm hai cột "Theo dõi" và "Chu kỳ (ngày)" và nút icon thứ hai ở cột "Thao tác" mở hộp thoại nhỏ (`ToggleSwitch` + `InputNumber` + "Bỏ cấu hình"), lưu riêng bằng F6. Cập nhật schema zod, mapper và ba spec liên quan |
 | F10 | Loại tin nhắc | Tin mới `kind = 'freshness'` (không dùng lại `kind = 'digest'` để khỏi nới CHECK `digest_kind` và khỏi lẫn vào ba loại digest có sẵn). Migration: mở rộng `ck_price_alert_messages_kind`, đổi `ck_price_alert_messages_material_required` thành `kind IN ('digest','freshness') OR material_id IS NOT NULL`, chỉ mục duy nhất một phần `uq_price_alert_messages_freshness (user_id, local_date) WHERE kind = 'freshness'` (một tin mỗi người mỗi ngày làm khóa idempotent), bảng nối `price_alert_message_materials(message_id FK CASCADE, material_id FK CASCADE, overdue_days int, interval_days int, last_received_date date, last_enterer_id FK users SET NULL, PK (message_id, material_id))` để **nội dung được chụp lúc xếp tin** và sender dựng tin xác định |
 | F11 | Người nhận nhắc | Hàm mới `resolve_freshness_recipients` (nhận **danh sách** vật tư quá hạn, trả `người nhận -> các vật tư`), dùng chung điều kiện hợp lệ của 1B: user hoạt động, `TelegramAccount` hoạt động, không phải tài khoản seed, `user_alert_preferences.is_enabled` khác false, giới hạn pilot. **Manager** (có `price_alerts.receive_all`) nhận mọi vật tư đến hạn nhắc; **User** nhận vật tư mà họ là người tạo phiếu (`quotes.created_by_id`, như `_staff_ids` của 1B) có phiên bản hợp lệ chứa vật tư đó với `received_date` trong `staff_lookback_days` gần nhất (một truy vấn theo lô, không gọi theo từng vật tư); **admin** chỉ khi `admin_receive_all`. Người thuộc nhiều nhóm nhận **một** tin gộp. Mức tối thiểu `min_level` không áp dụng (chỉ dành cho biến động giá) |
-| F12 | Lịch và nhịp nhắc (**đề xuất, chờ xác nhận, Q7**) | Cron `send_price_alert_freshness` chạy mỗi giờ phút 20 (sau cron bản tin phút 10), giờ Việt Nam; chỉ làm việc vào **ngày làm việc** khi giờ địa phương ≥ `freshness_hour_local` (mặc định 9) và `last_freshness_local_date` chưa phải hôm nay (nên worker tắt lúc 09:00 vẫn gửi bù trong ngày). Nhịp **không lưu trạng thái**: vật tư quá hạn được nhắc khi `k = 1`, rồi mỗi 3 ngày làm việc (`k = 1, 4, 7, 10, 13`), tối đa 5 lần (hằng số trong code); cập nhật giá sẽ tự đặt lại chuỗi. Không gửi khi không có gì đến hạn nhắc. Khóa advisory mới `7_620_261_007` |
-| F13 | Dạng tin (**đề xuất, chờ xác nhận, Q8**) | **Tin riêng**, không gộp vào bản tin 08:00 (bản tin 08:00 chỉ gồm thay đổi mức Nhẹ và thường rỗng). HTML thuần, có âm báo, không nút; xem Phụ lục C |
+| F12 | Lịch và nhịp nhắc (Q7, đã chốt) | Cron `send_price_alert_freshness` chạy mỗi giờ phút 20 (sau cron bản tin phút 10), giờ Việt Nam; chỉ làm việc vào **ngày làm việc** khi giờ địa phương ≥ `freshness_hour_local` (mặc định 9) và `last_freshness_local_date` chưa phải hôm nay (nên worker tắt lúc 09:00 vẫn gửi bù trong ngày). Nhịp **không lưu trạng thái**: vật tư quá hạn được nhắc khi `k = 1`, rồi mỗi 3 ngày làm việc (`k = 1, 4, 7, 10, 13`), tối đa 5 lần (hằng số trong code); cập nhật giá sẽ tự đặt lại chuỗi. Không gửi khi không có gì đến hạn nhắc. Khóa advisory mới `7_620_261_007` |
+| F13 | Dạng tin (Q8, đã chốt) | **Tin riêng**, không gộp vào bản tin 08:00 (bản tin 08:00 chỉ gồm thay đổi mức Nhẹ và thường rỗng). HTML thuần, có âm báo, không nút; xem Phụ lục C |
 | F14 | Cờ và cấu hình | Thêm `price_alert_settings.freshness_enabled` (mặc định false) và `freshness_hour_local` (mặc định 9, CHECK 0 đến 23); `price_alert_scan_state.last_freshness_local_date` (date, nullable). Cron chạy khi **cả** `is_enabled` (công tắc tổng) **và** `freshness_enabled` bật, nên tắt công tắc tổng vẫn dừng được mọi thứ. Nhịp (3 ngày) và trần (5 lần) là hằng số, đổi bằng code nếu chốt khác. `PUT /price-alert-settings` nhận thêm hai trường **tùy chọn** (bỏ qua nghĩa là giữ nguyên, để client cũ không bị gãy) |
 | F15 | Quan sát | Hai gauge tính khi scrape (cache 15 giây như 1C): `quotify_price_freshness_watched_materials`, `quotify_price_freshness_overdue_materials` (tại hôm nay). Không thêm luật cảnh báo mới (luật "tin `pending` quá 10 phút" đã bao cả loại mới). Mở rộng `check-price-alert-readiness.sh` kiểm bảng và cột mới; runbook mục 15 |
 | F16 | Phát hành | **Một đợt** như 1C: deploy khi xong Slice 1 đến 7; `freshness_enabled` vẫn **tắt**; quản lý dùng bảng web ít nhất một tuần và chỉnh danh sách theo dõi; sau đó bật nhắc trong nhóm pilot (còn `PRICE_ALERT_RECIPIENT_EMAILS`), rồi mở rộng cùng thời điểm bỏ giới hạn pilot |
 
 ## Câu Hỏi Đã Chốt (2026-10-06)
+
+Q1 đến Q6 chốt trong buổi thảo luận nhu cầu; Q7 đến Q10 là các đề xuất của kế hoạch, người dùng **đồng ý nguyên đề xuất** cùng ngày. Đổi lại một câu thì sao: nhắc hằng ngày (Q7) làm người nhận dễ tắt tin; gộp vào bản tin 08:00 (Q8) phải sửa lại bản tin 1C; bỏ cột người nhập (Q9) chỉ là ẩn ở giao diện; thêm công tắc nhắc riêng (Q10) cần thêm một cột `user_alert_preferences`, một ô trong panel Hồ sơ và một slice nhỏ.
 
 | Mã | Câu hỏi | Kết quả chốt |
 |---|---|---|
@@ -138,15 +140,10 @@ Như 1B và 1C, thêm:
 | Q4 | Kỳ xem | Đồng bộ theo bộ chọn tuần hiện có |
 | Q5 | Phạm vi quyền (diễn đạt lại cho dễ hiểu: dùng lại quyền có sẵn hay thêm quyền mới) | **Phương án A**: dùng lại `price_alerts.manage` cho cả xem bảng mới lẫn sửa danh sách theo dõi (đúng Admin và Manager, không migration quyền) |
 | Q6 | Phụ trợ (xuất Excel, xu hướng so tuần trước) | Không cần |
-
-## Câu Hỏi Còn Mở (đề xuất, chờ xác nhận)
-
-| Mã | Câu hỏi | Đề xuất mặc định (đã ghi vào kế hoạch) | Nếu đổi thì sao |
-|---|---|---|---|
-| Q7 | **Giờ gửi và nhịp nhắc** | 09:00 ngày làm việc; nhắc khi vật tư vừa quá hạn rồi mỗi 3 ngày làm việc nếu vẫn chưa có giá, tối đa 5 lần | Nhắc hằng ngày: người nhận dễ tắt tin hoặc phớt lờ (mệt mỏi cảnh báo). Chỉ nhắc một lần: ít phiền nhưng dễ bị quên. Đổi giờ: sửa `freshness_hour_local` trên giao diện; đổi nhịp hoặc trần: một dòng code |
-| Q8 | **Tin riêng hay gộp vào bản tin 08:00** | Tin riêng, vì bản tin 08:00 chỉ gồm thay đổi mức Nhẹ và thường rỗng (không gửi khi rỗng), gộp sẽ làm hai logic lệ thuộc nhau | Gộp: ít tin hơn mỗi sáng nhưng phải sửa lại bản tin 1C và nội dung thành hai phần |
-| Q9 | **Cột "Người nhập gần nhất" trên bảng web** | Có (backend trả sẵn); nếu không có thì trưởng phòng thấy vật tư quá hạn mà không biết hỏi ai | Bỏ cột: gọn hơn, chỉ ẩn ở giao diện, không đổi backend |
-| Q10 | **Công tắc riêng cho tin nhắc giá trong tùy chọn cá nhân** | Không; dùng chung công tắc `is_enabled` của thông báo giá | Có: thêm cột `user_alert_preferences` và một ô trong panel Hồ sơ (thêm một slice nhỏ) |
+| Q7 | **Giờ gửi và nhịp nhắc** | **Đồng ý đề xuất:** 09:00 ngày làm việc; nhắc khi vật tư vừa quá hạn rồi mỗi 3 ngày làm việc nếu vẫn chưa có giá, tối đa 5 lần |
+| Q8 | **Tin riêng hay gộp vào bản tin 08:00** | **Đồng ý đề xuất:** Tin riêng, vì bản tin 08:00 chỉ gồm thay đổi mức Nhẹ và thường rỗng (không gửi khi rỗng), gộp sẽ làm hai logic lệ thuộc nhau |
+| Q9 | **Cột "Người nhập gần nhất" trên bảng web** | **Đồng ý đề xuất:** Có (backend trả sẵn); nếu không có thì trưởng phòng thấy vật tư quá hạn mà không biết hỏi ai |
+| Q10 | **Công tắc riêng cho tin nhắc giá trong tùy chọn cá nhân** | **Đồng ý đề xuất:** Không; dùng chung công tắc `is_enabled` của thông báo giá |
 
 ## Slice 0: Chuẩn Bị, Đo Baseline Và Duyệt Mốc Chu Kỳ Trên Dữ Liệu Production
 
@@ -226,7 +223,7 @@ Admin và Manager mở Dashboard, chọn tuần và thấy bảng độ mới c�
 
 1. `types/material-freshness.ts` (`Dto` snake_case, `Domain` camelCase), `api/material-freshness.api.ts` (`apiRequest` với `accessToken`), `api/material-freshness.mappers.ts` (nhãn trạng thái tiếng Việt: "Đã cập nhật", "Đúng hạn", "Quá hạn", "Chưa có giá"; định dạng ngày `vi-VN` theo múi giờ cấu hình; mô tả tuổi "N ngày").
 2. `composables/useMaterialFreshness.ts`: tải theo `weekStart`, trạng thái đang tải và lỗi (thông báo cố định, không dùng `detail` của server), lọc phía client theo trạng thái và loại vật tư, sắp xếp mặc định (F8). Chặn phản hồi cũ ghi đè phản hồi mới (bài học 1C).
-3. `components/dashboard/MaterialFreshnessTable.vue`: thẻ tóm tắt (Đang theo dõi, Đã cập nhật, Đúng hạn, Quá hạn, ghi chú "k vật tư không theo dõi có cập nhật"), bộ lọc, `DataTable` (`responsive-layout="scroll"`) với cột Vật tư, Loại, Số lần, Số NCC, Ngày nhận gần nhất, Số ngày, Chu kỳ, Trạng thái, và cột Người nhập gần nhất nếu Q9 giữ; khung mobile dạng thẻ; chú thích "Tính theo ngày nhận báo giá. Quản lý danh sách theo dõi ở Cấu hình thông báo giá" kèm liên kết.
+3. `components/dashboard/MaterialFreshnessTable.vue`: thẻ tóm tắt (Đang theo dõi, Đã cập nhật, Đúng hạn, Quá hạn, ghi chú "k vật tư không theo dõi có cập nhật"), bộ lọc, `DataTable` (`responsive-layout="scroll"`) với cột Vật tư, Loại, Số lần, Số NCC, Ngày nhận gần nhất, Số ngày, Chu kỳ, Trạng thái, và cột Người nhập gần nhất (Q9); khung mobile dạng thẻ; chú thích "Tính theo ngày nhận báo giá. Quản lý danh sách theo dõi ở Cấu hình thông báo giá" kèm liên kết.
 4. Gắn vào `DashboardPage.vue` dưới panel theo tuần, bọc `v-if="permissionStore.can('price_alerts.manage')"`; gọi tải lại trong `applyWeeklyEntryFilters`, `resetWeeklyEntryFilters`, `bootstrap` của `useDashboardPage`.
 5. SCSS toàn cục `styles/pages/_dashboard-freshness.scss` (đăng ký trong `main.scss`), token `--app-*`, dòng quá hạn tô nổi như dòng cảnh báo có sẵn; mốc 1280 và 768.
 6. Tùy chọn (nếu gọn): thêm `freshness?: {status, materialTypeId}` (trường **tùy chọn**) vào snapshot của `dashboard-view.store` để giữ bộ lọc khi đổi tab.
@@ -319,7 +316,7 @@ Xóa các hàng đã nạp bằng SQL có điều kiện (`updated_by_id IS NULL
 
 ## Slice 5: Động Cơ Nhắc Cập Nhật Giá Qua Telegram (Backend)
 
-**Loại:** AFK (thử thật với Telegram là HITL) | **Chặn bởi:** Slice 1 (cấu hình theo dõi), Q7 và Q8 (đã có mặc định) | **Cỡ:** lớn
+**Loại:** AFK (thử thật với Telegram là HITL) | **Chặn bởi:** Slice 1 (cấu hình theo dõi) | **Cỡ:** lớn
 
 ### Mục tiêu
 
