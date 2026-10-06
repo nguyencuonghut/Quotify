@@ -8,6 +8,7 @@ import MaterialTypesPage from '@/pages/MaterialTypesPage.vue'
 import MaterialsPage from '@/pages/MaterialsPage.vue'
 import NotFoundPage from '@/pages/NotFoundPage.vue'
 import PriceAlertAnomaliesPage from '@/pages/PriceAlertAnomaliesPage.vue'
+import PriceAlertSettingsPage from '@/pages/PriceAlertSettingsPage.vue'
 import ProfilePage from '@/pages/ProfilePage.vue'
 import QuotifySettingsPage from '@/pages/QuotifySettingsPage.vue'
 import RolesPage from '@/pages/RolesPage.vue'
@@ -201,6 +202,18 @@ export const router = createRouter({
         title: 'Giá bất thường',
         description:
           'Xem các điểm giá nghi nhập sai và xác nhận giá đúng hoặc đánh dấu nhập sai.',
+      },
+    },
+    {
+      path: '/price-alert-settings',
+      name: 'price-alert-settings',
+      component: PriceAlertSettingsPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'price_alerts.manage',
+        title: 'Thông báo giá',
+        description:
+          'Bật hoặc tắt thông báo biến động giá, chỉnh ngưỡng mặc định và ngưỡng theo vật tư.',
       },
     },
     {

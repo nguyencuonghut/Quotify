@@ -309,12 +309,20 @@ Trưởng phòng và admin chỉnh ngưỡng, tham số, cờ bật/tắt và ng
 
 ### Tiêu chí chấp nhận
 
-- [ ] Đổi ngưỡng trên web có hiệu lực ở lần quét sau (kiểm trên dev với phiếu thử).
-- [ ] `make frontend-check` không xấu hơn baseline; e2e pass.
+- [x] Đổi ngưỡng và ngưỡng theo vật tư trên giao diện gửi đúng toàn bộ trường lên API (e2e với API giả); backend đã có test hiệu lực ở lần quét sau. Chưa thử với backend dev thật (chờ lần deploy gộp).
+- [x] Lint, `vue-tsc`, vitest không xấu hơn baseline (lint 12 lỗi và 57 cảnh báo cũ, vitest đúng 4 lỗi cũ); e2e desktop và mobile pass.
 
 ### Rollback
 
 Gỡ route và mục sidebar.
+
+### Kết quả Slice 4 (2026-10-06)
+
+- Trang `/price-alert-settings` ("Thông báo giá", nhóm Hệ thống, quyền `price_alerts.manage`): hai công tắc kèm cảnh báo về mốc quét, ngưỡng mặc định, tám tham số, bảng ngưỡng theo vật tư (tìm kiếm có chờ 0,3 giây, phân trang, hộp thoại sửa, "Dùng mặc định"). Hai composable (`usePriceAlertSettingsPage`, `usePriceAlertMaterialThresholds`), api, mappers, types, SCSS; 47 test đơn vị và 4 e2e mới.
+- Phát hiện khi viết: sau `resetForm` của vee-validate, lỗi kiểm tra không hiện ở lần lưu kế tiếp; nên dùng `setValues(values, false)` kèm `setErrors({})` thay vì `resetForm`. Với đồng hồ giả của vitest, `handleSubmit` treo nên chỉ test debounce dùng đồng hồ giả.
+- Rà soát độc lập thấy và đã sửa (có test): ngưỡng bất thường 1000 vượt giới hạn 999,99 của backend (422 khó hiểu); timer tìm kiếm không dọn khi rời trang; thông báo khi xóa trống ô số; thêm nút "Thử lại" khi tải cấu hình lỗi.
+- Giữ nguyên: lỗi kiểm tra thứ tự ngưỡng luôn hiện dưới ô "Trung bình từ" (thông báo nêu đủ bốn ngưỡng); bảng vật tư cuộn ngang trong khung riêng trên điện thoại.
+
 
 ---
 

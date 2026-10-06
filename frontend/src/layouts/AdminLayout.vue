@@ -280,6 +280,12 @@ const navGroups: NavGroup[] = [
         permission: 'backups.read',
       },
       {
+        label: 'Thông báo giá',
+        icon: 'pi pi-bell',
+        to: '/price-alert-settings',
+        permission: 'price_alerts.manage',
+      },
+      {
         label: 'Nhật ký audit',
         icon: 'pi pi-history',
         to: '/audit-logs',

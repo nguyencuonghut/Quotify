@@ -1,0 +1,154 @@
+.price-alert-settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.price-alert-settings-page__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.price-alert-settings-page__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 1rem;
+  background: var(--app-surface-panel);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.price-alert-settings-page__panel-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.price-alert-settings-page__hint {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.price-alert-settings-page__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.price-alert-settings-page__toggle label {
+  overflow-wrap: anywhere;
+}
+
+.price-alert-settings-page__grid,
+.price-alert-settings-page__dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1rem;
+  min-width: 0;
+}
+
+.price-alert-settings-page__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.price-alert-settings-page__label {
+  color: var(--app-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.price-alert-settings-page__field .p-inputnumber {
+  width: 100%;
+}
+
+.price-alert-settings-page__field-error {
+  min-height: 1rem;
+  color: var(--app-text-danger);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.price-alert-settings-page__notice,
+.price-alert-settings-page__general-error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.price-alert-settings-page__notice {
+  background-color: color-mix(in srgb, var(--app-text-success) 10%, transparent);
+  color: var(--app-text-success);
+}
+
+.price-alert-settings-page__general-error {
+  background-color: color-mix(in srgb, var(--app-text-danger) 10%, transparent);
+  color: var(--app-text-danger);
+}
+
+.price-alert-settings-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.price-alert-settings-page__search {
+  width: min(100%, 24rem);
+}
+
+.price-alert-settings-page__table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.price-alert-settings-page__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 9rem;
+}
+
+.price-alert-settings-page__cell small {
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+}
+
+.price-alert-settings-page__value--default {
+  color: var(--app-text-muted);
+}
+
+.price-alert-settings-page__empty-state {
+  padding: 1.5rem;
+  color: var(--app-text-muted);
+  text-align: center;
+}
+
+.price-alert-settings-page__dialog {
+  width: min(92vw, 36rem);
+}
+
+@media (max-width: 768px) {
+  .price-alert-settings-page__panel {
+    padding: 0.875rem;
+  }
+}
