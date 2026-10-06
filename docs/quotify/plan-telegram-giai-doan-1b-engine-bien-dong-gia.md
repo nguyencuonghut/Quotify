@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-BẢN ĐÃ CHỐT (bản 5, cập nhật 2026-10-05). **Code đã xong Slice 0 đến 14** (cổng G1 và G2 đã chạy, Q4 chấp nhận mức hiện tại cho pilot); còn lại là **đưa lên production** (Slice 11 và 15, gộp một lần) và theo dõi pilot trên production. Quyết định phát hành gộp ở mục "Quyết Định Phát Hành Gộp". Ngày soạn: 2026-10-04. Giai đoạn 1A (liên kết tài khoản Telegram) đã chạy trên production từ 2026-10-04.
+BẢN ĐÃ CHỐT (bản 5, cập nhật 2026-10-05). **Đã lên production ngày 2026-10-06** (Slice 0 đến 15, deploy gộp một lần; cổng G1 và G2 đã chạy, Q4 chấp nhận mức hiện tại cho pilot). Đang pilot: `nguyencuonghut55@gmail.com` (trưởng phòng, đã liên kết) và `lethihong@honghafeed.com.vn` (chưa liên kết); theo dõi và chỉnh theo dữ liệu thật. Quyết định phát hành gộp ở mục "Quyết Định Phát Hành Gộp". Ngày soạn: 2026-10-04. Giai đoạn 1A (liên kết tài khoản Telegram) đã chạy trên production từ 2026-10-04.
 
 Kế hoạch này là phần triển khai chi tiết của Giai đoạn 1B trong
 [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md)
@@ -852,10 +852,10 @@ Production chạy engine với cờ tắt, rồi bật cho nhóm pilot, không �
 
 ### Tiêu chí chấp nhận
 
-- [ ] Migration chạy, dữ liệu cũ nguyên vẹn, chức năng cũ bình thường.
-- [ ] Một tin thật tới người trong nhóm pilot; không có tin tới người ngoài nhóm.
-- [ ] Token không có trong log worker; `scan_runs` không có lỗi.
-- [ ] Runbook mục 13 viết xong; chạy `agent-task-close.sh`.
+- [x] Migration chạy, dữ liệu cũ nguyên vẹn, chức năng cũ bình thường. (production 2026-10-06: sáu migration 1200 đến 1700, số dòng users 11, quotes 3.490, quote_lines 21.261, materials 95 không đổi; site bảo trì khoảng 4 phút bằng `docker/nginx/maintenance.conf`)
+- [x] Một tin thật tới người trong nhóm pilot; không có tin tới người ngoài nhóm. (tin biến động Lớn tới `nguyencuonghut55@gmail.com` lúc 03:55 UTC; lưu ý tài khoản seed `nguyenvancuong@` bị loại theo Q7 nên không sinh và không nhận tin)
+- [x] Token không có trong log worker; `scan_runs` không có lỗi. (log worker khởi động và cron sạch; `scan_runs` 3 lần, 0 lỗi)
+- [x] Runbook mục 13 viết xong; chạy `agent-task-close.sh`.
 
 ### Rollback (đúng thứ tự)
 
@@ -985,9 +985,9 @@ Như Slice 12.
 
 ### Tiêu chí chấp nhận
 
-- [ ] Webhook production báo `allowed_updates` có `callback_query`; nút chạy trên production với nhóm pilot, có audit.
-- [ ] Chức năng cũ và đợt α không đổi; token không có trong log.
-- [ ] Chạy `agent-task-close.sh`; memory-bank và tài liệu cha cập nhật.
+- [x] Webhook production báo `allowed_updates` có `callback_query`; nút chạy trên production với nhóm pilot, có audit. (`['message','callback_query','my_chat_member']`; nút Nhập sai trên production tạo `anomaly` `rejected` lúc 03:58 UTC, audit ghi)
+- [x] Chức năng cũ và đợt α không đổi; token không có trong log. (số liệu cũ nguyên vẹn, log sạch)
+- [x] Chạy `agent-task-close.sh`; memory-bank và tài liệu cha cập nhật.
 
 ### Rollback (đúng thứ tự)
 

@@ -1106,3 +1106,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1B Slice 12 den 14 va cong G2
 - Tom tat: Hoan tat code 1B: gia bat thuong (cong tac anomaly_enabled, loai diem bi co khoi daily-min va tham chieu), nut duyet callback_query (hang 4 giay, tra loi callback truoc khi sua tin), nhac/het han/don du lieu theo gio VN, replay G2 (285 xuong 255 su kien, 49 diem bat thuong, 11 nhap sai that, 26 co thi truong, Kho coc con lai). Quyet dinh: phat hanh gop mot lan, bo yeu cau theo doi nhieu ngay tren dev. Con lai: deploy production theo runbook muc 13.
+
+## 2026-10-06 04:00:25Z - claude
+
+- Tieu de: Telegram 1B len production
+- Tom tat: Deploy gop 1B len production 2026-10-06: backup, pull, build, bat che do bao tri nginx (maintenance.conf), migrate 1200-1700, up backend/worker, tat bao tri, dang ky lai webhook co callback_query, bat is_enabled va anomaly_enabled bang API. Xac minh that: tin bien dong Lon va the gia bat thuong toi tai khoan pilot, nut Nhap sai ghi rejected. Bai hoc: tai khoan seed (AUTH_SEED_ADMIN_EMAIL) khong kich hoat va khong nhan tin nen pilot phai dung tai khoan khac. Con lai: lethihong lien ket Telegram, huy phieu thu, theo doi pilot, 1C.
