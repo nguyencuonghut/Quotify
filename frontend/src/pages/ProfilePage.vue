@@ -430,6 +430,8 @@
             </template>
           </div>
         </section>
+
+        <AlertPreferencesPanel v-if="isTelegramEnabled" />
       </div>
 
       <Dialog
@@ -475,6 +477,7 @@ import FileUpload from 'primevue/fileupload'
 import Password from 'primevue/password'
 import { computed, onMounted } from 'vue'
 
+import AlertPreferencesPanel from '@/components/profile/AlertPreferencesPanel.vue'
 import { useProfilePage } from '@/composables/useProfilePage'
 import { useQrCode } from '@/composables/useQrCode'
 import { useTelegramLink } from '@/composables/useTelegramLink'
@@ -511,6 +514,7 @@ const {
   confirmUnlink: confirmTelegramUnlink,
   copyLink: copyTelegramLink,
   deepLink: telegramDeepLink,
+  enabled: isTelegramEnabled,
   errorMessage: telegramErrorMessage,
   infoMessage: telegramInfoMessage,
   isBusy: isTelegramBusy,

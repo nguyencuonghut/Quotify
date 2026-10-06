@@ -349,12 +349,19 @@ Mỗi người tự bật/tắt thông báo và chọn mức tối thiểu ngay 
 
 ### Tiêu chí chấp nhận
 
-- [ ] Đổi mức tối thiểu trong Hồ sơ có tác dụng ở tin kế tiếp (kiểm trên dev).
-- [ ] `make frontend-check` không xấu hơn baseline.
+- [x] Đổi mức tối thiểu trong Hồ sơ gửi đúng `min_level` lên API (e2e với API giả); backend đã có test hiệu lực ở lần tạo tin. Chưa thử với backend dev thật và Telegram thật (chờ lần deploy gộp).
+- [x] Lint, `vue-tsc`, vitest không xấu hơn baseline (lint 12 lỗi và 57 cảnh báo cũ, vitest đúng 4 lỗi cũ); e2e pass.
 
 ### Rollback
 
 Gỡ panel; backend không đổi.
+
+### Kết quả Slice 5 (2026-10-06)
+
+- Component `AlertPreferencesPanel` trong trang Hồ sơ (hiện khi Telegram bật): công tắc nhận thông báo, mức tối thiểu (mặc định theo vai trò, Nhẹ, Trung bình, Lớn), công tắc "nhận mọi vật tư" chỉ cho admin kèm ghi chú tài khoản quản trị hệ thống không nhận tin; composable `useAlertPreferences`, api, mappers, types. Thêm nhãn và bộ lọc nhật ký cho ba hoạt động `price_alerts.*` và ba loại đối tượng; nhãn `telegram.*` đã có sẵn. 34 test đơn vị và 4 e2e mới.
+- Rà soát độc lập thấy và đã sửa: ghi chú về thẻ giá bất thường sai (nhân viên không phải người nhập phiếu và không phải trưởng phòng không nhận thẻ; admin cần bật "nhận mọi vật tư"), nút "Thử lại" không khóa khi đang tải.
+- Giữ nguyên: các `id` trong component viết cố định (panel chỉ gắn một lần sau `v-if`).
+
 
 ---
 

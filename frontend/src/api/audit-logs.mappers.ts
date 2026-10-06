@@ -40,6 +40,9 @@ const ACTION_LABELS: Record<string, string> = {
   'telegram.linked': 'Liên kết Telegram',
   'telegram.link_rejected': 'Từ chối liên kết Telegram',
   'telegram.unlinked': 'Hủy liên kết Telegram',
+  'price_alerts.settings_updated': 'Cập nhật cấu hình thông báo giá',
+  'price_alerts.threshold_updated': 'Cập nhật ngưỡng theo vật tư',
+  'price_alerts.anomaly_reviewed': 'Duyệt giá bất thường',
 }
 
 const ENTITY_TYPE_LABELS: Record<string, string> = {
@@ -52,6 +55,9 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   role: 'Vai trò',
   telegram_account: 'Liên kết Telegram',
   telegram_link_token: 'Mã liên kết Telegram',
+  price_alert_setting: 'Cấu hình thông báo giá',
+  price_alert_material_threshold: 'Ngưỡng thông báo theo vật tư',
+  price_alert_event: 'Điểm giá bất thường',
   user: 'Người dùng',
 }
 

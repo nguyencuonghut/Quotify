@@ -22,6 +22,7 @@ interface TelegramState {
   confirmUnlink: ReturnType<typeof vi.fn>
   copyLink: ReturnType<typeof vi.fn>
   deepLink: Ref<string | null>
+  enabled: Ref<boolean>
   errorMessage: Ref<string | null>
   infoMessage: Ref<string | null>
   isBusy: Ref<boolean>
@@ -95,6 +96,7 @@ function makeTelegram(overrides: Partial<TelegramState> = {}): TelegramState {
     confirmUnlink: vi.fn(),
     copyLink: vi.fn(),
     deepLink: ref(null),
+    enabled: ref(false),
     errorMessage: ref(null),
     infoMessage: ref(null),
     isBusy: ref(false),
@@ -128,6 +130,9 @@ function mountPage(
         AdminLayout: passthroughStub,
         Dialog: dialogStub,
         FileUpload: true,
+        AlertPreferencesPanel: {
+          template: '<div data-testid="alert-preferences-panel" />',
+        },
       },
     },
   })
@@ -159,6 +164,15 @@ describe('ProfilePage Telegram panel', () => {
 
     expect(telegram.startLinking).toHaveBeenCalledTimes(1)
     expect(telegram.bootstrap).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the personal notification options only when Telegram is enabled', () => {
+    mountPage(makeTelegram({ enabled: ref(true) }))
+    expect(byTestId('alert-preferences-panel').exists()).toBe(true)
+    wrapper!.unmount()
+
+    mountPage(makeTelegram({ enabled: ref(false) }))
+    expect(byTestId('alert-preferences-panel').exists()).toBe(false)
   })
 
   it('does not render the panel when the feature is off, but keeps the other panels', () => {

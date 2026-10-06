@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatAuditLogDateTime,
+  getAuditActionLabel,
+  getAuditEntityTypeLabel,
   mapAuditLogDtoToDomain,
   mapAuditLogListDtoToDomain,
 } from '@/api/audit-logs.mappers'
@@ -152,4 +154,26 @@ describe('audit log mappers', () => {
       expect(result.targetLabel).toBe('entity-1')
     },
   )
+
+  it('labels the price alert and telegram actions and their entity types in Vietnamese', () => {
+    expect(getAuditActionLabel('price_alerts.settings_updated')).toBe(
+      'Cập nhật cấu hình thông báo giá',
+    )
+    expect(getAuditActionLabel('price_alerts.threshold_updated')).toBe(
+      'Cập nhật ngưỡng theo vật tư',
+    )
+    expect(getAuditActionLabel('price_alerts.anomaly_reviewed')).toBe(
+      'Duyệt giá bất thường',
+    )
+    expect(getAuditActionLabel('telegram.linked')).toBe('Liên kết Telegram')
+    expect(getAuditEntityTypeLabel('price_alert_setting')).toBe(
+      'Cấu hình thông báo giá',
+    )
+    expect(getAuditEntityTypeLabel('price_alert_material_threshold')).toBe(
+      'Ngưỡng thông báo theo vật tư',
+    )
+    expect(getAuditEntityTypeLabel('price_alert_event')).toBe(
+      'Điểm giá bất thường',
+    )
+  })
 })

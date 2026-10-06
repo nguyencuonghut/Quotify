@@ -291,6 +291,15 @@ const actionFilterOptions = [
   { label: 'Liên kết Telegram', value: 'telegram.linked' },
   { label: 'Từ chối liên kết Telegram', value: 'telegram.link_rejected' },
   { label: 'Hủy liên kết Telegram', value: 'telegram.unlinked' },
+  {
+    label: 'Cập nhật cấu hình thông báo giá',
+    value: 'price_alerts.settings_updated',
+  },
+  {
+    label: 'Cập nhật ngưỡng theo vật tư',
+    value: 'price_alerts.threshold_updated',
+  },
+  { label: 'Duyệt giá bất thường', value: 'price_alerts.anomaly_reviewed' },
 ]
 const entityTypeFilterOptions = [
   { label: 'Người dùng', value: 'user' },
@@ -303,6 +312,12 @@ const entityTypeFilterOptions = [
   { label: 'Lượt xuất dữ liệu', value: 'export_job' },
   { label: 'Liên kết Telegram', value: 'telegram_account' },
   { label: 'Mã liên kết Telegram', value: 'telegram_link_token' },
+  { label: 'Cấu hình thông báo giá', value: 'price_alert_setting' },
+  {
+    label: 'Ngưỡng thông báo theo vật tư',
+    value: 'price_alert_material_threshold',
+  },
+  { label: 'Điểm giá bất thường', value: 'price_alert_event' },
 ]
 
 function actionSeverity(action: string) {
