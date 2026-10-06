@@ -1116,3 +1116,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1C len production
 - Tom tat: Hoan tat 1C Slice 0-7 va deploy len production 2026-10-06: ban tin 08:00 muc Nhe (digest_kind, cron phut 10), API va trang duyet gia bat thuong, trang cau hinh nguong, tuy chon ca nhan, nhan trang thai tren phieu, so do /metrics va luat canh bao, runbook muc 14. Deploy theo runbook: backup, build, bao tri 4 phut, migrate 20261006_0900, du lieu cu khop. Con lai: ban tin dau tien, bo gioi han pilot sau 2 tuan, lethihong lien ket Telegram, nap luat canh bao, Slice 8 chinh gia bat thuong theo du lieu pilot.
+
+## 2026-10-06 09:39:06Z - claude
+
+- Tieu de: Telegram 1D: ke hoach do moi gia theo vat tu
+- Tom tat: Soan ke hoach 1D (10 slice) cho bang do moi cua gia theo vat tu tren tab Tong quan va nhac cap nhat gia qua Telegram. Da chot: muc tieu nhac nguoi nhap, watch list + chu ky mac dinh tu du lieu 90 ngay (7/14/30 ngay), dem phien ban phieu hop le theo received_date, ky theo bo chon tuan, quyen price_alerts.manage (Phuong an A), khong co phu tro. Cho xac nhan: gio gui va nhip nhac, tin rieng hay gop ban tin 08:00, cot nguoi nhap gan nhat, cong tac nhac rieng. Luu y bang tuan cu loc theo created_at, bang moi theo received_date.
