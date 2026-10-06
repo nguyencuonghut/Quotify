@@ -240,6 +240,8 @@ class PriceAlertMessageService:
                     PriceAlertMessage.user_id == user_id,
                     PriceAlertMessage.kind == "change",
                     PriceAlertMessage.status.in_(_IMMEDIATE_STATUSES),
+                    # Tin Nhẹ đã gộp vào bản tin hằng ngày chưa từng được gửi riêng.
+                    func.coalesce(PriceAlertMessage.status_reason, "") != "in_digest",
                     PriceAlertMessage.created_at > now - ROLLING_WINDOW,
                     PriceAlertMessage.created_at <= now,
                 ),
@@ -300,6 +302,8 @@ class PriceAlertMessageService:
                     PriceAlertMessage.user_id == recipient.user_id,
                     PriceAlertMessage.kind == "digest",
                     PriceAlertMessage.audience.is_(None),
+                    # Bản tin hằng ngày không phải tin tóm tắt tràn trần (1C, Slice 1).
+                    PriceAlertMessage.digest_kind.is_(None),
                     PriceAlertMessage.created_at > self._now - ROLLING_WINDOW,
                     PriceAlertMessage.created_at <= self._now,
                 ),

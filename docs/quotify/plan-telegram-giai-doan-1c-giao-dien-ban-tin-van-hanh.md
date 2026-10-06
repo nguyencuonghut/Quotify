@@ -139,8 +139,8 @@ Biết trạng thái xuất phát thật của frontend và dữ liệu pilot tr
 
 ### Tiêu chí chấp nhận
 
-- [ ] Baseline frontend và backend được ghi lại, kể cả các test cũ đang lỗi.
-- [ ] Phụ lục B có số liệu pilot (hoặc ghi rõ chưa đủ).
+- [x] Baseline frontend và backend được ghi lại, kể cả các test cũ đang lỗi.
+- [x] Phụ lục B có số liệu pilot (hoặc ghi rõ chưa đủ).
 
 ### Rollback
 
@@ -190,6 +190,13 @@ Trên dev, đặt `digest_hour_local` về giờ hiện tại, tạo một vài 
 ### Rollback
 
 Tắt cờ `is_enabled` hoặc gỡ cron (trả lại code cũ): tin `digest_queued` vẫn nằm đó, không mất. Không `downgrade` migration (cột nullable, tương thích code cũ).
+
+### Kết quả Slice 1 (2026-10-06)
+
+- Đã làm đúng thiết kế M1 đến M5: migration `20261006_0900` (`digest_kind`, chỉ mục duy nhất `(user_id, local_date)`), `price_alert_digest.py`, `price_alert_digest_formatter.py`, nhánh `daily` trong sender, cron `send_price_alert_digest` (phút 10 mỗi giờ).
+- Rà soát độc lập thấy hai lỗi nhỏ, đã sửa và có test: (1) bản tin vừa tạo làm tin tóm tắt tràn trần bị nuốt trong cửa sổ 10 phút; (2) tin Nhẹ chuyển `sent/in_digest` bị tính vào trần 30 tin trong 10 phút, có thể đẩy tin Lớn vào `digest_queued/cap`.
+- Chấp nhận có chủ ý: `last_digest_local_date` được đặt cả khi chưa có gì để gửi (tin Nhẹ phát sinh sau 08:10 chờ bản tin ngày hôm sau, tối đa khoảng 24 giờ, nằm trong hạn 3 ngày); bản tin gửi hỏng thì các thay đổi Nhẹ đó không được xếp lại (RC-1).
+- Thử thật trên điện thoại (HITL) còn chờ.
 
 ---
 
@@ -527,4 +534,27 @@ Kết luận: bản tin ngắn, giới hạn 30 dòng dư sức; không cần ph
 
 ## Phụ Lục B: Số Liệu Pilot Production
 
-Để trống: điền ở Slice 0 và Slice 8 bằng các truy vấn chỉ đọc ở runbook mục 13.3.
+**Baseline đo ngày 2026-10-06 (Slice 0, nhánh `feat/telegram-1c`):**
+
+| Thành phần | Baseline |
+|---|---|
+| Backend | pytest 1.031 pass; ruff 56 lỗi cũ (toàn repo); mypy 13 lỗi cũ; bandit 16 cảnh báo |
+| Frontend | `npm run lint`: 12 lỗi và 57 cảnh báo cũ; `vue-tsc` sạch; vitest 247 pass và **4 lỗi cũ** (1 ở `audit-logs.page.spec.ts` "groups sidebar user and system navigation separately", 3 ở `useQuotifySettingsPage.spec.ts`: "initializes state correctly", "updates settings successfully", "handles update settings server error") |
+
+Quy tắc so sánh: theo **tên test và nhóm lỗi**, không theo tổng số.
+
+**Số liệu pilot production (điền sau; chạy chỉ đọc trên VPS, ở `/opt/quotify`):**
+
+```sql
+-- Sự kiện theo ngày, loại và mức
+select (created_at at time zone 'Asia/Ho_Chi_Minh')::date as ngay, kind, level, count(*)
+from price_alert_events group by 1,2,3 order by 1 desc, 2, 3;
+-- Tin theo trạng thái
+select kind, status, status_reason, count(*) from price_alert_messages group by 1,2,3 order by 4 desc;
+-- Thẻ giá bất thường theo trạng thái duyệt
+select review_status, count(*) from price_alert_events where kind='anomaly' group by 1;
+-- Tin mức Nhẹ đang chờ bản tin
+select count(*) from price_alert_messages where status='digest_queued' and status_reason='light';
+```
+
+Chưa đủ dữ liệu (pilot mới chạy từ 2026-10-06): giữ trống tới khi cần ở Slice 8.

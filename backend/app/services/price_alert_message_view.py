@@ -18,6 +18,7 @@ from app.services.daily_min_series import get_daily_min_series
 from app.services.price_alert_anomaly import excluded_line_ids
 from app.services.price_alert_anomaly_formatter import AnomalyPointView
 from app.services.price_alert_chart import ChartSpec
+from app.services.price_alert_digest_formatter import DigestLine
 from app.services.price_alert_formatter import (
     EventView,
     MessageView,
@@ -203,4 +204,26 @@ async def load_anomaly_points(
             ),
         )
         for event, quote_id, name in rows
+    ]
+
+
+async def load_daily_digest_lines(session: AsyncSession, message_id: UUID) -> list[DigestLine]:
+    """Mỗi vật tư một dòng: kỳ giao hàng có \|%\| lớn nhất trong các sự kiện của bản tin."""
+    rows = (
+        await session.execute(
+            select(PriceAlertEvent, Material.name)
+            .join(PriceAlertMessageEvent, PriceAlertMessageEvent.event_id == PriceAlertEvent.id)
+            .join(Material, Material.id == PriceAlertEvent.material_id)
+            .where(PriceAlertMessageEvent.message_id == message_id)
+            .order_by(PriceAlertEvent.sequence_number)
+        )
+    ).all()
+    best: dict[UUID, tuple[PriceAlertEvent, str]] = {}
+    for event, name in rows:
+        current = best.get(event.material_id)
+        if current is None or abs(event.percent_change) > abs(current[0].percent_change):
+            best[event.material_id] = (event, name)
+    return [
+        DigestLine(name, event.direction, event.percent_change, event.price_new)
+        for event, name in best.values()
     ]

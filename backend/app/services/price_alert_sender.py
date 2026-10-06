@@ -32,10 +32,12 @@ from app.services.price_alert_anomaly_formatter import (
     format_anomaly_cluster,
 )
 from app.services.price_alert_chart import render_price_chart
+from app.services.price_alert_digest_formatter import format_daily_digest
 from app.services.price_alert_formatter import format_caption, format_details
 from app.services.price_alert_message_view import (
     load_anomaly_points,
     load_chart_spec,
+    load_daily_digest_lines,
     load_message_view,
 )
 from app.services.telegram_link_service import TelegramLinkService
@@ -270,6 +272,13 @@ class PriceAlertSender:
                 message.kind == "digest" and message.audience is not None
             ):
                 return await self._anomaly_content(session, message, account)
+
+            if message.kind == "digest" and message.digest_kind == "daily":
+                lines = await load_daily_digest_lines(session, message.id)
+                if not lines:
+                    raise _FailError("no_content")
+                text = format_daily_digest(lines, day=message.local_date, base_url=self.base_url)
+                return _Content(account.chat_id, account.telegram_user_id, None, text, text, False)
 
             if message.kind == "digest":
                 count = (

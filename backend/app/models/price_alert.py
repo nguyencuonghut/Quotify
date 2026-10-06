@@ -500,6 +500,17 @@ class PriceAlertMessage(Base):
             "kind",
             name="uq_price_alert_messages_unit",
         ),
+        CheckConstraint(
+            "digest_kind IS NULL OR digest_kind = 'daily'",
+            name="ck_price_alert_messages_digest_kind",
+        ),
+        Index(
+            "uq_price_alert_messages_daily_digest",
+            "user_id",
+            "local_date",
+            unique=True,
+            postgresql_where=text("digest_kind = 'daily'"),
+        ),
         Index(
             "uq_price_alert_messages_digest",
             "user_id",
@@ -545,6 +556,8 @@ class PriceAlertMessage(Base):
     status: Mapped[str] = mapped_column(String(20))
     status_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
     audience: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # 'daily': bản tin hằng ngày mức Nhẹ; NULL với mọi loại tin khác.
+    digest_kind: Mapped[str | None] = mapped_column(String(12), nullable=True)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_error: Mapped[str | None] = mapped_column(String(255), nullable=True)

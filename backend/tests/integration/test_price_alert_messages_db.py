@@ -574,3 +574,76 @@ async def test_a_follow_up_in_a_weaker_period_does_not_unlock_the_whole_group(sc
     await build(sf, second, later, scene)
 
     assert [m.status for m in await messages(sf, scene)] == ["pending", "suppressed"]
+
+
+async def test_light_changes_folded_into_the_daily_digest_do_not_use_up_the_ten_minute_cap(
+    scene: Scene,
+) -> None:
+    sf = scene.sf
+    manager = await scene.person("it-manager")
+    at = moment()
+    async with sf() as session:
+        for _ in range(ROLLING_CAP):
+            session.add(
+                PriceAlertMessage(
+                    user_id=manager,
+                    material_id=await create_material(sf),
+                    local_date=at.date(),
+                    kind="change",
+                    level_max="light",
+                    direction="up",
+                    status="sent",
+                    status_reason="in_digest",
+                    created_at=at - timedelta(minutes=2),
+                )
+            )
+        await session.commit()
+    run = await new_run(sf, at)
+    material = await create_material(sf)
+    await add_event(sf, run, material, "large")
+
+    await build(sf, run, at, scene)
+
+    [message] = [m for m in await messages(sf, scene) if m.material_id == material]
+    assert message.status == "pending"
+
+
+async def test_a_daily_digest_just_created_does_not_swallow_the_overflow_summary(
+    scene: Scene,
+) -> None:
+    sf = scene.sf
+    manager = await scene.person("it-manager")
+    at = moment()
+    async with sf() as session:
+        session.add(
+            PriceAlertMessage(
+                user_id=manager,
+                local_date=at.date(),
+                kind="digest",
+                digest_kind="daily",
+                status="pending",
+                created_at=at - timedelta(minutes=1),
+            )
+        )
+        await session.commit()
+    run = await new_run(sf, at)
+    for _ in range(2):
+        await add_event(sf, run, await create_material(sf), "medium")
+
+    await build(sf, run, at, scene, cap=1)
+
+    async with sf() as session:
+        summaries = (
+            (
+                await session.execute(
+                    select(PriceAlertMessage).where(
+                        PriceAlertMessage.user_id == manager,
+                        PriceAlertMessage.kind == "digest",
+                        PriceAlertMessage.digest_kind.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert [s.status_reason for s in summaries] == ["overflow"]

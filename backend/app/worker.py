@@ -44,6 +44,7 @@ from app.services.catalog_import import (
 from app.services.email import EmailService
 from app.services.exchange_rate_service import ExchangeRateService
 from app.services.file_admin import FileAdminService
+from app.services.price_alert_digest import PriceAlertDigestService
 from app.services.price_alert_maintenance import PriceAlertMaintenanceService, edit_expired_cards
 from app.services.price_alert_scan import PriceAlertScanService, get_seed_user_id
 from app.services.price_alert_sender import PriceAlertSender
@@ -1068,6 +1069,31 @@ async def send_price_alerts(ctx: dict[str, Any]) -> None:
         )
 
 
+async def send_price_alert_digest(ctx: dict[str, Any]) -> None:
+    """Cron hằng giờ (phút 10, giờ VN): tạo bản tin tổng hợp mức Nhẹ khi đã tới giờ (M1).
+
+    Chỉ tạo tin `pending`; cron `send_price_alerts` gửi. Không có gì để gửi thì không tạo tin.
+    """
+    if not get_settings().telegram_enabled:
+        return
+
+    async with ctx["session_factory"]() as session:
+        alert_settings = await PriceAlertSettingsService(session).get_or_create_settings()
+        if not alert_settings.is_enabled:
+            return
+        result = await PriceAlertDigestService(session).run_once(
+            now=datetime.now(UTC), settings=alert_settings
+        )
+        await session.commit()
+    if result.digests_created or result.stale:
+        logger.info(
+            "price_alert.digest created=%s consumed=%s stale=%s",
+            result.digests_created,
+            result.queued_consumed,
+            result.stale,
+        )
+
+
 async def remind_price_alerts(ctx: dict[str, Any]) -> None:
     """Cron hằng giờ (giờ VN): nhắc thẻ giá bất thường chưa xử lý và cho thẻ quá hạn hết hạn."""
     settings = get_settings()
@@ -1137,6 +1163,7 @@ class WorkerSettings:
         send_price_alerts,
         remind_price_alerts,
         cleanup_price_alerts,
+        send_price_alert_digest,
     ]
     cron_jobs = [
         cron(poll_and_run_scheduled_backups, second=0),
@@ -1144,6 +1171,7 @@ class WorkerSettings:
         cron(send_price_alerts, second={15, 45}),
         cron(remind_price_alerts, hour=set(range(8, 18)), minute=5, second=0),
         cron(cleanup_price_alerts, hour=3, minute=30, second=0),
+        cron(send_price_alert_digest, minute=10, second=0),
     ]
     # Việt Nam không có DST; không đặt thì cron chạy theo giờ hệ thống (UTC trong container).
     timezone = ZoneInfo(settings.app_timezone)
