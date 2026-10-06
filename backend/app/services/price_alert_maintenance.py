@@ -105,7 +105,12 @@ class PriceAlertMaintenanceService:
             await self._expire(result.expired_event_ids)
         if to_remind:
             await self.session.execute(
-                update(PriceAlertEvent).values(reminded_at=now),
+                update(PriceAlertEvent)
+                .where(
+                    PriceAlertEvent.id.in_([f.event_id for f in to_remind]),
+                    PriceAlertEvent.reminded_at.is_(None),
+                )
+                .values(reminded_at=now),
             )
             result.reminded = len(to_remind)
             result.reminder_messages, _ = await build_messages_for_flags(

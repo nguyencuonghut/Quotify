@@ -325,3 +325,15 @@ async def test_reminders_wait_for_a_working_day_but_expiry_does_not(scene: Scene
 
     assert result.reminded == 0 and await reminders(scene) == []
     assert (await maintain(scene, friday + timedelta(days=3))).reminded == 1  # thứ Hai
+
+
+async def test_only_the_cards_that_were_reminded_get_marked_as_reminded(scene: Scene) -> None:  # noqa: F811
+    await scene.person("it-manager")
+    due = await card(scene)
+    fresh = await card(scene, created=MONDAY + timedelta(days=2), price=990)
+
+    result = await maintain(scene, MONDAY + timedelta(days=2, hours=2))
+
+    assert result.reminded == 1
+    assert (await event_row(scene, due)).reminded_at is not None
+    assert (await event_row(scene, fresh)).reminded_at is None

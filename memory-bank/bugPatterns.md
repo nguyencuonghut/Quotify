@@ -886,6 +886,15 @@ Agents must read the relevant entries before changing behavior in the same area,
 - Regression guard: tránh thao tác hàng loạt theo thời gian trong test dùng DB chung khi `now` giả khác xa giờ thật; mọi dữ liệu thử phải được ghi nhận đã quét (`record_scanned_version`).
 - Related files: `backend/tests/integration/test_price_alert_maintenance_db.py`, `test_price_alert_anomaly_messages_db.py`
 
+### 2026-10-06: Lệnh thay chuỗi trong script sửa code xóa mất điều kiện `.where()` của `UPDATE`
+
+- Area: Backend `price_alert_maintenance.remind_and_expire` (Slice 14, đã lên production)
+- Trigger: sau khi rà soát, em sửa file bằng script Python; câu `UPDATE price_alert_events SET reminded_at=now` còn lại không có `WHERE`, nên khi có một thẻ đến hạn nhắc, mọi sự kiện đều bị đánh dấu đã nhắc.
+- Root cause: biểu thức `s.replace(a, a + x if False else "", 1)` có thứ tự ưu tiên toán tử sai nên thay `a` bằng chuỗi rỗng (xóa dòng `.where(...)`), và lệnh thay thế thứ hai không khớp nên im lặng không làm gì. Test chỉ có một sự kiện nên không bắt được.
+- Fix: khôi phục `.where(id IN ... AND reminded_at IS NULL)`; test mới có hai thẻ, chỉ thẻ đến hạn được đánh dấu.
+- Regression guard: `test_only_the_cards_that_were_reminded_get_marked_as_reminded`. Khi sửa code bằng script thay chuỗi: luôn `assert` cả chuỗi cũ lẫn chuỗi mới sau khi thay, đọc lại `git diff` trước khi chạy test; test cho lệnh `UPDATE`/`DELETE` hàng loạt luôn cần ít nhất một hàng KHÔNG được ảnh hưởng.
+- Related files: `backend/app/services/price_alert_maintenance.py`
+
 ## Usage Rule
 
 Before changing behavior in an area with prior bugs, read the relevant entries first and explicitly avoid repeating the same failure mode.
