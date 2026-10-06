@@ -112,6 +112,10 @@ class TelegramUpdateRunner:
         self._link_token_retention = timedelta(days=link_token_retention_days)
         self._last_cleanup: float | None = None
 
+    @property
+    def client(self) -> TelegramClient:
+        return self._client
+
     async def aclose(self) -> None:
         await self._client.aclose()
 

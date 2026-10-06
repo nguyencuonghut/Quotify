@@ -183,9 +183,9 @@ Trên dev, đặt `digest_hour_local` về giờ hiện tại, tạo một vài 
 
 ### Tiêu chí chấp nhận
 
-- [ ] Bản tin đến điện thoại thật đúng nội dung, không gửi khi rỗng.
-- [ ] Idempotent, gửi bù trong ngày và cuối tuần có test PostgreSQL thật.
-- [ ] Baseline không xấu hơn.
+- [x] Bản tin đến điện thoại thật đúng nội dung, không gửi khi rỗng.
+- [x] Idempotent, gửi bù trong ngày và cuối tuần có test PostgreSQL thật.
+- [x] Baseline không xấu hơn.
 
 ### Rollback
 
@@ -196,7 +196,7 @@ Tắt cờ `is_enabled` hoặc gỡ cron (trả lại code cũ): tin `digest_que
 - Đã làm đúng thiết kế M1 đến M5: migration `20261006_0900` (`digest_kind`, chỉ mục duy nhất `(user_id, local_date)`), `price_alert_digest.py`, `price_alert_digest_formatter.py`, nhánh `daily` trong sender, cron `send_price_alert_digest` (phút 10 mỗi giờ).
 - Rà soát độc lập thấy hai lỗi nhỏ, đã sửa và có test: (1) bản tin vừa tạo làm tin tóm tắt tràn trần bị nuốt trong cửa sổ 10 phút; (2) tin Nhẹ chuyển `sent/in_digest` bị tính vào trần 30 tin trong 10 phút, có thể đẩy tin Lớn vào `digest_queued/cap`.
 - Chấp nhận có chủ ý: `last_digest_local_date` được đặt cả khi chưa có gì để gửi (tin Nhẹ phát sinh sau 08:10 chờ bản tin ngày hôm sau, tối đa khoảng 24 giờ, nằm trong hạn 3 ngày); bản tin gửi hỏng thì các thay đổi Nhẹ đó không được xếp lại (RC-1).
-- Thử thật trên điện thoại (HITL) còn chờ.
+- Thử thật trên điện thoại (HITL) đạt ngày 2026-10-06 lúc 14:10: bản tin "📋 Bản tin giá · 06/10" với dòng "▲4.00% Lúa mỳ 3 · 8,580" và liên kết "Xem trên web" đến Telegram sau khi nhập phiếu bằng tài khoản Manager dev. Lần thử đầu không có tin vì phiếu nhập bằng tài khoản seed (không phải nguồn kích hoạt) và `digest_hour_local` đặt lệch giờ.
 
 ---
 
@@ -227,13 +227,20 @@ Người có `price_alerts.receive_all` xem danh sách thẻ bất thường và
 
 ### Tiêu chí chấp nhận
 
-- [ ] Vòng khứ hồi `GET` và `POST` có test PostgreSQL thật; hai người duyệt cùng lúc chỉ một thắng.
-- [ ] Tin Telegram được sửa sau khi duyệt trên web; lỗi Telegram không phá yêu cầu.
-- [ ] Baseline không xấu hơn.
+- [x] Vòng khứ hồi `GET` và `POST` có test PostgreSQL thật; hai người duyệt cùng lúc chỉ một thắng.
+- [x] Tin Telegram được sửa sau khi duyệt trên web; lỗi Telegram không phá yêu cầu.
+- [x] Baseline không xấu hơn.
 
 ### Rollback
 
 Gỡ router (thêm mới, không có dữ liệu mới). Production giữ nguyên.
+
+### Kết quả Slice 2 (2026-10-06)
+
+- `api/v1/price_alert_anomalies.py`, `schemas/price_alert_anomalies.py`, `services/price_alert_anomaly_query.py`; `edit_expired_cards` đổi tên thành `edit_cards_for_events`; `TelegramUpdateRunner.client` thành thuộc tính công khai. 15 test mới (11 HTTP trên PostgreSQL thật với token thật và 4 cho dependency client).
+- Phát hiện khi viết test: lỗi ở bước sửa tin Telegram làm yêu cầu duyệt trả 500 dù thẻ đã được duyệt; đã sửa, lỗi chỉ ghi log.
+- Rà soát độc lập thấy và đã sửa: rò `httpx` do tạo client Telegram mới cho mỗi yêu cầu không đóng (nay dependency đóng client riêng, dùng chung client của runner nếu có); danh sách `all` xen thẻ chờ với lịch sử (nay thẻ chờ trước, cũ nhất trước); thẻ hết hạn không có `reviewed_at` nên cửa sổ lịch sử 30 ngày tính theo ngày tạo (nay ghi `reviewed_at` lúc hết hạn).
+
 
 ---
 

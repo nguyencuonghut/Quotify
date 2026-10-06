@@ -12,6 +12,7 @@ from app.api.v1.jobs import router as jobs_router
 from app.api.v1.material_types import router as material_types_router
 from app.api.v1.materials import router as materials_router
 from app.api.v1.permissions import router as permissions_router
+from app.api.v1.price_alert_anomalies import router as price_alert_anomalies_router
 from app.api.v1.price_alert_material_thresholds import (
     router as price_alert_material_thresholds_router,
 )
@@ -47,6 +48,7 @@ router.include_router(quote_backfill_imports_router)
 router.include_router(quotify_dashboard_router)
 router.include_router(permissions_router)
 router.include_router(price_alerts_router)
+router.include_router(price_alert_anomalies_router)
 router.include_router(price_alert_material_thresholds_router)
 router.include_router(quotify_settings_router)
 router.include_router(roles_router)

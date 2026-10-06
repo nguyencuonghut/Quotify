@@ -45,7 +45,7 @@ from app.services.email import EmailService
 from app.services.exchange_rate_service import ExchangeRateService
 from app.services.file_admin import FileAdminService
 from app.services.price_alert_digest import PriceAlertDigestService
-from app.services.price_alert_maintenance import PriceAlertMaintenanceService, edit_expired_cards
+from app.services.price_alert_maintenance import PriceAlertMaintenanceService, edit_cards_for_events
 from app.services.price_alert_scan import PriceAlertScanService, get_seed_user_id
 from app.services.price_alert_sender import PriceAlertSender
 from app.services.price_alert_settings_service import PriceAlertSettingsService
@@ -1114,7 +1114,7 @@ async def remind_price_alerts(ctx: dict[str, Any]) -> None:
             pilot_emails=settings.price_alert_recipient_email_set,
         ).remind_and_expire(now=now, settings=alert_settings)
         await session.commit()
-    edited = await edit_expired_cards(
+    edited = await edit_cards_for_events(
         session_factory,
         client,
         result.expired_event_ids,

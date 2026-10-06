@@ -102,7 +102,7 @@ class PriceAlertMaintenanceService:
                 to_remind.append(AnomalyFlag(event_id, material_id, direction, None))
 
         if result.expired_event_ids:
-            await self._expire(result.expired_event_ids)
+            await self._expire(result.expired_event_ids, now)
         if to_remind:
             await self.session.execute(
                 update(PriceAlertEvent)
@@ -124,7 +124,7 @@ class PriceAlertMaintenanceService:
             )
         return result
 
-    async def _expire(self, event_ids: Sequence[UUID]) -> None:
+    async def _expire(self, event_ids: Sequence[UUID], now: datetime) -> None:
         await self.session.execute(
             update(PriceAlertEvent)
             .where(
@@ -132,7 +132,8 @@ class PriceAlertMaintenanceService:
                 | (PriceAlertEvent.attached_to_event_id.in_(event_ids)),
                 PriceAlertEvent.review_status == "pending",
             )
-            .values(review_status="expired"),
+            # `reviewed_at` ghi giờ hết hạn để cửa sổ lịch sử 30 ngày tính từ lúc đó.
+            .values(review_status="expired", reviewed_at=now),
         )
 
     async def cleanup(self, *, now: datetime) -> dict[str, int]:
@@ -176,14 +177,17 @@ class PriceAlertMaintenanceService:
         return int(getattr(result, "rowcount", 0) or 0)
 
 
-async def edit_expired_cards(
+async def edit_cards_for_events(
     session_factory: async_sessionmaker[AsyncSession],
     client: TelegramClient,
     event_ids: Sequence[UUID],
     *,
     base_url: str,
 ) -> int:
-    """Sửa các tin đã gửi của thẻ vừa hết hạn để bỏ nút (L24). Lỗi sửa chỉ được ghi nhận."""
+    """Sửa các tin đã gửi của thẻ vừa hết hạn hoặc vừa được duyệt trên web để đồng bộ (L24, M7).
+
+    Lỗi sửa chỉ được ghi nhận, không làm hỏng việc gọi.
+    """
     if not event_ids:
         return 0
     async with session_factory() as session:

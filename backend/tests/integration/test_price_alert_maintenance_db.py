@@ -22,7 +22,7 @@ from app.models import (
     QuoteVersion,
 )
 from app.services.price_alert_anomaly import excluded_line_ids
-from app.services.price_alert_maintenance import PriceAlertMaintenanceService, edit_expired_cards
+from app.services.price_alert_maintenance import PriceAlertMaintenanceService, edit_cards_for_events
 
 pytestmark = pytest.mark.integration
 
@@ -113,6 +113,7 @@ async def test_a_card_older_than_seven_working_days_expires_and_stays_excluded(
     result = await maintain(scene, MONDAY + timedelta(days=9))
 
     assert event_id in result.expired_event_ids
+    assert (await event_row(scene, event_id)).reviewed_at == MONDAY + timedelta(days=9)
     assert (await event_row(scene, event_id)).review_status == "expired"
     assert (await event_row(scene, attached)).review_status == "expired"
     assert await reminders(scene) == []  # hết hạn thì ngừng nhắc
@@ -267,7 +268,7 @@ async def test_the_message_of_an_expired_card_is_edited_to_say_so_and_loses_its_
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)),
     )
 
-    edited = await edit_expired_cards(
+    edited = await edit_cards_for_events(
         scene.sf, client, [event_id], base_url="https://quotify.example"
     )
 
