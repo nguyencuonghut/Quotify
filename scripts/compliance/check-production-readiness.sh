@@ -26,6 +26,8 @@ for relative_path in "${required_files[@]}"; do
   fi
 done
 
+bash "$ROOT_DIR/scripts/compliance/check-price-alert-readiness.sh"
+
 docker compose -f "$ROOT_DIR/docker-compose.prod.yml" config >/dev/null
 docker compose -f "$ROOT_DIR/docker-compose.observability.yml" config >/dev/null
 

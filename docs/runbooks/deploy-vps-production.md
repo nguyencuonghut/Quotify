@@ -890,3 +890,52 @@ Trên dev có script gộp: `bash scripts/ops/price-alert-dev-state.sh [số ng�
 ### 13.5 Mở rộng sau pilot
 
 Sau vài tuần ổn định: bỏ `PRICE_ALERT_RECIPIENT_EMAILS` (để trống) rồi tạo lại `worker` để mọi người nhận tin theo vai trò (trưởng phòng, người nhập); nhắc mọi người liên kết Telegram. Trong pilot cần xem lại các cờ giả của giá bất thường (chuỗi thị trường tăng liên tục, điểm đầu chuỗi sai) để quyết có chỉnh ngưỡng riêng theo vật tư hay không.
+
+## 14. Phát hành giai đoạn 1C (bản tin 08:00, trang duyệt và cấu hình, số đo vận hành)
+
+Kế hoạch: `docs/quotify/plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md`. Phát hành **một đợt** (Q4). Điều kiện: 1B đã chạy trên production (mục 13) và các commit 1C đã vào `main`.
+
+### 14.1 Khác biệt so với đợt 1B
+
+- **Một migration mới** `20261006_0900` (cột `price_alert_messages.digest_kind` cho phép NULL, ràng buộc CHECK và chỉ mục duy nhất `(user_id, local_date)` cho bản tin hằng ngày). Chỉ thêm, tương thích code cũ, không `downgrade` trên production.
+- **Build ba service:** `backend`, `worker` **và `frontend`** (1C thêm trang web: duyệt giá bất thường, cấu hình thông báo giá, tùy chọn cá nhân, nhãn trạng thái trên phiếu).
+- **Cron mới** `send_price_alert_digest` (phút 10 mỗi giờ, giờ VN): tạo bản tin tổng hợp mức Nhẹ khi đã tới `digest_hour_local` (mặc định 08:00) và hôm nay chưa tạo; không tạo tin khi không có gì để gửi. Bản tin do cron `send_price_alerts` gửi như mọi tin.
+- **Không đổi `.env`**; không cần đăng ký lại webhook.
+- **Số đo mới** ở `/metrics` của backend (chỉ có khi thông báo giá đang bật) và **bốn luật cảnh báo mới** trong `docker/observability/alert_rules.yml` (nhóm `quotify-price-alerts`).
+
+### 14.2 Trình tự
+
+Làm theo thứ tự; mỗi bước không như kỳ vọng thì dừng. Lệnh chạy ở `/opt/quotify`. Đo thời gian gián đoạn: chỉ từ lúc bật chế độ bảo trì tới lúc tắt.
+
+1. **Backup** (mục 9.2): `export COMPOSE_FILE=docker-compose.prod.yml POSTGRES_DB=quotify`, rồi `bash scripts/ops/backup-postgres.sh` và `backup-minio.sh`; kiểm file Postgres lớn hơn nhiều so với 20 byte và `gzip -t` không báo lỗi.
+2. **`git pull --ff-only origin main`**; so `.env` với `.env.production.example` (không có biến mới).
+3. **Build** khi site vẫn chạy: `docker compose -f docker-compose.prod.yml build backend worker frontend`.
+4. **Bật chế độ bảo trì** (đặt `NGINX_CONF_FILE=maintenance.conf`, tạo lại `reverse-proxy`; chi tiết ở mục 13.2 bước 5).
+5. **Migrate** bằng container tạm: `docker compose -f docker-compose.prod.yml run --rm backend uv run alembic upgrade head` (một dòng `Running upgrade 20261004_1700 -> 20261006_0900`). Đếm trước và sau các bảng cũ (users, quotes, quote_lines, materials) phải y hệt. Rồi `up -d --force-recreate backend worker frontend`, chờ healthy; log worker không có lỗi và không có token; kiểm worker liệt kê hàm `send_price_alert_digest` cùng cron tương ứng.
+6. **Tắt bảo trì** (đặt lại `NGINX_CONF_FILE=prod.conf`, `up -d --force-recreate reverse-proxy` rồi `restart reverse-proxy`). Từ mạng ngoài kiểm `/health`, `/ready`, đăng nhập.
+7. **Kiểm giao diện bằng tài khoản người thật** (không phải tài khoản seed): trưởng phòng thấy mục "Giá bất thường" và "Thông báo giá" ở sidebar, mở được hai trang; người thường không thấy hai mục này; Hồ sơ có panel "Tùy chọn thông báo giá" khi Telegram bật; trang chi tiết phiếu có nhãn ở dòng đã bị gắn cờ.
+8. **Kiểm số đo:** `docker compose -f docker-compose.prod.yml exec -T backend curl -s localhost:8000/metrics | grep quotify_price_alert`. Khi thông báo giá bật phải có `quotify_price_alert_enabled 1`, `quotify_price_alert_scan_lag_seconds` dưới khoảng 60 và `quotify_price_alert_metrics_up 1`.
+9. **Nạp luật cảnh báo** nếu chạy stack observability: khởi động lại Prometheus (`docker compose -f docker-compose.observability.yml restart prometheus`) rồi vào trang Rules kiểm nhóm `quotify-price-alerts` ở trạng thái OK.
+10. **Bản tin đầu tiên:** đến người pilot vào lúc 08:10 sáng hôm sau nếu có thay đổi mức Nhẹ hôm trước (người nhận cần mức tối thiểu "Nhẹ" trong Hồ sơ). Kiểm nội dung (dòng ▲/▼, tên vật tư, giá, liên kết "Xem trên web").
+11. **Bỏ giới hạn pilot** (Q7): sau tối thiểu 2 tuần không lỗi kể từ lần deploy này, để trống `PRICE_ALERT_RECIPIENT_EMAILS`, tạo lại `worker`, nhắc mọi người liên kết Telegram; theo dõi tải tin tuần đầu bằng số đo ở 14.3.
+
+### 14.3 Số đo và cảnh báo
+
+| Số đo (`/metrics` của backend) | Ý nghĩa | Cảnh báo |
+|---|---|---|
+| `quotify_price_alert_enabled` | 1 nếu thông báo giá đang bật; khi bằng 0 mọi số đo bên dưới biến mất | không |
+| `quotify_price_alert_scan_lag_seconds` | giây kể từ nhịp tim quét gần nhất | `PriceAlertScanStale`: trên 120 trong 5 phút (worker hoặc cron hỏng) |
+| `quotify_price_alert_watermark_lag_seconds` | giây kể từ mốc phiếu đã quét tới | xem khi nghi quét bị kẹt ở một phiếu |
+| `quotify_price_alert_messages{status}` | tin `pending`, `sending` hiện tại và `failed` tính theo ngày tạo tin trong 24 giờ gần nhất | `PriceAlertSendFailures`: `failed` lớn hơn 0 trong 10 phút; cảnh báo chỉ tự hết khi tin lỗi quá 24 giờ tuổi (số đo không ghi giờ lỗi), nên xử lý nguyên nhân rồi chờ hoặc đánh dấu tin đã xử lý |
+| `quotify_price_alert_oldest_pending_message_age_seconds` | tuổi tin `pending` cũ nhất | `PriceAlertMessagesStuck`: trên 600 trong 5 phút |
+| `quotify_price_alert_anomalies_pending` | thẻ giá bất thường gốc đang chờ duyệt | không (xem ở trang duyệt) |
+| `quotify_price_alert_metrics_up` | 1 nếu backend đọc DB để tính số đo thành công | `PriceAlertMetricsUnavailable`: bằng 0 trong 10 phút |
+
+Số đo được tính khi Prometheus scrape, cache 15 giây, có hạn chờ 2 giây; lỗi DB không làm hỏng `/metrics`. Nếu chưa chạy stack observability, dùng các truy vấn SQL ở mục 13.3.
+
+### 14.4 Tắt khẩn cấp và rollback
+
+1. Tắt tính năng ở trang **Thông báo giá** (hoặc `PUT /price-alert-settings` với `is_enabled=false`): hiệu lực trong 30 giây; chỉ tắt giá bất thường bằng `anomaly_enabled=false`.
+2. Nếu phải quay lại bản trước: `git checkout <commit 1B>` rồi build lại `backend`, `worker`, `frontend` và tạo lại. Schema giữ nguyên (cột `digest_kind` cho phép NULL, tương thích code cũ). **Không** `alembic downgrade` trên production.
+3. Khi đặt `TELEGRAM_ENABLED=false` (tắt khẩn cấp ở mục 13.4), cron quét dừng nên mọi số đo của engine biến mất (`quotify_price_alert_enabled 0`) và cảnh báo `PriceAlertScanStale` không bị báo nhầm.
+4. Bản tin đã tạo nhưng chưa gửi nằm ở trạng thái `pending`; khi tắt cờ chúng không được gửi, và các thay đổi Nhẹ nguồn đã chuyển `sent` (lý do `in_digest`).

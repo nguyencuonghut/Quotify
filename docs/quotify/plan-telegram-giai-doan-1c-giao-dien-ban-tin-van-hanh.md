@@ -429,13 +429,20 @@ Biết ngay khi engine ngừng quét, tin kẹt hoặc gửi hỏng, không ph�
 
 ### Tiêu chí chấp nhận
 
-- [ ] Gauge xuất hiện ở `/metrics` trên dev; luật cảnh báo nạp được (kiểm bằng stack observability nếu có).
-- [ ] `make production-readiness-check` pass.
-- [ ] Baseline không xấu hơn.
+- [x] Gauge xuất hiện ở `/metrics` (test PostgreSQL thật); luật cảnh báo hợp lệ cú pháp YAML và mọi số đo trong luật đều có thật (test); chưa nạp thử vào Prometheus thật (stack observability chưa chạy ở dev, kiểm ở bước 9 của runbook mục 14).
+- [x] `check-production-readiness.sh` pass (gồm kiểm tra mới của thông báo giá).
+- [x] Baseline không xấu hơn (ruff 56, mypy 13, bandit 16).
 
 ### Rollback
 
 Gỡ gauge và luật; không đụng dữ liệu.
+
+### Kết quả Slice 7 (2026-10-06)
+
+- `app/core/price_alert_metrics.py` (collector Prometheus tự viết, tính khi scrape, cache 15 giây, hạn chờ 2 giây), nối vào `/metrics`; bốn luật cảnh báo mới; `scripts/compliance/check-price-alert-readiness.sh` (gọi từ `check-production-readiness.sh`); runbook mục 14. 23 test mới (9 PostgreSQL thật cho số đo, 5 cho luật và kiểm tra tuân thủ).
+- Rà soát độc lập sửa: `TELEGRAM_ENABLED=false` dừng cron quét nhưng số đo vẫn báo "quét ngừng" (nay coi engine như không chạy và ghi vào runbook); ghi rõ ở runbook và luật rằng số tin `failed` tính theo ngày tạo tin nên cảnh báo chỉ tự hết sau 24 giờ.
+- Xác nhận khi rà soát: nhịp tim `last_run_at` cập nhật mỗi 30 giây kể cả khi rảnh (ngưỡng 120 giây không báo nhầm), backend chạy một tiến trình nên cache theo tiến trình nhất quán, nginx không mở `/metrics` ra ngoài, ảnh backend có `curl` (lệnh kiểm ở runbook dùng được).
+
 
 ---
 

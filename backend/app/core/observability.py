@@ -10,9 +10,11 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, Response, status
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import PlainTextResponse
 
 from app.core.config import Settings
+from app.core.price_alert_metrics import PriceAlertMetrics, set_active_metrics
 
 REQUEST_COUNTER = Counter(
     "quotify_http_requests_total",
@@ -101,6 +103,12 @@ class ReadinessService:
             return "minio", {"status": "error", "detail": str(exc)}
 
 
+def _price_alert_session() -> AsyncSession:
+    from app.db.session import get_sessionmaker
+
+    return get_sessionmaker()()
+
+
 def install_observability(app: FastAPI, settings: Settings) -> None:
     app.state.readiness_service = ReadinessService(settings)
 
@@ -113,8 +121,15 @@ def install_observability(app: FastAPI, settings: Settings) -> None:
 
 
 def _install_metrics_route(app: FastAPI, settings: Settings) -> None:
+    price_alert_metrics = PriceAlertMetrics(_price_alert_session)
+    app.state.price_alert_metrics = price_alert_metrics
+    set_active_metrics(price_alert_metrics)
+
     @app.get(settings.metrics_path, include_in_schema=False)
-    async def metrics() -> PlainTextResponse:
+    async def metrics(request: Request) -> PlainTextResponse:
+        # `refresh` tự bắt lỗi và có hạn chờ nên không bao giờ làm hỏng phản hồi `/metrics`.
+        await request.app.state.price_alert_metrics.refresh()
+        set_active_metrics(request.app.state.price_alert_metrics)
         return PlainTextResponse(
             generate_latest().decode("utf-8"),
             media_type=CONTENT_TYPE_LATEST,

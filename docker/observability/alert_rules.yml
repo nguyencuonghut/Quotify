@@ -27,3 +27,43 @@ groups:
         annotations:
           summary: FastApiVue dependency readiness check is failing
           description: One or more readiness dependencies are unhealthy for more than 5 minutes.
+
+  - name: quotify-price-alerts
+    rules:
+      # Cảnh báo thông báo giá: số đo do backend tính khi scrape (xem app/core/price_alert_metrics.py).
+      # Chỉ có khi thông báo giá đang bật, nên tắt tính năng thì các cảnh báo này tự im.
+      - alert: PriceAlertScanStale
+        expr: quotify_price_alert_scan_lag_seconds > 120
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Quét thông báo giá đã ngừng
+          description: Nhịp tim quét cũ hơn 2 phút suốt 5 phút. Kiểm tra worker và cron poll_price_alerts.
+
+      - alert: PriceAlertMessagesStuck
+        expr: quotify_price_alert_oldest_pending_message_age_seconds > 600
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Tin thông báo giá chờ gửi quá 10 phút
+          description: Kiểm tra cron send_price_alerts, token bot và lỗi Telegram trong log worker.
+
+      - alert: PriceAlertSendFailures
+        expr: quotify_price_alert_messages{status="failed"} > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Có tin thông báo giá gửi thất bại trong 24 giờ qua
+          description: Xem price_alert_messages có status failed để biết lý do (status_reason, last_error). Số đo tính theo ngày tạo tin trong 24 giờ nên cảnh báo tự hết khi tin lỗi quá 24 giờ tuổi.
+
+      - alert: PriceAlertMetricsUnavailable
+        expr: quotify_price_alert_metrics_up == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Không đọc được số đo thông báo giá
+          description: Backend không truy vấn được DB cho số đo thông báo giá trong 10 phút.
