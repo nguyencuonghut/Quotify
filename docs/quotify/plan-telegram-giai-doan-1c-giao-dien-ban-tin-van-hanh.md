@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-BẢN NHÁP chờ xác nhận (bản 1, soạn 2026-10-06). **Chưa có dòng code nào của 1C.** Giai đoạn 1A (liên kết Telegram) và 1B (engine biến động giá, tin ảnh, giá bất thường, nút duyệt, nhắc, hết hạn, dọn dữ liệu) đã chạy trên production từ 2026-10-06 (pilot: `nguyencuonghut55@gmail.com`; `lethihong@honghafeed.com.vn` chưa liên kết).
+BẢN ĐÃ CHỐT (bản 2, 2026-10-06: Q1 đến Q7 đã chốt, xem mục "Câu Hỏi Đã Chốt"). Soạn 2026-10-06. **Chưa có dòng code nào của 1C.** Giai đoạn 1A (liên kết Telegram) và 1B (engine biến động giá, tin ảnh, giá bất thường, nút duyệt, nhắc, hết hạn, dọn dữ liệu) đã chạy trên production từ 2026-10-06 (pilot: `nguyencuonghut55@gmail.com`; `lethihong@honghafeed.com.vn` chưa liên kết).
 
 Kế hoạch này triển khai chi tiết "Giai đoạn 1C" trong [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md) (mục 7, 4.6, 4.8, 4.9) và nối tiếp [plan-telegram-giai-doan-1b-engine-bien-dong-gia.md](plan-telegram-giai-doan-1b-engine-bien-dong-gia.md). Chatbot AI (Giai đoạn 2) **không** thuộc kế hoạch này.
 
@@ -99,19 +99,29 @@ Như 1B, thêm:
 | M10 | Quan sát | Gauge tính khi Prometheus scrape (truy vấn DB nhẹ, cache 15 giây) thay vì chạy server metric trong worker: `quotify_price_alert_scan_lag_seconds`, `quotify_price_alert_watermark_lag_seconds`, `quotify_price_alert_messages{status}` (chỉ `pending`, `sending`, `failed` trong 24 giờ), `quotify_price_alert_anomalies_pending`. Chỉ phát khi `is_enabled`. Luật cảnh báo mới (tên `quotify_*`): quét trễ quá 2 phút kéo dài 5 phút, tin `pending` quá 10 phút, có tin `failed` mới. Luật `fastapivue_*` cũ không sửa ở đây (nợ riêng RR-19) |
 | M11 | Nhãn nhiều điểm (nếu làm Q2) | Trạng thái giá hiển thị ở trang chi tiết phiếu, theo `quote_line_id` của sự kiện mới nhất: "Giá nghi nhập sai, chờ duyệt", "Đã đánh dấu nhập sai", "Giá đã được xác nhận". Chỉ đọc, không tác dụng lên dữ liệu |
 | M12 | Audit | Thêm nhãn tiếng Việt và bộ lọc cho `telegram.*`, `price_alerts.settings_updated`, `price_alerts.threshold_updated`, `price_alerts.anomaly_reviewed` vào `audit-logs.mappers.ts` và `AuditLogsPage.vue` |
-| M13 | Phát hành | Hai đợt (Q4): **1C-a** gồm Slice 1 (bản tin) và Slice 7 (quan sát), chỉ backend và worker; **1C-b** gồm Slice 2 đến 6 (API và giao diện), thêm build `frontend`. Mỗi đợt theo runbook mục 13 (và mục 14 sẽ viết ở Slice 9) |
+| M13 | Phát hành | **Một đợt duy nhất** (Q4, đã chốt): deploy sau khi xong Slice 1 đến 7 (Slice 8 chờ dữ liệu pilot nên có thể sau đó). Một lần deploy gồm migration `digest_kind`, build `backend`, `worker` và `frontend`; theo runbook mục 13 và mục 14 (viết ở Slice 7), có chế độ bảo trì `docker/nginx/maintenance.conf` |
 
-## Câu Hỏi Cần Bạn Quyết
+## Câu Hỏi Đã Chốt (2026-10-06)
 
 | Mã | Câu hỏi | Đề xuất | Đổi lại thì sao |
 |---|---|---|---|
-| Q1 | **Bản tin 08:00**: một tin mỗi người mỗi ngày gồm mọi vật tư mức Nhẹ; không gửi khi rỗng; gửi cả cuối tuần nếu có; bù tối đa 3 ngày; có âm báo | Đúng như tài liệu cha D5(c) | Tắt âm báo hoặc bỏ cuối tuần: ít làm phiền hơn nhưng có thể bỏ sót thay đổi Nhẹ |
-| Q2 | **Nhãn trạng thái giá trên phiếu** (M11): làm hay hoãn? | Làm bản nhỏ, chỉ ở trang chi tiết phiếu (Slice 6), vì người nhập phiếu hiện không thấy kết quả duyệt ở đâu trên web | Hoãn: giảm một slice nhưng người nhập vẫn phải hỏi trưởng phòng |
-| Q3 | **Trang duyệt giá bất thường**: chỉ danh sách chờ duyệt, hay thêm lịch sử 30 ngày đã duyệt (chỉ đọc)? | Có lịch sử 30 ngày để truy vết ai duyệt gì | Chỉ danh sách chờ: đơn giản hơn nhưng khó đối chiếu |
-| Q4 | **Cách phát hành**: hai đợt (1C-a backend và worker; 1C-b giao diện) hay một đợt cuối cùng? | Hai đợt: bản tin và quan sát có giá trị ngay và không đụng frontend, giao diện cần nhiều vòng thử | Một đợt: ít lần deploy hơn nhưng nhân viên chờ bản tin lâu hơn |
-| Q5 | **Metric**: gauge tính khi scrape trong backend (M10) hay chạy server metric trong worker? | Gauge trong backend: không thêm cổng, không đổi `prometheus.yml` nhiều | Server trong worker: đo đúng tiến trình quét hơn nhưng thêm cổng và job scrape |
-| Q6 | **Giới hạn tốc độ Redis**: làm ở 1C hay hoãn? | Hoãn tới khi có nhiều tiến trình backend (RR-9, RR-18) | Làm ngay: tốn công mà chưa có nhu cầu |
-| Q7 | **Khi nào bỏ giới hạn pilot** (`PRICE_ALERT_RECIPIENT_EMAILS`)? | Sau tối thiểu 2 tuần không lỗi và khi `lethihong@` đã liên kết; việc này là bước HITL của Slice 9 | Sớm hơn: nhân viên nhận tin sớm nhưng chưa có dữ liệu cờ giả để chỉnh |
+| Q1 (đã chốt) | **Bản tin 08:00**: một tin mỗi người mỗi ngày gồm mọi vật tư mức Nhẹ; không gửi khi rỗng; gửi cả cuối tuần nếu có; bù tối đa 3 ngày; có âm báo | Đúng như tài liệu cha D5(c) | Tắt âm báo hoặc bỏ cuối tuần: ít làm phiền hơn nhưng có thể bỏ sót thay đổi Nhẹ |
+| Q2 (đã chốt) | **Nhãn trạng thái giá trên phiếu** (M11): làm hay hoãn? | Làm bản nhỏ, chỉ ở trang chi tiết phiếu (Slice 6), vì người nhập phiếu hiện không thấy kết quả duyệt ở đâu trên web | Hoãn: giảm một slice nhưng người nhập vẫn phải hỏi trưởng phòng |
+| Q3 (đã chốt) | **Trang duyệt giá bất thường**: chỉ danh sách chờ duyệt, hay thêm lịch sử 30 ngày đã duyệt (chỉ đọc)? | Có lịch sử 30 ngày để truy vết ai duyệt gì | Chỉ danh sách chờ: đơn giản hơn nhưng khó đối chiếu |
+| Q4 (đã chốt) | **Cách phát hành**: hai đợt (1C-a backend và worker; 1C-b giao diện) hay một đợt cuối cùng? | Hai đợt: bản tin và quan sát có giá trị ngay và không đụng frontend, giao diện cần nhiều vòng thử | Một đợt: ít lần deploy hơn nhưng nhân viên chờ bản tin lâu hơn |
+| Q5 (đã chốt) | **Metric**: gauge tính khi scrape trong backend (M10) hay chạy server metric trong worker? | Gauge trong backend: không thêm cổng, không đổi `prometheus.yml` nhiều | Server trong worker: đo đúng tiến trình quét hơn nhưng thêm cổng và job scrape |
+| Q6 (đã chốt) | **Giới hạn tốc độ Redis**: làm ở 1C hay hoãn? | Hoãn tới khi có nhiều tiến trình backend (RR-9, RR-18) | Làm ngay: tốn công mà chưa có nhu cầu |
+| Q7 (đã chốt) | **Khi nào bỏ giới hạn pilot** (`PRICE_ALERT_RECIPIENT_EMAILS`)? | Sau tối thiểu 2 tuần không lỗi và khi `lethihong@` đã liên kết; việc này là bước HITL của Slice 9 | Sớm hơn: nhân viên nhận tin sớm nhưng chưa có dữ liệu cờ giả để chỉnh |
+
+Kết quả chốt (trả lời của bạn):
+
+- **Q1:** đồng ý đề xuất (bản tin một tin mỗi người mỗi ngày, không gửi khi rỗng, gửi cả cuối tuần nếu có, bù tối đa 3 ngày, có âm báo).
+- **Q2:** làm bản nhỏ (Slice 6, chỉ trang chi tiết phiếu).
+- **Q3:** có lịch sử 30 ngày đã duyệt để truy vết ai duyệt (Slice 2 và 3).
+- **Q4:** **một đợt phát hành duy nhất** (khác đề xuất hai đợt): mọi slice trừ Slice 8 vào một lần deploy; hệ quả ghi ở M13 và Slice 9.
+- **Q5:** gauge tính khi scrape trong backend (M10).
+- **Q6:** hoãn giới hạn tốc độ Redis tới khi production có nhiều tiến trình.
+- **Q7:** bỏ giới hạn pilot sau tối thiểu 2 tuần không lỗi (không bắt buộc chờ `lethihong@` liên kết).
 
 ## Slice 0: Chuẩn Bị Và Đo Baseline
 
@@ -362,7 +372,7 @@ Biết ngay khi engine ngừng quét, tin kẹt hoặc gửi hỏng, không ph�
 1. `core/observability.py` (hoặc module riêng): các gauge ở M10, tính khi scrape với cache 15 giây, chỉ phát khi `is_enabled`; không truy vấn nặng.
 2. `docker/observability/alert_rules.yml`: nhóm luật mới theo tên `quotify_price_alert_*` (quét trễ, tin `pending` quá 10 phút, có tin `failed` mới); giữ nguyên luật cũ.
 3. `scripts/compliance/check-production-readiness.sh`: thêm kiểm tra sự có mặt của `docker/nginx/maintenance.conf`, mục 13 của runbook và các biến `PRICE_ALERT_RECIPIENT_EMAILS`, `APP_PUBLIC_URL` trong `.env.production.example`.
-4. Runbook `docs/runbooks/deploy-vps-production.md`: bổ sung mục giám sát bằng metric; viết mục 14 cho phát hành 1C (Slice 9).
+4. Runbook `docs/runbooks/deploy-vps-production.md`: bổ sung mục giám sát bằng metric; viết mục 14 cho phát hành 1C (một đợt, dùng ở Slice 9).
 
 ### Thứ tự test (tracer trước)
 
@@ -415,7 +425,7 @@ Mỗi mục là một thay đổi nhỏ có thể hoàn nguyên bằng commit; t
 
 ## Slice 9: Phát Hành 1C Lên Production
 
-**Loại:** HITL (thao tác trên VPS) | **Chặn bởi:** các slice của đợt tương ứng (Q4) | **Cỡ:** nhỏ
+**Loại:** HITL (thao tác trên VPS) | **Chặn bởi:** Slice 1 đến 7 (một đợt duy nhất, Q4) | **Cỡ:** nhỏ
 
 ### Mục tiêu
 
@@ -423,10 +433,10 @@ Mỗi mục là một thay đổi nhỏ có thể hoàn nguyên bằng commit; t
 
 ### Việc cần làm
 
-1. Viết runbook mục 14 (1C-a: backend và worker, một migration additive `digest_kind`; 1C-b: thêm build `frontend`, không migration). Dựa theo mục 13 (backup, pull, build, chế độ bảo trì `docker/nginx/maintenance.conf` khi cần, migrate, `up -d`, kiểm).
-2. **1C-a:** bản tin đến người pilot vào 08:00 sáng hôm sau (cần có tin Nhẹ), gauge xuất hiện ở `/metrics` production.
-3. **1C-b:** build `frontend`; kiểm các trang mới bằng tài khoản người thật; kiểm duyệt trên web làm tin Telegram đổi theo.
-4. Quyết định bỏ giới hạn pilot (Q7): khi đủ điều kiện, để trống `PRICE_ALERT_RECIPIENT_EMAILS`, tạo lại `worker`, nhắc mọi người liên kết Telegram, theo dõi tải tin tuần đầu bằng metric.
+1. Dùng runbook mục 14 (viết ở Slice 7, theo mục 13): backup, pull, build `backend`, `worker`, `frontend`, chế độ bảo trì `docker/nginx/maintenance.conf`, migrate (một migration additive `digest_kind`), `up -d`, tắt bảo trì, kiểm.
+2. Kiểm sau deploy: gauge xuất hiện ở `/metrics` production; các trang mới (duyệt giá bất thường, cấu hình, tùy chọn cá nhân) dùng được bằng tài khoản người thật; duyệt trên web làm tin Telegram đổi theo.
+3. Bản tin đầu tiên: đến người pilot vào 08:00 sáng hôm sau nếu có thay đổi mức Nhẹ (có thể phải chờ vài ngày); kiểm nội dung trên điện thoại thật.
+4. Bỏ giới hạn pilot (Q7): sau tối thiểu 2 tuần không lỗi kể từ lần deploy này, để trống `PRICE_ALERT_RECIPIENT_EMAILS`, tạo lại `worker`, nhắc mọi người liên kết Telegram, theo dõi tải tin tuần đầu bằng metric.
 5. Cập nhật runbook, `memory-bank/`, tài liệu cha; chạy `agent-task-close.sh`.
 
 ### Tiêu chí chấp nhận
@@ -444,12 +454,12 @@ Tắt cờ `is_enabled` (hiệu lực 30 giây) hoặc quay về image trước 
 ## Thứ Tự Và Phụ Thuộc
 
 ```
-S0 ─┬─ S1 (bản tin) ─────────────┐
-    ├─ S7 (quan sát) ────────────┼─ 1C-a (S9)
-    ├─ S2 (API duyệt) ─ S3 (trang duyệt) ─┐
-    │                   └─ S6 (nhãn, tùy chọn) ┤
-    ├─ S4 (trang cấu hình) ──────────────┼─ 1C-b (S9)
-    └─ S5 (cá nhân + nhãn audit) ────────┘
+S0 ─┬─ S1 (bản tin) ───────────────────────┐
+    ├─ S7 (quan sát + runbook mục 14) ─────┤
+    ├─ S2 (API duyệt) ─ S3 (trang duyệt) ──┼─ S9 (một lần deploy)
+    │                   └─ S6 (nhãn phiếu) ┤
+    ├─ S4 (trang cấu hình) ────────────────┤
+    └─ S5 (cá nhân + nhãn audit) ──────────┘
 S8 (chỉnh giá bất thường, HITL) sau 3 đến 4 tuần pilot, độc lập với giao diện
 ```
 

@@ -949,7 +949,7 @@ Chi tiết, chia slice, hợp đồng API và tiêu chí chấp nhận: [kế ho
 
 ### Giai đoạn 1C: Giao diện cấu hình, bản tin tổng hợp, vận hành
 
-**Kế hoạch chi tiết (bản nháp chờ xác nhận, 2026-10-06):** [plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md](plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md), 10 slice (0 đến 9), phát hành hai đợt (1C-a: bản tin và quan sát; 1C-b: giao diện).
+**Kế hoạch chi tiết (bản chốt, 2026-10-06):** [plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md](plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md), 10 slice (0 đến 9), phát hành một đợt duy nhất.
 
 - Trang `/price-alert-settings` (ngưỡng mặc định, ngưỡng theo vật tư, bật/tắt), tùy chọn cá nhân trong Hồ sơ, trang xem xét điểm bất thường.
 - Bản tin tổng hợp 08:00: danh sách theo vật tư các sự kiện mức Nhẹ chưa gửi, **không gửi khi rỗng**, vẫn gửi vào cuối tuần nếu có sự kiện, gửi bù trong ngày nếu worker tắt lúc 08:00.
