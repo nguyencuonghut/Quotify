@@ -210,6 +210,12 @@ const navGroups: NavGroup[] = [
         permission: 'quotes.read',
       },
       {
+        label: 'Giá bất thường',
+        icon: 'pi pi-exclamation-triangle',
+        to: '/price-alert-anomalies',
+        permission: 'price_alerts.receive_all',
+      },
+      {
         label: 'Nhập báo giá',
         icon: 'pi pi-file-edit',
         to: '/quotes/new',

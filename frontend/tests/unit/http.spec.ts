@@ -174,4 +174,21 @@ describe('http client (apiRequest)', () => {
     expect(unauthorizedHandler).not.toHaveBeenCalled()
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps the parsed error body on ApiError so callers can read structured details', async () => {
+    const detail = { review_status: 'accepted', reviewed_by_name: 'An' }
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 409,
+      statusText: 'Conflict',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ detail }),
+    } as Response)
+
+    const failure = await apiRequest('/conflict').catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(ApiError)
+    expect((failure as ApiError).status).toBe(409)
+    expect((failure as ApiError).payload).toEqual({ detail })
+  })
 })

@@ -7,6 +7,7 @@ import LoginPage from '@/pages/LoginPage.vue'
 import MaterialTypesPage from '@/pages/MaterialTypesPage.vue'
 import MaterialsPage from '@/pages/MaterialsPage.vue'
 import NotFoundPage from '@/pages/NotFoundPage.vue'
+import PriceAlertAnomaliesPage from '@/pages/PriceAlertAnomaliesPage.vue'
 import ProfilePage from '@/pages/ProfilePage.vue'
 import QuotifySettingsPage from '@/pages/QuotifySettingsPage.vue'
 import RolesPage from '@/pages/RolesPage.vue'
@@ -188,6 +189,18 @@ export const router = createRouter({
         title: 'Sao lưu & Khôi phục',
         description:
           'Cấu hình sao lưu Postgres tự động, quản lý lịch sử sao lưu và khôi phục dữ liệu hệ thống.',
+      },
+    },
+    {
+      path: '/price-alert-anomalies',
+      name: 'price-alert-anomalies',
+      component: PriceAlertAnomaliesPage,
+      meta: {
+        requiresAuth: true,
+        requiredPermission: 'price_alerts.receive_all',
+        title: 'Giá bất thường',
+        description:
+          'Xem các điểm giá nghi nhập sai và xác nhận giá đúng hoặc đánh dấu nhập sai.',
       },
     },
     {

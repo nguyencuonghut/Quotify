@@ -2,11 +2,15 @@ import { getApiBaseUrl } from '@/api/runtime'
 
 export class ApiError extends Error {
   status: number
+  // Thân phản hồi lỗi đã parse (nếu có) để nơi gọi đọc chi tiết có cấu trúc,
+  // ví dụ lỗi 409 của duyệt giá bất thường kèm người đã duyệt.
+  payload: unknown
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, payload: unknown = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.payload = payload
   }
 }
 
@@ -102,6 +106,7 @@ async function performRequest<T>(
         response.statusText || 'API request failed.',
       ),
       response.status,
+      payload,
     )
   }
 

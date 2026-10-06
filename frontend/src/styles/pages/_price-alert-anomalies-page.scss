@@ -1,0 +1,151 @@
+.price-alert-anomalies-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.price-alert-anomalies-page__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.price-alert-anomalies-page__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.price-alert-anomalies-page__hint {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.price-alert-anomalies-page__notice,
+.price-alert-anomalies-page__general-error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.price-alert-anomalies-page__notice--success {
+  background-color: color-mix(in srgb, var(--app-text-success) 10%, transparent);
+  color: var(--app-text-success);
+}
+
+.price-alert-anomalies-page__general-error {
+  background-color: color-mix(in srgb, var(--app-text-danger) 10%, transparent);
+  color: var(--app-text-danger);
+}
+
+.price-alert-anomalies-page__table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 1rem;
+  background: var(--app-surface-panel);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.price-alert-anomalies-page__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 8rem;
+}
+
+.price-alert-anomalies-page__cell small,
+.price-alert-anomalies-page__card small {
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.price-alert-anomalies-page__percent--down {
+  color: var(--app-text-danger);
+}
+
+.price-alert-anomalies-page__percent--up {
+  color: var(--app-text-success);
+}
+
+.price-alert-anomalies-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.price-alert-anomalies-page__empty-state {
+  padding: 1.5rem;
+  color: var(--app-text-muted);
+  text-align: center;
+}
+
+.price-alert-anomalies-page__dialog {
+  width: min(90vw, 32rem);
+}
+
+.price-alert-anomalies-page__cards {
+  display: none;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.price-alert-anomalies-page__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+  padding: 0.875rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 0.75rem;
+  background: var(--app-surface-panel-alt);
+  overflow-wrap: anywhere;
+}
+
+.price-alert-anomalies-page__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .price-alert-anomalies-page__table-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  // Bảng ẩn đi, chỉ giữ thanh phân trang; danh sách thẻ hiện phía trên thanh đó.
+  .price-alert-anomalies-page__table-wrapper .p-datatable-table-container {
+    display: none;
+  }
+
+  .price-alert-anomalies-page__cards {
+    display: flex;
+    order: -1;
+  }
+}

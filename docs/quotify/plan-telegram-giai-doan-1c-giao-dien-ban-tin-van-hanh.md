@@ -268,12 +268,20 @@ Trưởng phòng mở trang, thấy các điểm chờ duyệt, xem bằng chứ
 
 ### Tiêu chí chấp nhận
 
-- [ ] Duyệt được trên giao diện thật với backend dev; thẻ cũng đổi trong Telegram.
-- [ ] `make frontend-check` không xấu hơn baseline; e2e desktop và mobile pass.
+- [x] Duyệt được trên giao diện (trình duyệt thật, API giả bằng `page.route`) ở desktop và khung 390 px; chưa thử với backend dev và Telegram thật (chờ lần deploy gộp).
+- [x] Lint, `vue-tsc`, vitest không xấu hơn baseline (lint 12 lỗi và 57 cảnh báo cũ, vitest đúng 4 lỗi cũ); e2e desktop và mobile pass.
 
 ### Rollback
 
 Gỡ route và mục sidebar (không có dữ liệu mới).
+
+### Kết quả Slice 3 (2026-10-06)
+
+- Trang `/price-alert-anomalies` (hai tab, bảng và thẻ mobile, hộp xác nhận, thông báo inline, 409 nêu người đã duyệt), mục sidebar "Giá bất thường"; thêm `ApiError.payload` ở `http.ts` để đọc thân lỗi 409. 26 test đơn vị mới và 3 e2e (đăng nhập giả bằng `page.route` và cờ cookie đăng nhập, nên không cần mật khẩu thật).
+- Xem bằng trình duyệt thật phát hiện cột "Thao tác" bị đẩy ra ngoài bảng ở 1280 px; đã gộp nút vào cột "Trạng thái / Thao tác".
+- Rà soát độc lập thấy và đã sửa (có test): phản hồi cũ ghi đè danh sách khi đổi tab nhanh; trang trống khi duyệt xong dòng cuối của trang cuối (tự lùi một trang); đóng hộp xác nhận bằng Esc hay nút X lúc đang gửi làm đóng nhầm hộp của thẻ khác.
+- Giữ nguyên: giá hiển thị làm tròn số nguyên (đồng bộ với tin Telegram).
+
 
 ---
 
