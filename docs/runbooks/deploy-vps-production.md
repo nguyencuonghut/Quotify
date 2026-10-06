@@ -840,11 +840,20 @@ Làm theo thứ tự; mỗi bước không như kỳ vọng thì dừng. Lệnh 
 1. **Đưa code lên `main`** (VPS deploy bằng `git pull`): merge `feat/telegram-1b-alpha` vào `main`, push.
 2. **Backup** (mục 9.2): `export POSTGRES_DB=quotify` rồi `backup-postgres.sh`, kiểm file có dung lượng hợp lý.
 3. **`git pull`** và so `.env` với `.env.production.example`. Thêm `PRICE_ALERT_RECIPIENT_EMAILS=email1@...,email2@...` (người pilot). `APP_PUBLIC_URL` phải là `https://quotify.honghafeed.com.vn` (link trong tin trỏ về đây).
-4. **Build** `backend` và `worker` (`docker compose -f docker-compose.prod.yml build backend worker`). Image backend có thêm matplotlib (khoảng +130 MB); kiểm dung lượng và thời gian build.
-5. **Migrate** bằng container tạm: `docker compose -f docker-compose.prod.yml run --rm backend uv run alembic upgrade head`. Kiểm số dòng bảng cũ (quotes, quote_lines, users) không đổi.
-6. **Lên stack:** `up -d backend worker`, rồi `restart reverse-proxy` (mục 9.7). Kiểm `/health`, `/ready`, đăng nhập, các chức năng cũ. `docker compose logs worker` không có lỗi khi khởi động và không có token.
-7. **Kiểm quyền:** `select r.name, p.code from roles r join role_permissions rp on rp.role_id=r.id join permissions p on p.id=rp.permission_id where p.code like 'price_alerts.%' order by 1,2;` phải có hàng cho `manager` và `admin`. Kiểm tên role trưởng phòng thật khớp `manager`.
-8. **Đăng ký lại webhook** (đối chiếu `@username` và URL trước khi thêm `--yes`):
+4. **Build** `backend` và `worker` (`docker compose -f docker-compose.prod.yml build backend worker`) **khi site vẫn chạy**: build không đụng container đang chạy. Image backend có thêm matplotlib (khoảng +130 MB); kiểm dung lượng và thời gian build.
+5. **Bật chế độ bảo trì** (sau khi build xong, để rút ngắn thời gian gián đoạn). `docker/nginx/maintenance.conf` trả 503 kèm trang thông báo cho mọi yêu cầu HTTPS (Telegram sẽ thử lại webhook sau), giữ ACME và `/health` trên cổng 80:
+
+   ```bash
+   cp .env .env.bak-before-maintenance && chmod 600 .env.bak-before-maintenance
+   sed -i 's/^NGINX_CONF_FILE=.*/NGINX_CONF_FILE=maintenance.conf/' .env && grep -n '^NGINX_CONF_FILE' .env
+   docker compose -f docker-compose.prod.yml up -d --force-recreate reverse-proxy
+   curl -sk -o /dev/null -w '%{http_code}\n' https://localhost/    # kỳ vọng 503
+   ```
+
+6. **Migrate** bằng container tạm: `docker compose -f docker-compose.prod.yml run --rm backend uv run alembic upgrade head`. Kiểm số dòng bảng cũ (quotes, quote_lines, users) không đổi. Rồi `up -d backend worker`; chờ `backend` healthy (`docker compose -f docker-compose.prod.yml ps`); `docker compose logs worker` không có lỗi khởi động và không có token. Kiểm trong lúc bảo trì: `docker compose -f docker-compose.prod.yml exec backend curl -s localhost:8000/health`.
+7. **Tắt chế độ bảo trì:** `sed -i 's/^NGINX_CONF_FILE=.*/NGINX_CONF_FILE=prod.conf/' .env`, `up -d --force-recreate reverse-proxy`, rồi `restart reverse-proxy` (mục 9.7). Từ mạng ngoài kiểm `/health`, `/ready`, đăng nhập và các chức năng cũ.
+8. **Kiểm quyền:** `select r.name, p.code from roles r join role_permissions rp on rp.role_id=r.id join permissions p on p.id=rp.permission_id where p.code like 'price_alerts.%' order by 1,2;` phải có hàng cho `manager` và `admin`. Kiểm tên role trưởng phòng thật khớp `manager`.
+9. **Đăng ký lại webhook** (đối chiếu `@username` và URL trước khi thêm `--yes`):
 
    ```bash
    docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py set
@@ -853,9 +862,9 @@ Làm theo thứ tự; mỗi bước không như kỳ vọng thì dừng. Lệnh 
    ```
 
    `info` phải có `allowed_updates` gồm `message`, `my_chat_member`, `callback_query`.
-9. **Người pilot liên kết Telegram** ở trang Hồ sơ (mục 12.4 bước 4). Ít nhất một trưởng phòng (nhận thẻ có nút) và một người nhập phiếu.
-10. **Bật tính năng bằng API** (cần token của người có `price_alerts.manage`; đăng nhập bằng `curl`, không dán mật khẩu vào chat): `GET /api/v1/price-alert-settings`, đổi `is_enabled` thành `true` (và `anomaly_enabled` thành `true` nếu bật luôn giá bất thường), rồi `PUT` lại nguyên body. Bật `is_enabled` đặt watermark là thời điểm bật, nên phiếu cũ không sinh tin.
-11. **Theo dõi:** chờ một phiếu thật được chốt; tin đến đúng người trong danh sách pilot và không đến ai ngoài danh sách. Xem 13.3.
+10. **Người pilot liên kết Telegram** ở trang Hồ sơ (mục 12.4 bước 4). Ít nhất một trưởng phòng (nhận thẻ có nút) và một người nhập phiếu.
+11. **Bật tính năng bằng API** (cần token của người có `price_alerts.manage`; đăng nhập bằng `curl`, không dán mật khẩu vào chat): `GET /api/v1/price-alert-settings`, đổi `is_enabled` thành `true` (và `anomaly_enabled` thành `true` nếu bật luôn giá bất thường), rồi `PUT` lại nguyên body. Bật `is_enabled` đặt watermark là thời điểm bật, nên phiếu cũ không sinh tin.
+12. **Theo dõi:** chờ một phiếu thật được chốt; tin đến đúng người trong danh sách pilot và không đến ai ngoài danh sách. Xem 13.3.
 
 ### 13.3 Giám sát (chỉ đọc)
 
