@@ -313,6 +313,44 @@ class PriceAlertMaterialThreshold(Base):
     )
 
 
+class PriceFreshnessMaterial(Base):
+    """Cấu hình theo dõi độ mới của giá theo vật tư (Telegram 1D).
+
+    Không có hàng nghĩa là vật tư không được theo dõi. Hàng có `is_watched = false` giữ chu kỳ
+    đã đặt nhưng không theo dõi (quản lý đã chủ động tắt).
+    """
+
+    __tablename__ = "price_freshness_materials"
+    __table_args__ = (
+        CheckConstraint(
+            "expected_interval_days BETWEEN 1 AND 365",
+            name="ck_price_freshness_materials_interval",
+        ),
+    )
+
+    material_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("materials.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    is_watched: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    expected_interval_days: Mapped[int] = mapped_column(Integer)
+    updated_by_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class UserAlertPreference(Base):
     """Tùy chọn nhận thông báo của từng người (D9, D10)."""
 

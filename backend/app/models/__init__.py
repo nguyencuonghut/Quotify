@@ -18,6 +18,7 @@ from app.models.price_alert import (
     PriceAlertScanRun,
     PriceAlertScanState,
     PriceAlertSetting,
+    PriceFreshnessMaterial,
     UserAlertPreference,
 )
 from app.models.quote import Quote
@@ -54,6 +55,7 @@ __all__ = [
     "PriceAlertScanState",
     "PriceAlertScannedVersion",
     "PriceAlertSetting",
+    "PriceFreshnessMaterial",
     "Quote",
     "QuoteVersion",
     "QuoteLine",

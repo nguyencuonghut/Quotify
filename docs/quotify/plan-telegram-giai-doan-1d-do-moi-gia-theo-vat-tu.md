@@ -77,7 +77,7 @@ Hiện tab "Tổng quan" của Dashboard chỉ cho biết **ai** nhập bao nhi�
 | Thuật ngữ | Định nghĩa |
 |---|---|
 | Phiếu hợp lệ | Phiên bản báo giá (`quote_versions`) có `status = 'confirmed'`, `confirmed_at` khác null, và phiếu cha `quotes.cancelled_at` là null |
-| **Một lần cập nhật** của vật tư X trong tuần W | Một phiên bản **phiếu hợp lệ** có ít nhất một dòng của X và `received_date` nằm trong tuần W. Đếm **số phiên bản khác nhau**, không đếm dòng (đã chốt, câu trả lời 3) |
+| **Một lần cập nhật** của vật tư X trong tuần W | Một phiên bản **phiếu hợp lệ** có ít nhất một dòng của X và `received_date` nằm trong tuần W **và không sau mốc xét `as_of`** (phiếu ghi ngày nhận ở tương lai chưa được tính). Đếm **số phiên bản khác nhau**, không đếm dòng (đã chốt, câu trả lời 3) |
 | Tuần W | Thứ Hai đến Chủ nhật theo giờ Việt Nam, chọn bằng bộ chọn tuần có sẵn (đã chốt, câu trả lời 4) |
 | Mốc xét `as_of` | `min(hôm nay theo giờ Việt Nam, chủ nhật của tuần W)`. Tuần quá khứ xét tại Chủ nhật của tuần đó, nên xem lại tuần cũ ra đúng trạng thái lúc ấy |
 | Ngày nhận gần nhất | `max(received_date)` của mọi phiếu hợp lệ có dòng X và `received_date <= as_of` (toàn thời gian, không giới hạn trong tuần) |
@@ -161,12 +161,17 @@ Biết trạng thái xuất phát của code và kiểm chứng các mốc chu k
 
 ### Tiêu chí chấp nhận
 
-- [ ] Baseline được ghi lại, kể cả các test cũ đang lỗi.
-- [ ] Phụ lục A có số liệu production; mốc chu kỳ được xác nhận hoặc chỉnh.
+- [x] Baseline được ghi lại, kể cả các test cũ đang lỗi (Phụ lục B).
+- [ ] Phụ lục A có số liệu production; mốc chu kỳ được xác nhận hoặc chỉnh. **Chờ người dùng chạy hai truy vấn ở Phụ lục B trên VPS** (Slice 4 cần kết quả này trước khi nạp danh sách mặc định lên production; Slice 1 đến 3 không phụ thuộc).
 
 ### Rollback
 
 Không có thay đổi sản phẩm.
+
+### Kết quả Slice 0 (2026-10-06)
+
+- Baseline code đo trên `main` trước khi viết dòng code nào của 1D, ghi ở Phụ lục B. Làm việc thẳng trên `main` (không tạo nhánh riêng), mỗi slice một commit.
+- Việc còn lại của slice (HITL): chạy hai truy vấn Phụ lục B trên production và điền cột "Production" của Phụ lục A.
 
 ---
 
@@ -201,13 +206,21 @@ Có một endpoint trả đúng, kiểm bằng PostgreSQL thật, bảng độ m
 
 ### Tiêu chí chấp nhận
 
-- [ ] Tracer và các test trên đều xanh trên PostgreSQL thật; test đột biến phát hiện.
-- [ ] `tests/test_alembic_heads.py` xanh (một head).
-- [ ] Baseline không xấu hơn.
+- [x] Tracer và các test trên đều xanh trên PostgreSQL thật; test đột biến phát hiện.
+- [x] `tests/test_alembic_heads.py` xanh (một head).
+- [x] Baseline không xấu hơn.
 
 ### Rollback
 
 Gỡ route hoặc quay về code cũ; bảng mới là additive và không ai đọc. Không `downgrade` migration.
+
+### Kết quả Slice 1 (2026-10-06)
+
+- Đã làm đúng thiết kế F1 đến F5: migration `20261006_1200` (`price_freshness_materials`), model `PriceFreshnessMaterial`, `QuotifyMaterialFreshnessService` (bốn truy vấn nhỏ: cấu hình, đếm trong tuần, vật tư hoạt động, ngày nhận và người nhập gần nhất bằng `DISTINCT ON`), hàm thuần `classify_freshness`, route `GET /dashboard/quotify/material-freshness` (quyền `price_alerts.manage`). Hàm chuẩn hóa tuần được tách thành `normalize_week_start` dùng chung với bảng tuần cũ.
+- Chỉnh so với kế hoạch: cả số lần cập nhật lẫn "ngày nhận gần nhất" chỉ xét `received_date <= as_of` (phiếu ghi ngày nhận ở tương lai chưa được tính, tuổi không bao giờ âm). Tham số `week_start` giới hạn 2000-01-01 đến 2100-12-31 (422 ngoài khoảng, tránh tràn ngày).
+- Kiểm thử: 18 test PostgreSQL thật, 6 test API (mock dịch vụ, có 403 với `dashboard.read` và 422), 9 ca của `classify_freshness`; backend 1.114 pass (baseline 1.081), ruff 61 và mypy 13 lỗi cũ không đổi. Chín phép đột biến thủ công (bỏ lọc phiếu hủy, bỏ lọc `confirmed`, bỏ `confirmed_at`, đếm dòng thay vì phiên bản, bỏ chặn `as_of` ở hai chỗ, đếm theo `created_at`, bỏ lọc `inactive`, đảo thứ tự ngày nhận) và phép bỏ tie-break `confirmed_at` đều làm test đỏ.
+- Rà soát độc lập không thấy lỗi nghiêm trọng; bốn điểm nhẹ đã xử lý: giới hạn khoảng ngày của `week_start`, `unwatched_updated_count` kiểm `update_count > 0` tường minh, test tie-break dùng 6 phiên bản để thực sự bắt được, ghi chú fixture dọn cả bảng cấu hình (các slice sau phải dùng vật tư riêng hoặc cách dọn riêng).
+- Thử trên dữ liệu dev thật: tuần trước đó có 17 đến 39 vật tư có cập nhật mỗi tuần (6 tuần gần nhất); migration đã áp lên DB dev.
 
 ---
 
@@ -632,7 +645,14 @@ union all select 'tier14 (5<gap<=12)', count(*)::text from per where n_days >= 3
 union all select 'tier30 (gap>12)', count(*)::text from per where n_days >= 3 and mean_gap > 12;
 ```
 
-Baseline code (Slice 0, điền sau): backend pytest, ruff, mypy, bandit; frontend lint, `vue-tsc`, vitest (kể cả bốn lỗi cũ đã ghi ở Phụ lục B của kế hoạch 1C). Quy tắc so sánh: theo **tên test và nhóm lỗi**, không theo tổng số.
+**Baseline code đo ngày 2026-10-06 (Slice 0, trên `main`, trước khi có code 1D):**
+
+| Thành phần | Baseline |
+|---|---|
+| Backend | pytest 1.081 pass (hết lỗi, chạy kèm PostgreSQL thật); ruff **61** lỗi cũ toàn repo (50 `E501`, 5 `E741`, 5 `I001`, 1 `N817`; tăng 5 so với 56 lúc bắt đầu 1C, do code 1C); mypy 13 lỗi cũ; bandit 16 cảnh báo (15 mức thấp, 1 mức vừa) |
+| Frontend | `npm run lint`: 12 lỗi và 57 cảnh báo cũ; `vue-tsc` sạch; vitest 339 pass và **4 lỗi cũ** (đúng bốn test đã ghi ở Phụ lục B của kế hoạch 1C: một ở `audit-logs.page.spec.ts`, ba ở `useQuotifySettingsPage.spec.ts`) |
+
+Ghi chú đo: `ruff` cần `--no-cache` khi chạy trong môi trường không ghi được `.ruff_cache`. Quy tắc so sánh: theo **tên test và nhóm lỗi**, không theo tổng số.
 
 ## Phụ Lục C: Bản Mẫu Giao Diện Và Tin Nhắn
 

@@ -4,7 +4,7 @@ from datetime import date
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_permission
@@ -15,7 +15,9 @@ from app.schemas.quotify_dashboard import (
     QuotifyPriceTrendsResponse,
     QuotifyWeeklyEntryActivityResponse,
 )
+from app.schemas.quotify_material_freshness import QuotifyMaterialFreshnessResponse
 from app.services.quotify_dashboard_service import QuotifyDashboardService
+from app.services.quotify_material_freshness_service import QuotifyMaterialFreshnessService
 
 router = APIRouter(prefix="/dashboard/quotify", tags=["dashboard", "quotify"])
 
@@ -24,6 +26,12 @@ def get_quotify_dashboard_service(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> QuotifyDashboardService:
     return QuotifyDashboardService(session)
+
+
+def get_quotify_material_freshness_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> QuotifyMaterialFreshnessService:
+    return QuotifyMaterialFreshnessService(session)
 
 
 @router.get("/entry-kpis", response_model=QuotifyEntryKpisResponse)
@@ -78,3 +86,19 @@ async def get_weekly_entry_activity(
         user_id=user_id,
     )
     return QuotifyWeeklyEntryActivityResponse.model_validate(data)
+
+
+@router.get("/material-freshness", response_model=QuotifyMaterialFreshnessResponse)
+async def get_material_freshness(
+    service: Annotated[
+        QuotifyMaterialFreshnessService,
+        Depends(get_quotify_material_freshness_service),
+    ],
+    # Cùng quyền với trang cấu hình thông báo giá (Phương án A của kế hoạch 1D): chỉ Admin và
+    # Manager xem được, không dùng `dashboard.read` vì role `user` cũng có quyền đó.
+    _: Annotated[User, Depends(require_permission("price_alerts.manage"))],
+    # Giới hạn khoảng ngày để ngày gần biên (vd. 9999-12-31) không làm tràn khi cộng 6 ngày.
+    week_start: Annotated[date | None, Query(ge=date(2000, 1, 1), le=date(2100, 12, 31))] = None,
+) -> QuotifyMaterialFreshnessResponse:
+    data = await service.get_material_freshness(week_start=week_start)
+    return QuotifyMaterialFreshnessResponse.model_validate(data)

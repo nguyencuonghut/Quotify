@@ -21,6 +21,11 @@ from app.models.user import User, UserStatus
 BUSINESS_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
+def normalize_week_start(value: date) -> date:
+    """Đưa một ngày bất kỳ về thứ Hai của tuần chứa nó (tuần bắt đầu từ thứ Hai)."""
+    return value - timedelta(days=value.weekday())
+
+
 class QuotifyDashboardService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -441,4 +446,4 @@ class QuotifyDashboardService:
         return full_name or email or "Không xác định"
 
     def _normalize_week_start(self, value: date) -> date:
-        return value - timedelta(days=value.weekday())
+        return normalize_week_start(value)
