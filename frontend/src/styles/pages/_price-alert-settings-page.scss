@@ -65,12 +65,24 @@
 }
 
 .price-alert-settings-page__label {
+  display: block;
   color: var(--app-text-secondary);
   font-size: 0.8125rem;
+  line-height: 1.15rem;
 }
 
 .price-alert-settings-page__field .p-inputnumber {
   width: 100%;
+}
+
+.price-alert-settings-page__field .p-inputnumber-input {
+  width: 100%;
+  min-width: 0;
+}
+
+// Nhãn tham số dài có thể xuống hai dòng: chừa sẵn chiều cao hai dòng để ô nhập luôn thẳng hàng.
+.price-alert-settings-page__grid--params .price-alert-settings-page__label {
+  min-height: 2.25rem;
 }
 
 .price-alert-settings-page__field-error {
@@ -126,6 +138,12 @@
   align-items: flex-start;
   gap: 0.25rem;
   min-width: 9rem;
+}
+
+.price-alert-settings-page__actions-column {
+  width: 6.5rem;
+  white-space: nowrap;
+  text-align: right;
 }
 
 .price-alert-settings-page__cell small {

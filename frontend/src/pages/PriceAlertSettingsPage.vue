@@ -101,7 +101,9 @@
 
         <section class="price-alert-settings-page__panel">
           <h3 class="price-alert-settings-page__panel-title">Tham số</h3>
-          <div class="price-alert-settings-page__grid">
+          <div
+            class="price-alert-settings-page__grid price-alert-settings-page__grid--params"
+          >
             <div
               v-for="field in parameterFields"
               :key="field.name"
@@ -233,19 +235,6 @@
                 <div class="price-alert-settings-page__cell">
                   <strong>{{ data.name }}</strong>
                   <small>{{ data.code }}</small>
-                  <Button
-                    label="Sửa ngưỡng"
-                    icon="pi pi-pencil"
-                    size="small"
-                    severity="secondary"
-                    outlined
-                    :disabled="!canEdit"
-                    :title="
-                      canEdit ? '' : 'Bạn không có quyền sửa cấu hình này.'
-                    "
-                    data-testid="material-edit"
-                    @click="openEdit(data)"
-                  />
                 </div>
               </template>
             </Column>
@@ -282,6 +271,28 @@
                 <Tag
                   :severity="data.hasOverride ? 'info' : 'secondary'"
                   :value="data.hasOverride ? 'Ngưỡng riêng' : 'Mặc định'"
+                />
+              </template>
+            </Column>
+            <Column
+              header="Thao tác"
+              class="price-alert-settings-page__actions-column"
+            >
+              <template #body="{ data }">
+                <Button
+                  :aria-label="`Sửa ngưỡng ${data.name}`"
+                  :title="
+                    canEdit
+                      ? 'Sửa ngưỡng riêng'
+                      : 'Bạn không có quyền sửa cấu hình này.'
+                  "
+                  icon="pi pi-pencil"
+                  rounded
+                  severity="secondary"
+                  text
+                  :disabled="!canEdit"
+                  data-testid="material-edit"
+                  @click="openEdit(data)"
                 />
               </template>
             </Column>
