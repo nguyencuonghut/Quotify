@@ -208,7 +208,7 @@ async def load_anomaly_points(
 
 
 async def load_daily_digest_lines(session: AsyncSession, message_id: UUID) -> list[DigestLine]:
-    """Mỗi vật tư một dòng: kỳ giao hàng có \|%\| lớn nhất trong các sự kiện của bản tin."""
+    """Mỗi vật tư một dòng: kỳ giao hàng có độ lệch lớn nhất trong các sự kiện của bản tin."""
     rows = (
         await session.execute(
             select(PriceAlertEvent, Material.name)

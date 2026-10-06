@@ -14,7 +14,7 @@ _ELLIPSIS = "…"
 
 @dataclass(frozen=True, slots=True)
 class DigestLine:
-    """Một vật tư trong bản tin: kỳ giao hàng có \\|%\\| lớn nhất của ngày hôm đó."""
+    """Một vật tư trong bản tin: kỳ giao hàng có độ lệch lớn nhất của ngày hôm đó."""
 
     material_name: str
     direction: str
