@@ -992,3 +992,26 @@ Hai số đo chỉ có khi thông báo giá đang bật, tính khi Prometheus sc
 3. **Gỡ danh sách theo dõi đã nạp bằng lệnh** (không đụng hàng quản lý đã sửa tay): `delete from price_freshness_materials where updated_by_id is null;` (có thể thêm `and created_at >= '<thời điểm nạp>'`). Hàng quản lý sửa trên giao diện có `updated_by_id` khác rỗng nên được giữ.
 4. **Quay về bản trước:** `git checkout <commit 1C>`, build lại `backend`, `worker`, `frontend` và tạo lại. Bộ gửi tin cũ **không nhận loại `freshness`** nên tin chưa gửi sẽ kẹt `pending` (làm kêu cảnh báo tin kẹt): chạy câu lệnh ở mục 2 **trước** khi quay lại. Schema giữ nguyên, **không** `alembic downgrade` trên production.
 
+### 15.6 Triển khai nhanh sau 1D (chỉ đổi `backend`, `worker`, `frontend`, không migration)
+
+Dùng cho các thay đổi nhỏ sau đợt 1D (ví dụ định dạng tin nhắc, bảng ở Dashboard) khi không có migration và không cần chế độ bảo trì:
+
+```bash
+cd /opt/quotify
+git pull --ff-only origin main
+docker compose -f docker-compose.prod.yml build backend worker frontend 2>&1 | tail -6
+docker compose -f docker-compose.prod.yml up -d --force-recreate backend worker frontend
+sleep 20
+docker compose -f docker-compose.prod.yml restart reverse-proxy   # BẮT BUỘC sau khi tạo lại service
+sleep 5
+docker compose -f docker-compose.prod.yml ps | grep -E "backend|frontend|worker|reverse-proxy"
+curl -s -o /dev/null -w "health %{http_code}\n" https://quotify.honghafeed.com.vn/health
+curl -s -o /dev/null -w "api %{http_code}\n" -X POST https://quotify.honghafeed.com.vn/api/v1/auth/refresh   # kỳ vọng 401
+docker compose -f docker-compose.prod.yml logs worker --tail 30 2>&1 | grep -iE "error|traceback"
+```
+
+- **Bắt buộc `restart reverse-proxy`** sau khi tạo lại `backend` hoặc `frontend`: nginx giữ địa chỉ IP cũ của service, nên nếu bỏ bước này thì trình duyệt nhận `502` (console báo `ApiError: API request failed` ở bước khởi tạo) và `reverse-proxy` hiện `unhealthy`. Sự cố này đã xảy ra ngày 2026-10-07 khi deploy bản định dạng tin nhắc và bảng Dashboard mà quên bước này.
+- Build chỉ cần các service có thay đổi; thêm `backend` luôn kéo theo `worker` (dùng chung code).
+- Nếu Docker Hub không vào được (đã gặp ngày 2026-10-07): kéo image `node` qua `mirror.gcr.io` và gắn lại tên, xem nhật ký deploy ở tài liệu kế hoạch 1D.
+- Mỗi điểm vào (worker, lệnh CLI) phải nạp được ở tiến trình mới: kiểm `docker compose ... logs worker` có dòng `Starting worker for ... functions` và không có `ImportError` sau mỗi lần tạo lại.
+

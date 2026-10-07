@@ -1191,3 +1191,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Cai tien tin nhac Telegram vat tu chua co gia moi
 - Tom tat: Trinh bay lai tin nhac cho dien thoai: dau tin co so luong va tom tat do/vang, gom theo nguoi nhap (nguoi co vat tu tre nhieu dung dau, chua ro nguoi nhap cuoi), moi vat tu mot dong ngan (ten cat 20 ky tu, dong <= 34 ky tu), bo chu ky khoi tung dong, chu thich cuoi tin. 33 test ham thuan, sender test cap nhat. Chua deploy.
+
+## 2026-10-07 06:12:24Z - claude
+
+- Tieu de: Su co 502 sau deploy: thieu restart reverse-proxy
+- Tom tat: Sau up -d --force-recreate phai restart reverse-proxy (nginx giu IP cu). Them runbook muc 15.6 deploy nhanh co buoc nay. Ban dinh dang tin nhac va bang Do moi gia da len production.

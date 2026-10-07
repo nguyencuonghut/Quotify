@@ -726,3 +726,7 @@ Theo yêu cầu của người dùng, chỉ ở frontend (bảng dưới 200 dò
 - Kiểm thử: 11 test composable, 6 test component, 3 e2e mới; rà soát độc lập không thấy lỗi, đã xử lý các điểm nhẹ (nhãn trợ năng của ô sắp xếp và nút đảo chiều, bấm lần ba bỏ sắp xếp, quên chiều khi bỏ sắp xếp). Vitest 4 lỗi cũ, lint 12/57, `vue-tsc` sạch.
 - Triển khai: chỉ cần build lại `frontend` và tạo lại service đó; không migration, không bảo trì.
 
+### Sự cố 502 sau khi deploy bản định dạng tin nhắc và bảng Dashboard (2026-10-07)
+
+Người dùng deploy `frontend`, `backend`, `worker` bằng `up -d --force-recreate` nhưng chưa restart `reverse-proxy`: trình duyệt nhận `502` ở lần gọi khởi tạo (`ApiError: API request failed`), `reverse-proxy` hiện `unhealthy` do nginx giữ địa chỉ IP cũ. Sau `docker compose restart reverse-proxy` mọi thứ chạy lại (`/health` 200, `/auth/refresh` 401). Nguyên nhân gốc là hướng dẫn deploy nhanh của em thiếu bước restart; đã thêm mục 15.6 vào runbook với bước này in đậm.
+
