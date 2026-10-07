@@ -939,3 +939,56 @@ Số đo được tính khi Prometheus scrape, cache 15 giây, có hạn chờ 2
 2. Nếu phải quay lại bản trước: `git checkout <commit 1B>` rồi build lại `backend`, `worker`, `frontend` và tạo lại. Schema giữ nguyên (cột `digest_kind` cho phép NULL, tương thích code cũ). **Không** `alembic downgrade` trên production.
 3. Khi đặt `TELEGRAM_ENABLED=false` (tắt khẩn cấp ở mục 13.4), cron quét dừng nên mọi số đo của engine biến mất (`quotify_price_alert_enabled 0`) và cảnh báo `PriceAlertScanStale` không bị báo nhầm.
 4. Bản tin đã tạo nhưng chưa gửi nằm ở trạng thái `pending`; khi tắt cờ chúng không được gửi, và các thay đổi Nhẹ nguồn đã chuyển `sent` (lý do `in_digest`).
+
+## 15. Phát hành giai đoạn 1D (độ mới của giá theo vật tư, nhắc cập nhật giá qua Telegram)
+
+Kế hoạch: `docs/quotify/plan-telegram-giai-doan-1d-do-moi-gia-theo-vat-tu.md`. Phát hành **một đợt**. Điều kiện: 1C đã chạy trên production (mục 14) và các commit 1D đã vào `main`. **Nhắc Telegram mặc định tắt** sau khi deploy; bật là một bước riêng (15.3).
+
+### 15.1 Khác biệt so với đợt 1C
+
+- **Hai migration mới, chỉ thêm, không `downgrade` trên production:** `20261006_1200` (bảng `price_freshness_materials`, danh sách theo dõi) và `20261007_0900` (cột `price_alert_settings.freshness_enabled` mặc định false và `freshness_hour_local` mặc định 9, cột `price_alert_scan_state.last_freshness_local_date`, loại tin `freshness` trong ràng buộc của `price_alert_messages`, chỉ mục duy nhất `uq_price_alert_messages_freshness`, bảng `price_alert_message_materials`).
+- **Build ba service:** `backend`, `worker`, `frontend` (bảng "Độ mới của giá theo vật tư" ở tab Tổng quan của Dashboard, cột "Theo dõi" và "Chu kỳ" trên trang Thông báo giá, thẻ "Nhắc cập nhật giá").
+- **Cron mới** `send_price_alert_freshness` (phút 20 mỗi giờ, giờ VN): chỉ chạy khi Telegram bật, công tắc tổng `is_enabled` bật **và** `freshness_enabled` bật; chỉ vào ngày làm việc từ `freshness_hour_local`.
+- **Không đổi `.env`**; không cần đăng ký lại webhook.
+- **Quyền xem bảng ở Dashboard:** mọi người có quyền xem Dashboard; sửa danh sách theo dõi vẫn cần `price_alerts.manage` (trưởng phòng và admin).
+
+### 15.2 Trình tự
+
+Lệnh chạy ở `/opt/quotify`. Mỗi bước không như kỳ vọng thì dừng.
+
+1. **Backup** như mục 14.2 bước 1 (`backup-postgres.sh`, `backup-minio.sh`; kiểm dung lượng và `gzip -t`).
+2. **`git pull --ff-only origin main`**; so `.env` với `.env.production.example` (không có biến mới).
+3. **Build** khi site vẫn chạy: `docker compose -f docker-compose.prod.yml build backend worker frontend`.
+4. **Bật chế độ bảo trì** (như mục 13.2 bước 5).
+5. **Migrate** bằng container tạm: `docker compose -f docker-compose.prod.yml run --rm backend uv run alembic upgrade head` (hai dòng `Running upgrade 20261006_0900 -> 20261006_1200` và `20261006_1200 -> 20261007_0900`). Đếm trước và sau các bảng cũ (users, quotes, quote_lines, materials) phải y hệt. Rồi `up -d --force-recreate backend worker frontend`, chờ healthy; log worker không có lỗi và không có token; worker liệt kê hàm `send_price_alert_freshness` cùng cron tương ứng.
+6. **Tắt bảo trì** và kiểm `/health`, `/ready`, đăng nhập (như mục 14.2 bước 6).
+7. **Duyệt và nạp danh sách theo dõi mặc định** (chỉ làm khi bảng `price_freshness_materials` còn trống hoặc muốn bổ sung; lệnh không bao giờ ghi đè hay bật lại lựa chọn đã có):
+   - Xem đề xuất (dry-run, không ghi gì) và xuất CSV: `docker compose -f docker-compose.prod.yml exec -T backend python3 -m app.price_freshness_seed --csv /tmp/de-xuat.csv`, rồi lấy file: `docker compose -f docker-compose.prod.yml cp backend:/tmp/de-xuat.csv ./de-xuat.csv`. Số liệu kỳ vọng ngày 2026-10-07: 38 vật tư, chu kỳ 7 ngày 18, 14 ngày 18, 30 ngày 2.
+   - Trưởng phòng duyệt danh sách (có thể sửa từng vật tư sau trên trang Thông báo giá). Khi đồng ý: `... exec -T backend python3 -m app.price_freshness_seed --apply`. Ghi dòng "Đã nạp N vật tư..." vào nhật ký triển khai (lệnh không ghi audit hệ thống). Xóa file CSV trên VPS sau khi dùng.
+8. **Kiểm giao diện bằng tài khoản người thật** (không phải tài khoản seed): người thường (role `user`) thấy bảng "Độ mới của giá theo vật tư" ở tab Tổng quan, đổi tuần ra số hợp lý, đối chiếu một vật tư với phiếu thật; trưởng phòng thấy thêm liên kết "Quản lý danh sách theo dõi" và sửa được cột "Theo dõi", "Chu kỳ" trên trang Thông báo giá; người thường không vào được trang đó.
+9. **Kiểm số đo:** `docker compose -f docker-compose.prod.yml exec -T backend curl -s localhost:8000/metrics | grep quotify_price_freshness` phải có hai dòng (xem 15.4) khi thông báo giá đang bật.
+10. **Để `freshness_enabled = false` ít nhất một tuần**: quản lý dùng bảng web và chỉnh danh sách theo dõi, chu kỳ cho sát thực tế.
+
+### 15.3 Bật nhắc Telegram (bước riêng, sau khi quản lý đã duyệt danh sách)
+
+1. Trước khi bật, kiểm người nhận: `PRICE_ALERT_RECIPIENT_EMAILS` còn giới hạn pilot thì chỉ người trong danh sách nhận; mỗi người nhận phải đã liên kết Telegram và không tắt thông báo ở Hồ sơ.
+2. Vào trang **Thông báo giá**, bật "Nhắc người nhập khi vật tư quá hạn chưa có giá mới", chọn giờ nhắc (mặc định 9), Lưu. Công tắc tổng "Gửi thông báo biến động giá qua Telegram" phải đang bật.
+3. Tin đầu tiên đến ở lần cron phút 20 đầu tiên sau giờ nhắc của **ngày làm việc kế tiếp có vật tư đến nhịp nhắc** (nhắc khi vừa quá chu kỳ, rồi mỗi 3 ngày làm việc, tối đa 5 lần). Kiểm trên điện thoại thật: danh sách vật tư, số ngày, chu kỳ, người nhập gần nhất, có âm báo, trưởng phòng thấy mọi vật tư còn nhân viên chỉ thấy vật tư mình nhập.
+4. Theo dõi tải tin tuần đầu: `select status, count(*) from price_alert_messages where kind = 'freshness' and created_at > now() - interval '7 days' group by 1;`.
+
+### 15.4 Số đo
+
+| Số đo (`/metrics` của backend) | Ý nghĩa | Cảnh báo |
+|---|---|---|
+| `quotify_price_freshness_watched_materials` | số vật tư đang theo dõi độ mới của giá | không |
+| `quotify_price_freshness_overdue_materials` | số vật tư theo dõi đang quá hạn chưa có giá mới (gồm chưa từng có giá), cùng cách tính với thẻ "Quá hạn" ở Dashboard | không (xem ở Dashboard) |
+
+Hai số đo chỉ có khi thông báo giá đang bật, tính khi Prometheus scrape (cache 15 giây). Tin nhắc loại `freshness` nằm trong số đo tin chung `quotify_price_alert_messages{status}` nên các cảnh báo tin `pending` kẹt và tin `failed` của mục 14.3 đã bao cả loại này. Truy vấn tay: `select kind, status, status_reason, count(*) from price_alert_messages where created_at > now() - interval '2 days' group by 1,2,3 order by 4 desc;`.
+
+### 15.5 Tắt khẩn cấp và rollback
+
+1. **Tắt nhắc:** bỏ công tắc "Nhắc người nhập..." ở trang Thông báo giá (hoặc `PUT /price-alert-settings` với `freshness_enabled=false`); hiệu lực ở lần cron kế tiếp, tối đa một giờ. Tắt công tắc tổng `is_enabled=false` dừng mọi thông báo giá.
+2. **Tin nhắc đã xếp nhưng chưa gửi** vẫn nằm `pending`; muốn bỏ: `update price_alert_messages set status = 'skipped', status_reason = 'rolled_back' where kind = 'freshness' and status in ('pending', 'sending');`.
+3. **Gỡ danh sách theo dõi đã nạp bằng lệnh** (không đụng hàng quản lý đã sửa tay): `delete from price_freshness_materials where updated_by_id is null;` (có thể thêm `and created_at >= '<thời điểm nạp>'`). Hàng quản lý sửa trên giao diện có `updated_by_id` khác rỗng nên được giữ.
+4. **Quay về bản trước:** `git checkout <commit 1C>`, build lại `backend`, `worker`, `frontend` và tạo lại. Bộ gửi tin cũ **không nhận loại `freshness`** nên tin chưa gửi sẽ kẹt `pending` (làm kêu cảnh báo tin kẹt): chạy câu lệnh ở mục 2 **trước** khi quay lại. Schema giữ nguyên, **không** `alembic downgrade` trên production.
+

@@ -93,6 +93,10 @@ def test_the_compliance_check_names_what_is_missing(tmp_path: Path) -> None:
         "docker/nginx/maintenance.conf",
         "mục 13 của runbook",
         "mục 14 của runbook",
+        "mục 15 của runbook",
+        "lệnh nạp danh sách theo dõi",
+        "script đo độ mới của giá",
+        "migration nhắc cập nhật giá",
         "PRICE_ALERT_RECIPIENT_EMAILS",
         "APP_PUBLIC_URL",
         "luật cảnh báo quét trễ",
@@ -104,3 +108,38 @@ def test_the_production_readiness_script_calls_the_price_alert_check() -> None:
     script = (ROOT / "scripts/compliance/check-production-readiness.sh").read_text("utf-8")
 
     assert "check-price-alert-readiness.sh" in script
+
+
+def test_the_runbook_section_15_covers_the_release_the_metrics_and_the_rollback() -> None:
+    runbook = (ROOT / "docs/runbooks/deploy-vps-production.md").read_text("utf-8")
+    section = runbook[runbook.index("## 15. ") :]
+
+    for needle in (
+        "20261006_1200",
+        "20261007_0900",
+        "price_freshness_seed",
+        "dry-run",
+        "--apply",
+        "freshness_enabled",
+        "quotify_price_freshness_watched_materials",
+        "quotify_price_freshness_overdue_materials",
+        "kind = 'freshness'",
+        "updated_by_id is null",
+    ):
+        assert needle in section, needle
+
+
+def test_the_freshness_gauges_are_exported_when_the_snapshot_has_them() -> None:
+    from prometheus_client import generate_latest
+
+    metrics = PriceAlertMetrics(lambda: None, ttl_seconds=0)  # type: ignore[arg-type, return-value]
+    metrics.ok = True
+    metrics.snapshot = PriceAlertSnapshot(enabled=True, freshness_watched=38, freshness_overdue=4)
+    set_active_metrics(metrics)
+    try:
+        text = generate_latest().decode()
+    finally:
+        set_active_metrics(None)
+
+    assert "quotify_price_freshness_watched_materials 38.0" in text
+    assert "quotify_price_freshness_overdue_materials 4.0" in text

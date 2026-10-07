@@ -6,10 +6,10 @@ import re
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
-from db_helpers import ensure_role
+from db_helpers import create_material, create_priced_line, ensure_role
 from price_alert_scene import Scene
 from prometheus_client import generate_latest
-from sqlalchemy import update
+from sqlalchemy import delete, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from test_price_alert_anomaly_messages_db import flag, new_run, scene  # noqa: F401
 
@@ -18,6 +18,7 @@ from app.models import (
     PriceAlertMessage,
     PriceAlertScanState,
     PriceAlertSetting,
+    PriceFreshnessMaterial,
 )
 
 pytestmark = pytest.mark.integration
@@ -257,3 +258,114 @@ async def test_with_telegram_switched_off_the_stopped_scan_does_not_page_anyone(
         assert value_of("quotify_price_alert_scan_lag_seconds") is None
     finally:
         set_active_metrics(None)
+
+
+async def _watch(
+    sf: async_sessionmaker[AsyncSession],
+    material_id: object,
+    *,
+    watched: bool = True,
+    interval: int = 7,
+) -> None:
+    async with sf() as session:
+        session.add(
+            PriceFreshnessMaterial(
+                material_id=material_id,
+                is_watched=watched,
+                expected_interval_days=interval,
+            )
+        )
+        await session.commit()
+
+
+async def test_freshness_gauges_count_watched_and_overdue_materials(
+    scene: Scene,  # noqa: F811
+    metrics: PriceAlertMetrics,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await configure(session_factory, enabled=True, last_run=NOW)
+    async with session_factory() as session:
+        await session.execute(delete(PriceFreshnessMaterial))
+        await session.commit()
+    today = NOW.date()  # 10/01/2056, 10:00 giờ Việt Nam
+    fresh, overdue, never, off = [await create_material(session_factory) for _ in range(4)]
+    for material in (fresh, overdue, never):
+        await _watch(session_factory, material)
+    await _watch(session_factory, off, watched=False)
+    await create_priced_line(
+        session_factory, material_id=fresh, price=1, received_date=today - timedelta(days=1)
+    )
+    await create_priced_line(
+        session_factory, material_id=overdue, price=1, received_date=today - timedelta(days=20)
+    )
+    await create_priced_line(
+        session_factory, material_id=off, price=1, received_date=today - timedelta(days=20)
+    )
+
+    await metrics.refresh(now=NOW)
+
+    assert value_of("quotify_price_freshness_watched_materials") == 3
+    # Quá hạn gồm cả vật tư theo dõi mà chưa từng có giá, giống thẻ "Quá hạn" trên Dashboard.
+    assert value_of("quotify_price_freshness_overdue_materials") == 2
+
+
+async def test_freshness_gauges_are_zero_without_any_watch_config(
+    scene: Scene,  # noqa: F811
+    metrics: PriceAlertMetrics,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await configure(session_factory, enabled=True, last_run=NOW)
+    async with session_factory() as session:
+        await session.execute(delete(PriceFreshnessMaterial))
+        await session.commit()
+
+    await metrics.refresh(now=NOW)
+
+    assert value_of("quotify_price_freshness_watched_materials") == 0
+    assert value_of("quotify_price_freshness_overdue_materials") == 0
+
+
+async def test_freshness_gauges_are_not_published_while_the_feature_is_off(
+    scene: Scene,  # noqa: F811
+    metrics: PriceAlertMetrics,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await configure(session_factory, enabled=False, last_run=NOW)
+
+    await metrics.refresh(now=NOW)
+
+    assert value_of("quotify_price_freshness_watched_materials") is None
+    assert value_of("quotify_price_freshness_overdue_materials") is None
+
+
+async def test_a_failing_freshness_query_does_not_take_the_engine_gauges_down(
+    scene: Scene,  # noqa: F811
+    metrics: PriceAlertMetrics,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.quotify_material_freshness_service import QuotifyMaterialFreshnessService
+
+    async def broken(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("freshness query failed")
+
+    monkeypatch.setattr(QuotifyMaterialFreshnessService, "get_material_freshness", broken)
+    await configure(session_factory, enabled=True, last_run=NOW - timedelta(minutes=3))
+
+    await metrics.refresh(now=NOW)
+
+    assert value_of("quotify_price_alert_metrics_up") == 1
+    assert value_of("quotify_price_alert_scan_lag_seconds") == pytest.approx(180, abs=1)
+    assert value_of("quotify_price_freshness_watched_materials") is None
+    assert value_of("quotify_price_freshness_overdue_materials") is None
+
+
+@pytest.fixture(autouse=True)
+async def _clean_watch_list_after(
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    """Các test độ mới của giá xóa cả bảng cấu hình theo dõi; dọn lại để không rò sang test khác."""
+    yield
+    async with session_factory() as session:
+        await session.execute(delete(PriceFreshnessMaterial))
+        await session.commit()

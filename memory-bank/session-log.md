@@ -1166,3 +1166,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1D: Slice 6 cong tac va gio nhac
 - Tom tat: GET/PUT /price-alert-settings them freshness_enabled va freshness_hour_local (PUT tuy chon, strict, bo qua = giu nguyen), the Nhac cap nhat gia tren trang cau hinh, ghi chu cong tac tong. Test PG that, API, vitest, e2e; ra soat doc lap sach.
+
+## 2026-10-07 03:12:42Z - claude
+
+- Tieu de: Telegram 1D: Slice 7 quan sat va runbook
+- Tom tat: Hai gauge quotify_price_freshness_watched/overdue_materials (co lap loi bang savepoint), compliance script mo rong, runbook muc 15 (deploy 1D, nap danh sach theo doi, bat nhac rieng, rollback). Test PG that, ra soat doc lap sach.

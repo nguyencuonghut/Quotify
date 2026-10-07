@@ -12,7 +12,7 @@ fail() {
 }
 
 require_file() {
-  [[ -f "$ROOT_DIR/$1" ]] || fail "$1"
+  [[ -f "$ROOT_DIR/$1" ]] || fail "${2:-$1}"
 }
 
 require_text() {
@@ -25,6 +25,10 @@ require_text() {
 require_file "docker/nginx/maintenance.conf"
 require_text "docs/runbooks/deploy-vps-production.md" '^## 13\. ' "mục 13 của runbook (đưa 1B lên production)"
 require_text "docs/runbooks/deploy-vps-production.md" '^## 14\. ' "mục 14 của runbook (phát hành 1C)"
+require_text "docs/runbooks/deploy-vps-production.md" '^## 15\. ' "mục 15 của runbook (phát hành 1D, nhắc cập nhật giá)"
+require_file "backend/app/price_freshness_seed.py" "lệnh nạp danh sách theo dõi"
+require_file "scripts/ops/price-freshness-baseline.sql" "script đo độ mới của giá"
+require_file "backend/alembic/versions/20261007_0900_add_price_freshness_reminder.py" "migration nhắc cập nhật giá"
 require_text ".env.production.example" '^PRICE_ALERT_RECIPIENT_EMAILS=' "biến PRICE_ALERT_RECIPIENT_EMAILS"
 require_text ".env.production.example" '^APP_PUBLIC_URL=' "biến APP_PUBLIC_URL"
 require_text "docker/observability/alert_rules.yml" 'quotify_price_alert_scan_lag_seconds' "luật cảnh báo quét trễ"

@@ -22,6 +22,8 @@ from app.models import (
     Quote,
     QuoteVersion,
 )
+from app.services.price_alert_candidates import BUSINESS_TIMEZONE
+from app.services.quotify_material_freshness_service import QuotifyMaterialFreshnessService
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,8 @@ class PriceAlertSnapshot:
     messages: dict[str, int] = field(default_factory=dict)
     oldest_pending_age_seconds: float | None = None
     anomalies_pending: int | None = None
+    freshness_watched: int | None = None
+    freshness_overdue: int | None = None
 
 
 class PriceAlertMetrics:
@@ -137,6 +141,19 @@ class PriceAlertMetrics:
                     )
                 )
             ).scalar_one()
+            # Cùng cách tính với thẻ Dashboard: số theo dõi và số quá hạn tại hôm nay. Lỗi ở đây chỉ
+            # làm mất hai số đo này, không kéo theo số đo của engine quét và gửi tin.
+            freshness_watched: int | None = None
+            freshness_overdue: int | None = None
+            try:
+                async with session.begin_nested():
+                    freshness = await QuotifyMaterialFreshnessService(
+                        session
+                    ).get_material_freshness(today=now.astimezone(BUSINESS_TIMEZONE).date())
+                freshness_watched = int(freshness["summary"]["watched_count"])
+                freshness_overdue = int(freshness["summary"]["overdue_count"])
+            except Exception as exc:
+                logger.warning("price_alert.freshness_metrics_failed error=%s", type(exc).__name__)
 
         return PriceAlertSnapshot(
             enabled=True,
@@ -149,6 +166,8 @@ class PriceAlertMetrics:
             },
             oldest_pending_age_seconds=_age(now, oldest),
             anomalies_pending=int(anomalies),
+            freshness_watched=freshness_watched,
+            freshness_overdue=freshness_overdue,
         )
 
 
@@ -227,4 +246,16 @@ class _PriceAlertCollector(Collector):
                 "quotify_price_alert_anomalies_pending",
                 "Số thẻ giá bất thường gốc đang chờ duyệt.",
                 value=float(snapshot.anomalies_pending),
+            )
+        if snapshot.freshness_watched is not None:
+            yield GaugeMetricFamily(
+                "quotify_price_freshness_watched_materials",
+                "Số vật tư đang được theo dõi độ mới của giá.",
+                value=float(snapshot.freshness_watched),
+            )
+        if snapshot.freshness_overdue is not None:
+            yield GaugeMetricFamily(
+                "quotify_price_freshness_overdue_materials",
+                "Số vật tư theo dõi đang quá hạn chưa có giá mới (gồm chưa từng có giá).",
+                value=float(snapshot.freshness_overdue),
             )

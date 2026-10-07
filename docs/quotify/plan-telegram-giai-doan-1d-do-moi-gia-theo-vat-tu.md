@@ -467,12 +467,19 @@ Theo dõi được tính năng đang chạy và có hướng dẫn phát hành, 
 
 ### Tiêu chí chấp nhận
 
-- [ ] `/metrics` có hai gauge mới đúng số; script tuân thủ kiểm được cấu hình mới.
-- [ ] Runbook mục 15 đủ lệnh và có phần rollback.
+- [x] `/metrics` có hai gauge mới đúng số; script tuân thủ kiểm được cấu hình mới.
+- [x] Runbook mục 15 đủ lệnh và có phần rollback.
 
 ### Rollback
 
 Gỡ gauge và mục runbook; không ảnh hưởng chức năng.
+
+### Kết quả Slice 7 (2026-10-07)
+
+- Hai gauge `quotify_price_freshness_watched_materials` và `quotify_price_freshness_overdue_materials` trong `price_alert_metrics.py` (tính khi scrape, cache 15 giây, chỉ phát khi `is_enabled`; "quá hạn" gồm chưa từng có giá, đúng thẻ "Quá hạn" ở Dashboard). Truy vấn độ mới chạy trong savepoint riêng: lỗi hay chậm ở đó chỉ làm mất hai gauge này, `quotify_price_alert_metrics_up` và các gauge của engine quét, gửi tin vẫn giữ (có test).
+- `check-price-alert-readiness.sh` đòi thêm mục 15 của runbook, `price_freshness_seed.py`, `price-freshness-baseline.sql` và migration `20261007_0900`; `require_file` nhận nhãn thứ hai để báo lỗi dễ đọc.
+- Runbook mục 15: khác biệt so với 1C, trình tự deploy (hai migration, duyệt và nạp danh sách theo dõi bằng `--csv` rồi `--apply`, kiểm giao diện và số đo, để nhắc tắt ít nhất một tuần), bước bật nhắc riêng, bảng số đo, tắt khẩn cấp và rollback (câu SQL bỏ tin nhắc `pending` và `sending`, câu SQL gỡ hàng do lệnh nạp tạo, lưu ý chạy trước khi quay về image 1C).
+- Kiểm thử: 4 test gauge PostgreSQL thật (có dữ liệu, chưa cấu hình, tính năng tắt, truy vấn hỏng), 2 test runbook và gauge, kiểm báo thiếu tài sản; `make production-readiness-check` xanh. Backend 1.250 pass, ruff 61 và mypy 13 lỗi cũ không đổi. Rà soát độc lập không thấy lỗi nghiêm trọng; đã xử lý cô lập lỗi gauge, dọn bảng cấu hình sau test, mở rộng câu SQL rollback.
 
 ---
 
