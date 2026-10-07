@@ -1136,3 +1136,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1D: so lieu production phu luc A
 - Tom tat: Da do so lieu production (95 vat tu, 52 co gia 90 ngay, 43 chua tung co gia, 38 vat tu tu 3 ngay cap nhat, chu ky 7/14/30 la 18/18/2, gan nhu trung dev). Giu nguyen moc chu ky; Slice 0 hoan tat va Slice 4 het bi chan.
+
+## 2026-10-07 01:40:44Z - claude
+
+- Tieu de: Telegram 1D: Slice 2 bang do moi gia tren Dashboard
+- Tom tat: Bang Do moi cua gia theo vat tu o tab Tong quan: MaterialFreshnessTable + useMaterialFreshness + api/mappers/types + SCSS, di cung tuan da ap dung cua bang nhap bao gia theo tuan (freshnessWeekStart va freshnessReloadToken trong useDashboardPage), moi nguoi dung Dashboard thay bang, lien ket cau hinh chi voi price_alerts.manage. 32 test don vi va 4 e2e moi; ra soat doc lap sua do uu tien CSS dong qua han, dau hieu dang tai, reset loc loai khi tuan moi khong con loai do. Baseline frontend khong doi.

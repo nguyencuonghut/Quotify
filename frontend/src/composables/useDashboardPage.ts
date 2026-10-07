@@ -905,6 +905,11 @@ export function useDashboardPage() {
   const showCnfOnly = ref(false)
   const selectedWeek = ref<Date | null>(getWeekStartDate(new Date()))
   const selectedWeeklyUserId = ref<string | null>(null)
+  // Bảng "Độ mới của giá theo vật tư" đi cùng bảng nhập báo giá theo tuần: nhận đúng tuần đã áp
+  // dụng ở lần tải gần nhất và một token tăng mỗi lần tải lại (mở trang, "Lọc", "Xóa lọc"), không
+  // đổi khi người dùng mới chỉ chọn tuần khác trong ô chọn tuần.
+  const freshnessWeekStart = ref<string | null>(null)
+  const freshnessReloadToken = ref(0)
 
   // Chart "diễn biến giá theo ngày báo giá cho 1 kỳ giao hàng cố định" —
   // bộ lọc độc lập với bộ lọc chung của Dashboard (kỳ giao hàng ở đây luôn
@@ -1903,6 +1908,8 @@ export function useDashboardPage() {
   }
 
   async function loadWeeklyEntryActivity() {
+    freshnessWeekStart.value = weeklyEntryQueryParams.value.weekStart ?? null
+    freshnessReloadToken.value += 1
     isLoadingWeeklyEntry.value = true
     errorMessage.value = null
     try {
@@ -1995,6 +2002,8 @@ export function useDashboardPage() {
     periodStatsFormatted,
     selectedWeek,
     selectedWeeklyUserId,
+    freshnessWeekStart,
+    freshnessReloadToken,
     historyDeliveryMonth,
     historyMaterialIds,
     historyBuckets,

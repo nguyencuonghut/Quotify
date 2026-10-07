@@ -147,6 +147,11 @@
           </DataTable>
         </div>
       </section>
+
+      <MaterialFreshnessTable
+        :week-start="freshnessWeekStart"
+        :reload-token="freshnessReloadToken"
+      />
           </TabPanel>
 
           <TabPanel value="charts">
@@ -611,6 +616,7 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
 
+import MaterialFreshnessTable from '@/components/dashboard/MaterialFreshnessTable.vue'
 import { useDashboardPage, type PeriodRangeKey } from '@/composables/useDashboardPage'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 import { useDashboardViewStore } from '@/stores/dashboard-view.store'
@@ -634,6 +640,8 @@ const {
   periodStatsFormatted,
   selectedWeek,
   selectedWeeklyUserId,
+  freshnessWeekStart,
+  freshnessReloadToken,
   historyDeliveryMonth,
   historyMaterialIds,
   historyBuckets,

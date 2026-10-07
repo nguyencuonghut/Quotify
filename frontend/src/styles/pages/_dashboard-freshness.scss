@@ -1,0 +1,203 @@
+// Bảng "Độ mới của giá theo vật tư" ở tab Tổng quan của Dashboard. Khung ngoài dùng chung lớp
+// `dashboard-page__panel` (nền, viền, khoảng cách), phần dưới đây chỉ là nội dung riêng.
+.material-freshness {
+  min-width: 0;
+}
+
+.material-freshness__header {
+  align-items: flex-end;
+}
+
+.material-freshness__period {
+  margin: 0.25rem 0 0;
+  color: var(--app-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.material-freshness__filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(11rem, 1fr));
+  gap: 0.75rem;
+  min-width: min(100%, 28rem);
+}
+
+.material-freshness__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.material-freshness__state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 1px dashed var(--app-border-soft);
+  border-radius: 0.75rem;
+  color: var(--app-text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+// Đang tải tuần mới: dữ liệu của tuần trước vẫn hiện (để bố cục không nhảy) nhưng mờ đi, kèm dòng
+// "Đang tải" ở trên; tránh người dùng nhầm số cũ là số của tuần vừa chọn.
+.material-freshness--loading .material-freshness__stats,
+.material-freshness--loading .material-freshness__table-wrapper,
+.material-freshness--loading .material-freshness__mobile-list {
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.material-freshness__state--error {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--app-danger) 45%, transparent);
+  background: color-mix(in srgb, var(--app-danger) 8%, transparent);
+  color: var(--app-danger);
+}
+
+// Các cột số, ngày và nhãn trạng thái không ngắt dòng (chỉ cột tên vật tư được ngắt) để thẻ
+// "Chưa có giá" và "14 ngày" không bị xé làm hai dòng.
+.material-freshness__table-wrapper
+  .p-datatable-tbody
+  > tr
+  > td:not(:first-child) {
+  white-space: nowrap;
+}
+
+.material-freshness__name {
+  display: block;
+  font-weight: 600;
+}
+
+.material-freshness__code {
+  color: var(--app-text-muted);
+}
+
+// Dòng của bảng desktop cần selector đủ mạnh để thắng nền mặc định của PrimeVue
+// (`.p-datatable-tbody > tr`); thẻ mobile chỉ có một lớp nên đổi màu viền thay vì nền.
+.material-freshness__table-wrapper
+  .p-datatable-tbody
+  > tr.material-freshness__row--attention {
+  background: color-mix(
+    in srgb,
+    var(--app-danger) 9%,
+    var(--app-surface-panel)
+  );
+}
+
+.material-freshness__mobile-list {
+  display: none;
+}
+
+.material-freshness__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 0.75rem;
+  background: var(--app-surface-panel);
+}
+
+.material-freshness__card.material-freshness__row--attention {
+  border-color: color-mix(in srgb, var(--app-danger) 40%, transparent);
+}
+
+.material-freshness__card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.material-freshness__card-title {
+  margin: 0;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.material-freshness__card-subtitle {
+  margin: 0.15rem 0 0;
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+}
+
+.material-freshness__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 0.75rem;
+  margin: 0;
+}
+
+.material-freshness__facts dt {
+  color: var(--app-text-muted);
+  font-size: 0.72rem;
+}
+
+.material-freshness__facts dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.material-freshness__note {
+  margin: 1rem 0 0;
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.material-freshness__link {
+  margin-left: 0.35rem;
+  color: var(--app-accent);
+  font-weight: 600;
+}
+
+// Bảng có 9 cột nên chuyển sang thẻ sớm hơn mobile thông thường (cùng mốc với trang Báo giá).
+@media (max-width: 1280px) {
+  .material-freshness__table-wrapper {
+    display: none;
+  }
+
+  .material-freshness__mobile-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .material-freshness__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .material-freshness__header {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .material-freshness__filters,
+  .material-freshness__stats,
+  .material-freshness__mobile-list {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .material-freshness__facts {
+    grid-template-columns: 1fr;
+  }
+
+  .material-freshness__card-header {
+    flex-direction: column;
+  }
+}

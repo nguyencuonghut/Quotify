@@ -3,6 +3,7 @@
 @use './vendors/primevue';
 @use './layouts/admin-layout';
 @use './pages/dashboard-page';
+@use './pages/dashboard-freshness';
 @use './pages/forbidden-page';
 @use './pages/login-page';
 @use './pages/not-found-page';

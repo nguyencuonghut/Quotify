@@ -251,13 +251,23 @@ Mọi người dùng mở được Dashboard (kể cả role `user`) chọn tu�
 
 ### Tiêu chí chấp nhận
 
-- [ ] Bảng đúng theo tuần đã chọn; mọi người xem được Dashboard đều thấy bảng; tối ưu mobile.
-- [ ] `make frontend-check` không xấu hơn baseline (so theo tên test); không có `<style>`.
-- [ ] Xem bằng trình duyệt thật hoặc ảnh e2e và sửa các lỗi bố cục thấy được.
+- [x] Bảng đúng theo tuần đã chọn; mọi người xem được Dashboard đều thấy bảng; tối ưu mobile.
+- [x] `make frontend-check` không xấu hơn baseline (so theo tên test); không có `<style>`.
+- [x] Xem bằng trình duyệt thật hoặc ảnh e2e và sửa các lỗi bố cục thấy được.
 
 ### Rollback
 
 Gỡ component khỏi `DashboardPage.vue`; backend không đổi.
+
+### Kết quả Slice 2 (2026-10-07)
+
+- Đã làm đúng thiết kế F8: `types/material-freshness.ts`, `api/material-freshness.api.ts` và `.mappers.ts` (nhãn "Đã cập nhật", "Đúng hạn", "Quá hạn", "Chưa có giá"; ngày không qua `Date` nên không lệch múi giờ), `useMaterialFreshness` (bộ đếm yêu cầu chống phản hồi cũ ghi đè, lọc theo trạng thái và loại vật tư, sắp xếp quá hạn trước theo số ngày giảm dần), `MaterialFreshnessTable.vue` (thẻ tóm tắt, bảng desktop, thẻ mobile từ 1280 px trở xuống, chú thích "Tính theo ngày nhận báo giá"), SCSS `_dashboard-freshness.scss`.
+- Cách bảng đi cùng tuần: `useDashboardPage` thêm `freshnessWeekStart` và `freshnessReloadToken`, đặt trong `loadWeeklyEntryActivity` (mở trang, "Lọc", "Xóa lọc"); chỉ chọn tuần trong ô chọn tuần mà chưa bấm "Lọc" thì bảng không tải lại. Bảng nhận hai giá trị này làm thuộc tính và tự tải; token 0 nghĩa là trang chưa bắt đầu nên chưa gọi API. Tab Tổng quan dùng `lazy` nên chuyển tab rồi quay lại thì bảng gắn lại và tải lại, bộ lọc trạng thái và loại được đặt lại (chấp nhận; việc lưu bộ lọc vào `dashboard-view.store` là tùy chọn đã bỏ qua).
+- Quyền (Q5, đổi ngày 2026-10-07): mọi người xem được Dashboard thấy bảng, không có điều kiện quyền riêng; chỉ liên kết "Quản lý danh sách theo dõi" ẩn với người không có `price_alerts.manage`.
+- Kiểm thử: 32 test đơn vị mới (mapper 5, composable 11, component 11, thêm 4 ca đồng bộ tuần ở `useDashboardPage.spec.ts` và 1 ca ở `dashboard.page.spec.ts`), 4 e2e giả API (Manager, User thường không thấy liên kết cấu hình, mobile 390×844, desktop 1290 px không tràn ngang). Vitest 371 pass và đúng bốn lỗi cũ; `npm run lint` 12 lỗi, 57 cảnh báo như baseline; `vue-tsc` sạch.
+- Xem ảnh e2e và sửa: thẻ trạng thái và cột "Chu kỳ" bị ngắt dòng (đã để không ngắt dòng, chỉ cột tên vật tư được ngắt).
+- Rà soát độc lập thấy một lỗi vừa và vài điểm nhẹ, đã xử lý: (1) dòng quá hạn và chưa có giá không được tô nổi trên bảng desktop vì nền mặc định của PrimeVue (`.p-datatable-tbody > tr`) thắng selector một lớp, nay có e2e kiểm màu nền khác dòng thường; (2) khi tải tuần mới ở màn hình hẹp (≤ 1280 px) không có dấu hiệu đang tải, nay có dòng "Đang tải" cùng `aria-busy`, dữ liệu cũ mờ đi và trạng thái "trống" không hiện khi đang tải; (3) lọc theo loại vật tư tự bỏ nếu tuần mới không còn loại đó (ô chọn không còn lệch với danh sách); (4) bổ sung e2e kiểm nội dung dòng của bảng desktop và kiểm chọn tuần mà chưa bấm "Lọc" thì chưa gọi lại.
+- Lưu ý ngoài phạm vi: lớp `.dashboard-page__weekly-row--warning` của bảng nhập báo giá theo tuần có thể gặp cùng lỗi độ ưu tiên (chưa kiểm, không thuộc 1D).
 
 ---
 

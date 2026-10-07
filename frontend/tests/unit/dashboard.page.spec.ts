@@ -51,6 +51,8 @@ vi.mock('@/composables/useDashboardPage', async () => {
       })),
       selectedWeek: ref(null),
       selectedWeeklyUserId: ref(null),
+      freshnessWeekStart: ref('2026-07-27'),
+      freshnessReloadToken: ref(3),
       historyDeliveryMonth: ref(null),
       historyMaterialIds: ref([]),
       historyBuckets: computed(() => []),
@@ -153,6 +155,16 @@ const passthroughStub = defineComponent({
   template: '<div><slot /></div>',
 })
 
+// Đối tượng thuần (không dùng `defineComponent`) để không thêm cảnh báo `one-component-per-file`.
+const materialFreshnessStub = {
+  props: {
+    weekStart: { type: String, default: null },
+    reloadToken: { type: Number, default: 0 },
+  },
+  template:
+    '<div data-testid="material-freshness-stub">{{ weekStart }}|{{ reloadToken }}</div>',
+}
+
 describe('DashboardPage', () => {
   it('renders the Quotify price analysis dashboard shell', () => {
     setActivePinia(createPinia())
@@ -167,6 +179,7 @@ describe('DashboardPage', () => {
           Column: true,
           DataTable: passthroughStub,
           DatePicker: true,
+          MaterialFreshnessTable: materialFreshnessStub,
           MultiSelect: true,
           Select: true,
           SelectButton: true,
@@ -190,5 +203,36 @@ describe('DashboardPage', () => {
     expect(wrapper.text()).toContain('Giá theo kỳ hàng về')
     expect(wrapper.text()).toContain('Kỳ giao hàng (bắt buộc chọn)')
     expect(wrapper.text()).toContain('Số phiếu báo giá')
+  })
+
+  it('shows the material freshness table to every dashboard reader, driven by the weekly panel', () => {
+    setActivePinia(createPinia())
+
+    const wrapper = mount(DashboardPage, {
+      global: {
+        stubs: {
+          AdminLayout: passthroughStub,
+          Button: true,
+          Chart: true,
+          Checkbox: true,
+          Column: true,
+          DataTable: passthroughStub,
+          DatePicker: true,
+          MaterialFreshnessTable: materialFreshnessStub,
+          MultiSelect: true,
+          Select: true,
+          SelectButton: true,
+          Tab: passthroughStub,
+          TabList: passthroughStub,
+          TabPanel: passthroughStub,
+          TabPanels: passthroughStub,
+          Tabs: passthroughStub,
+          Tag: true,
+        },
+      },
+    })
+
+    // Không đăng nhập quyền nào cả: bảng vẫn hiện, không bị chặn bởi quyền riêng.
+    expect(wrapper.get('[data-testid="material-freshness-stub"]').text()).toBe('2026-07-27|3')
   })
 })

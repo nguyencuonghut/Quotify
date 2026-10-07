@@ -668,6 +668,55 @@ describe('useDashboardPage', () => {
     )
   })
 
+  describe('material freshness table follows the weekly panel', () => {
+    it('starts idle, then asks the table to load the week when the page bootstraps', async () => {
+      const page = useDashboardPage()
+
+      expect(page.freshnessReloadToken.value).toBe(0)
+
+      await page.bootstrap()
+
+      expect(page.freshnessReloadToken.value).toBe(1)
+      expect(page.freshnessWeekStart.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(new Date(`${page.freshnessWeekStart.value}T00:00:00Z`).getUTCDay()).toBe(1)
+    })
+
+    it('hands the applied week to the table only when the filter button is used', async () => {
+      const page = useDashboardPage()
+      await page.bootstrap()
+
+      page.selectedWeek.value = new Date(2026, 6, 29)
+      expect(page.freshnessReloadToken.value).toBe(1)
+      expect(page.freshnessWeekStart.value).not.toBe('2026-07-27')
+
+      await page.applyWeeklyEntryFilters()
+
+      expect(page.freshnessReloadToken.value).toBe(2)
+      expect(page.freshnessWeekStart.value).toBe('2026-07-27')
+    })
+
+    it('reloads the table when the weekly filters are cleared', async () => {
+      const page = useDashboardPage()
+      page.selectedWeek.value = new Date(2026, 6, 29)
+      await page.applyWeeklyEntryFilters()
+
+      await page.resetWeeklyEntryFilters()
+
+      expect(page.freshnessReloadToken.value).toBe(2)
+      expect(page.freshnessWeekStart.value).not.toBe('2026-07-27')
+      expect(new Date(`${page.freshnessWeekStart.value}T00:00:00Z`).getUTCDay()).toBe(1)
+    })
+
+    it('does not reload the table when only the dashboard price filters are applied', async () => {
+      const page = useDashboardPage()
+      await page.bootstrap()
+
+      await page.applyFilters()
+
+      expect(page.freshnessReloadToken.value).toBe(1)
+    })
+  })
+
   describe('price history by received date for a fixed delivery month', () => {
     it('does not fetch without a fixed delivery month, even with 2+ materials selected', async () => {
       const page = useDashboardPage()
