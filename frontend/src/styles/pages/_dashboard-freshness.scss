@@ -16,9 +16,14 @@
 
 .material-freshness__filters {
   display: grid;
-  grid-template-columns: repeat(2, minmax(11rem, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
-  min-width: min(100%, 28rem);
+  margin-bottom: 1rem;
+}
+
+// Chỉ dành cho bố cục thẻ (không có tiêu đề cột để bấm): ẩn trên bảng desktop.
+.material-freshness__sort {
+  display: none;
 }
 
 .material-freshness__stats {
@@ -180,6 +185,25 @@
 
   .material-freshness__header {
     align-items: flex-start;
+  }
+
+  .material-freshness__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .material-freshness__search {
+    grid-column: 1 / -1;
+  }
+
+  .material-freshness__sort {
+    display: flex;
+    grid-column: 1 / -1;
+    gap: 0.5rem;
+  }
+
+  .material-freshness__sort .p-select {
+    flex: 1;
+    min-width: 0;
   }
 }
 

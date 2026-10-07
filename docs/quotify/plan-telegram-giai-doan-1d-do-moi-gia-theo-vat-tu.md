@@ -701,3 +701,13 @@ Xem chi tiết trên web
 - **Nhắc Telegram vẫn tắt** (`freshness_enabled = false`). Còn lại: kiểm giao diện bằng tài khoản người thật (C3); để tắt ít nhất một tuần cho quản lý chỉnh danh sách theo dõi (gợi ý của rà soát danh sách: cân nhắc tắt các biến thể theo nhà sản xuất của Methionine, Tryptophan và vài vật tư mua thưa như DCP, Tấm gạo, Leader yellow 2%, siết chu kỳ của Ngô hạt); rồi bật theo mục 15.3 của runbook.
 - Người dùng đã kiểm giao diện bằng tài khoản người thật (bảng ở Dashboard, trang Thông báo giá) và chỉnh danh sách theo dõi trên giao diện: đạt. Nhắc Telegram vẫn tắt; tiêu chí "một tin nhắc thật đến đúng người" của Slice 8 chờ bước bật (runbook 15.3) sau tối thiểu một tuần.
 
+## Bổ Sung Sau Deploy: Sắp Xếp, Tìm Kiếm Và Lọc Người Nhập Ở Bảng "Độ Mới Của Giá" (2026-10-07)
+
+Theo yêu cầu của người dùng, chỉ ở frontend (bảng dưới 200 dòng nên làm phía client, không đổi API):
+- **Sắp xếp mọi cột** bằng cách bấm tiêu đề (tăng, giảm, bấm lần ba về thứ tự mặc định: quá hạn trước theo số ngày giảm dần, rồi chưa có giá, đúng hạn, đã cập nhật). Giá trị thiếu (chưa có ngày nhận, chu kỳ, người nhập) luôn nằm cuối cả hai chiều; hòa thì theo thứ tự mặc định. Bố cục thẻ (từ 1280 px xuống) có ô "Sắp xếp theo" và nút đảo chiều.
+- **Ô tìm kiếm chung** theo tên vật tư, mã, loại và người nhập, không phân biệt dấu và chữ hoa thường.
+- **Bộ lọc "Người nhập gần nhất"** (có mục "Chưa rõ người nhập"), kết hợp được với lọc trạng thái, loại và tìm kiếm; bộ lọc tự bỏ khi tuần mới không còn người đó; "Xóa bộ lọc" xóa cả bốn.
+- Hàng bộ lọc chuyển xuống dưới tiêu đề (4 cột trên desktop).
+- Kiểm thử: 11 test composable, 6 test component, 3 e2e mới; rà soát độc lập không thấy lỗi, đã xử lý các điểm nhẹ (nhãn trợ năng của ô sắp xếp và nút đảo chiều, bấm lần ba bỏ sắp xếp, quên chiều khi bỏ sắp xếp). Vitest 4 lỗi cũ, lint 12/57, `vue-tsc` sạch.
+- Triển khai: chỉ cần build lại `frontend` và tạo lại service đó; không migration, không bảo trì.
+

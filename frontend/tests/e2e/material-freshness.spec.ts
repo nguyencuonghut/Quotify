@@ -327,3 +327,94 @@ test('keeps the page inside the screen at the narrowest desktop width that still
   )
   expect(overflow).toBeLessThanOrEqual(1)
 })
+
+test('searches without caring about accents and filters by the last enterer', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await mockAuth(page, ['dashboard.read'], ['user'])
+  await mockDashboardApi(page)
+  await page.goto('/')
+
+  const table = page.getByTestId('material-freshness')
+  const rows = table.locator('.material-freshness__table-wrapper tbody tr')
+  await expect(rows).toHaveCount(4)
+
+  await table.getByTestId('freshness-search').fill('ngo hat')
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('Ngô hạt')
+
+  await table.getByTestId('freshness-search').fill('lysine')
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('Lysine 99%')
+
+  await table.getByTestId('freshness-search').fill('')
+  await expect(rows).toHaveCount(4)
+  await table.getByTestId('freshness-enterer-filter').click()
+  await page.getByRole('option', { name: 'Chưa rõ người nhập' }).click()
+  await expect(rows).toHaveCount(2)
+  await expect(
+    table.locator('.material-freshness__table-wrapper'),
+  ).not.toContainText('Ngô hạt')
+  await saveScreenshot(page, 'desktop-filters')
+})
+
+test('sorts the desktop table by clicking its column headers', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await mockAuth(page, ['dashboard.read'], ['user'])
+  await mockDashboardApi(page)
+  await page.goto('/')
+
+  const table = page.getByTestId('material-freshness')
+  const rows = table.locator('.material-freshness__table-wrapper tbody tr')
+  const header = (name: string) =>
+    table
+      .locator('.material-freshness__table-wrapper')
+      .getByRole('columnheader', { name })
+
+  await header('Vật tư').click()
+  await expect(rows.first()).toContainText('Bao bì 25kg')
+  await header('Vật tư').click()
+  await expect(rows.first()).toContainText('Vật tư không theo dõi')
+
+  await header('Chu kỳ').click()
+  await expect(rows.first()).toContainText('Ngô hạt') // chu kỳ 7 ngày nhỏ nhất
+  await expect(rows.last()).toContainText('Vật tư không theo dõi') // không có chu kỳ: luôn cuối
+  await header('Chu kỳ').click()
+  await expect(rows.first()).toContainText('Bao bì 25kg') // 30 ngày lớn nhất
+  await expect(rows.last()).toContainText('Vật tư không theo dõi')
+
+  // Bấm lần thứ ba bỏ sắp xếp: về thứ tự mặc định (quá hạn trước).
+  await header('Chu kỳ').click()
+  await expect(rows.first()).toContainText('Lysine 99%')
+})
+
+test('on a phone the cards can be searched and sorted with the picker', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await mockAuth(page, ['dashboard.read'], ['user'])
+  await mockDashboardApi(page)
+  await page.goto('/')
+
+  const table = page.getByTestId('material-freshness')
+  const cards = table.getByTestId('material-freshness-mobile-item')
+  await expect(cards).toHaveCount(4)
+  await expect(table.getByTestId('freshness-sort-order')).toBeDisabled()
+
+  await table.getByTestId('freshness-sort-select').click()
+  await page.getByRole('option', { name: 'Chu kỳ', exact: true }).click()
+  await expect(cards.first()).toContainText('Ngô hạt')
+  await table.getByTestId('freshness-sort-order').click()
+  await expect(cards.first()).toContainText('Bao bì 25kg')
+
+  await table.getByTestId('freshness-search').fill('lysine')
+  await expect(cards).toHaveCount(1)
+  await saveScreenshot(page, 'mobile-filters')
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  )
+  expect(overflow).toBeLessThanOrEqual(1)
+})

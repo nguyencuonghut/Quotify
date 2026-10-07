@@ -392,4 +392,252 @@ describe('useMaterialFreshness', () => {
 
     expect(table.typeFilter.value).toBe('t-nl')
   })
+
+  describe('search, enterer filter and column sorting', () => {
+    const lysine = item({
+      materialId: 'lys',
+      materialCode: 'LYS99',
+      materialName: 'Lysine 99%',
+      materialTypeId: 't-vl',
+      materialTypeName: 'Vi lượng',
+      status: 'overdue',
+      ageDays: 17,
+      expectedIntervalDays: 14,
+      updateCount: 0,
+      supplierCount: 0,
+      lastReceivedDate: '2026-09-20',
+      lastEntererId: 'u-b',
+      lastEntererLabel: 'Trần Thị Bích',
+    })
+    const ngo = item({
+      materialId: 'ngo',
+      materialCode: 'NGO',
+      materialName: 'Ngô hạt',
+      materialTypeId: 't-nl',
+      materialTypeName: 'Nguyên liệu',
+      status: 'updated',
+      updateCount: 5,
+      supplierCount: 3,
+      ageDays: 1,
+      expectedIntervalDays: 7,
+      lastReceivedDate: '2026-10-06',
+      lastEntererId: 'u-a',
+      lastEntererLabel: 'Nguyễn Văn An',
+    })
+    const bao = item({
+      materialId: 'bao',
+      materialCode: 'BAO',
+      materialName: 'Bao bì 25kg',
+      materialTypeId: 't-bb',
+      materialTypeName: 'Bao bì',
+      status: 'never',
+      ageDays: null,
+      expectedIntervalDays: 30,
+      updateCount: 0,
+      supplierCount: 0,
+      lastReceivedDate: null,
+      lastEntererId: null,
+      lastEntererLabel: null,
+    })
+    const ids = (table: ReturnType<typeof useMaterialFreshness>) =>
+      table.rows.value.map((row) => row.materialId)
+
+    async function loaded() {
+      apiMock.getMaterialFreshness.mockResolvedValue(
+        freshness([ngo, lysine, bao]),
+      )
+      const table = useMaterialFreshness()
+      await table.load('2026-10-05')
+      return table
+    }
+
+    it.each([
+      ['lysine', ['lys']],
+      ['LYS99', ['lys']],
+      ['  ngo  ', ['ngo']],
+      ['bì 25', ['bao']],
+      ['bi 25', ['bao']], // không phân biệt dấu
+      ['ngô hat', ['ngo']],
+      ['vi luong', ['lys']], // theo tên loại
+      ['TRAN thi', ['lys']], // theo người nhập
+      ['khongco', []],
+    ])(
+      'searches name, code, type and enterer without caring about accents: "%s"',
+      async (text, expected) => {
+        const table = await loaded()
+
+        table.searchText.value = text
+
+        expect(ids(table)).toEqual(expected)
+      },
+    )
+
+    it('a blank search shows everything and counts as no active filter', async () => {
+      const table = await loaded()
+      table.searchText.value = '   '
+
+      expect(ids(table)).toHaveLength(3)
+      expect(table.hasActiveFilters.value).toBe(false)
+      table.searchText.value = 'ngo'
+      expect(table.hasActiveFilters.value).toBe(true)
+    })
+
+    it('lists the enterers (and "unknown") and filters by them', async () => {
+      const table = await loaded()
+
+      expect(table.entererOptions.value).toEqual([
+        { label: 'Chưa rõ người nhập', value: '__none__' },
+        { label: 'Nguyễn Văn An', value: 'u-a' },
+        { label: 'Trần Thị Bích', value: 'u-b' },
+      ])
+      table.entererFilter.value = 'u-a'
+      expect(ids(table)).toEqual(['ngo'])
+      table.entererFilter.value = '__none__'
+      expect(ids(table)).toEqual(['bao'])
+      expect(table.hasActiveFilters.value).toBe(true)
+    })
+
+    it('combines search, status, type and enterer, and resetFilters clears all of them', async () => {
+      const table = await loaded()
+      table.searchText.value = 'l'
+      table.statusFilter.value = 'overdue'
+      table.typeFilter.value = 't-vl'
+      table.entererFilter.value = 'u-b'
+      expect(ids(table)).toEqual(['lys'])
+
+      table.entererFilter.value = 'u-a'
+      expect(ids(table)).toEqual([])
+      expect(table.hasNoMatches.value).toBe(true)
+
+      table.resetFilters()
+      expect(ids(table)).toHaveLength(3)
+      expect(table.searchText.value).toBe('')
+      expect(table.entererFilter.value).toBeNull()
+    })
+
+    it('drops an enterer filter that disappears when another week is loaded', async () => {
+      apiMock.getMaterialFreshness
+        .mockResolvedValueOnce(freshness([ngo, lysine]))
+        .mockResolvedValueOnce(freshness([ngo]))
+      const table = useMaterialFreshness()
+      await table.load('2026-10-05')
+      table.entererFilter.value = 'u-b'
+
+      await table.load('2026-10-12')
+
+      expect(table.entererFilter.value).toBeNull()
+      expect(ids(table)).toEqual(['ngo'])
+    })
+
+    it.each([
+      ['name', 1, ['bao', 'lys', 'ngo']],
+      ['name', -1, ['ngo', 'lys', 'bao']],
+      ['type', 1, ['bao', 'ngo', 'lys']],
+      ['updateCount', 1, ['lys', 'bao', 'ngo']],
+      ['updateCount', -1, ['ngo', 'lys', 'bao']],
+      ['supplierCount', -1, ['ngo', 'lys', 'bao']],
+      ['status', 1, ['lys', 'bao', 'ngo']],
+      ['status', -1, ['ngo', 'bao', 'lys']],
+      ['enterer', 1, ['ngo', 'lys', 'bao']], // chưa rõ luôn cuối
+      ['enterer', -1, ['lys', 'ngo', 'bao']],
+    ])('sorts by %s (order %s)', async (field, order, expected) => {
+      const table = await loaded()
+
+      await table.onSort({ sortField: field, sortOrder: order })
+
+      expect(ids(table)).toEqual(expected)
+      expect(table.sortField.value).toBe(field)
+    })
+
+    it.each([
+      ['lastReceivedDate', 1, ['lys', 'ngo', 'bao']],
+      ['lastReceivedDate', -1, ['ngo', 'lys', 'bao']],
+      ['ageDays', 1, ['ngo', 'lys', 'bao']],
+      ['ageDays', -1, ['lys', 'ngo', 'bao']],
+    ])(
+      'puts missing values last in both directions: %s (order %s)',
+      async (field, order, expected) => {
+        const table = await loaded()
+
+        await table.onSort({ sortField: field, sortOrder: order })
+
+        expect(ids(table)).toEqual(expected)
+      },
+    )
+
+    it('sorts the interval and leaves unwatched materials (no interval) last', async () => {
+      const unwatched = item({
+        materialId: 'free',
+        materialName: 'Không theo dõi',
+        isWatched: false,
+        expectedIntervalDays: null,
+        status: 'updated',
+        updateCount: 1,
+      })
+      apiMock.getMaterialFreshness.mockResolvedValue(
+        freshness([unwatched, ngo, lysine, bao]),
+      )
+      const table = useMaterialFreshness()
+      await table.load('2026-10-05')
+
+      await table.onSort({ sortField: 'interval', sortOrder: 1 })
+      expect(ids(table)).toEqual(['ngo', 'lys', 'bao', 'free'])
+      await table.onSort({ sortField: 'interval', sortOrder: -1 })
+      expect(ids(table)).toEqual(['bao', 'lys', 'ngo', 'free'])
+    })
+
+    it('goes back to the default order when the sort is cleared or the column is unknown', async () => {
+      const table = await loaded()
+      await table.onSort({ sortField: 'name', sortOrder: 1 })
+
+      await table.onSort({ sortField: null, sortOrder: null })
+      expect(ids(table)).toEqual(['lys', 'bao', 'ngo']) // quá hạn, chưa có giá, đã cập nhật
+      expect(table.sortField.value).toBeNull()
+
+      await table.onSort({ sortField: 'hacker', sortOrder: 1 })
+      expect(table.sortField.value).toBeNull()
+    })
+
+    it('forgets the direction when the sort is cleared, so the next column starts ascending', async () => {
+      const table = await loaded()
+      await table.onSort({ sortField: 'name', sortOrder: -1 })
+
+      await table.onSort({ sortField: null, sortOrder: -1 }) // ô chọn bị xóa khi đang giảm dần
+      expect(table.sortOrder.value).toBe(1)
+      await table.onSort({ sortField: 'status', sortOrder: 1 })
+      expect(table.sortOrder.value).toBe(1)
+    })
+
+    it('keeps the sort across filters and across reloads', async () => {
+      const table = await loaded()
+      await table.onSort({ sortField: 'name', sortOrder: -1 })
+      table.statusFilter.value = null
+      table.searchText.value = 'n'
+      expect(ids(table)).toEqual(['ngo', 'lys'])
+      apiMock.getMaterialFreshness.mockResolvedValue(
+        freshness([ngo, lysine, bao]),
+      )
+
+      await table.load('2026-10-12')
+
+      expect(table.sortField.value).toBe('name')
+      expect(ids(table)).toEqual(['ngo', 'lys'])
+    })
+
+    it('offers the sortable columns as options for small screens', async () => {
+      const table = await loaded()
+
+      expect(table.sortOptions.map((option) => option.value)).toEqual([
+        'name',
+        'type',
+        'updateCount',
+        'supplierCount',
+        'lastReceivedDate',
+        'ageDays',
+        'interval',
+        'status',
+        'enterer',
+      ])
+    })
+  })
 })

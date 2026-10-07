@@ -21,32 +21,88 @@
           {{ formatFreshnessDate(data.asOfDate) }}
         </p>
       </div>
+    </div>
 
-      <div class="material-freshness__filters">
-        <label class="dashboard-page__filter-field">
-          <span class="dashboard-page__filter-label">Trạng thái</span>
-          <Select
-            v-model="statusFilter"
-            :options="statusOptions"
-            option-label="label"
-            option-value="value"
-            placeholder="Tất cả trạng thái"
-            show-clear
-          />
-        </label>
-        <label class="dashboard-page__filter-field">
-          <span class="dashboard-page__filter-label">Loại vật tư</span>
-          <Select
-            v-model="typeFilter"
-            filter
-            filter-placeholder="Tìm loại vật tư..."
-            :options="typeOptions"
-            option-label="label"
-            option-value="value"
-            placeholder="Tất cả loại vật tư"
-            show-clear
-          />
-        </label>
+    <div class="material-freshness__filters">
+      <label class="dashboard-page__filter-field material-freshness__search">
+        <span class="dashboard-page__filter-label">Tìm kiếm</span>
+        <InputText
+          v-model="searchText"
+          type="search"
+          placeholder="Tìm vật tư, người nhập..."
+          autocomplete="off"
+          data-testid="freshness-search"
+        />
+      </label>
+      <label class="dashboard-page__filter-field">
+        <span class="dashboard-page__filter-label">Trạng thái</span>
+        <Select
+          v-model="statusFilter"
+          :options="statusOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="Tất cả trạng thái"
+          show-clear
+        />
+      </label>
+      <label class="dashboard-page__filter-field">
+        <span class="dashboard-page__filter-label">Loại vật tư</span>
+        <Select
+          v-model="typeFilter"
+          filter
+          filter-placeholder="Tìm loại vật tư..."
+          :options="typeOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="Tất cả loại vật tư"
+          show-clear
+        />
+      </label>
+      <label class="dashboard-page__filter-field">
+        <span class="dashboard-page__filter-label">Người nhập gần nhất</span>
+        <Select
+          v-model="entererFilter"
+          filter
+          filter-placeholder="Tìm người nhập..."
+          :options="entererOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="Tất cả người nhập"
+          show-clear
+          data-testid="freshness-enterer-filter"
+        />
+      </label>
+      <div
+        class="material-freshness__sort"
+        role="group"
+        aria-label="Sắp xếp danh sách thẻ"
+      >
+        <Select
+          :model-value="sortField"
+          :options="sortOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="Sắp xếp theo..."
+          aria-label="Sắp xếp theo"
+          show-clear
+          data-testid="freshness-sort-select"
+          @update:model-value="
+            (value) => onSort({ sortField: value, sortOrder })
+          "
+        />
+        <Button
+          :icon="
+            sortOrder === -1 ? 'pi pi-sort-amount-down' : 'pi pi-sort-amount-up'
+          "
+          aria-label="Đảo chiều sắp xếp"
+          :aria-pressed="sortOrder === -1 ? 'true' : 'false'"
+          :title="sortOrder === -1 ? 'Đang giảm dần' : 'Đang tăng dần'"
+          severity="secondary"
+          outlined
+          :disabled="!sortField"
+          data-testid="freshness-sort-order"
+          @click="onSort({ sortField, sortOrder: sortOrder === -1 ? 1 : -1 })"
+        />
       </div>
     </div>
 
@@ -120,8 +176,13 @@
           :row-class="getRowClass"
           responsive-layout="scroll"
           size="small"
+          lazy
+          removable-sort
+          :sort-field="sortField ?? undefined"
+          :sort-order="sortOrder"
+          @sort="onSort"
         >
-          <Column header="Vật tư">
+          <Column header="Vật tư" sortable sort-field="name">
             <template #body="{ data: row }">
               <span class="material-freshness__name">{{
                 row.materialName
@@ -131,25 +192,40 @@
               }}</small>
             </template>
           </Column>
-          <Column field="materialTypeName" header="Loại" />
-          <Column field="updateCount" header="Số lần" />
-          <Column field="supplierCount" header="Số NCC" />
-          <Column header="Nhận gần nhất">
+          <Column
+            field="materialTypeName"
+            header="Loại"
+            sortable
+            sort-field="type"
+          />
+          <Column
+            field="updateCount"
+            header="Số lần"
+            sortable
+            sort-field="updateCount"
+          />
+          <Column
+            field="supplierCount"
+            header="Số NCC"
+            sortable
+            sort-field="supplierCount"
+          />
+          <Column header="Nhận gần nhất" sortable sort-field="lastReceivedDate">
             <template #body="{ data: row }">
               {{ formatFreshnessDate(row.lastReceivedDate) }}
             </template>
           </Column>
-          <Column header="Số ngày chưa có giá">
+          <Column header="Số ngày chưa có giá" sortable sort-field="ageDays">
             <template #body="{ data: row }">
               {{ formatFreshnessAge(row.ageDays) }}
             </template>
           </Column>
-          <Column header="Chu kỳ">
+          <Column header="Chu kỳ" sortable sort-field="interval">
             <template #body="{ data: row }">
               {{ formatFreshnessInterval(row.expectedIntervalDays) }}
             </template>
           </Column>
-          <Column header="Trạng thái">
+          <Column header="Trạng thái" sortable sort-field="status">
             <template #body="{ data: row }">
               <Tag
                 :severity="getFreshnessStatusSeverity(row.status)"
@@ -161,7 +237,7 @@
               />
             </template>
           </Column>
-          <Column header="Người nhập gần nhất">
+          <Column header="Người nhập gần nhất" sortable sort-field="enterer">
             <template #body="{ data: row }">
               {{ row.lastEntererLabel ?? '—' }}
             </template>
@@ -240,6 +316,7 @@ import { RouterLink } from 'vue-router'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
+import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 
@@ -272,6 +349,13 @@ const {
   errorMessage,
   statusFilter,
   typeFilter,
+  entererFilter,
+  searchText,
+  sortField,
+  sortOrder,
+  sortOptions,
+  entererOptions,
+  onSort,
   statusOptions,
   typeOptions,
   isEmpty,

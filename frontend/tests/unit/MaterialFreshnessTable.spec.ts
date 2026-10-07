@@ -75,6 +75,19 @@ function state(overrides: Record<string, unknown> = {}) {
     errorMessage: ref<string | null>(null),
     statusFilter: ref(null),
     typeFilter: ref(null),
+    entererFilter: ref(null),
+    searchText: ref(''),
+    sortField: ref<string | null>(null),
+    sortOrder: ref(1),
+    sortOptions: [
+      { label: 'Vật tư', value: 'name' },
+      { label: 'Chu kỳ', value: 'interval' },
+    ],
+    entererOptions: computed(() => [
+      { label: 'Chưa rõ người nhập', value: '__none__' },
+      { label: 'Nguyễn Văn A', value: 'u-1' },
+    ]),
+    onSort: vi.fn(),
     statusOptions: [
       { label: 'Quá hạn', value: 'overdue' },
       { label: 'Chưa có giá', value: 'never' },
@@ -110,8 +123,17 @@ function state(overrides: Record<string, unknown> = {}) {
 }
 
 const DataTableStub = defineComponent({
-  props: { value: { type: Array, default: () => [] } },
-  template: '<div data-testid="table-stub">{{ value.length }} dòng</div>',
+  props: {
+    value: { type: Array, default: () => [] },
+    sortField: { type: String, default: undefined },
+    sortOrder: { type: Number, default: undefined },
+    lazy: { type: Boolean, default: false },
+  },
+  emits: ['sort'],
+  template: `<div data-testid="table-stub">{{ value.length }} dòng
+    <span data-testid="table-sort">{{ sortField }}|{{ sortOrder }}|{{ lazy }}</span>
+    <button data-testid="stub-sort" @click="$emit('sort', { sortField: 'name', sortOrder: -1 })" />
+  </div>`,
 })
 
 function login(permissions: string[]) {
@@ -177,7 +199,7 @@ describe('MaterialFreshnessTable', () => {
     expect(
       wrapper.get('[data-testid="material-freshness-card-overdue"]').text(),
     ).toContain('Quá hạn')
-    expect(wrapper.get('[data-testid="table-stub"]').text()).toBe('2 dòng')
+    expect(wrapper.get('[data-testid="table-stub"]').text()).toContain('2 dòng')
   })
 
   it('does not call the API before the page has started its first load', async () => {
@@ -316,5 +338,88 @@ describe('MaterialFreshnessTable', () => {
     expect(
       wrapper.find('[data-testid="material-freshness-loading"]').exists(),
     ).toBe(false)
+  })
+
+  it('has a global search box bound to the search text', async () => {
+    const mock = state()
+    composableMock.useMaterialFreshness.mockReturnValue(mock)
+    const wrapper = mountTable({ weekStart: '2026-10-05', reloadToken: 1 })
+
+    await wrapper.get('[data-testid="freshness-search"]').setValue('lysine')
+
+    expect(mock.searchText.value).toBe('lysine')
+    expect(
+      wrapper.get('[data-testid="freshness-search"]').attributes('placeholder'),
+    ).toContain('Tìm')
+  })
+
+  it('has an enterer filter fed with the enterer options', () => {
+    const wrapper = mountTable({ weekStart: '2026-10-05', reloadToken: 1 })
+
+    expect(
+      wrapper.find('[data-testid="freshness-enterer-filter"]').exists(),
+    ).toBe(true)
+  })
+
+  it('lets the table sort by its columns on the client and keeps the sort state in the table', async () => {
+    const mock = state({ sortField: ref('interval'), sortOrder: ref(-1) })
+    composableMock.useMaterialFreshness.mockReturnValue(mock)
+    const wrapper = mountTable({ weekStart: '2026-10-05', reloadToken: 1 })
+
+    expect(wrapper.get('[data-testid="table-sort"]').text()).toBe(
+      'interval|-1|true',
+    )
+    await wrapper.get('[data-testid="stub-sort"]').trigger('click')
+
+    expect(mock.onSort).toHaveBeenCalledWith({
+      sortField: 'name',
+      sortOrder: -1,
+    })
+  })
+
+  it('offers a sort picker and a direction button for the card layout on small screens', async () => {
+    const mock = state({ sortField: ref('interval'), sortOrder: ref(1) })
+    composableMock.useMaterialFreshness.mockReturnValue(mock)
+    const wrapper = mountTable({ weekStart: '2026-10-05', reloadToken: 1 })
+
+    expect(wrapper.find('[data-testid="freshness-sort-select"]').exists()).toBe(
+      true,
+    )
+    expect(
+      wrapper
+        .get('[data-testid="freshness-sort-select"]')
+        .attributes('aria-label'),
+    ).toBe('Sắp xếp theo')
+    expect(
+      wrapper
+        .get('[data-testid="freshness-sort-order"]')
+        .attributes('aria-label'),
+    ).toBe('Đảo chiều sắp xếp')
+    expect(
+      wrapper
+        .get('[data-testid="freshness-sort-order"]')
+        .attributes('aria-pressed'),
+    ).toBe('false')
+    expect(wrapper.get('.material-freshness__sort').attributes('role')).toBe(
+      'group',
+    )
+    await wrapper.get('[data-testid="freshness-sort-order"]').trigger('click')
+
+    expect(mock.onSort).toHaveBeenCalledWith({
+      sortField: 'interval',
+      sortOrder: -1,
+    })
+  })
+
+  it('does not toggle the direction while no sort column is chosen', async () => {
+    const mock = state()
+    composableMock.useMaterialFreshness.mockReturnValue(mock)
+    const wrapper = mountTable({ weekStart: '2026-10-05', reloadToken: 1 })
+
+    expect(
+      wrapper
+        .get('[data-testid="freshness-sort-order"]')
+        .attributes('disabled'),
+    ).toBeDefined()
   })
 })

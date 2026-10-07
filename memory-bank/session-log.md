@@ -1181,3 +1181,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1D deploy production xong
 - Tom tat: Deploy 1D len production 2026-10-07: hai migration, hotfix vong nap worker, nap 38 vat tu theo doi, metrics 38/18, bao tri 10 phut. Nhac Telegram con tat, de >=1 tuan truoc khi bat.
+
+## 2026-10-07 04:20:40Z - claude
+
+- Tieu de: Bang do moi gia: sort, search, loc nguoi nhap
+- Tom tat: Frontend: sort moi cot (client, null cuoi, lan ba bo sort), tim kiem chung khong dau, loc Nguoi nhap gan nhat, hang loc xuong duoi tieu de, sort picker cho the mobile. Test don vi, e2e, ra soat doc lap sach. Chua deploy.
