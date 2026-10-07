@@ -156,13 +156,13 @@ Biết trạng thái xuất phát của code và kiểm chứng các mốc chu k
 ### Việc cần làm
 
 1. Chạy baseline: `make backend-check` và `make frontend-check`; ghi các lỗi cũ (theo tên test và nhóm lỗi) vào `memory-bank/progress.md` và Phụ lục B.
-2. Chạy hai truy vấn chỉ đọc ở Phụ lục B trên production (qua `docker compose exec -T postgres psql ...` trong `/opt/quotify`); ghi kết quả vào Phụ lục A cột "Production".
+2. Chạy script chỉ đọc `scripts/ops/price-freshness-baseline.sql` (Phụ lục B) trên production trong `/opt/quotify`; ghi kết quả vào Phụ lục A cột "Production".
 3. Trưởng phòng xem số vật tư đề xuất theo dõi và chu kỳ; nếu lệch lớn so với dev thì chỉnh mốc **trước** Slice 4.
 
 ### Tiêu chí chấp nhận
 
 - [x] Baseline được ghi lại, kể cả các test cũ đang lỗi (Phụ lục B).
-- [ ] Phụ lục A có số liệu production; mốc chu kỳ được xác nhận hoặc chỉnh. **Chờ người dùng chạy hai truy vấn ở Phụ lục B trên VPS** (Slice 4 cần kết quả này trước khi nạp danh sách mặc định lên production; Slice 1 đến 3 không phụ thuộc).
+- [ ] Phụ lục A có số liệu production; mốc chu kỳ được xác nhận hoặc chỉnh. **Chờ người dùng chạy script ở Phụ lục B trên VPS** (Slice 4 cần kết quả này trước khi nạp danh sách mặc định lên production; Slice 1 đến 3 không phụ thuộc).
 
 ### Rollback
 
@@ -171,7 +171,7 @@ Không có thay đổi sản phẩm.
 ### Kết quả Slice 0 (2026-10-06)
 
 - Baseline code đo trên `main` trước khi viết dòng code nào của 1D, ghi ở Phụ lục B. Làm việc thẳng trên `main` (không tạo nhánh riêng), mỗi slice một commit.
-- Việc còn lại của slice (HITL): chạy hai truy vấn Phụ lục B trên production và điền cột "Production" của Phụ lục A.
+- Việc còn lại của slice (HITL): chạy script Phụ lục B trên production và điền cột "Production" của Phụ lục A.
 
 ---
 
@@ -561,89 +561,49 @@ docker compose exec -T backend python -m app.price_freshness_seed --apply    # n
 bash scripts/ops/price-alert-dev-state.sh [số ngày]
 ```
 
-## Phụ Lục A: Số Liệu Thật (DB Dev, 2026-10-06; Cột Production Điền Ở Slice 0)
+## Phụ Lục A: Số Liệu Thật (Dev Đo 2026-10-07; Cột Production Điền Ở Slice 0)
 
-Số liệu dev **có lẫn dữ liệu import hàng loạt** nên chỉ mang tính chỉ dẫn.
+Đo bằng cùng một script ở Phụ lục B: vật tư đang hoạt động; phiếu hợp lệ (đã chốt, `confirmed_at` có giá trị, chưa hủy); ngày nhận không ở tương lai; ngày tính theo giờ Việt Nam. Số liệu dev **có lẫn dữ liệu import hàng loạt** nên chỉ mang tính chỉ dẫn; mốc "7 ngày", "30 ngày" trôi theo ngày đo (các số 90 ngày ổn định hơn).
 
-| Chỉ số | Dev | Production |
+| Chỉ số | Dev (2026-10-07) | Production |
 |---|---|---|
-| Số vật tư | 122 | (điền) |
-| Có cập nhật trong 7 ngày gần nhất | 6 | (điền) |
-| Có cập nhật trong 30 ngày | 41 | (điền) |
+| Số vật tư (tổng, đang hoạt động) | 122, 122 | (điền) |
+| Có cập nhật trong 7 ngày gần nhất | 3 | (điền) |
+| Có cập nhật trong 30 ngày | 35 | (điền) |
 | Có cập nhật trong 90 ngày | 49 | (điền) |
 | Chưa từng có giá | 73 (60%) | (điền) |
-| Đã từng có giá nhưng quá 30 ngày chưa cập nhật | 8 | (điền) |
-| Trung vị số lần cập nhật trong 30 ngày (trong số vật tư có cập nhật) | 5 (lớn nhất 35) | (điền) |
+| Đã từng có giá nhưng quá 30 ngày chưa cập nhật | 14 | (điền) |
+| Trung vị và lớn nhất số lần cập nhật trong 30 ngày (trong số vật tư có cập nhật) | 5,0 và 33 | (điền) |
 | Vật tư có đúng 1 ngày cập nhật trong 90 ngày | 7 | (điền) |
 | Vật tư có đúng 2 ngày | 4 | (điền) |
 | **Vật tư có từ 3 ngày (đề xuất theo dõi)** | **38** | (điền) |
+| Chia theo chu kỳ gán: 7, 14, 30 ngày | 17, 19, 2 | (điền) |
 | Khoảng cách trung bình giữa hai ngày cập nhật: trung vị, trung bình, p25, p75 | 5,5; 6,1; 3,7; 7,8 ngày | (điền) |
-| Chia theo chu kỳ gán (7, 14, 30 ngày) | 17, 19, 2 | (điền) |
 
-Theo loại vật tư (dev):
+Theo loại vật tư (dev, 90 ngày gần nhất):
 
-| Loại | Số vật tư | Có cập nhật | Số lần trung bình |
+| Loại | Vật tư hoạt động | Có cập nhật | Từ 3 ngày trở lên |
 |---|---|---|---|
-| Nguyên liệu | 60 | 22 | 6,0 |
-| Vi lượng | 39 | 14 | 10,3 |
-| Premix | 13 | 5 | 2,4 |
-| Bao bì | 6 | 0 | không có |
+| Nguyên liệu | 64 | 27 | 21 |
+| Vi lượng | 39 | 16 | 14 |
+| Premix | 13 | 6 | 3 |
+| Bao bì | 6 | 0 | 0 |
 
-Vật tư cập nhật dày nhất (dev, khoảng cách trung bình giữa hai ngày cập nhật): Ngô hạt 1,5 ngày (58 ngày cập nhật), Khô đậu tương 2,1, Fermented Soybean Meal 2,5, Threonine 2,7.
+Vật tư cập nhật dày nhất (dev, khoảng cách trung bình giữa hai ngày cập nhật): Ngô hạt 1,5 ngày (57 ngày cập nhật), Khô đậu tương 2,1, Fermented Soybean Meal 2,5, Lysine 99% và Threonine 2,7.
 
 Nhận xét: sáu mươi phần trăm vật tư chưa từng có giá và nhóm Bao bì không có cập nhật nào, nên "chưa cập nhật" chỉ có nghĩa khi có danh sách theo dõi; ngay trong danh sách mặc định mốc chu kỳ cố ý thô.
 
-## Phụ Lục B: Truy Vấn Chỉ Đọc (Chạy Ở Slice 0 Trên Production)
+## Phụ Lục B: Script Đo Chỉ Đọc (Chạy Ở Slice 0 Trên Production)
 
-Chạy trong `/opt/quotify` bằng `docker compose exec -T postgres psql -U <user> -d <db>`; chỉ đọc.
+Script nằm ở `scripts/ops/price-freshness-baseline.sql`: mở đầu bằng `set default_transaction_read_only = on` nên **không thể ghi** dữ liệu. Chạy trên VPS (không cần `git pull` nếu dán thẳng, xem hướng dẫn trong Slice 0):
 
-```sql
--- B.1 Tổng quan độ mới của giá theo vật tư
-with base as (
-  select m.id as material_id, m.status, qv.received_date, qv.id as version_id, q.id as quote_id
-  from materials m
-  left join quote_lines ql on ql.material_id = m.id
-  left join quote_versions qv on qv.id = ql.quote_version_id
-    and qv.status = 'confirmed' and qv.confirmed_at is not null
-  left join quotes q on q.id = qv.quote_id and q.cancelled_at is null
-  where qv.id is null or q.id is not null
-), per as (
-  select material_id, status,
-    max(received_date) as last_update,
-    count(distinct case when received_date >= current_date - 6 then version_id end) as v7,
-    count(distinct case when received_date >= current_date - 29 then version_id end) as v30,
-    count(distinct case when received_date >= current_date - 89 then version_id end) as v90,
-    count(distinct version_id) as v_all
-  from base group by 1, 2
-)
-select 'materials' k, count(*)::text v from per
-union all select 'updated_7d', count(*)::text from per where v7 > 0
-union all select 'updated_30d', count(*)::text from per where v30 > 0
-union all select 'updated_90d', count(*)::text from per where v90 > 0
-union all select 'never_updated', count(*)::text from per where v_all = 0
-union all select 'stale_over_30d_but_ever', count(*)::text from per where v_all > 0 and v30 = 0;
-
--- B.2 Ngày cập nhật khác nhau và khoảng cách trung bình trong 90 ngày (cơ sở của chu kỳ mặc định)
-with days as (
-  select distinct m.id as material_id, qv.received_date as d
-  from materials m
-  join quote_lines ql on ql.material_id = m.id
-  join quote_versions qv on qv.id = ql.quote_version_id
-    and qv.status = 'confirmed' and qv.confirmed_at is not null
-  join quotes q on q.id = qv.quote_id and q.cancelled_at is null
-  where m.status = 'active' and qv.received_date >= current_date - 89
-), per as (
-  select material_id, count(*) as n_days,
-         case when count(*) > 1
-              then (max(d) - min(d))::numeric / (count(*) - 1) end as mean_gap
-  from days group by 1
-)
-select 'with_update_90d' k, count(*)::text v from per
-union all select 'n_days>=3', count(*)::text from per where n_days >= 3
-union all select 'tier7 (gap<=5)', count(*)::text from per where n_days >= 3 and mean_gap <= 5
-union all select 'tier14 (5<gap<=12)', count(*)::text from per where n_days >= 3 and mean_gap > 5 and mean_gap <= 12
-union all select 'tier30 (gap>12)', count(*)::text from per where n_days >= 3 and mean_gap > 12;
+```bash
+cd /opt/quotify
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < scripts/ops/price-freshness-baseline.sql
 ```
+
+Bốn kết quả: B.1 và B.2 gộp thành 19 dòng `k, v` (khớp bảng ở Phụ lục A theo thứ tự), B.3 theo loại vật tư, B.4 mười vật tư cập nhật dày nhất.
 
 **Baseline code đo ngày 2026-10-06 (Slice 0, trên `main`, trước khi có code 1D):**
 
