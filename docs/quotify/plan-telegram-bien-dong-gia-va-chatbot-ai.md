@@ -10,6 +10,7 @@ Tài liệu liên quan:
 - [plan-telegram-giai-doan-1b-engine-bien-dong-gia.md](plan-telegram-giai-doan-1b-engine-bien-dong-gia.md): kế hoạch triển khai chi tiết Giai đoạn 1B (chia slice, bản nháp 2026-10-04). Kiểm chứng lại tài liệu này với code và dữ liệu thật; các chỗ lệch (head Alembic, D2 mục 5, đơn vị của D6, nhận biết import) được liệt kê ở mục "Độ Lệch Và Bổ Sung" của kế hoạch 1B và sẽ được sửa ở Slice 0 của 1B.
 - [plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md](plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md): kế hoạch triển khai chi tiết Giai đoạn 1C (đã lên production 2026-10-06).
 - [plan-telegram-giai-doan-1d-do-moi-gia-theo-vat-tu.md](plan-telegram-giai-doan-1d-do-moi-gia-theo-vat-tu.md): kế hoạch Giai đoạn 1D, nhu cầu mới sau 1C: bảng độ mới của giá theo vật tư trên Dashboard và nhắc cập nhật giá qua Telegram (bản chốt 2026-10-06, Q1 đến Q10 đã chốt).
+- [huong-dan-su-dung-thong-bao-gia-telegram.md](huong-dan-su-dung-thong-bao-gia-telegram.md): **hướng dẫn sử dụng cho người dùng** (trưởng phòng, nhân viên nhập báo giá, admin) về Bước 1: thông báo biến động giá qua Telegram.
 - [review-telegram-plan-rasoat-2026-10-03.md](review-telegram-plan-rasoat-2026-10-03.md): kết quả rà soát độc lập tài liệu này và trạng thái áp dụng từng mục.
 
 Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, API, worker) và frontend; các phép backtest bằng script chạy trên DB dev (Phụ lục B); 3 agent rà soát độc lập ngày 2026-10-03. Mục nào chưa kiểm chứng được ghi **[CHƯA XÁC MINH]**.

@@ -1206,3 +1206,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Deploy thu hai 1D len production
 - Tom tat: Deploy nhanh theo runbook 15.6: nhan audit Doi tuong va runbook. Co restart reverse-proxy, nguoi dung kiem dat. Production da cap nhat het.
+
+## 2026-10-07 09:20:49Z - claude
+
+- Tieu de: Tai lieu huong dan nguoi dung thong bao gia Telegram
+- Tom tat: Viet docs/quotify/huong-dan-su-dung-thong-bao-gia-telegram.md cho Manager/User/Admin, doi chieu nhan va thong diep voi code, lien ket tu ke hoach cha.
