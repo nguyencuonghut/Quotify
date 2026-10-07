@@ -502,9 +502,9 @@ Gỡ gauge và mục runbook; không ảnh hưởng chức năng.
 
 ### Tiêu chí chấp nhận
 
-- [ ] Bảng chạy trên production bằng tài khoản người thật; chức năng cũ không đổi.
+- [x] Bảng chạy trên production bằng tài khoản người thật; chức năng cũ không đổi.
 - [ ] Một tin nhắc thật đến đúng người (và không đến người ngoài danh sách pilot khi còn giới hạn).
-- [ ] Token không có trong log worker; số đo `quotify_price_freshness_*` đúng.
+- [x] Token không có trong log worker; số đo `quotify_price_freshness_*` đúng.
 
 ### Rollback
 
@@ -699,4 +699,5 @@ Xem chi tiết trên web
 - Nạp danh sách theo dõi mặc định (`--apply`): **38 vật tư** (chu kỳ 7 ngày 18, 14 ngày 18, 30 ngày 2), khớp số đo trước deploy; lệnh in "Đã nạp 38 vật tư; bỏ qua 0 vật tư đã có cấu hình." Hàng được nạp có `updated_by_id` rỗng.
 - Số đo trên production sau deploy: `quotify_price_alert_metrics_up 1`, `quotify_price_freshness_watched_materials 38`, `quotify_price_freshness_overdue_materials 18`; `/metrics` trả trong 0,09 giây; không có truy vấn chạy lâu.
 - **Nhắc Telegram vẫn tắt** (`freshness_enabled = false`). Còn lại: kiểm giao diện bằng tài khoản người thật (C3); để tắt ít nhất một tuần cho quản lý chỉnh danh sách theo dõi (gợi ý của rà soát danh sách: cân nhắc tắt các biến thể theo nhà sản xuất của Methionine, Tryptophan và vài vật tư mua thưa như DCP, Tấm gạo, Leader yellow 2%, siết chu kỳ của Ngô hạt); rồi bật theo mục 15.3 của runbook.
+- Người dùng đã kiểm giao diện bằng tài khoản người thật (bảng ở Dashboard, trang Thông báo giá) và chỉnh danh sách theo dõi trên giao diện: đạt. Nhắc Telegram vẫn tắt; tiêu chí "một tin nhắc thật đến đúng người" của Slice 8 chờ bước bật (runbook 15.3) sau tối thiểu một tuần.
 
