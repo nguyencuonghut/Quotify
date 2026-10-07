@@ -335,12 +335,20 @@ Quản lý không phải bật tay hàng chục vật tư; có danh sách đề 
 
 ### Tiêu chí chấp nhận
 
-- [ ] Lệnh idempotent, không ghi đè; dry-run xuất danh sách duyệt được.
-- [ ] Chạy thử trên dev, danh sách khớp Phụ lục A (38 vật tư, 17, 19, 2).
+- [x] Lệnh idempotent, không ghi đè; dry-run xuất danh sách duyệt được.
+- [x] Chạy thử trên dev, danh sách khớp Phụ lục A (38 vật tư, 17, 19, 2).
 
 ### Rollback
 
 Xóa các hàng đã nạp bằng SQL có điều kiện (`updated_by_id IS NULL AND created_at >= <thời điểm nạp>`); không ảnh hưởng gì khác.
+
+### Kết quả Slice 4 (2026-10-07)
+
+- `app/price_freshness_seed.py` (`python -m app.price_freshness_seed [--apply] [--csv FILE] [--min-days N] [--window-days N]`): `compute_suggestions` (ngày nhận khác nhau trong cửa sổ, phiếu hợp lệ, vật tư đang hoạt động; khoảng cách trung bình `(ngày cuối - ngày đầu) / (số ngày - 1)`), hàm thuần `suggest_interval` (<= 5: 7; <= 12: 14; còn lại 30), `apply_suggestions` (`ON CONFLICT DO NOTHING` nên không ghi đè hay bật lại hàng của quản lý, kể cả hàng đã tắt), `run` (mặc định dry-run in bảng và tổng theo chu kỳ, `--csv` xuất file duyệt). Hàng được nạp có `updated_by_id` rỗng (dùng làm dấu cho câu lệnh rollback).
+- Chỉnh so với kế hoạch: không ghi dòng audit hệ thống khi `--apply` (không có người dùng hay yêu cầu HTTP để gắn ngữ cảnh audit); thay bằng `updated_by_id` rỗng và dòng tổng kết in ra màn hình, cần ghi vào nhật ký triển khai khi chạy trên production.
+- Chạy thử dry-run trên DB dev: 38 vật tư, chu kỳ 7 ngày 17, 14 ngày 19, 30 ngày 2, khớp Phụ lục A.
+- Kiểm thử: 17 test PostgreSQL thật (ngưỡng các bậc, biên 5,0 và 12,0, chỉ ngày hợp lệ trong cửa sổ, nhiều phiếu một ngày là một ngày, bản `superseded`, vật tư không hoạt động, nạp một lần, chạy lại không đổi, hàng đã sửa hoặc đã tắt không bị đụng, dry-run không ghi, CSV); 6 phép đột biến (đổi `DO NOTHING` thành cập nhật, bỏ lọc `status`, bỏ lọc phiếu hủy, đếm phiếu thay vì ngày, bỏ lọc `inactive`) đều đỏ.
+- Rà soát độc lập không thấy lỗi nghiêm trọng; đã xử lý: test nạp thật dọn các hàng cấu hình thừa trong DB dùng chung của phiên test, thêm test biên cửa sổ (ngày thứ 90 vào, ngày thứ 91 không vào, ngày ở tương lai không tính) và biên khoảng cách đúng 12,0 ngày, ô CSV bắt đầu bằng `=`, `+`, `-`, `@` được thêm dấu nháy đơn để Excel không hiểu là công thức. Backend 1.152 pass, ruff 61 và mypy 13 lỗi cũ không đổi.
 
 ---
 

@@ -1146,3 +1146,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1D: Slice 3 sua danh sach theo doi
 - Tom tat: PUT/DELETE /price-alert-settings/materials/{id}/freshness (audit price_alerts.freshness_updated), list tra freshness, cot Theo doi va Chu ky, hop thoai theo doi, nhan nhat ky. Tach khoi endpoint nguong. Test PG that, API, vitest, e2e; ra soat doc lap sach.
+
+## 2026-10-07 02:24:49Z - claude
+
+- Tieu de: Telegram 1D: Slice 4 lenh nap danh sach theo doi
+- Tom tat: python -m app.price_freshness_seed (dry-run mac dinh, --apply, --csv): nap watch list tu du lieu 90 ngay, ON CONFLICT DO NOTHING, khong ghi de lua chon quan ly; dev dry-run 38 vat tu 17/19/2; 20 test PG that, dot bien do, ra soat doc lap sach. Chua nap production.
