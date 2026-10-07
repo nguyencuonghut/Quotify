@@ -1176,3 +1176,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Hotfix worker vong nap import 1D
 - Tom tat: Worker production loi ImportError vong nap: price_alert_metrics nap app.services o dau file (S7). Sua bang nap tre trong _load, them test_import_order (7 diem vao). Bai hoc: kiem tung diem vao nap duoc o tien trinh moi.
+
+## 2026-10-07 04:07:50Z - claude
+
+- Tieu de: Telegram 1D deploy production xong
+- Tom tat: Deploy 1D len production 2026-10-07: hai migration, hotfix vong nap worker, nap 38 vat tu theo doi, metrics 38/18, bao tri 10 phut. Nhac Telegram con tat, de >=1 tuan truoc khi bat.
