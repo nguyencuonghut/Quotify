@@ -25,6 +25,8 @@ const settingsDto: PriceAlertSettingsDto = {
   immediate_cap_per_scan: 30,
   digest_hour_local: 8,
   reference_fallback_days: 30,
+  freshness_enabled: true,
+  freshness_hour_local: 10,
   enabled_since: '2026-10-06T03:31:20+00:00',
   updated_at: '2026-10-06T03:31:20+00:00',
 }
@@ -42,6 +44,8 @@ describe('price alert settings mappers', () => {
       anomalyPercent: 30,
       referenceWorkingDays: 7,
       digestHourLocal: 8,
+      freshnessEnabled: true,
+      freshnessHourLocal: 10,
     })
     expect(domain.enabledSinceLabel).toBe('10:31 06/10/2026')
     expect(domain.updatedAtLabel).toBe('10:31 06/10/2026')
@@ -78,6 +82,8 @@ describe('price alert settings mappers', () => {
         'immediate_cap_per_scan',
         'digest_hour_local',
         'reference_fallback_days',
+        'freshness_enabled',
+        'freshness_hour_local',
       ].sort(),
     )
   })

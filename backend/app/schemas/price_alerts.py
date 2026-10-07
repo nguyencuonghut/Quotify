@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool, StrictInt
 
 
 class PriceAlertSettingsUpdateRequest(BaseModel):
@@ -22,6 +22,10 @@ class PriceAlertSettingsUpdateRequest(BaseModel):
     immediate_cap_per_scan: int = Field(ge=1, le=500)
     digest_hour_local: int = Field(ge=0, le=23)
     reference_fallback_days: int = Field(ge=0, le=365)
+    # Nhắc cập nhật giá (Telegram 1D). Bỏ qua nghĩa là giữ nguyên giá trị hiện có, để client cũ
+    # (chưa biết hai trường này) không vô tình tắt nhắc hay đổi giờ.
+    freshness_enabled: StrictBool | None = None
+    freshness_hour_local: StrictInt | None = Field(default=None, ge=0, le=23)
 
 
 class PriceAlertSettingsResponse(BaseModel):
@@ -39,6 +43,8 @@ class PriceAlertSettingsResponse(BaseModel):
     immediate_cap_per_scan: int
     digest_hour_local: int
     reference_fallback_days: int
+    freshness_enabled: bool
+    freshness_hour_local: int
     enabled_since: datetime | None = None
     updated_at: datetime
     updated_by_id: UUID | None = None

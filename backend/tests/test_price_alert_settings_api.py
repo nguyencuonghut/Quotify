@@ -90,6 +90,8 @@ class MockPriceAlertSettingsService:
             reference_fallback_days=30,
             is_enabled=False,
             anomaly_enabled=False,
+            freshness_enabled=False,
+            freshness_hour_local=9,
             created_at=now,
             updated_at=now,
         )
@@ -117,7 +119,7 @@ class MockPriceAlertSettingsService:
         for field, label in SETTINGS_FIELD_LABELS:
             old_value = getattr(self.setting, field)
             new_value = getattr(values, field)
-            if old_value == new_value:
+            if new_value is None or old_value == new_value:  # bỏ qua = giữ nguyên
                 continue
             changes.append(
                 {
@@ -240,6 +242,8 @@ async def test_get_returns_every_contract_field_with_decimal_strings(
         "immediate_cap_per_scan",
         "digest_hour_local",
         "reference_fallback_days",
+        "freshness_enabled",
+        "freshness_hour_local",
         "enabled_since",
         "updated_at",
         "updated_by_id",
@@ -385,6 +389,110 @@ async def test_put_requires_every_field_because_it_replaces_the_configuration(
 
     assert response.status_code == 422
     assert without_fallback.status_code == 422  # không âm thầm đặt lại gốc dự phòng về 30
+
+
+@pytest.mark.asyncio
+async def test_freshness_switch_and_hour_are_saved_audited_and_returned(
+    client: AsyncClient,
+    override_dependencies: tuple[
+        MockPriceAlertSettingsService,
+        MockAuditLogService,
+        MockSession,
+    ],
+) -> None:
+    _, audit, _ = override_dependencies
+
+    response = await client.put(
+        "/api/v1/price-alert-settings",
+        json={**VALID_PAYLOAD, "freshness_enabled": True, "freshness_hour_local": 10},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["freshness_enabled"], body["freshness_hour_local"]) == (True, 10)
+    fields = {c["field"]: c for c in audit.events[0]["context"].metadata_json["changes"]}
+    assert fields["freshness_enabled"]["label"] == "Bật nhắc cập nhật giá theo vật tư"
+    assert fields["freshness_hour_local"]["new_value"] == "10"
+    assert (await client.get("/api/v1/price-alert-settings")).json()["freshness_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_omitting_the_freshness_fields_keeps_them_so_older_clients_do_not_break(
+    client: AsyncClient,
+    override_dependencies: tuple[
+        MockPriceAlertSettingsService,
+        MockAuditLogService,
+        MockSession,
+    ],
+) -> None:
+    service, _, _ = override_dependencies
+    service.setting.freshness_enabled = True
+    service.setting.freshness_hour_local = 11
+
+    response = await client.put("/api/v1/price-alert-settings", json=VALID_PAYLOAD)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["freshness_enabled"], body["freshness_hour_local"]) == (True, 11)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["true", 1, "yes"])
+async def test_the_freshness_switch_must_be_a_real_boolean(
+    client: AsyncClient,
+    override_dependencies: tuple[
+        MockPriceAlertSettingsService,
+        MockAuditLogService,
+        MockSession,
+    ],
+    value: object,
+) -> None:
+    response = await client.put(
+        "/api/v1/price-alert-settings",
+        json={**VALID_PAYLOAD, "freshness_enabled": value},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_the_freshness_switch_can_be_turned_off_through_the_api(
+    client: AsyncClient,
+    override_dependencies: tuple[
+        MockPriceAlertSettingsService,
+        MockAuditLogService,
+        MockSession,
+    ],
+) -> None:
+    service, _, _ = override_dependencies
+    service.setting.freshness_enabled = True
+
+    response = await client.put(
+        "/api/v1/price-alert-settings",
+        json={**VALID_PAYLOAD, "freshness_enabled": False},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["freshness_enabled"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hour", [-1, 24, "9h", 9.5])
+async def test_a_bad_freshness_hour_is_rejected_with_422(
+    client: AsyncClient,
+    override_dependencies: tuple[
+        MockPriceAlertSettingsService,
+        MockAuditLogService,
+        MockSession,
+    ],
+    hour: object,
+) -> None:
+    response = await client.put(
+        "/api/v1/price-alert-settings",
+        json={**VALID_PAYLOAD, "freshness_hour_local": hour},
+    )
+
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

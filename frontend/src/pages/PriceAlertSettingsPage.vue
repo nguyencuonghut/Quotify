@@ -135,6 +135,64 @@
           </div>
         </section>
 
+        <section class="price-alert-settings-page__panel">
+          <h3 class="price-alert-settings-page__panel-title">
+            Nhắc cập nhật giá
+          </h3>
+          <div class="price-alert-settings-page__toggle">
+            <ToggleSwitch
+              v-model="fields.freshnessEnabled.value"
+              input-id="price-alert-freshness-enabled"
+              :disabled="loading || !canEdit"
+              data-testid="toggle-freshness"
+            />
+            <label for="price-alert-freshness-enabled">
+              Nhắc người nhập khi vật tư quá hạn chưa có giá mới
+            </label>
+          </div>
+          <p class="price-alert-settings-page__hint">
+            Mỗi ngày làm việc từ giờ đã chọn, hệ thống nhắc qua Telegram: nhắc
+            khi vật tư vừa quá chu kỳ, rồi mỗi 3 ngày làm việc, tối đa 5 lần.
+            Trưởng phòng nhận mọi vật tư; nhân viên chỉ nhận vật tư mình đã nhập
+            gần đây. Chu kỳ và danh sách theo dõi đặt ở bảng "Ngưỡng theo vật
+            tư" bên dưới.
+          </p>
+          <p
+            v-if="!fields.isEnabled.value"
+            class="price-alert-settings-page__hint"
+            data-testid="freshness-master-note"
+          >
+            <strong>Lưu ý:</strong> nhắc cập nhật giá chỉ chạy khi công tắc tổng
+            "Gửi thông báo biến động giá qua Telegram" ở trên đang bật.
+          </p>
+          <div class="price-alert-settings-page__grid">
+            <div class="price-alert-settings-page__field">
+              <label
+                class="price-alert-settings-page__label required"
+                for="price-alert-freshness-hour"
+              >
+                Giờ nhắc (0 đến 23)
+              </label>
+              <InputNumber
+                v-model="fields.freshnessHourLocal.value"
+                input-id="price-alert-freshness-hour"
+                :disabled="loading || !canEdit"
+                :invalid="Boolean(errors.freshnessHourLocal)"
+                locale="vi-VN"
+                :use-grouping="false"
+                :min="0"
+                :max="23"
+              />
+              <small class="price-alert-settings-page__hint">
+                Nhắc gửi từ giờ này (giờ Việt Nam), chỉ vào ngày làm việc.
+              </small>
+              <small class="price-alert-settings-page__field-error">
+                {{ errors.freshnessHourLocal }}
+              </small>
+            </div>
+          </div>
+        </section>
+
         <div
           v-if="successMessage"
           class="price-alert-settings-page__notice"

@@ -64,6 +64,8 @@ const schema = toTypedSchema(
       immediateCapPerScan: whole('Trần tin mỗi lần quét', 1, 500),
       digestHourLocal: whole('Giờ bản tin', 0, 23),
       referenceFallbackDays: whole('Gốc dự phòng (ngày)', 0, 365),
+      freshnessEnabled: z.boolean(),
+      freshnessHourLocal: whole('Giờ nhắc cập nhật giá', 0, 23),
     })
     .refine(
       (v) =>
@@ -89,6 +91,8 @@ const FIELD_NAMES = [
   'immediateCapPerScan',
   'digestHourLocal',
   'referenceFallbackDays',
+  'freshnessEnabled',
+  'freshnessHourLocal',
 ] as const
 
 const DEFAULTS: PriceAlertSettingsValues = {
@@ -106,6 +110,8 @@ const DEFAULTS: PriceAlertSettingsValues = {
   immediateCapPerScan: 30,
   digestHourLocal: 8,
   referenceFallbackDays: 30,
+  freshnessEnabled: false,
+  freshnessHourLocal: 9,
 }
 
 function describeSaveError(error: unknown): string {

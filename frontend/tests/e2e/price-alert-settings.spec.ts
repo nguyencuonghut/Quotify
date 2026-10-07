@@ -16,6 +16,8 @@ interface MockSettings {
   dedupe_window_days: number
   immediate_cap_per_scan: number
   digest_hour_local: number
+  freshness_enabled: boolean
+  freshness_hour_local: number
   reference_fallback_days: number
   enabled_since: string | null
   updated_at: string
@@ -94,6 +96,8 @@ async function mockPriceAlertApi(page: Page) {
     dedupe_window_days: 14,
     immediate_cap_per_scan: 30,
     digest_hour_local: 8,
+    freshness_enabled: false,
+    freshness_hour_local: 9,
     reference_fallback_days: 30,
     enabled_since: null,
     updated_at: '2026-10-06T03:00:00+00:00',
@@ -225,6 +229,8 @@ test('turns the feature on and saves the form', async ({ page }) => {
     anomaly_enabled: false,
     medium_from_percent: 5,
     digest_hour_local: 8,
+    freshness_enabled: false,
+    freshness_hour_local: 9,
   })
 })
 
@@ -391,4 +397,53 @@ test('sorts the materials table by the material name and by the watch interval',
   await page.getByRole('columnheader', { name: 'Nhẹ từ' }).click()
   await page.waitForTimeout(300)
   expect(calls.listQueries).toHaveLength(before)
+})
+
+test('turns the price freshness reminder on, sets the hour and sends it with the form', async ({
+  page,
+}) => {
+  await mockAuth(page, ['price_alerts.manage'])
+  const calls = await mockPriceAlertApi(page)
+  await page.goto('/price-alert-settings')
+
+  // Công tắc tổng đang tắt: có ghi chú rằng nhắc cập nhật giá chưa chạy.
+  await expect(page.getByTestId('freshness-master-note')).toBeVisible()
+  await page.getByTestId('toggle-enabled').click()
+  await expect(page.getByTestId('freshness-master-note')).toHaveCount(0)
+
+  await page.getByTestId('toggle-freshness').click()
+  if (process.env.E2E_SCREENSHOT_DIR) {
+    await page
+      .locator('section', { hasText: 'Nhắc cập nhật giá' })
+      .first()
+      .screenshot({
+        path: `${process.env.E2E_SCREENSHOT_DIR}/freshness-card.png`,
+      })
+  }
+  await page.locator('#price-alert-freshness-hour').fill('10')
+  await page.getByTestId('settings-save').click()
+
+  await expect(page.getByTestId('settings-success')).toHaveText(
+    'Đã lưu cấu hình thông báo giá.',
+  )
+  expect(calls.puts[0]).toMatchObject({
+    is_enabled: true,
+    freshness_enabled: true,
+    freshness_hour_local: 10,
+  })
+})
+
+test('rejects an empty reminder hour without calling the server', async ({
+  page,
+}) => {
+  await mockAuth(page, ['price_alerts.manage'])
+  const calls = await mockPriceAlertApi(page)
+  await page.goto('/price-alert-settings')
+
+  await page.locator('#price-alert-freshness-hour').fill('')
+  await page.locator('#price-alert-freshness-hour').blur()
+  await page.getByTestId('settings-save').click()
+
+  await expect(page.getByText(/Giờ nhắc cập nhật giá/)).toBeVisible()
+  expect(calls.puts).toHaveLength(0)
 })

@@ -430,12 +430,18 @@ Quản lý bật hoặc tắt nhắc giá và đổi giờ gửi mà không cầ
 
 ### Tiêu chí chấp nhận
 
-- [ ] Bật, tắt, đổi giờ làm việc từ giao diện; client cũ không gãy.
-- [ ] Xem bằng trình duyệt thật hoặc ảnh e2e; baseline không xấu hơn.
+- [x] Bật, tắt, đổi giờ làm việc từ giao diện; client cũ không gãy.
+- [x] Xem bằng trình duyệt thật hoặc ảnh e2e; baseline không xấu hơn.
 
 ### Rollback
 
 Gỡ thẻ giao diện; công tắc vẫn đặt được bằng SQL.
+
+### Kết quả Slice 6 (2026-10-07)
+
+- Backend: `GET` và `PUT /price-alert-settings` có thêm `freshness_enabled` và `freshness_hour_local`. Khi `PUT`, hai trường là **tùy chọn** và chặt kiểu (`StrictBool`, `StrictInt` 0 đến 23): bỏ qua nghĩa là giữ nguyên, nên client cũ không vô tình tắt nhắc hay đổi giờ; `false` vẫn tắt được. Audit `price_alerts.settings_updated` có nhãn "Bật nhắc cập nhật giá theo vật tư" và "Giờ nhắc cập nhật giá"; bật nhắc không đặt lại mốc quét của biến động giá.
+- Frontend: thẻ "Nhắc cập nhật giá" trên `/price-alert-settings` (công tắc, giờ nhắc 0 đến 23, mô tả nhịp nhắc và ai nhận, ghi chú "chỉ chạy khi công tắc tổng đang bật" hiện khi công tắc tổng tắt); form luôn gửi cả hai trường; thông báo lỗi tiếng Việt.
+- Kiểm thử: 8 test API và PostgreSQL thật mới (lưu và audit, bỏ qua giữ nguyên, tắt lại, kiểu chặt, giờ sai, không đụng mốc quét), 10 test đơn vị và 2 e2e mới (xem ảnh e2e). Backend 1.242 pass, ruff 61 và mypy 13 lỗi cũ không đổi; frontend lint 12/57, `vue-tsc` sạch, vitest 4 lỗi cũ. Rà soát độc lập không thấy lỗi nghiêm trọng; đã bổ sung các test còn thiếu nó nêu. Lưu ý: như mọi trường khác, hai tab cùng sửa thì người lưu sau thắng.
 
 ---
 

@@ -28,7 +28,12 @@ SETTINGS_FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("immediate_cap_per_scan", "Trần tin gửi ngay mỗi lần quét"),
     ("digest_hour_local", "Giờ bản tin tổng hợp"),
     ("reference_fallback_days", "Số ngày tối đa của gốc dự phòng"),
+    ("freshness_enabled", "Bật nhắc cập nhật giá theo vật tư"),
+    ("freshness_hour_local", "Giờ nhắc cập nhật giá"),
 )
+
+# Trường tùy chọn: giá trị None nghĩa là giữ nguyên.
+_OPTIONAL_FIELDS = frozenset({"freshness_enabled", "freshness_hour_local"})
 
 _PERCENT_FIELDS = frozenset(
     {
@@ -56,6 +61,8 @@ class PriceAlertSettingsValues:
     digest_hour_local: int
     reference_fallback_days: int = 30
     anomaly_enabled: bool = False
+    freshness_enabled: bool | None = None
+    freshness_hour_local: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +128,8 @@ class PriceAlertSettingsService:
         for field, label in SETTINGS_FIELD_LABELS:
             old_value = getattr(setting, field)
             new_value = _normalize(field, getattr(values, field))
+            if new_value is None and field in _OPTIONAL_FIELDS:
+                continue
             if old_value == new_value:
                 continue
             changes.append(

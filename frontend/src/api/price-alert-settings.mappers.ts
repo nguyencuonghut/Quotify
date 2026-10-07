@@ -56,6 +56,8 @@ export function mapSettingsDtoToDomain(
       immediateCapPerScan: dto.immediate_cap_per_scan,
       digestHourLocal: dto.digest_hour_local,
       referenceFallbackDays: dto.reference_fallback_days,
+      freshnessEnabled: dto.freshness_enabled,
+      freshnessHourLocal: dto.freshness_hour_local,
     },
     enabledSinceLabel: formatDateTime(dto.enabled_since),
     updatedAtLabel: formatDateTime(dto.updated_at) ?? '',
@@ -85,6 +87,8 @@ export function mapSettingsValuesToPayload(
     immediate_cap_per_scan: values.immediateCapPerScan,
     digest_hour_local: values.digestHourLocal,
     reference_fallback_days: values.referenceFallbackDays,
+    freshness_enabled: values.freshnessEnabled,
+    freshness_hour_local: values.freshnessHourLocal,
   }
 }
 

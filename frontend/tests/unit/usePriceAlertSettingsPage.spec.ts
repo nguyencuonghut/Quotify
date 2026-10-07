@@ -33,6 +33,8 @@ function settings(
       immediateCapPerScan: 30,
       digestHourLocal: 8,
       referenceFallbackDays: 30,
+      freshnessEnabled: false,
+      freshnessHourLocal: 9,
       ...overrides,
     },
     enabledSinceLabel: null,
@@ -99,6 +101,8 @@ describe('usePriceAlertSettingsPage', () => {
       large_over_percent: 10,
       anomaly_percent: 30,
       digest_hour_local: 8,
+      freshness_enabled: false,
+      freshness_hour_local: 9,
     })
     expect(page.successMessage.value).toBe('Đã lưu cấu hình thông báo giá.')
     expect(page.meta.value?.enabledSinceLabel).toBe('10:31 06/10/2026')
@@ -232,4 +236,32 @@ describe('usePriceAlertSettingsPage', () => {
 
     expect(apiMock.updatePriceAlertSettings).toHaveBeenCalledTimes(1)
   })
+
+  it('saves the freshness switch and hour with the rest of the form', async () => {
+    const page = usePriceAlertSettingsPage()
+    await page.fetchSettings()
+
+    page.fields.freshnessEnabled.value = true
+    page.fields.freshnessHourLocal.value = 10
+    await page.submitSettings()
+    await flushPromises()
+
+    const [payload] = apiMock.updatePriceAlertSettings.mock.calls[0]
+    expect(payload).toMatchObject({ freshness_enabled: true, freshness_hour_local: 10 })
+  })
+
+  it.each([24, -1, 9.5, null])(
+    'refuses the freshness hour %s with a Vietnamese message and does not call the server',
+    async (hour) => {
+      const page = usePriceAlertSettingsPage()
+      await page.fetchSettings()
+
+      page.fields.freshnessHourLocal.value = hour as number
+      await page.submitSettings()
+      await flushPromises()
+
+      expect(apiMock.updatePriceAlertSettings).not.toHaveBeenCalled()
+      expect(page.errors.value.freshnessHourLocal).toMatch(/Giờ nhắc cập nhật giá/)
+    },
+  )
 })

@@ -32,12 +32,14 @@ function settingsState(overrides: Record<string, unknown> = {}) {
     'immediateCapPerScan',
     'digestHourLocal',
     'referenceFallbackDays',
+    'freshnessEnabled',
+    'freshnessHourLocal',
   ]
   return {
     fields: Object.fromEntries(
       names.map((name) => [
         name,
-        ref(['isEnabled', 'anomalyEnabled'].includes(name) ? false : 5),
+        ref(['isEnabled', 'anomalyEnabled', 'freshnessEnabled'].includes(name) ? false : 5),
       ]),
     ),
     errors: ref({}),
@@ -326,6 +328,30 @@ describe('PriceAlertSettingsPage', () => {
     expect(
       wrapper.get('[data-testid="watch-cancel"]').attributes('disabled'),
     ).toBeDefined()
+  })
+
+  it('has a reminder card whose switch and hour are bound, with a note that the master switch gates it', async () => {
+    const settings = settingsState()
+    settingsMock.usePriceAlertSettingsPage.mockReturnValue(settings)
+
+    const wrapper = mountPage()
+    await wrapper.get('[data-testid="toggle-freshness"]').setValue(true)
+
+    expect(wrapper.text()).toContain('Nhắc cập nhật giá')
+    expect(settings.fields.freshnessEnabled.value).toBe(true)
+    expect(wrapper.find('[input-id="price-alert-freshness-hour"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="freshness-master-note"]').text()).toContain(
+      'công tắc tổng',
+    )
+    expect(wrapper.text()).toContain('tối đa 5 lần')
+  })
+
+  it('hides the master-switch warning once the master switch is on', () => {
+    const settings = settingsState()
+    settings.fields.isEnabled.value = true
+    settingsMock.usePriceAlertSettingsPage.mockReturnValue(settings)
+
+    expect(mountPage().find('[data-testid="freshness-master-note"]').exists()).toBe(false)
   })
 
   it('registers the route guarded by price_alerts.manage', () => {

@@ -13,6 +13,8 @@ export interface PriceAlertSettingsDto {
   immediate_cap_per_scan: number
   digest_hour_local: number
   reference_fallback_days: number
+  freshness_enabled: boolean
+  freshness_hour_local: number
   enabled_since: string | null
   updated_at: string
 }
@@ -33,6 +35,8 @@ export interface PriceAlertSettingsValues {
   immediateCapPerScan: number
   digestHourLocal: number
   referenceFallbackDays: number
+  freshnessEnabled: boolean
+  freshnessHourLocal: number
 }
 
 export interface PriceAlertSettingsDomain {

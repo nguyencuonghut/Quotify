@@ -1161,3 +1161,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1D: Slice 5 dong co nhac cap nhat gia
 - Tom tat: Migration 20261007_0900 (kind freshness, bang price_alert_message_materials, cot freshness_enabled/hour/last_freshness_local_date), PriceFreshnessReminderService (nhip 1,4,7,10,13 ngay lam viec, 09:00, idempotent), resolve_freshness_recipients, formatter, nhanh sender, cron send_price_alert_freshness phut 20. 70 test moi, 14 phep dot bien, ra soat doc lap sach. Mac dinh tat; chua thu Telegram that.
+
+## 2026-10-07 03:00:42Z - claude
+
+- Tieu de: Telegram 1D: Slice 6 cong tac va gio nhac
+- Tom tat: GET/PUT /price-alert-settings them freshness_enabled va freshness_hour_local (PUT tuy chon, strict, bo qua = giu nguyen), the Nhac cap nhat gia tren trang cau hinh, ghi chu cong tac tong. Test PG that, API, vitest, e2e; ra soat doc lap sach.

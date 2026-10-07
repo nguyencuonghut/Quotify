@@ -48,6 +48,8 @@ DEFAULTS: dict[str, Any] = {
     "immediate_cap_per_scan": 30,
     "digest_hour_local": 8,
     "reference_fallback_days": 30,
+    "freshness_enabled": False,
+    "freshness_hour_local": 9,
 }
 
 
@@ -528,3 +530,64 @@ async def test_scan_run_counters_default_to_zero(
     assert (stored.versions_scanned, stored.events_created, stored.error_count) == (0, 0, 0)
     assert (stored.messages_created, stored.messages_sent) == (0, 0)
     assert stored.last_error is None
+
+
+async def _row(session_factory: async_sessionmaker[AsyncSession]) -> PriceAlertSetting:
+    async with session_factory() as session:
+        return (await session.execute(select(PriceAlertSetting))).scalar_one()
+
+
+async def test_the_freshness_switch_and_hour_are_saved_and_listed_in_the_changes(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id = await create_user(session_factory)
+
+    result = await _update(
+        session_factory, user_id, T0, freshness_enabled=True, freshness_hour_local=10
+    )
+
+    row = await _row(session_factory)
+    assert (row.freshness_enabled, row.freshness_hour_local) == (True, 10)
+    changed = {c["field"]: (c["old_value"], c["new_value"]) for c in result.changes}
+    assert changed["freshness_enabled"] == ("false", "true")
+    assert changed["freshness_hour_local"] == ("9", "10")
+
+
+async def test_leaving_the_freshness_fields_out_keeps_their_stored_values(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id = await create_user(session_factory)
+    await _update(session_factory, user_id, T0, freshness_enabled=True, freshness_hour_local=11)
+
+    result = await _update(
+        session_factory, user_id, T0, freshness_enabled=None, freshness_hour_local=None
+    )
+
+    row = await _row(session_factory)
+    assert (row.freshness_enabled, row.freshness_hour_local) == (True, 11)
+    assert result.changes == []
+
+
+async def test_turning_the_freshness_switch_on_does_not_move_the_scan_watermark(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id = await create_user(session_factory)
+
+    await _update(session_factory, user_id, T0, freshness_enabled=True)
+
+    state = await _scan_state(session_factory)
+    assert state.watermark_confirmed_at is None and state.enabled_since is None
+
+
+async def test_the_freshness_switch_can_be_turned_off_again(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id = await create_user(session_factory)
+    await _update(session_factory, user_id, T0, freshness_enabled=True)
+
+    result = await _update(session_factory, user_id, T0, freshness_enabled=False)
+
+    assert (await _row(session_factory)).freshness_enabled is False
+    assert [(c["field"], c["new_value"]) for c in result.changes] == [
+        ("freshness_enabled", "false")
+    ]
