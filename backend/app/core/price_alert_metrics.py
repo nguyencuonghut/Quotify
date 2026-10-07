@@ -22,8 +22,6 @@ from app.models import (
     Quote,
     QuoteVersion,
 )
-from app.services.price_alert_candidates import BUSINESS_TIMEZONE
-from app.services.quotify_material_freshness_service import QuotifyMaterialFreshnessService
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +84,14 @@ class PriceAlertMetrics:
         self._refreshed_at = self._clock()
 
     async def _load(self, now: datetime) -> PriceAlertSnapshot:
+        # Nạp trễ: `app.services` kéo theo `app.auth` rồi `app.db.session`, mà `app.db.session` lại
+        # nạp `app.core.observability` rồi module này; nạp ở đầu file gây vòng nạp khi worker và
+        # các lệnh CLI nạp `app.db.session` trước tiên (có test `test_import_order`).
+        from app.services.price_alert_candidates import BUSINESS_TIMEZONE
+        from app.services.quotify_material_freshness_service import (
+            QuotifyMaterialFreshnessService,
+        )
+
         async with self._session_factory() as session:
             enabled = bool(
                 (await session.execute(select(PriceAlertSetting.is_enabled))).scalar_one_or_none()

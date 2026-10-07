@@ -1171,3 +1171,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1D: Slice 7 quan sat va runbook
 - Tom tat: Hai gauge quotify_price_freshness_watched/overdue_materials (co lap loi bang savepoint), compliance script mo rong, runbook muc 15 (deploy 1D, nap danh sach theo doi, bat nhac rieng, rollback). Test PG that, ra soat doc lap sach.
+
+## 2026-10-07 03:53:05Z - claude
+
+- Tieu de: Hotfix worker vong nap import 1D
+- Tom tat: Worker production loi ImportError vong nap: price_alert_metrics nap app.services o dau file (S7). Sua bang nap tre trong _load, them test_import_order (7 diem vao). Bai hoc: kiem tung diem vao nap duoc o tien trinh moi.

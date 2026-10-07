@@ -687,3 +687,11 @@ Tin nhắc (minh họa; Manager nhận đủ, User chỉ nhận vật tư mình 
 • Threonine — 15 ngày (chu kỳ 14) · Lê Văn C
 Xem chi tiết trên web
 ```
+
+## Nhật Ký Deploy 1D Lên Production (2026-10-07)
+
+- 10:29 sao lưu (Postgres 1,7 MB, `gzip -t` đạt; MinIO 73 MB); `git pull` tới `0f7bdd4`; số dòng trước migrate: users 12, quotes 3.515, quote_lines 21.386, materials 95.
+- Build lần đầu lỗi: VPS không vào được Docker Hub (IPv4 timeout, IPv6 không có đường), còn `ghcr.io`, `mirror.gcr.io`, npm vẫn thông. Cách vòng: `docker pull mirror.gcr.io/library/node:22-bookworm-slim` rồi `docker tag` thành `node:22-bookworm-slim`, build ba service thành công. Không đổi cấu hình máy chủ.
+- 10:47 bật bảo trì (503). Migrate `20261006_0900 -> 20261006_1200 -> 20261007_0900` thành công, số dòng bảng cũ không đổi.
+- **Sự cố:** worker mới không khởi động, `ImportError: cannot import name 'get_db_session' from partially initialized module 'app.db.session'` (vòng nạp). Nguyên nhân: slice 7 thêm `from app.services...` ở đầu `price_alert_metrics.py`; `app.services` nạp `app.auth` rồi `app.db.session`, trong khi `app.db.session` nạp `app.core.observability` rồi `price_alert_metrics`. Backend không bị vì khởi động từ `app.main`; test cũng không bắt được vì nạp theo thứ tự khác. Cũng ảnh hưởng `python -m app.price_freshness_seed` và `app.price_alert_replay` (khi chạy một mình). Sửa: nạp trễ hai import trong `_load` và thêm test `test_import_order.py` (nạp từng điểm vào trong tiến trình mới). **Bài học:** mỗi điểm vào (`app.worker`, lệnh CLI, `app.main`) phải được kiểm nạp được ở tiến trình mới trước khi deploy.
+
