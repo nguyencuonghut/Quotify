@@ -260,3 +260,18 @@ def test_the_digest_cron_runs_every_hour_at_minute_ten_in_vietnam_time() -> None
     start = datetime(2054, 3, 4, 7, 40, tzinfo=tz)
     nxt = next_cron(start, minute=10, second=0).astimezone(tz).replace(microsecond=0)
     assert nxt == datetime(2054, 3, 4, 8, 10, tzinfo=tz)
+
+
+def test_the_freshness_cron_runs_every_hour_at_minute_twenty_in_vietnam_time() -> None:
+    [job] = [
+        j
+        for j in worker.WorkerSettings.cron_jobs
+        if j.coroutine is worker.send_price_alert_freshness
+    ]
+
+    assert (job.hour, job.minute, job.second) == (None, 20, 0)
+    assert worker.send_price_alert_freshness in worker.WorkerSettings.functions
+    tz = worker.WorkerSettings.timezone
+    start = datetime(2054, 3, 4, 8, 40, tzinfo=tz)
+    nxt = next_cron(start, minute=20, second=0).astimezone(tz).replace(microsecond=0)
+    assert nxt == datetime(2054, 3, 4, 9, 20, tzinfo=tz)

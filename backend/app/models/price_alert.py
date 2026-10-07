@@ -76,6 +76,10 @@ class PriceAlertSetting(Base):
             name="ck_price_alert_settings_digest_hour",
         ),
         CheckConstraint(
+            "freshness_hour_local BETWEEN 0 AND 23",
+            name="ck_price_alert_settings_freshness_hour",
+        ),
+        CheckConstraint(
             "reference_fallback_days BETWEEN 0 AND 365",
             name="ck_price_alert_settings_reference_fallback_days",
         ),
@@ -150,6 +154,17 @@ class PriceAlertSetting(Base):
         default=30,
         server_default="30",
     )
+    # Nhắc cập nhật giá theo vật tư (Telegram 1D): tắt mặc định, chạy khi cả `is_enabled` bật.
+    freshness_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+    )
+    freshness_hour_local: Mapped[int] = mapped_column(
+        SmallInteger,
+        default=9,
+        server_default="9",
+    )
     # Công tắc riêng của giá bất thường (D12): bật sau khi biến động giá đã chạy ổn.
     anomaly_enabled: Mapped[bool] = mapped_column(
         Boolean,
@@ -206,6 +221,7 @@ class PriceAlertScanState(Base):
         nullable=True,
     )
     last_digest_local_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_freshness_local_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     last_run_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
@@ -511,7 +527,7 @@ class PriceAlertMessage(Base):
     __tablename__ = "price_alert_messages"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('change','anomaly','digest')",
+            "kind IN ('change','anomaly','digest','freshness')",
             name="ck_price_alert_messages_kind",
         ),
         CheckConstraint(
@@ -528,7 +544,7 @@ class PriceAlertMessage(Base):
             name="ck_price_alert_messages_direction",
         ),
         CheckConstraint(
-            "kind = 'digest' OR material_id IS NOT NULL",
+            "kind IN ('digest','freshness') OR material_id IS NOT NULL",
             name="ck_price_alert_messages_material_required",
         ),
         UniqueConstraint(
@@ -555,6 +571,13 @@ class PriceAlertMessage(Base):
             "scan_run_id",
             unique=True,
             postgresql_where=text("kind = 'digest' AND material_id IS NULL"),
+        ),
+        Index(
+            "uq_price_alert_messages_freshness",
+            "user_id",
+            "local_date",
+            unique=True,
+            postgresql_where=text("kind = 'freshness'"),
         ),
         Index("ix_price_alert_messages_status", "status", "created_at"),
         Index("ix_price_alert_messages_user_material_day", "user_id", "material_id", "local_date"),
@@ -605,6 +628,31 @@ class PriceAlertMessage(Base):
         server_default=func.now(),
     )
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PriceAlertMessageMaterial(Base):
+    """Vật tư trong một tin nhắc cập nhật giá, chụp lúc xếp tin (Telegram 1D, F10)."""
+
+    __tablename__ = "price_alert_message_materials"
+
+    message_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("price_alert_messages.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    material_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("materials.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    age_days: Mapped[int] = mapped_column(Integer)
+    interval_days: Mapped[int] = mapped_column(Integer)
+    last_received_date: Mapped[date] = mapped_column(Date)
+    last_enterer_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
 
 class PriceAlertMessageEvent(Base):

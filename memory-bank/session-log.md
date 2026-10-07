@@ -1156,3 +1156,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1D: sap xep bang nguong theo vat tu
 - Tom tat: Them sort theo cot Vat tu (ten) va Chu ky (ngay) cho bang Nguong theo vat tu: server sort (sort=name|interval, order), nulls last, tie-break theo ma; frontend onSort, giu sort khi chuyen trang.
+
+## 2026-10-07 02:52:06Z - claude
+
+- Tieu de: Telegram 1D: Slice 5 dong co nhac cap nhat gia
+- Tom tat: Migration 20261007_0900 (kind freshness, bang price_alert_message_materials, cot freshness_enabled/hour/last_freshness_local_date), PriceFreshnessReminderService (nhip 1,4,7,10,13 ngay lam viec, 09:00, idempotent), resolve_freshness_recipients, formatter, nhanh sender, cron send_price_alert_freshness phut 20. 70 test moi, 14 phep dot bien, ra soat doc lap sach. Mac dinh tat; chua thu Telegram that.

@@ -112,6 +112,120 @@ async def resolve_recipients(
     return RecipientDecision(recipients, skipped)
 
 
+@dataclass(frozen=True, slots=True)
+class FreshnessRecipient:
+    user_id: UUID
+    telegram_account_id: UUID
+    chat_id: int
+    audience: Audience
+    material_ids: frozenset[UUID]
+
+
+async def resolve_freshness_recipients(
+    session: AsyncSession,
+    *,
+    material_ids: set[UUID],
+    now: datetime,
+    seed_user_id: UUID | None,
+    pilot_emails: frozenset[str] = frozenset(),
+    staff_lookback_days: int = 90,
+) -> tuple[list[FreshnessRecipient], list[SkippedRecipient]]:
+    """Ai nhận tin nhắc cập nhật giá và vật tư nào của họ (Telegram 1D, F11).
+
+    - Trưởng phòng (`price_alerts.receive_all`, không phải admin) và admin đã bật
+      `admin_receive_all`: mọi vật tư cần nhắc. Nhân viên: chỉ vật tư họ là
+      `quotes.created_by_id` trong `staff_lookback_days` ngày. Mỗi người một mục duy nhất kể cả
+      khi thuộc nhiều nhóm.
+    - Cùng điều kiện hợp lệ với tin biến động giá: người dùng `ACTIVE`, liên kết Telegram `active`,
+      không phải tài khoản seed, cờ cá nhân `is_enabled` không tắt, giới hạn pilot. Mức tối thiểu
+      (`min_level`) không áp dụng vì chỉ dành cho biến động giá.
+    """
+    if not material_ids:
+        return [], []
+    accounts = await _active_accounts(session)
+    if not accounts:
+        return [], []
+
+    audiences = await _audiences(
+        session,
+        material_id=next(iter(material_ids)),
+        today=now.astimezone(BUSINESS_TIMEZONE).date(),
+        staff_lookback_days=staff_lookback_days,
+        entered_by_id=None,
+        include_staff=False,
+        candidate_ids=set(accounts),
+    )
+    staff_materials = await _staff_materials(
+        session,
+        material_ids,
+        today=now.astimezone(BUSINESS_TIMEZONE).date(),
+        staff_lookback_days=staff_lookback_days,
+    )
+    for user_id in staff_materials:
+        if user_id in accounts and user_id not in audiences:
+            audiences[user_id] = "staff"
+    if seed_user_id is not None:
+        audiences.pop(seed_user_id, None)
+
+    users = await _users(session, set(audiences) & set(accounts))
+    preferences = await _preferences(session, set(users))
+
+    recipients: list[FreshnessRecipient] = []
+    skipped: list[SkippedRecipient] = []
+    for user_id in sorted(users, key=str):
+        user = users[user_id]
+        preference = preferences.get(user_id)
+        audience = audiences[user_id]
+        if audience == "admin" and not (preference and preference.admin_receive_all):
+            continue
+        if preference is not None and not preference.is_enabled:
+            continue
+        mine = (
+            frozenset(staff_materials.get(user_id, set()) & material_ids)
+            if audience == "staff"
+            else frozenset(material_ids)
+        )
+        if not mine:
+            continue
+        if pilot_emails and user.email.lower() not in pilot_emails:
+            skipped.append(SkippedRecipient(user_id, "pilot"))
+            continue
+        account_id, chat_id = accounts[user_id]
+        recipients.append(FreshnessRecipient(user_id, account_id, chat_id, audience, mine))
+    return recipients, skipped
+
+
+async def _staff_materials(
+    session: AsyncSession,
+    material_ids: set[UUID],
+    *,
+    today: date,
+    staff_lookback_days: int,
+) -> dict[UUID, set[UUID]]:
+    """Một truy vấn theo lô: người tạo phiếu -> các vật tư (trong tập cần nhắc) họ đã nhập."""
+    rows = (
+        await session.execute(
+            select(Quote.created_by_id, QuoteLine.material_id)
+            .join(QuoteVersion, QuoteVersion.quote_id == Quote.id)
+            .join(QuoteLine, QuoteLine.quote_version_id == QuoteVersion.id)
+            .where(
+                QuoteLine.material_id.in_(material_ids),
+                QuoteVersion.status == "confirmed",
+                QuoteVersion.confirmed_at.is_not(None),
+                Quote.cancelled_at.is_(None),
+                Quote.created_by_id.is_not(None),
+                QuoteVersion.received_date >= today - timedelta(days=staff_lookback_days),
+                QuoteVersion.received_date <= today,
+            )
+            .distinct(),
+        )
+    ).all()
+    result: dict[UUID, set[UUID]] = {}
+    for creator, material_id in rows:
+        result.setdefault(creator, set()).add(material_id)
+    return result
+
+
 def _meets_minimum(
     event_level: str | None,
     audience: Audience,

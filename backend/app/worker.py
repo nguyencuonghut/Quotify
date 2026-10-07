@@ -49,6 +49,7 @@ from app.services.price_alert_maintenance import PriceAlertMaintenanceService, e
 from app.services.price_alert_scan import PriceAlertScanService, get_seed_user_id
 from app.services.price_alert_sender import PriceAlertSender
 from app.services.price_alert_settings_service import PriceAlertSettingsService
+from app.services.price_freshness_reminder import PriceFreshnessReminderService
 from app.services.quote_backfill_import import (
     QuoteBackfillImportHeaderError,
     QuoteBackfillImportService,
@@ -1094,6 +1095,36 @@ async def send_price_alert_digest(ctx: dict[str, Any]) -> None:
         )
 
 
+async def send_price_alert_freshness(ctx: dict[str, Any]) -> None:
+    """Cron hằng giờ (phút 20, giờ VN): xếp tin nhắc cập nhật giá theo vật tư (Telegram 1D, F12).
+
+    Chỉ chạy khi cả công tắc tổng `is_enabled` và `freshness_enabled` bật. Chỉ tạo tin `pending`;
+    cron `send_price_alerts` gửi. Không có gì để nhắc thì không tạo tin.
+    """
+    settings = get_settings()
+    if not settings.telegram_enabled:
+        return
+
+    async with ctx["session_factory"]() as session:
+        alert_settings = await PriceAlertSettingsService(session).get_or_create_settings()
+        if not alert_settings.is_enabled or not alert_settings.freshness_enabled:
+            return
+        seed_user_id = await get_seed_user_id(session, settings.auth_seed_admin_email)
+        result = await PriceFreshnessReminderService(session).run_once(
+            now=datetime.now(UTC),
+            settings=alert_settings,
+            seed_user_id=seed_user_id,
+            pilot_emails=settings.price_alert_recipient_email_set,
+        )
+        await session.commit()
+    if result.messages_created:
+        logger.info(
+            "price_alert.freshness messages=%s materials=%s",
+            result.messages_created,
+            result.materials_due,
+        )
+
+
 async def remind_price_alerts(ctx: dict[str, Any]) -> None:
     """Cron hằng giờ (giờ VN): nhắc thẻ giá bất thường chưa xử lý và cho thẻ quá hạn hết hạn."""
     settings = get_settings()
@@ -1164,6 +1195,7 @@ class WorkerSettings:
         remind_price_alerts,
         cleanup_price_alerts,
         send_price_alert_digest,
+        send_price_alert_freshness,
     ]
     cron_jobs = [
         cron(poll_and_run_scheduled_backups, second=0),
@@ -1172,6 +1204,7 @@ class WorkerSettings:
         cron(remind_price_alerts, hour=set(range(8, 18)), minute=5, second=0),
         cron(cleanup_price_alerts, hour=3, minute=30, second=0),
         cron(send_price_alert_digest, minute=10, second=0),
+        cron(send_price_alert_freshness, minute=20, second=0),
     ]
     # Việt Nam không có DST; không đặt thì cron chạy theo giờ hệ thống (UTC trong container).
     timezone = ZoneInfo(settings.app_timezone)

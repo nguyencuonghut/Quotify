@@ -38,8 +38,10 @@ from app.services.price_alert_message_view import (
     load_anomaly_points,
     load_chart_spec,
     load_daily_digest_lines,
+    load_freshness_lines,
     load_message_view,
 )
+from app.services.price_freshness_formatter import format_freshness_reminder
 from app.services.telegram_link_service import TelegramLinkService
 
 logger = logging.getLogger(__name__)
@@ -147,7 +149,9 @@ class PriceAlertSender:
                             PriceAlertMessage.created_at,
                         )
                         .where(
-                            PriceAlertMessage.kind.in_(("change", "anomaly", "digest")),
+                            PriceAlertMessage.kind.in_(
+                                ("change", "anomaly", "digest", "freshness")
+                            ),
                             or_(
                                 (PriceAlertMessage.status == "pending")
                                 & (
@@ -272,6 +276,19 @@ class PriceAlertSender:
                 message.kind == "digest" and message.audience is not None
             ):
                 return await self._anomaly_content(session, message, account)
+
+            if message.kind == "freshness":
+                freshness_lines = await load_freshness_lines(session, message.id)
+                if not freshness_lines:
+                    raise _FailError("no_content")
+                reminder = format_freshness_reminder(
+                    freshness_lines,
+                    day=message.local_date,
+                    base_url=self.base_url,
+                )
+                return _Content(
+                    account.chat_id, account.telegram_user_id, None, reminder, reminder, False
+                )
 
             if message.kind == "digest" and message.digest_kind == "daily":
                 lines = await load_daily_digest_lines(session, message.id)

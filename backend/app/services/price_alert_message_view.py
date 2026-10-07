@@ -11,8 +11,10 @@ from app.models import (
     PriceAlertEvent,
     PriceAlertMessage,
     PriceAlertMessageEvent,
+    PriceAlertMessageMaterial,
     PriceAlertSetting,
     QuoteVersion,
+    User,
 )
 from app.services.daily_min_series import get_daily_min_series
 from app.services.price_alert_anomaly import excluded_line_ids
@@ -27,6 +29,7 @@ from app.services.price_alert_formatter import (
     format_price_short,
     top_event,
 )
+from app.services.price_freshness_formatter import FreshnessLine
 from app.services.working_days import reference_window
 
 
@@ -204,6 +207,28 @@ async def load_anomaly_points(
             ),
         )
         for event, quote_id, name in rows
+    ]
+
+
+async def load_freshness_lines(session: AsyncSession, message_id: UUID) -> list[FreshnessLine]:
+    """Các vật tư của một tin nhắc cập nhật giá, theo nội dung đã chụp lúc xếp tin."""
+    rows = (
+        await session.execute(
+            select(
+                Material.name,
+                PriceAlertMessageMaterial.age_days,
+                PriceAlertMessageMaterial.interval_days,
+                User.full_name,
+                User.email,
+            )
+            .join(Material, Material.id == PriceAlertMessageMaterial.material_id)
+            .outerjoin(User, User.id == PriceAlertMessageMaterial.last_enterer_id)
+            .where(PriceAlertMessageMaterial.message_id == message_id)
+        )
+    ).all()
+    return [
+        FreshnessLine(name, age, interval, full_name or email)
+        for name, age, interval, full_name, email in rows
     ]
 
 
