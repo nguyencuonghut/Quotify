@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-BẢN ĐÃ CHỐT (bản 2, 2026-10-06: Q1 đến Q10 đã chốt, xem mục "Câu Hỏi Đã Chốt"; bản 1 cùng ngày chốt Q1 đến Q6, bản 2 chốt Q7 đến Q10 bằng cách đồng ý nguyên đề xuất). Soạn 2026-10-06. **Chưa có dòng code nào.**
+BẢN ĐÃ CHỐT (bản 2, 2026-10-06: Q1 đến Q10 đã chốt, xem mục "Câu Hỏi Đã Chốt"; bản 1 cùng ngày chốt Q1 đến Q6, bản 2 chốt Q7 đến Q10 bằng cách đồng ý nguyên đề xuất). Soạn 2026-10-06. **Cập nhật 2026-10-07: người dùng đổi Q5, bảng độ mới của giá cho mọi người xem Dashboard (xem Q5), không còn giới hạn ở Admin và Manager.** Slice 0 và Slice 1 đã xong (xem mục kết quả của từng slice).
 
 Kế hoạch này nối tiếp [plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md](plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md) (1A, 1B, 1C đã chạy trên production từ 2026-10-06) và tái dùng hạ tầng Telegram của 1B và 1C. Đây là nhu cầu mới phát sinh sau khi 1C lên production, không có trong kế hoạch cha [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md) ban đầu; chatbot AI (Giai đoạn 2) không thuộc kế hoạch này.
 
@@ -14,7 +14,7 @@ Cách soạn:
 
 ## Mục Tiêu
 
-Hiện tab "Tổng quan" của Dashboard chỉ cho biết **ai** nhập bao nhiêu phiếu trong tuần. Admin và Manager chưa biết **vật tư nào** đã có giá mới, vật tư nào chưa, và mỗi vật tư được cập nhật bao nhiêu lần. Mục đích cuối cùng (đã chốt): **nhắc người nhập nhập cho đủ giá**.
+Hiện tab "Tổng quan" của Dashboard chỉ cho biết **ai** nhập bao nhiêu phiếu trong tuần. Người dùng Dashboard chưa biết **vật tư nào** đã có giá mới, vật tư nào chưa, và mỗi vật tư được cập nhật bao nhiêu lần. Mục đích cuối cùng (đã chốt): **nhắc người nhập nhập cho đủ giá**.
 
 1. **Bảng "Độ mới của giá theo vật tư"** trong tab Tổng quan, đồng bộ với bộ chọn tuần có sẵn: mỗi dòng một vật tư với số lần cập nhật, số nhà cung cấp, ngày nhận giá gần nhất, số ngày chưa có giá mới và trạng thái.
 2. **Danh sách theo dõi và chu kỳ kỳ vọng theo vật tư**, để "chưa cập nhật" có nghĩa: 60% vật tư trên dev chưa từng có giá nên nếu không có danh sách theo dõi thì bảng toàn dòng "chưa cập nhật" vô nghĩa. Mặc định tính từ dữ liệu thật; quản lý chỉnh được từng vật tư.
@@ -23,7 +23,7 @@ Hiện tab "Tổng quan" của Dashboard chỉ cho biết **ai** nhập bao nhi�
 ## Ngoài Scope
 
 - Xuất Excel của bảng, so sánh xu hướng tuần này với tuần trước (đã chốt: không cần, câu trả lời 6).
-- Quyền mới (đã chốt Phương án A: dùng lại `price_alerts.manage`).
+- Quyền mới: không cần. Bảng xem bằng `dashboard.read` như các bảng khác của Dashboard (Q5, đổi ngày 2026-10-07); sửa danh sách theo dõi dùng `price_alerts.manage` có sẵn.
 - Loại ngày lễ và Tết khỏi ngày làm việc: giữ như 1C (QĐ-11, backlog); `working_days.py` chỉ loại thứ Bảy và Chủ nhật.
 - Tự động đề xuất đưa vật tư mới vào danh sách theo dõi (chỉ làm tay qua trang cấu hình; xem rủi ro RF-8).
 - Công tắc nhắc riêng trong tùy chọn cá nhân (đã chốt không làm, Q10).
@@ -114,11 +114,11 @@ Như 1B và 1C, thêm:
 | F1 | **Mốc thời gian của "cập nhật"** | Dùng `QuoteVersion.received_date` (ngày nhận báo giá), **không** dùng `created_at` như bảng tuần hiện tại. Lý do: độ mới của giá là chuyện giá có hiệu lực ngày nào; nhập bù hoặc nhập import cũ (`confirmed_at` là lúc import, `received_date` là ngày cũ) không bị tính nhầm vào tuần này; khớp biểu đồ giá theo ngày nhận và tiêu chí của người nhận tin 1B. **Hệ quả cần ghi trên giao diện:** hai bảng cùng tab có thể lệch số khi phiếu nhập trễ (bảng trên đếm theo giờ nhập). Chú thích dưới bảng: "Tính theo ngày nhận báo giá" |
 | F2 | Bản sửa phiếu | Bản cũ chuyển `superseded` nên không còn được đếm; bản mới được đếm theo `received_date` của nó. Sửa phiếu không đếm đôi |
 | F3 | Bảng cấu hình theo dõi | Bảng mới `price_freshness_materials(material_id PK FK materials ON DELETE CASCADE, is_watched bool not null, expected_interval_days int not null CHECK 1..365, updated_by_id FK users ON DELETE SET NULL, created_at, updated_at)`. Không có hàng nghĩa là không theo dõi. Bảng ngưỡng 1B giữ nguyên |
-| F4 | API đọc bảng | `GET /api/v1/dashboard/quotify/material-freshness?week_start=YYYY-MM-DD`, quyền **`price_alerts.manage`** (Phương án A, câu trả lời 5). Trả `{week_start, week_end, as_of_date, summary, items}` không phân trang (dưới 200 dòng, vì cả hệ thống 95 đến 122 vật tư). `summary`: `watched_count`, `updated_count`, `on_time_count`, `overdue_count` (gồm `never`) tính **chỉ trên vật tư đang theo dõi** nên cộng đúng bằng `watched_count`, thêm `unwatched_updated_count` |
+| F4 | API đọc bảng | `GET /api/v1/dashboard/quotify/material-freshness?week_start=YYYY-MM-DD`, quyền **`dashboard.read`** như các route Dashboard khác (Q5, đổi ngày 2026-10-07: mọi người xem Dashboard đều xem được; ban đầu là `price_alerts.manage`). Trả `{week_start, week_end, as_of_date, summary, items}` không phân trang (dưới 200 dòng, vì cả hệ thống 95 đến 122 vật tư). `summary`: `watched_count`, `updated_count`, `on_time_count`, `overdue_count` (gồm `never`) tính **chỉ trên vật tư đang theo dõi** nên cộng đúng bằng `watched_count`, thêm `unwatched_updated_count` |
 | F5 | Mỗi `item` | `material_id, material_code, material_name, material_type_id, material_type_name, is_watched, expected_interval_days (null nếu không theo dõi), update_count, supplier_count, last_received_date (null nếu chưa có), age_days (null nếu chưa có), status, last_enterer_id, last_enterer_label` (người tạo phiếu `quotes.created_by_id` của phiên bản gần nhất, cùng quy tắc xác định "người nhập" của 1B; hiển thị trên web theo Q9) |
 | F6 | API cấu hình | Mở rộng mỗi mục của `GET /price-alert-settings/materials` thêm `freshness: {is_watched, expected_interval_days} \| null`; thêm `PUT /price-alert-settings/materials/{material_id}/freshness` (`{is_watched, expected_interval_days}`) và `DELETE` cùng đường dẫn (xóa hàng, idempotent). **Tách khỏi endpoint ngưỡng** để `DELETE` của ngưỡng không xóa cấu hình theo dõi. Quyền `price_alerts.manage`; audit `price_alerts.freshness_updated` (có `changes[]`); 404 khi không có vật tư, 422 khi chu kỳ ngoài 1 đến 365 |
 | F7 | Nạp danh sách mặc định | **Không** nạp trong migration (dữ liệu production bị ảnh hưởng bởi import cũ). Lệnh `python -m app.price_freshness_seed` mặc định `--dry-run` (in danh sách đề xuất và xuất CSV để trưởng phòng duyệt), `--apply` chỉ chèn hàng **chưa tồn tại** (`ON CONFLICT DO NOTHING`), không bao giờ ghi đè hàng quản lý đã sửa hoặc đã tắt |
-| F8 | Giao diện bảng | Component `MaterialFreshnessTable.vue` (kèm composable, api, mappers, types riêng) gắn trong tab Tổng quan **dưới** panel theo tuần, chỉ hiện khi `permissionStore.can('price_alerts.manage')`; gọi tải lại trong `applyWeeklyEntryFilters`, `resetWeeklyEntryFilters`, `bootstrap`; bộ lọc cục bộ: trạng thái và loại vật tư (lọc phía client vì dưới 200 dòng); mặc định sắp xếp: Quá hạn trước, rồi theo tuổi giảm dần; thẻ trạng thái màu (`Tag` severity success, info hoặc warning, danger); dòng quá hạn tô nổi như `.dashboard-page__weekly-row--warning`; khung mobile dạng thẻ như QuotesPage |
+| F8 | Giao diện bảng | Component `MaterialFreshnessTable.vue` (kèm composable, api, mappers, types riêng) gắn trong tab Tổng quan **dưới** panel theo tuần, hiện cho mọi người xem được Dashboard (không có điều kiện quyền riêng); gọi tải lại trong `applyWeeklyEntryFilters`, `resetWeeklyEntryFilters`, `bootstrap`; bộ lọc cục bộ: trạng thái và loại vật tư (lọc phía client vì dưới 200 dòng); mặc định sắp xếp: Quá hạn trước, rồi theo tuổi giảm dần; thẻ trạng thái màu (`Tag` severity success, info hoặc warning, danger); dòng quá hạn tô nổi như `.dashboard-page__weekly-row--warning`; khung mobile dạng thẻ như QuotesPage |
 | F9 | Giao diện cấu hình | Trong bảng "Ngưỡng theo vật tư" của `/price-alert-settings` thêm hai cột "Theo dõi" và "Chu kỳ (ngày)" và nút icon thứ hai ở cột "Thao tác" mở hộp thoại nhỏ (`ToggleSwitch` + `InputNumber` + "Bỏ cấu hình"), lưu riêng bằng F6. Cập nhật schema zod, mapper và ba spec liên quan |
 | F10 | Loại tin nhắc | Tin mới `kind = 'freshness'` (không dùng lại `kind = 'digest'` để khỏi nới CHECK `digest_kind` và khỏi lẫn vào ba loại digest có sẵn). Migration: mở rộng `ck_price_alert_messages_kind`, đổi `ck_price_alert_messages_material_required` thành `kind IN ('digest','freshness') OR material_id IS NOT NULL`, chỉ mục duy nhất một phần `uq_price_alert_messages_freshness (user_id, local_date) WHERE kind = 'freshness'` (một tin mỗi người mỗi ngày làm khóa idempotent), bảng nối `price_alert_message_materials(message_id FK CASCADE, material_id FK CASCADE, overdue_days int, interval_days int, last_received_date date, last_enterer_id FK users SET NULL, PK (message_id, material_id))` để **nội dung được chụp lúc xếp tin** và sender dựng tin xác định |
 | F11 | Người nhận nhắc | Hàm mới `resolve_freshness_recipients` (nhận **danh sách** vật tư quá hạn, trả `người nhận -> các vật tư`), dùng chung điều kiện hợp lệ của 1B: user hoạt động, `TelegramAccount` hoạt động, không phải tài khoản seed, `user_alert_preferences.is_enabled` khác false, giới hạn pilot. **Manager** (có `price_alerts.receive_all`) nhận mọi vật tư đến hạn nhắc; **User** nhận vật tư mà họ là người tạo phiếu (`quotes.created_by_id`, như `_staff_ids` của 1B) có phiên bản hợp lệ chứa vật tư đó với `received_date` trong `staff_lookback_days` gần nhất (một truy vấn theo lô, không gọi theo từng vật tư); **admin** chỉ khi `admin_receive_all`. Người thuộc nhiều nhóm nhận **một** tin gộp. Mức tối thiểu `min_level` không áp dụng (chỉ dành cho biến động giá) |
@@ -138,7 +138,7 @@ Q1 đến Q6 chốt trong buổi thảo luận nhu cầu; Q7 đến Q10 là các
 | Q2 | Danh sách theo dõi và chu kỳ kỳ vọng | Đồng ý như đề xuất; cấu hình mặc định theo giá trị trung bình của dữ liệu thật (F7, bảng chu kỳ ở trên) |
 | Q3 | "Số lần cập nhật" | Số **phiên bản phiếu hợp lệ** chứa vật tư trong kỳ, không đếm dòng |
 | Q4 | Kỳ xem | Đồng bộ theo bộ chọn tuần hiện có |
-| Q5 | Phạm vi quyền (diễn đạt lại cho dễ hiểu: dùng lại quyền có sẵn hay thêm quyền mới) | **Phương án A**: dùng lại `price_alerts.manage` cho cả xem bảng mới lẫn sửa danh sách theo dõi (đúng Admin và Manager, không migration quyền) |
+| Q5 | Phạm vi quyền (diễn đạt lại cho dễ hiểu: dùng lại quyền có sẵn hay thêm quyền mới) | **Đổi ngày 2026-10-07:** bảng độ mới của giá cho **toàn bộ người dùng** xem như các bảng khác của Dashboard (`dashboard.read`, không migration quyền). Việc **sửa** danh sách theo dõi và chu kỳ vẫn chỉ Admin và Manager (`price_alerts.manage`, trang `/price-alert-settings`). Ban đầu (2026-10-06) chốt Phương án A: dùng `price_alerts.manage` cho cả xem lẫn sửa |
 | Q6 | Phụ trợ (xuất Excel, xu hướng so tuần trước) | Không cần |
 | Q7 | **Giờ gửi và nhịp nhắc** | **Đồng ý đề xuất:** 09:00 ngày làm việc; nhắc khi vật tư vừa quá hạn rồi mỗi 3 ngày làm việc nếu vẫn chưa có giá, tối đa 5 lần |
 | Q8 | **Tin riêng hay gộp vào bản tin 08:00** | **Đồng ý đề xuất:** Tin riêng, vì bản tin 08:00 chỉ gồm thay đổi mức Nhẹ và thường rỗng (không gửi khi rỗng), gộp sẽ làm hai logic lệ thuộc nhau |
@@ -187,7 +187,7 @@ Có một endpoint trả đúng, kiểm bằng PostgreSQL thật, bảng độ m
 
 1. Migration (nối sau head `20261006_0900`, số revision đặt theo ngày làm): tạo `price_freshness_materials` (F3). Model `PriceFreshnessMaterial` đăng ký trong `models/__init__.py`.
 2. Service `quotify_material_freshness_service.py` (hoặc thêm vào service Dashboard nếu hợp hơn): ba truy vấn tổng hợp (đếm phiên bản khác nhau và số nhà cung cấp theo vật tư trong tuần theo `received_date`; ngày nhận gần nhất và người nhập gần nhất tới `as_of`; danh sách vật tư hoạt động nối cấu hình), rồi ghép trạng thái bằng **hàm thuần** `classify(update_count, is_watched, interval, age_days)`.
-3. Schema `schemas/quotify_material_freshness.py` và route `GET /dashboard/quotify/material-freshness` (F4, F5), quyền `price_alerts.manage`, đăng ký trong `api/v1/router.py` theo mẫu route Dashboard hiện có.
+3. Schema `schemas/quotify_material_freshness.py` và route `GET /dashboard/quotify/material-freshness` (F4, F5), quyền `dashboard.read` (đã đổi từ `price_alerts.manage`, xem Q5), đăng ký trong `api/v1/router.py` theo mẫu route Dashboard hiện có.
 4. Chuẩn hóa `week_start` về thứ Hai giống `get_weekly_entry_activity` (dùng chung hàm chuẩn hóa nếu có, không sao chép).
 
 ### Thứ tự test (tracer trước)
@@ -201,7 +201,7 @@ Có một endpoint trả đúng, kiểm bằng PostgreSQL thật, bảng độ m
 7. Vật tư `inactive` không hiện dù đang theo dõi; vật tư không theo dõi nhưng có cập nhật hiện với `is_watched = false`, `expected_interval_days = null`, trạng thái `updated`.
 8. `summary`: `watched_count = updated_count + on_time_count + overdue_count`; `unwatched_updated_count` đúng.
 9. Người nhập gần nhất: người tạo phiếu (`quotes.created_by_id`) của phiên bản có `received_date` lớn nhất; hai phiên bản cùng ngày: quyết định xác định theo `confirmed_at` giảm dần.
-10. API (kiểu `FakeDbSession` có sẵn của Dashboard): 403 với người chỉ có `dashboard.read` (role `user`), 200 với `price_alerts.manage`; `week_start` là thứ Tư → chuẩn hóa về thứ Hai; ngày sai định dạng → 422.
+10. API (mock dịch vụ như các test Dashboard): 200 với người chỉ có `dashboard.read` (role `user`), 403 khi không có `dashboard.read` (kể cả có `price_alerts.manage`); `week_start` là thứ Tư → chuẩn hóa về thứ Hai; ngày sai định dạng → 422.
 11. Kiểm đột biến thủ công: bỏ điều kiện `cancelled_at IS NULL`, bỏ lọc `status = 'confirmed'`, đổi `received_date` thành `created_at` → test tương ứng phải đỏ.
 
 ### Tiêu chí chấp nhận
@@ -216,9 +216,9 @@ Gỡ route hoặc quay về code cũ; bảng mới là additive và không ai đ
 
 ### Kết quả Slice 1 (2026-10-06)
 
-- Đã làm đúng thiết kế F1 đến F5: migration `20261006_1200` (`price_freshness_materials`), model `PriceFreshnessMaterial`, `QuotifyMaterialFreshnessService` (bốn truy vấn nhỏ: cấu hình, đếm trong tuần, vật tư hoạt động, ngày nhận và người nhập gần nhất bằng `DISTINCT ON`), hàm thuần `classify_freshness`, route `GET /dashboard/quotify/material-freshness` (quyền `price_alerts.manage`). Hàm chuẩn hóa tuần được tách thành `normalize_week_start` dùng chung với bảng tuần cũ.
+- Đã làm đúng thiết kế F1 đến F5: migration `20261006_1200` (`price_freshness_materials`), model `PriceFreshnessMaterial`, `QuotifyMaterialFreshnessService` (bốn truy vấn nhỏ: cấu hình, đếm trong tuần, vật tư hoạt động, ngày nhận và người nhập gần nhất bằng `DISTINCT ON`), hàm thuần `classify_freshness`, route `GET /dashboard/quotify/material-freshness` (quyền `dashboard.read`, đã đổi từ `price_alerts.manage` ngày 2026-10-07 theo Q5). Hàm chuẩn hóa tuần được tách thành `normalize_week_start` dùng chung với bảng tuần cũ.
 - Chỉnh so với kế hoạch: cả số lần cập nhật lẫn "ngày nhận gần nhất" chỉ xét `received_date <= as_of` (phiếu ghi ngày nhận ở tương lai chưa được tính, tuổi không bao giờ âm). Tham số `week_start` giới hạn 2000-01-01 đến 2100-12-31 (422 ngoài khoảng, tránh tràn ngày).
-- Kiểm thử: 18 test PostgreSQL thật, 6 test API (mock dịch vụ, có 403 với `dashboard.read` và 422), 9 ca của `classify_freshness`; backend 1.114 pass (baseline 1.081), ruff 61 và mypy 13 lỗi cũ không đổi. Chín phép đột biến thủ công (bỏ lọc phiếu hủy, bỏ lọc `confirmed`, bỏ `confirmed_at`, đếm dòng thay vì phiên bản, bỏ chặn `as_of` ở hai chỗ, đếm theo `created_at`, bỏ lọc `inactive`, đảo thứ tự ngày nhận) và phép bỏ tie-break `confirmed_at` đều làm test đỏ.
+- Kiểm thử: 18 test PostgreSQL thật, 6 test API (mock dịch vụ: 200 với `dashboard.read`, 403 khi thiếu `dashboard.read`, 422), 9 ca của `classify_freshness`; backend 1.114 pass (baseline 1.081), ruff 61 và mypy 13 lỗi cũ không đổi. Chín phép đột biến thủ công (bỏ lọc phiếu hủy, bỏ lọc `confirmed`, bỏ `confirmed_at`, đếm dòng thay vì phiên bản, bỏ chặn `as_of` ở hai chỗ, đếm theo `created_at`, bỏ lọc `inactive`, đảo thứ tự ngày nhận) và phép bỏ tie-break `confirmed_at` đều làm test đỏ.
 - Rà soát độc lập không thấy lỗi nghiêm trọng; bốn điểm nhẹ đã xử lý: giới hạn khoảng ngày của `week_start`, `unwatched_updated_count` kiểm `update_count > 0` tường minh, test tie-break dùng 6 phiên bản để thực sự bắt được, ghi chú fixture dọn cả bảng cấu hình (các slice sau phải dùng vật tư riêng hoặc cách dọn riêng).
 - Thử trên dữ liệu dev thật: tuần trước đó có 17 đến 39 vật tư có cập nhật mỗi tuần (6 tuần gần nhất); migration đã áp lên DB dev.
 
@@ -230,14 +230,14 @@ Gỡ route hoặc quay về code cũ; bảng mới là additive và không ai đ
 
 ### Mục tiêu
 
-Admin và Manager mở Dashboard, chọn tuần và thấy bảng độ mới của giá, đồng bộ với bộ chọn tuần có sẵn; người khác không thấy bảng.
+Mọi người dùng mở được Dashboard (kể cả role `user`) chọn tuần và thấy bảng độ mới của giá, đồng bộ với bộ chọn tuần có sẵn; chỉ phần sửa danh sách theo dõi (Slice 3) giới hạn ở Admin và Manager.
 
 ### Việc cần làm
 
 1. `types/material-freshness.ts` (`Dto` snake_case, `Domain` camelCase), `api/material-freshness.api.ts` (`apiRequest` với `accessToken`), `api/material-freshness.mappers.ts` (nhãn trạng thái tiếng Việt: "Đã cập nhật", "Đúng hạn", "Quá hạn", "Chưa có giá"; định dạng ngày `vi-VN` theo múi giờ cấu hình; mô tả tuổi "N ngày").
 2. `composables/useMaterialFreshness.ts`: tải theo `weekStart`, trạng thái đang tải và lỗi (thông báo cố định, không dùng `detail` của server), lọc phía client theo trạng thái và loại vật tư, sắp xếp mặc định (F8). Chặn phản hồi cũ ghi đè phản hồi mới (bài học 1C).
 3. `components/dashboard/MaterialFreshnessTable.vue`: thẻ tóm tắt (Đang theo dõi, Đã cập nhật, Đúng hạn, Quá hạn, ghi chú "k vật tư không theo dõi có cập nhật"), bộ lọc, `DataTable` (`responsive-layout="scroll"`) với cột Vật tư, Loại, Số lần, Số NCC, Ngày nhận gần nhất, Số ngày, Chu kỳ, Trạng thái, và cột Người nhập gần nhất (Q9); khung mobile dạng thẻ; chú thích "Tính theo ngày nhận báo giá. Quản lý danh sách theo dõi ở Cấu hình thông báo giá" kèm liên kết.
-4. Gắn vào `DashboardPage.vue` dưới panel theo tuần, bọc `v-if="permissionStore.can('price_alerts.manage')"`; gọi tải lại trong `applyWeeklyEntryFilters`, `resetWeeklyEntryFilters`, `bootstrap` của `useDashboardPage`.
+4. Gắn vào `DashboardPage.vue` dưới panel theo tuần, không bọc điều kiện quyền riêng (cùng quyền xem Dashboard với các bảng còn lại); chú thích liên kết sang trang cấu hình chỉ hiện với người có `price_alerts.manage`; gọi tải lại trong `applyWeeklyEntryFilters`, `resetWeeklyEntryFilters`, `bootstrap` của `useDashboardPage`.
 5. SCSS toàn cục `styles/pages/_dashboard-freshness.scss` (đăng ký trong `main.scss`), token `--app-*`, dòng quá hạn tô nổi như dòng cảnh báo có sẵn; mốc 1280 và 768.
 6. Tùy chọn (nếu gọn): thêm `freshness?: {status, materialTypeId}` (trường **tùy chọn**) vào snapshot của `dashboard-view.store` để giữ bộ lọc khi đổi tab.
 
@@ -245,13 +245,13 @@ Admin và Manager mở Dashboard, chọn tuần và thấy bảng độ mới c�
 
 1. **Tracer (vitest):** mapper chuyển DTO mẫu thành nhãn tiếng Việt đúng cho cả bốn trạng thái và ngày; composable gọi API với `week_start` đã chọn.
 2. Composable: lọc theo trạng thái và loại; sắp xếp Quá hạn trước theo tuổi giảm dần; lỗi hiện thông báo cố định; phản hồi cũ không ghi đè phản hồi mới.
-3. Component: không có quyền → không render; có quyền → render; bốn thẻ tóm tắt và dòng `never` hiển thị "Chưa có giá"; trạng thái rỗng.
+3. Component: render cho người chỉ có quyền xem Dashboard; liên kết sang trang cấu hình chỉ hiện với `price_alerts.manage`; bốn thẻ tóm tắt và dòng `never` hiển thị "Chưa có giá"; trạng thái rỗng.
 4. `dashboard.page.spec.ts`: stub component con; xác nhận gọi tải lại khi bấm "Lọc" và "Xóa lọc" (bảng đi theo tuần).
-5. e2e Playwright giả API (`page.route`, `quotify_logged_in`): Admin thấy bảng; người không có `price_alerts.manage` không thấy; đổi tuần gọi lại API với `week_start` mới; khung mobile 390×844 hiện thẻ và không cuộn ngang trang; chụp ảnh màn hình và **xem bằng mắt** (bài học 1C: cột thao tác bị che ở 1280 px).
+5. e2e Playwright giả API (`page.route`, `quotify_logged_in`): cả Admin và người dùng thường (role `user`) đều thấy bảng, liên kết cấu hình chỉ hiện với Admin; đổi tuần gọi lại API với `week_start` mới; khung mobile 390×844 hiện thẻ và không cuộn ngang trang; chụp ảnh màn hình và **xem bằng mắt** (bài học 1C: cột thao tác bị che ở 1280 px).
 
 ### Tiêu chí chấp nhận
 
-- [ ] Bảng đúng theo tuần đã chọn; ẩn với người không có quyền; tối ưu mobile.
+- [ ] Bảng đúng theo tuần đã chọn; mọi người xem được Dashboard đều thấy bảng; tối ưu mobile.
 - [ ] `make frontend-check` không xấu hơn baseline (so theo tên test); không có `<style>`.
 - [ ] Xem bằng trình duyệt thật hoặc ảnh e2e và sửa các lỗi bố cục thấy được.
 
@@ -449,7 +449,7 @@ Gỡ gauge và mục runbook; không ảnh hưởng chức năng.
 
 1. Theo runbook mục 15: backup, `git pull`, build `backend`, `worker`, `frontend` khi site còn chạy, bật chế độ bảo trì (`docker/nginx/maintenance.conf`), migrate (hai migration additive), tạo lại ba service, tắt bảo trì.
 2. Chạy `price_freshness_seed` ở chế độ `--dry-run`; trưởng phòng duyệt danh sách và chu kỳ; chạy `--apply`.
-3. Kiểm sau deploy: Admin và Manager thấy bảng ở tab Tổng quan, đổi tuần ra số hợp lý, đối chiếu một vật tư với dữ liệu phiếu thật; User thường **không** thấy bảng; trang cấu hình sửa được theo dõi; gauge ở `/metrics`.
+3. Kiểm sau deploy: Admin, Manager và User thường đều thấy bảng ở tab Tổng quan, đổi tuần ra số hợp lý, đối chiếu một vật tư với dữ liệu phiếu thật; chỉ Admin và Manager vào được trang cấu hình; trang cấu hình sửa được theo dõi; gauge ở `/metrics`.
 4. **Giữ `freshness_enabled = false` ít nhất một tuần**: quản lý dùng bảng web, chỉnh danh sách theo dõi và chu kỳ cho sát thực tế.
 5. Bật nhắc (HITL): đặt `freshness_enabled = true` (trong nhóm pilot nếu còn `PRICE_ALERT_RECIPIENT_EMAILS`); kiểm tin đầu tiên trên điện thoại thật; theo dõi tải tin tuần đầu.
 6. Cập nhật runbook, `memory-bank/`, tài liệu này; chạy `agent-task-close.sh`.
@@ -510,10 +510,10 @@ S2, S3, S4, S5 làm song song được (khác file, cùng chặn bởi S1). Mỗ
 |---|---|---|
 | Hàm thuần (TDD) | `classify` trạng thái, `suggest_interval`, `reminder_due(k)`, formatter tin nhắc, mapper nhãn | 1, 2, 4, 5 |
 | PostgreSQL thật | Đếm phiên bản khác nhau, biên tuần theo `received_date`, loại phiếu hủy, nháp và `superseded`; `as_of` của tuần quá khứ; nạp mặc định idempotent và không ghi đè; người nhận và nhịp nhắc; chỉ mục duy nhất; `PUT` và `DELETE` cấu hình; gauge | 1, 3, 4, 5, 6, 7 |
-| API kiểu Dashboard (`FakeDbSession`) | Quyền `price_alerts.manage` (403 với `dashboard.read`), chuẩn hóa tuần, 422 | 1 |
+| API (mock dịch vụ như test Dashboard) | Quyền `dashboard.read` (200) và 403 khi thiếu, chuẩn hóa tuần, 422 | 1 |
 | Sender với transport giả | Tin nhắc đến đúng người, `_claim_one` có loại mới, không lọt vào luồng khác | 5 |
 | Đơn vị frontend (vitest) | Composable, mapper, component, `dashboard.page.spec.ts`, ba spec cấu hình | 2, 3, 6 |
-| Playwright e2e | Bảng theo tuần, ẩn theo quyền, sửa theo dõi, công tắc nhắc, khung mobile 390×844 | 2, 3, 6 |
+| Playwright e2e | Bảng theo tuần (Admin và role `user` đều thấy), sửa theo dõi, công tắc nhắc, khung mobile 390×844 | 2, 3, 6 |
 | Cron và múi giờ | `next_cron` phút 20 giờ Việt Nam | 5 |
 | Migration | Một head Alembic; additive; kiểm trên DB tạm | 1, 5 |
 | Vận hành | `make production-readiness-check`, gauge | 7 |
@@ -528,7 +528,7 @@ S2, S3, S4, S5 làm song song được (khác file, cùng chặn bởi S1). Mỗ
 | RF-3 | Hai bảng cùng tab dùng hai mốc thời gian (giờ nhập và ngày nhận) nên số lệch với phiếu nhập trễ | Chú thích dưới bảng "Tính theo ngày nhận báo giá"; ghi rõ ở F1 và runbook; không đổi bảng tuần cũ |
 | RF-4 | Tuần lễ và Tết tính là ngày làm việc nên có nhắc vô nghĩa | Giữ như 1C (QĐ-11, backlog); tắt `freshness_enabled` trong tuần nghỉ nếu cần |
 | RF-5 | Sửa phiếu hoặc nhập muộn làm số lần cập nhật của một tuần cũ thay đổi sau khi xem | Chấp nhận có chủ ý (bảng phản ánh dữ liệu hiện tại); bản sửa không đếm đôi (F2) |
-| RF-6 | Phương án A gộp quyền xem bảng với quyền sửa cấu hình thông báo; sau này muốn cho người chỉ-xem sẽ phải thêm quyền | Chấp nhận (khớp đúng Admin và Manager hiện tại); thêm quyền sau là một migration nhỏ và không phá cái đã có |
+| RF-6 | Bảng độ mới (số lần cập nhật theo vật tư, ngày nhận gần nhất, **người nhập gần nhất**) hiện cho mọi người dùng Dashboard, nên ai cũng thấy ai nhập vật tư nào và vật tư nào quá hạn | Chấp nhận (quyết định Q5, 2026-10-07): bảng tuần cũ đã cho mọi người dùng Dashboard thấy số phiếu và lần nhập gần nhất của từng người; bảng mới **không hiện giá** nào. Nếu sau này cần ẩn cột người nhập với User thường thì ẩn ở giao diện (Q9) hoặc thêm quyền riêng bằng một migration nhỏ |
 | RF-7 | Đổi ràng buộc `CHECK` trên bảng tin đang chạy production | Migration additive, bảng nhỏ, khóa ngắn; kiểm trên DB tạm có dữ liệu cũ; kế hoạch rollback ghi rõ tin `pending` loại mới kẹt khi quay về image cũ |
 | RF-8 | Vật tư mới chưa được theo dõi nên không bao giờ bị nhắc (điểm mù) | Vật tư không theo dõi nhưng có cập nhật vẫn hiện trên bảng (`unwatched_updated_count`); S9 rà soát định kỳ; đề xuất tự động gợi ý để lại backlog |
 | RF-9 | Quên thêm `freshness` vào `_claim_one` làm tin kẹt `pending` | Test sender chạy từ tin `pending` loại mới tới `sent` (Slice 5, test 10); luật cảnh báo "tin pending quá 10 phút" đã có |
@@ -656,7 +656,7 @@ Ghi chú đo: `ruff` cần `--no-cache` khi chạy trong môi trường không g
 
 ## Phụ Lục C: Bản Mẫu Giao Diện Và Tin Nhắn
 
-Bảng trên tab Tổng quan (Admin và Manager), tuần 05/10 đến 11/10:
+Bảng trên tab Tổng quan (mọi người dùng Dashboard), tuần 05/10 đến 11/10:
 
 ```
 Độ mới của giá theo vật tư            [Trạng thái ▾] [Loại vật tư ▾]

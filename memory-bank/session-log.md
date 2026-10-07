@@ -1126,3 +1126,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1D: Slice 0 va 1 (API do moi gia theo vat tu)
 - Tom tat: Baseline code ghi o phu luc B ke hoach 1D. Slice 1: bang price_freshness_materials (migration 20261006_1200), QuotifyMaterialFreshnessService (dem phien ban phieu hop le theo received_date, xet tai as_of=min(hom nay, chu nhat tuan), DISTINCT ON cho ngay nhan va nguoi nhap gan nhat), GET /dashboard/quotify/material-freshness quyen price_alerts.manage, week_start gioi han 2000-2100. 18 test PostgreSQL that, 10 phep dot bien deu do, ra soat doc lap sach. Cho: chay truy van phu luc B tren production truoc Slice 4.
+
+## 2026-10-07 01:14:37Z - claude
+
+- Tieu de: Telegram 1D: doi quyen xem bang do moi gia
+- Tom tat: Nguoi dung doi Q5: bang do moi cua gia cho moi nguoi dung Dashboard xem (dashboard.read), khong con gioi han Admin va Manager. Route GET /dashboard/quotify/material-freshness doi tu price_alerts.manage sang dashboard.read, test API doi theo (200 voi dashboard.read, 403 khi thieu). Sua danh sach theo doi van chi Admin va Manager (price_alerts.manage). Ke hoach 1D va memory-bank da cap nhat; Slice 2 khong gate quyen rieng cho bang.

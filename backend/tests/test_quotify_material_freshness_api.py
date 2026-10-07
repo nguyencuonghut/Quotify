@@ -78,11 +78,11 @@ def make_user_with(
 
 
 @pytest.mark.asyncio
-async def test_material_freshness_endpoint_is_open_to_price_alert_managers(
+async def test_material_freshness_endpoint_is_open_to_every_dashboard_reader(
     client: AsyncClient,
     make_user_with: Callable[[str], MockMaterialFreshnessService],
 ) -> None:
-    service = make_user_with("price_alerts.manage")
+    service = make_user_with("dashboard.read")
 
     response = await client.get(
         "/api/v1/dashboard/quotify/material-freshness",
@@ -104,7 +104,7 @@ async def test_material_freshness_endpoint_without_week_uses_the_service_default
     client: AsyncClient,
     make_user_with: Callable[[str], MockMaterialFreshnessService],
 ) -> None:
-    service = make_user_with("price_alerts.manage")
+    service = make_user_with("dashboard.read")
 
     response = await client.get("/api/v1/dashboard/quotify/material-freshness")
 
@@ -113,11 +113,12 @@ async def test_material_freshness_endpoint_without_week_uses_the_service_default
 
 
 @pytest.mark.asyncio
-async def test_material_freshness_endpoint_is_forbidden_with_dashboard_read_only(
+async def test_material_freshness_endpoint_is_forbidden_without_dashboard_read(
     client: AsyncClient,
     make_user_with: Callable[[str], MockMaterialFreshnessService],
 ) -> None:
-    service = make_user_with("dashboard.read")
+    # Có quyền quản lý thông báo giá nhưng không có quyền xem Dashboard thì vẫn bị chặn.
+    service = make_user_with("price_alerts.manage")
 
     response = await client.get("/api/v1/dashboard/quotify/material-freshness")
 
@@ -130,7 +131,7 @@ async def test_material_freshness_endpoint_rejects_an_invalid_week(
     client: AsyncClient,
     make_user_with: Callable[[str], MockMaterialFreshnessService],
 ) -> None:
-    make_user_with("price_alerts.manage")
+    make_user_with("dashboard.read")
 
     response = await client.get(
         "/api/v1/dashboard/quotify/material-freshness",
@@ -147,7 +148,7 @@ async def test_material_freshness_endpoint_rejects_a_week_outside_the_supported_
     make_user_with: Callable[[str], MockMaterialFreshnessService],
     week_start: str,
 ) -> None:
-    service = make_user_with("price_alerts.manage")
+    service = make_user_with("dashboard.read")
 
     response = await client.get(
         "/api/v1/dashboard/quotify/material-freshness",

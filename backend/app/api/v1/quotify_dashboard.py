@@ -94,9 +94,9 @@ async def get_material_freshness(
         QuotifyMaterialFreshnessService,
         Depends(get_quotify_material_freshness_service),
     ],
-    # Cùng quyền với trang cấu hình thông báo giá (Phương án A của kế hoạch 1D): chỉ Admin và
-    # Manager xem được, không dùng `dashboard.read` vì role `user` cũng có quyền đó.
-    _: Annotated[User, Depends(require_permission("price_alerts.manage"))],
+    # Mọi người xem được Dashboard đều xem được bảng này, như các bảng khác của Dashboard. Việc
+    # sửa danh sách theo dõi vẫn cần `price_alerts.manage` (trang cấu hình thông báo giá).
+    _: Annotated[User, Depends(require_permission("dashboard.read"))],
     # Giới hạn khoảng ngày để ngày gần biên (vd. 9999-12-31) không làm tràn khi cộng 6 ngày.
     week_start: Annotated[date | None, Query(ge=date(2000, 1, 1), le=date(2100, 12, 31))] = None,
 ) -> QuotifyMaterialFreshnessResponse:
