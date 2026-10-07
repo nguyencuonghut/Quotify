@@ -678,15 +678,30 @@ Bao bì 25kg     Bao bì         0      0      —                 —      30  
 Tính theo ngày nhận báo giá. Quản lý danh sách theo dõi ở Cấu hình thông báo giá.
 ```
 
-Tin nhắc (minh họa; Manager nhận đủ, User chỉ nhận vật tư mình đã nhập; có âm báo, không nút):
+Tin nhắc (bản đã cải tiến 2026-10-07 sau khi người dùng nhận tin thật và thấy khó đọc trên điện thoại; minh họa với 13 vật tư của ngày đó; Manager nhận đủ, nhân viên chỉ nhận vật tư mình đã nhập; có âm báo, không nút):
 
 ```
-⏰ Vật tư chưa có giá mới (3) · 09:00 07/10
-• Lysine — 18 ngày (chu kỳ 14) · Trần Thị B
-• Khô đậu tương — 8 ngày (chu kỳ 7) · Nguyễn Văn A
-• Threonine — 15 ngày (chu kỳ 14) · Lê Văn C
-Xem chi tiết trên web
+⏰ 13 vật tư chưa có giá mới · 07/10
+🔴 1 trễ nhiều · 🟡 12 vừa trễ
+
+👤 Vũ Hoàng Giang · 1
+🔴 Cám mỳ · 21 ngày
+
+👤 Hoàng Thúy Dung · 7
+🟡 Arginin 98% · 8 ngày
+🟡 Lysine 70% · 8 ngày
+...
+🟡 Methionine 98% (Sum… · 15 ngày
+
+👤 Nguyễn Thị Kim Loan · 3
+🟡 VITAMIN A · 15 ngày
+...
+
+Số ngày tính từ lần nhận giá gần nhất. 🔴 = trễ từ gấp đôi chu kỳ.
+Xem chi tiết trên web →
 ```
+
+Nguyên tắc trình bày: (1) mỗi vật tư một dòng ngắn (tên cắt còn 20 ký tự, dòng không quá 34 ký tự) để không xuống dòng trên điện thoại; (2) đầu tin chỉ có số lượng và tóm tắt mức độ; (3) gom theo **người nhập** vì đó là người cần nhắc, người có vật tư trễ nhiều đứng đầu, "chưa rõ người nhập" luôn cuối; (4) màu 🔴 khi trễ từ gấp đôi chu kỳ, 🟡 còn lại; (5) chu kỳ không đưa vào từng dòng (xem ở bảng web), chỉ giữ số ngày. Bản đầu tiên (mỗi dòng "• tên — N ngày (chu kỳ M) · người nhập") dài 45 đến 70 ký tự nên bị xuống dòng hai lần.
 
 ## Nhật Ký Deploy 1D Lên Production (2026-10-07)
 

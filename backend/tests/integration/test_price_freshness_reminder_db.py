@@ -527,10 +527,19 @@ async def test_the_sender_delivers_one_loud_reminder_listing_only_the_recipients
     by_chat = {int(p["chat_id"]): str(p["text"]) for p in sent}  # type: ignore[call-overload]
     assert len(by_chat) == 2
     texts = sorted(by_chat.values(), key=len)
+
     # Nhân viên chỉ thấy vật tư mình nhập; trưởng phòng thấy cả hai.
-    assert texts[0].count("•") == 1 and texts[1].count("•") == 2
-    assert "Khô đậu tương thử — 15 ngày (chu kỳ 14)" in texts[1]
-    assert all("<b>Vật tư chưa có giá mới" in t and "04/03" in t for t in texts)
+    def material_lines(text: str) -> list[str]:
+        return [
+            row
+            for row in text.split("\n")
+            if row.startswith(("🔴", "🟡")) and row.endswith(" ngày")
+        ]
+
+    assert len(material_lines(texts[0])) == 1 and len(material_lines(texts[1])) == 2
+    assert "🟡 Khô đậu tương thử · 15 ngày" in texts[1]
+    assert all("vật tư chưa có giá mới</b>" in t and "04/03" in t for t in texts)
+    assert all("👤 <b>" in t for t in texts)
     assert all("disable_notification" not in p and "reply_markup" not in p for p in sent)
 
 

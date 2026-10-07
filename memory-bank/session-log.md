@@ -1186,3 +1186,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Bang do moi gia: sort, search, loc nguoi nhap
 - Tom tat: Frontend: sort moi cot (client, null cuoi, lan ba bo sort), tim kiem chung khong dau, loc Nguoi nhap gan nhat, hang loc xuong duoi tieu de, sort picker cho the mobile. Test don vi, e2e, ra soat doc lap sach. Chua deploy.
+
+## 2026-10-07 04:29:34Z - claude
+
+- Tieu de: Cai tien tin nhac Telegram vat tu chua co gia moi
+- Tom tat: Trinh bay lai tin nhac cho dien thoai: dau tin co so luong va tom tat do/vang, gom theo nguoi nhap (nguoi co vat tu tre nhieu dung dau, chua ro nguoi nhap cuoi), moi vat tu mot dong ngan (ten cat 20 ky tu, dong <= 34 ky tu), bo chu ky khoi tung dong, chu thich cuoi tin. 33 test ham thuan, sender test cap nhat. Chua deploy.
