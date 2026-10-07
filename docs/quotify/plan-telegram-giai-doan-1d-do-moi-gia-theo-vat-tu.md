@@ -747,3 +747,9 @@ Người dùng thấy cột "Đối tượng" của sự kiện "Cập nhật c�
 - Kiểm thử: 6 test frontend và 3 test backend mới (đỏ trước khi sửa). Backend 1.265 pass, vitest 4 lỗi cũ, lint 12/57, `vue-tsc` sạch.
 - Triển khai: build lại `backend`, `worker` (dịch vụ duyệt dùng cả ở lệnh bấm nút trong Telegram) và `frontend`; theo runbook 15.6, nhớ `restart reverse-proxy`.
 
+## Nhật Ký Deploy Thứ Hai (2026-10-07, 13:50 đến 13:55)
+
+Deploy nhanh theo runbook 15.6 (không migration, không bảo trì): sửa cột "Đối tượng" của nhật ký audit (`2bd2276`) cùng runbook 15.6 (`18e9e74`). Build `backend`, `worker`, `frontend` thành công; tạo lại ba service và **restart `reverse-proxy`** (đã `Up (healthy)`); `/health` 200, `/auth/refresh` 401; worker khởi động đủ 19 hàm, không lỗi. Người dùng kiểm trên trình duyệt: nhật ký audit hiện "mã · tên vật tư", bảng "Độ mới của giá" (tìm kiếm, lọc người nhập, sắp xếp) hoạt động: đạt.
+
+Trạng thái production sau hai đợt: 1D và các bổ sung (sắp xếp, tìm kiếm, lọc người nhập, tin nhắc dễ đọc trên điện thoại, nhãn audit) đều đã lên; chưa có việc deploy nào còn chờ.
+

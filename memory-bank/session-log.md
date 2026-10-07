@@ -1201,3 +1201,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Audit log: cot Doi tuong cua su kien thong bao gia
 - Tom tat: settings_updated hien Cau hinh chung; threshold, freshness, anomaly_reviewed hien ma · ten vat tu (backend ghi material_code, material_name ca khi bo cau hinh; frontend mapper doc metadata). Test do truoc. Chua deploy.
+
+## 2026-10-07 06:56:00Z - claude
+
+- Tieu de: Deploy thu hai 1D len production
+- Tom tat: Deploy nhanh theo runbook 15.6: nhan audit Doi tuong va runbook. Co restart reverse-proxy, nguoi dung kiem dat. Production da cap nhat het.
