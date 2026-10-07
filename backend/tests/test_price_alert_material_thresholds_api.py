@@ -149,6 +149,9 @@ class MockThresholdService:
         old, self.freshness = self.freshness, None
         return _freshness_diff(old, None)
 
+    async def material_labels(self, material_id: UUID) -> tuple[str, str] | None:
+        return ("NGO", "Ngô hạt") if material_id == MATERIAL_ID else None
+
 
 class MockPreferenceService:
     def __init__(self) -> None:
@@ -515,6 +518,44 @@ async def test_delete_freshness_is_idempotent_204_and_audits_only_once(
     assert first.content == b""
     assert len(audit.events) == 1
     assert audit.events[0]["action"] == "price_alerts.freshness_updated"
+
+
+# --- nhãn vật tư trong nhật ký audit ---------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("action_name", "entity_type", "suffix", "body"),
+    [
+        ("price_alerts.threshold_updated", "price_alert_material_threshold", "", VALID),
+        (
+            "price_alerts.freshness_updated",
+            "price_freshness_material",
+            "/freshness",
+            FRESHNESS_BODY,
+        ),
+    ],
+)
+async def test_every_material_audit_event_records_the_code_and_name_for_readers(
+    client: AsyncClient,
+    deps: tuple[MockThresholdService, MockAuditLogService, MockSession],
+    action_name: str,
+    entity_type: str,
+    suffix: str,
+    body: dict[str, Any],
+) -> None:
+    _, audit, _ = deps
+    url = f"{BASE}/{MATERIAL_ID}{suffix}"
+
+    await client.put(url, json=body)
+    await client.delete(url)
+
+    assert [e["action"] for e in audit.events] == [action_name, action_name]
+    assert all(e["entity_type"] == entity_type for e in audit.events)
+    for event in audit.events:  # cả lần lưu lẫn lần bỏ cấu hình (trước đây lần bỏ chỉ có id)
+        metadata = event["context"].metadata_json
+        assert metadata["material_id"] == str(MATERIAL_ID)
+        assert (metadata["material_code"], metadata["material_name"]) == ("NGO", "Ngô hạt")
 
 
 # --- /users/me/alert-preferences ---------------------------------------------

@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from test_price_alert_anomaly_messages_db import flag, new_run, scene  # noqa: F401
 
-from app.models import AuditLog, PriceAlertEvent
+from app.models import AuditLog, Material, PriceAlertEvent
 from app.services.price_alert_anomaly import excluded_line_ids
 from app.services.price_alert_review_service import PriceAlertReviewService, ReviewOutcome
 
@@ -72,6 +72,13 @@ async def test_a_manager_confirming_the_price_makes_the_line_valid_again(scene: 
         ).scalar_one()
     assert audit.metadata_json["status"] == "accepted"
     assert "telegram_user_id" not in audit.metadata_json
+    async with scene.sf() as session:
+        code = (
+            await session.execute(select(Material.code).where(Material.id == scene.material))
+        ).scalar_one()
+    # Người đọc nhật ký cần thấy vật tư nào, không chỉ id của thẻ.
+    assert audit.metadata_json["material_code"] == code
+    assert audit.metadata_json["material_name"] == "Vật tư thử"
 
 
 async def test_marking_the_price_wrong_keeps_the_line_excluded(scene: Scene) -> None:  # noqa: F811

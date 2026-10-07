@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.permissions import has_permission
 from app.auth.service import AuthService
 from app.integrations.telegram import TELEGRAM_MESSAGE_MAX_LENGTH, escape_html
-from app.models import PriceAlertEvent, PriceAlertMessage, TelegramAccount, User
+from app.models import Material, PriceAlertEvent, PriceAlertMessage, TelegramAccount, User
 from app.services.audit_log import AuditLogContext, AuditLogService
 from app.services.price_alert_anomaly_formatter import (
     AnomalyPointView,
@@ -100,11 +100,21 @@ class PriceAlertReviewService:
                 metadata_json={
                     "status": status,
                     "material_id": str(won),
+                    **await self._material_labels(won),
                 },
                 request_id=request_id,
             ),
         )
         return ReviewResult(ReviewOutcome.REVIEWED, status, actor.full_name, now)
+
+    async def _material_labels(self, material_id: UUID) -> dict[str, str]:
+        """Mã và tên vật tư cho nhật ký audit (người đọc cần biết vật tư nào, không chỉ id thẻ)."""
+        row = (
+            await self.session.execute(
+                select(Material.code, Material.name).where(Material.id == material_id)
+            )
+        ).first()
+        return {} if row is None else {"material_code": row[0], "material_name": row[1]}
 
     async def _already(self, event_id: UUID) -> ReviewResult:
         row = (

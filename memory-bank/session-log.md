@@ -1196,3 +1196,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Su co 502 sau deploy: thieu restart reverse-proxy
 - Tom tat: Sau up -d --force-recreate phai restart reverse-proxy (nginx giu IP cu). Them runbook muc 15.6 deploy nhanh co buoc nay. Ban dinh dang tin nhac va bang Do moi gia da len production.
+
+## 2026-10-07 06:44:25Z - claude
+
+- Tieu de: Audit log: cot Doi tuong cua su kien thong bao gia
+- Tom tat: settings_updated hien Cau hinh chung; threshold, freshness, anomaly_reviewed hien ma · ten vat tu (backend ghi material_code, material_name ca khi bo cau hinh; frontend mapper doc metadata). Test do truoc. Chua deploy.

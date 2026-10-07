@@ -250,6 +250,15 @@ class PriceAlertMaterialThresholdService:
         await self.session.flush()
         return _freshness_diff(old, None)
 
+    async def material_labels(self, material_id: UUID) -> tuple[str, str] | None:
+        """Mã và tên vật tư để ghi vào nhật ký audit; None nếu không có vật tư."""
+        row = (
+            await self.session.execute(
+                select(Material.code, Material.name).where(Material.id == material_id)
+            )
+        ).first()
+        return None if row is None else (row[0], row[1])
+
     async def _get_freshness_row(
         self,
         material_id: UUID,

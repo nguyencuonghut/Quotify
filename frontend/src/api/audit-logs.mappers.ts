@@ -80,7 +80,16 @@ export function getAuditEntityTypeLabel(entityType: string): string {
   return ENTITY_TYPE_LABELS[entityType] || entityType
 }
 
+// Cấu hình chung của thông báo giá chỉ có một hàng (id cố định), nên id không có nghĩa gì với người đọc.
+const FIXED_TARGET_LABELS: Record<string, string> = {
+  price_alert_setting: 'Cấu hình chung',
+}
+
 export function getAuditTargetLabel(dto: AuditLogDto): string {
+  const fixed = FIXED_TARGET_LABELS[dto.entity_type]
+  if (fixed) {
+    return fixed
+  }
   if (dto.metadata) {
     const email = readStringMetadata(dto.metadata, 'email')
     if (email) {
@@ -95,6 +104,16 @@ export function getAuditTargetLabel(dto: AuditLogDto): string {
     const filename = readStringMetadata(dto.metadata, 'filename')
     if (filename) {
       return filename
+    }
+
+    // Vật tư (ngưỡng, theo dõi độ mới, duyệt giá bất thường): "mã · tên", hoặc chỉ mã với bản ghi cũ.
+    const materialCode = readStringMetadata(dto.metadata, 'material_code')
+    const materialName = readStringMetadata(dto.metadata, 'material_name')
+    if (materialCode && materialName) {
+      return `${materialCode} · ${materialName}`
+    }
+    if (materialCode || materialName) {
+      return (materialCode || materialName) as string
     }
   }
 

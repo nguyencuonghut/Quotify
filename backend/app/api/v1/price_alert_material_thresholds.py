@@ -70,6 +70,20 @@ def _build_effective(effective: EffectiveThresholds) -> EffectiveThresholdsRespo
     )
 
 
+async def _material_metadata(
+    service: PriceAlertMaterialThresholdService,
+    material_id: UUID,
+    changes: list[dict[str, str]],
+) -> dict[str, object]:
+    """Metadata audit của một vật tư: id, mã và tên (để nhật ký đọc được) cùng các thay đổi."""
+    metadata: dict[str, object] = {"material_id": str(material_id)}
+    labels = await service.material_labels(material_id)
+    if labels is not None:
+        metadata["material_code"], metadata["material_name"] = labels
+    metadata["changes"] = changes
+    return metadata
+
+
 def _build_freshness(config: FreshnessConfig | None) -> MaterialFreshnessConfigResponse | None:
     if config is None:
         return None
@@ -160,11 +174,7 @@ async def put_material_threshold(
                 request=request,
                 current_user=current_user,
                 entity_id=str(material_id),
-                metadata_json={
-                    "material_id": str(material_id),
-                    "material_code": result.view.code,
-                    "changes": result.changes,
-                },
+                metadata_json=await _material_metadata(service, material_id, result.changes),
             ),
         )
     await session.commit()
@@ -196,7 +206,7 @@ async def delete_material_threshold(
                 request=request,
                 current_user=current_user,
                 entity_id=str(material_id),
-                metadata_json={"material_id": str(material_id), "changes": changes},
+                metadata_json=await _material_metadata(service, material_id, changes),
             ),
         )
     await session.commit()
@@ -241,11 +251,7 @@ async def put_material_freshness(
                 request=request,
                 current_user=current_user,
                 entity_id=str(material_id),
-                metadata_json={
-                    "material_id": str(material_id),
-                    "material_code": result.code,
-                    "changes": result.changes,
-                },
+                metadata_json=await _material_metadata(service, material_id, result.changes),
             ),
         )
     await session.commit()
@@ -275,7 +281,7 @@ async def delete_material_freshness(
                 request=request,
                 current_user=current_user,
                 entity_id=str(material_id),
-                metadata_json={"material_id": str(material_id), "changes": changes},
+                metadata_json=await _material_metadata(service, material_id, changes),
             ),
         )
     await session.commit()

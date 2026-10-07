@@ -730,3 +730,20 @@ Theo yêu cầu của người dùng, chỉ ở frontend (bảng dưới 200 dò
 
 Người dùng deploy `frontend`, `backend`, `worker` bằng `up -d --force-recreate` nhưng chưa restart `reverse-proxy`: trình duyệt nhận `502` ở lần gọi khởi tạo (`ApiError: API request failed`), `reverse-proxy` hiện `unhealthy` do nginx giữ địa chỉ IP cũ. Sau `docker compose restart reverse-proxy` mọi thứ chạy lại (`/health` 200, `/auth/refresh` 401). Nguyên nhân gốc là hướng dẫn deploy nhanh của em thiếu bước restart; đã thêm mục 15.6 vào runbook với bước này in đậm.
 
+## Sửa Cột "Đối Tượng" Của Nhật Ký Audit Cho Sự Kiện Thông Báo Giá (2026-10-07)
+
+Người dùng thấy cột "Đối tượng" của sự kiện "Cập nhật cấu hình thông báo giá" hiện một UUID vô nghĩa (`00000000-0000-4000-8000-0000000000a1`, id cố định của hàng cấu hình duy nhất). Rà soát cho cả nhóm sự kiện thông báo giá:
+
+| Sự kiện | Trước | Sau |
+|---|---|---|
+| `price_alerts.settings_updated` | UUID của hàng cấu hình | "Cấu hình chung" (hằng, id vẫn xem được ở chi tiết) |
+| `price_alerts.threshold_updated` | UUID vật tư; lần bỏ ngưỡng không có mã | "mã · tên vật tư" (mã và tên ghi vào metadata cả khi lưu lẫn khi bỏ) |
+| `price_alerts.freshness_updated` | như trên | "mã · tên vật tư" |
+| `price_alerts.anomaly_reviewed` | UUID thẻ | "mã · tên vật tư" (metadata thêm `material_code`, `material_name`) |
+
+- Frontend: `getAuditTargetLabel` thêm nhãn cố định cho `price_alert_setting` và đọc `material_code` và `material_name` trong metadata (bản ghi cũ chỉ có mã thì hiện mã; không có gì thì vẫn hiện id).
+- Backend: `PriceAlertMaterialThresholdService.material_labels`, `_material_metadata` dùng chung cho bốn lệnh ghi audit của vật tư, và dịch vụ duyệt giá bất thường cũng ghi mã và tên.
+- Các bản ghi audit đã có không được sửa (nhật ký bất biến); bản ghi cũ của vật tư vẫn hiện mã hoặc id.
+- Kiểm thử: 6 test frontend và 3 test backend mới (đỏ trước khi sửa). Backend 1.265 pass, vitest 4 lỗi cũ, lint 12/57, `vue-tsc` sạch.
+- Triển khai: build lại `backend`, `worker` (dịch vụ duyệt dùng cả ở lệnh bấm nút trong Telegram) và `frontend`; theo runbook 15.6, nhớ `restart reverse-proxy`.
+
