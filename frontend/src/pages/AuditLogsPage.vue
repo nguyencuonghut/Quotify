@@ -299,6 +299,10 @@ const actionFilterOptions = [
     label: 'Cập nhật ngưỡng theo vật tư',
     value: 'price_alerts.threshold_updated',
   },
+  {
+    label: 'Cập nhật theo dõi độ mới của giá',
+    value: 'price_alerts.freshness_updated',
+  },
   { label: 'Duyệt giá bất thường', value: 'price_alerts.anomaly_reviewed' },
 ]
 const entityTypeFilterOptions = [
@@ -316,6 +320,10 @@ const entityTypeFilterOptions = [
   {
     label: 'Ngưỡng thông báo theo vật tư',
     value: 'price_alert_material_threshold',
+  },
+  {
+    label: 'Theo dõi độ mới của giá theo vật tư',
+    value: 'price_freshness_material',
   },
   { label: 'Điểm giá bất thường', value: 'price_alert_event' },
 ]

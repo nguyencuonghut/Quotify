@@ -142,4 +142,42 @@ describe('price alert settings mappers', () => {
     expect(withAnomaly.anomalyIsDefault).toBe(false)
     expect(withAnomaly.anomalyLabel).toBe('45,00%')
   })
+
+  it('maps the watch-list config of a material with Vietnamese labels', () => {
+    const base: MaterialThresholdItemDto = {
+      material_id: 'm1',
+      code: 'LM3',
+      name: 'Lúa mỳ 3',
+      override: null,
+      effective: {
+        light_from_percent: '2.50',
+        medium_from_percent: '5.00',
+        large_over_percent: '10.00',
+        anomaly_percent: '30.00',
+      },
+    }
+
+    const none = mapMaterialItemDtoToDomain(base)
+    expect(none.freshness).toBeNull()
+    expect(none.watchLabel).toBe('Chưa đặt')
+    expect(none.intervalLabel).toBe('—')
+
+    const watched = mapMaterialItemDtoToDomain({
+      ...base,
+      freshness: { is_watched: true, expected_interval_days: 14 },
+    })
+    expect(watched.freshness).toEqual({
+      isWatched: true,
+      expectedIntervalDays: 14,
+    })
+    expect(watched.watchLabel).toBe('Có')
+    expect(watched.intervalLabel).toBe('14')
+
+    const off = mapMaterialItemDtoToDomain({
+      ...base,
+      freshness: { is_watched: false, expected_interval_days: 7 },
+    })
+    expect(off.watchLabel).toBe('Không')
+    expect(off.intervalLabel).toBe('7')
+  })
 })

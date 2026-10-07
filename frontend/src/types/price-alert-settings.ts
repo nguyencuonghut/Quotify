@@ -64,12 +64,28 @@ export interface ThresholdsDto {
   anomaly_percent: string | null
 }
 
+export interface MaterialFreshnessConfigDto {
+  is_watched: boolean
+  expected_interval_days: number
+}
+
+export interface MaterialFreshnessConfig {
+  isWatched: boolean
+  expectedIntervalDays: number
+}
+
+export interface MaterialFreshnessUpdatePayload {
+  is_watched: boolean
+  expected_interval_days: number
+}
+
 export interface MaterialThresholdItemDto {
   material_id: string
   code: string
   name: string
   override: ThresholdsDto | null
   effective: Required<{ [K in keyof ThresholdsDto]: string }>
+  freshness?: MaterialFreshnessConfigDto | null
 }
 
 export interface MaterialThresholdListDto {
@@ -91,6 +107,9 @@ export interface MaterialThresholdDomain {
   hasOverride: boolean
   override: Thresholds | null
   effective: Thresholds & { anomaly: number }
+  freshness: MaterialFreshnessConfig | null
+  watchLabel: string
+  intervalLabel: string
   lightLabel: string
   mediumLabel: string
   largeLabel: string

@@ -162,6 +162,9 @@ describe('audit log mappers', () => {
     expect(getAuditActionLabel('price_alerts.threshold_updated')).toBe(
       'Cập nhật ngưỡng theo vật tư',
     )
+    expect(getAuditActionLabel('price_alerts.freshness_updated')).toBe(
+      'Cập nhật theo dõi độ mới của giá',
+    )
     expect(getAuditActionLabel('price_alerts.anomaly_reviewed')).toBe(
       'Duyệt giá bất thường',
     )
@@ -171,6 +174,9 @@ describe('audit log mappers', () => {
     )
     expect(getAuditEntityTypeLabel('price_alert_material_threshold')).toBe(
       'Ngưỡng thông báo theo vật tư',
+    )
+    expect(getAuditEntityTypeLabel('price_freshness_material')).toBe(
+      'Theo dõi độ mới của giá theo vật tư',
     )
     expect(getAuditEntityTypeLabel('price_alert_event')).toBe(
       'Điểm giá bất thường',

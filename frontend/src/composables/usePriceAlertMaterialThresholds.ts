@@ -5,8 +5,10 @@ import { z } from 'zod'
 
 import { ApiError } from '@/api/http'
 import {
+  deleteMaterialFreshness,
   deleteMaterialThreshold,
   listMaterialThresholds,
+  putMaterialFreshness,
   putMaterialThreshold,
 } from '@/api/price-alert-settings.api'
 import { useAuthStore } from '@/stores/auth.store'
@@ -15,6 +17,9 @@ import type { MaterialThresholdDomain } from '@/types/price-alert-settings'
 
 const DEFAULT_ROWS = 10
 const SEARCH_DELAY_MS = 300
+const DEFAULT_WATCH_INTERVAL_DAYS = 14
+const WATCH_INTERVAL_ERROR = 'Chu kỳ phải là số nguyên từ 1 đến 365 ngày.'
+const WATCH_PERMISSION_ERROR = 'Bạn không có quyền sửa cấu hình thông báo giá.'
 
 function percent(label: string) {
   return z
@@ -83,6 +88,25 @@ function describeSaveError(error: unknown): string {
   return 'Không thể lưu ngưỡng. Vui lòng thử lại.'
 }
 
+function describeWatchError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 404) {
+      return 'Không tìm thấy vật tư này.'
+    }
+    if (error.status === 422) {
+      return WATCH_INTERVAL_ERROR
+    }
+    if (error.status === 403) {
+      return WATCH_PERMISSION_ERROR
+    }
+  }
+  return 'Không thể lưu theo dõi giá. Vui lòng thử lại.'
+}
+
+function isValidInterval(value: number | null): value is number {
+  return value !== null && Number.isInteger(value) && value >= 1 && value <= 365
+}
+
 export function usePriceAlertMaterialThresholds() {
   const authStore = useAuthStore()
   const permissionStore = usePermissionStore()
@@ -103,6 +127,15 @@ export function usePriceAlertMaterialThresholds() {
   const successMessage = ref<string | null>(null)
 
   const canEdit = computed(() => permissionStore.can('price_alerts.manage'))
+
+  // Hộp thoại theo dõi độ mới của giá có trạng thái riêng (không dùng chung `target`, `isBusy`,
+  // `errorMessage` của hộp thoại ngưỡng) nhưng dùng chung danh sách và `successMessage`.
+  const watchDialogVisible = ref(false)
+  const watchTarget = ref<MaterialThresholdDomain | null>(null)
+  const watchEnabled = ref(true)
+  const watchInterval = ref<number | null>(DEFAULT_WATCH_INTERVAL_DAYS)
+  const watchBusy = ref(false)
+  const watchError = ref<string | null>(null)
 
   const form = useForm({
     initialValues: {
@@ -275,7 +308,86 @@ export function usePriceAlertMaterialThresholds() {
     }
   }
 
+  function openWatchEdit(item: MaterialThresholdDomain) {
+    watchTarget.value = item
+    watchError.value = null
+    successMessage.value = null
+    watchEnabled.value = item.freshness?.isWatched ?? true
+    watchInterval.value = item.freshness?.expectedIntervalDays ?? DEFAULT_WATCH_INTERVAL_DAYS
+    watchDialogVisible.value = true
+  }
+
+  function closeWatchDialog() {
+    if (watchBusy.value) {
+      return
+    }
+    watchDialogVisible.value = false
+    watchTarget.value = null
+  }
+
+  async function runWatchAction(
+    action: (current: MaterialThresholdDomain) => Promise<string>,
+  ) {
+    const current = watchTarget.value
+    if (watchBusy.value || !current) {
+      return
+    }
+    if (!canEdit.value) {
+      watchError.value = WATCH_PERMISSION_ERROR
+      return
+    }
+    watchBusy.value = true
+    watchError.value = null
+    successMessage.value = null
+    let done = false
+    try {
+      successMessage.value = await action(current)
+      done = true
+    } catch (error) {
+      watchError.value = describeWatchError(error)
+    } finally {
+      watchBusy.value = false
+    }
+    if (done) {
+      closeWatchDialog()
+      await fetchMaterials()
+    }
+  }
+
+  async function saveWatch() {
+    if (!isValidInterval(watchInterval.value)) {
+      watchError.value = WATCH_INTERVAL_ERROR
+      return
+    }
+    const interval = watchInterval.value
+    await runWatchAction(async (current) => {
+      await putMaterialFreshness(
+        current.materialId,
+        { is_watched: watchEnabled.value, expected_interval_days: interval },
+        authStore.accessToken,
+      )
+      return `Đã lưu theo dõi giá cho ${current.name}.`
+    })
+  }
+
+  async function clearWatch() {
+    await runWatchAction(async (current) => {
+      await deleteMaterialFreshness(current.materialId, authStore.accessToken)
+      return `Đã bỏ cấu hình theo dõi giá của ${current.name}.`
+    })
+  }
+
   return {
+    watchDialogVisible,
+    watchTarget,
+    watchEnabled,
+    watchInterval,
+    watchBusy,
+    watchError,
+    openWatchEdit,
+    closeWatchDialog,
+    saveWatch,
+    clearWatch,
     materials,
     total,
     loading,

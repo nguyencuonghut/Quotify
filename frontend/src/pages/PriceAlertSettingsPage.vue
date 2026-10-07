@@ -274,6 +274,25 @@
                 />
               </template>
             </Column>
+            <Column header="Theo dõi">
+              <template #body="{ data }">
+                <Tag
+                  v-if="data.freshness"
+                  :severity="data.freshness.isWatched ? 'success' : 'secondary'"
+                  :value="data.watchLabel"
+                />
+                <span v-else class="price-alert-settings-page__muted">
+                  {{ data.watchLabel }}
+                </span>
+              </template>
+            </Column>
+            <Column header="Chu kỳ (ngày)">
+              <template #body="{ data }">
+                <span :class="valueClass(Boolean(data.freshness?.isWatched))">
+                  {{ data.intervalLabel }}
+                </span>
+              </template>
+            </Column>
             <Column
               header="Thao tác"
               class="price-alert-settings-page__actions-column"
@@ -293,6 +312,21 @@
                   :disabled="!canEdit"
                   data-testid="material-edit"
                   @click="openEdit(data)"
+                />
+                <Button
+                  :aria-label="`Theo dõi giá ${data.name}`"
+                  :title="
+                    canEdit
+                      ? 'Theo dõi độ mới của giá'
+                      : 'Bạn không có quyền sửa cấu hình này.'
+                  "
+                  icon="pi pi-eye"
+                  rounded
+                  severity="secondary"
+                  text
+                  :disabled="!canEdit"
+                  data-testid="material-watch"
+                  @click="openWatchEdit(data)"
                 />
               </template>
             </Column>
@@ -379,6 +413,85 @@
           />
         </template>
       </Dialog>
+
+      <Dialog
+        v-model:visible="watchDialogVisible"
+        :header="watchTarget ? `Theo dõi giá: ${watchTarget.name}` : 'Theo dõi giá'"
+        modal
+        :closable="!watchBusy"
+        :close-on-escape="!watchBusy"
+        class="price-alert-settings-page__dialog"
+        @hide="closeWatchDialog"
+      >
+        <div class="price-alert-settings-page__dialog-grid">
+          <div class="price-alert-settings-page__field">
+            <label class="price-alert-settings-page__label" for="watch-enabled">
+              Theo dõi độ mới của giá
+            </label>
+            <ToggleSwitch
+              v-model="watchEnabled"
+              input-id="watch-enabled"
+              :disabled="watchBusy"
+            />
+          </div>
+          <div class="price-alert-settings-page__field">
+            <label
+              class="price-alert-settings-page__label required"
+              for="watch-interval"
+            >
+              Chu kỳ kỳ vọng (ngày)
+            </label>
+            <InputNumber
+              v-model="watchInterval"
+              input-id="watch-interval"
+              :disabled="watchBusy"
+              :min="1"
+              :max="365"
+              :use-grouping="false"
+              suffix=" ngày"
+            />
+          </div>
+        </div>
+        <p class="price-alert-settings-page__hint">
+          Vật tư quá chu kỳ mà chưa có giá mới sẽ hiện "Quá hạn" ở Dashboard và
+          được nhắc khi bật nhắc cập nhật giá. Tắt theo dõi nếu vật tư này
+          không cần cập nhật đều.
+        </p>
+        <div
+          v-if="watchError"
+          class="price-alert-settings-page__general-error"
+          role="alert"
+          data-testid="watch-error"
+        >
+          <i class="pi pi-exclamation-triangle" aria-hidden="true" />
+          <span>{{ watchError }}</span>
+        </div>
+        <template #footer>
+          <Button
+            v-if="watchTarget?.freshness"
+            label="Bỏ cấu hình"
+            severity="secondary"
+            outlined
+            :disabled="watchBusy"
+            data-testid="watch-clear"
+            @click="clearWatch"
+          />
+          <Button
+            label="Hủy"
+            severity="secondary"
+            outlined
+            :disabled="watchBusy"
+            data-testid="watch-cancel"
+            @click="closeWatchDialog"
+          />
+          <Button
+            label="Lưu theo dõi"
+            :disabled="watchBusy"
+            data-testid="watch-save"
+            @click="saveWatch"
+          />
+        </template>
+      </Dialog>
     </div>
   </AdminLayout>
 </template>
@@ -435,6 +548,16 @@ const {
   closeDialog,
   saveOverride,
   resetToDefault,
+  watchDialogVisible,
+  watchTarget,
+  watchEnabled,
+  watchInterval,
+  watchBusy,
+  watchError,
+  openWatchEdit,
+  closeWatchDialog,
+  saveWatch,
+  clearWatch,
 } = usePriceAlertMaterialThresholds()
 
 const thresholdFields = [

@@ -19,12 +19,15 @@ from app.db.session import get_db_session
 from app.models import Permission, Role, User, UserAlertPreference, UserStatus
 from app.services.price_alert_material_threshold_service import (
     EffectiveThresholds,
+    FreshnessChange,
+    FreshnessConfig,
     MaterialNotFoundError,
     MaterialThresholdChange,
     MaterialThresholdPage,
     MaterialThresholdView,
     ThresholdOverride,
     _diff,
+    _freshness_diff,
     validate_override,
 )
 from app.services.user_alert_preference_service import AlertPreferences, build_preferences
@@ -43,6 +46,9 @@ VALID = {
     "large_over_percent": "6.00",
     "anomaly_percent": None,
 }
+
+
+FRESHNESS_BODY = {"is_watched": True, "expected_interval_days": 14}
 
 
 class MockSession:
@@ -64,6 +70,7 @@ class MockAuditLogService:
 class MockThresholdService:
     def __init__(self) -> None:
         self.override: ThresholdOverride | None = None
+        self.freshness: FreshnessConfig | None = None
         self.calls: list[dict[str, Any]] = []
 
     async def list_materials(self, *, limit: int, offset: int, search: str | None) -> Any:
@@ -74,6 +81,7 @@ class MockThresholdService:
             name="Ngô hạt",
             override=self.override,
             effective=DEFAULTS,
+            freshness=self.freshness,
         )
         return MaterialThresholdPage(items=[view], total=1)
 
@@ -105,6 +113,25 @@ class MockThresholdService:
     async def clear_override(self, *, material_id: UUID) -> list[dict[str, str]]:
         old, self.override = self.override, None
         return _diff(old, None)
+
+    async def set_freshness(
+        self,
+        *,
+        material_id: UUID,
+        is_watched: bool,
+        expected_interval_days: int,
+        updated_by_id: UUID,
+    ) -> FreshnessChange:
+        if material_id != MATERIAL_ID:
+            raise MaterialNotFoundError(str(material_id))
+        new = FreshnessConfig(is_watched, expected_interval_days)
+        changes = _freshness_diff(self.freshness, new)
+        self.freshness = new
+        return FreshnessChange(material_id=material_id, code="NGO", config=new, changes=changes)
+
+    async def clear_freshness(self, *, material_id: UUID) -> list[dict[str, str]]:
+        old, self.freshness = self.freshness, None
+        return _freshness_diff(old, None)
 
 
 class MockPreferenceService:
@@ -179,8 +206,9 @@ async def test_list_returns_contract_shape_and_forwards_paging(
     body = response.json()
     assert body["total"] == 1
     item = body["items"][0]
-    assert set(item) == {"material_id", "code", "name", "override", "effective"}
+    assert set(item) == {"material_id", "code", "name", "override", "effective", "freshness"}
     assert item["override"] is None
+    assert item["freshness"] is None
     assert item["effective"]["anomaly_percent"] == "30.00"
     assert service.calls == [{"limit": 50, "offset": 10, "search": "ng"}]
 
@@ -327,7 +355,13 @@ async def test_delete_is_idempotent_204_with_empty_body_and_audits_only_once(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("method", "path"),
-    [("get", ""), ("put", f"/{MATERIAL_ID}"), ("delete", f"/{MATERIAL_ID}")],
+    [
+        ("get", ""),
+        ("put", f"/{MATERIAL_ID}"),
+        ("delete", f"/{MATERIAL_ID}"),
+        ("put", f"/{MATERIAL_ID}/freshness"),
+        ("delete", f"/{MATERIAL_ID}/freshness"),
+    ],
 )
 async def test_without_manage_permission_is_403_and_without_login_is_401(
     app: FastAPI,
@@ -336,7 +370,9 @@ async def test_without_manage_permission_is_403_and_without_login_is_401(
     method: str,
     path: str,
 ) -> None:
-    kwargs: dict[str, Any] = {"json": VALID} if method == "put" else {}
+    kwargs: dict[str, Any] = {}
+    if method == "put":
+        kwargs["json"] = FRESHNESS_BODY if path.endswith("/freshness") else VALID
     app.dependency_overrides[get_current_user] = lambda: _build_user(
         ["alert-role"],
         ["price_alerts.receive_all"],
@@ -345,6 +381,96 @@ async def test_without_manage_permission_is_403_and_without_login_is_401(
 
     app.dependency_overrides.pop(get_current_user)
     assert (await client.request(method, BASE + path, **kwargs)).status_code == 401
+
+
+# --- theo dõi độ mới của giá theo vật tư --------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_shows_the_freshness_config_after_it_is_saved(
+    client: AsyncClient,
+    deps: tuple[MockThresholdService, MockAuditLogService, MockSession],
+) -> None:
+    await client.put(f"{BASE}/{MATERIAL_ID}/freshness", json=FRESHNESS_BODY)
+
+    item = (await client.get(BASE)).json()["items"][0]
+
+    assert item["freshness"] == {"is_watched": True, "expected_interval_days": 14}
+
+
+@pytest.mark.asyncio
+async def test_put_freshness_saves_audits_and_does_not_audit_an_unchanged_save(
+    client: AsyncClient,
+    deps: tuple[MockThresholdService, MockAuditLogService, MockSession],
+) -> None:
+    _, audit, session = deps
+
+    response = await client.put(f"{BASE}/{MATERIAL_ID}/freshness", json=FRESHNESS_BODY)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "material_id": str(MATERIAL_ID),
+        "freshness": {"is_watched": True, "expected_interval_days": 14},
+    }
+    assert len(audit.events) == 1
+    event = audit.events[0]
+    assert event["action"] == "price_alerts.freshness_updated"
+    assert event["entity_type"] == "price_freshness_material"
+    metadata = event["context"].metadata_json
+    assert metadata["material_code"] == "NGO"
+    assert [c["field"] for c in metadata["changes"]] == ["is_watched", "expected_interval_days"]
+    assert session.commits == 1
+
+    await client.put(f"{BASE}/{MATERIAL_ID}/freshness", json=FRESHNESS_BODY)
+    assert len(audit.events) == 1
+
+
+@pytest.mark.asyncio
+async def test_put_freshness_unknown_material_is_404(
+    client: AsyncClient,
+    deps: tuple[MockThresholdService, MockAuditLogService, MockSession],
+) -> None:
+    response = await client.put(f"{BASE}/{uuid4()}/freshness", json=FRESHNESS_BODY)
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Material not found"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"is_watched": True, "expected_interval_days": 0},
+        {"is_watched": True, "expected_interval_days": 366},
+        {"is_watched": True, "expected_interval_days": 7.5},
+        {"is_watched": True},
+        {"expected_interval_days": 7},
+    ],
+)
+async def test_put_freshness_rejects_bad_bodies(
+    client: AsyncClient,
+    deps: tuple[MockThresholdService, MockAuditLogService, MockSession],
+    body: dict[str, Any],
+) -> None:
+    assert (await client.put(f"{BASE}/{MATERIAL_ID}/freshness", json=body)).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_delete_freshness_is_idempotent_204_and_audits_only_once(
+    client: AsyncClient,
+    deps: tuple[MockThresholdService, MockAuditLogService, MockSession],
+) -> None:
+    _, audit, _ = deps
+    await client.put(f"{BASE}/{MATERIAL_ID}/freshness", json=FRESHNESS_BODY)
+    audit.events.clear()
+
+    first = await client.delete(f"{BASE}/{MATERIAL_ID}/freshness")
+    second = await client.delete(f"{BASE}/{MATERIAL_ID}/freshness")
+
+    assert first.status_code == second.status_code == 204
+    assert first.content == b""
+    assert len(audit.events) == 1
+    assert audit.events[0]["action"] == "price_alerts.freshness_updated"
 
 
 # --- /users/me/alert-preferences ---------------------------------------------

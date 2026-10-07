@@ -5,6 +5,7 @@ import {
   mapSettingsDtoToDomain,
 } from '@/api/price-alert-settings.mappers'
 import type {
+  MaterialFreshnessUpdatePayload,
   MaterialThresholdDomain,
   MaterialThresholdItemDto,
   MaterialThresholdListDomain,
@@ -75,6 +76,28 @@ export function putMaterialThreshold(
       effective: dto.effective,
     }),
   )
+}
+
+export function putMaterialFreshness(
+  materialId: string,
+  payload: MaterialFreshnessUpdatePayload,
+  accessToken?: string | null,
+): Promise<void> {
+  return apiRequest<unknown>(`/price-alert-settings/materials/${materialId}/freshness`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    accessToken,
+  }).then(() => undefined)
+}
+
+export function deleteMaterialFreshness(
+  materialId: string,
+  accessToken?: string | null,
+): Promise<void> {
+  return apiRequest<void>(`/price-alert-settings/materials/${materialId}/freshness`, {
+    method: 'DELETE',
+    accessToken,
+  })
 }
 
 export function deleteMaterialThreshold(

@@ -11,6 +11,9 @@ from app.db.session import get_db_session
 from app.models import User
 from app.schemas.price_alert_material_thresholds import (
     EffectiveThresholdsResponse,
+    MaterialFreshnessConfigResponse,
+    MaterialFreshnessResponse,
+    MaterialFreshnessUpdateRequest,
     MaterialThresholdItemResponse,
     MaterialThresholdListResponse,
     MaterialThresholdOverrideResponse,
@@ -20,6 +23,7 @@ from app.schemas.price_alert_material_thresholds import (
 from app.services import AuditLogContext, AuditLogService
 from app.services.price_alert_material_threshold_service import (
     EffectiveThresholds,
+    FreshnessConfig,
     MaterialNotFoundError,
     MaterialThresholdView,
     PriceAlertMaterialThresholdService,
@@ -66,6 +70,15 @@ def _build_effective(effective: EffectiveThresholds) -> EffectiveThresholdsRespo
     )
 
 
+def _build_freshness(config: FreshnessConfig | None) -> MaterialFreshnessConfigResponse | None:
+    if config is None:
+        return None
+    return MaterialFreshnessConfigResponse(
+        is_watched=config.is_watched,
+        expected_interval_days=config.expected_interval_days,
+    )
+
+
 def _build_item(view: MaterialThresholdView) -> MaterialThresholdItemResponse:
     return MaterialThresholdItemResponse(
         material_id=view.material_id,
@@ -73,6 +86,7 @@ def _build_item(view: MaterialThresholdView) -> MaterialThresholdItemResponse:
         name=view.name,
         override=_build_override(view.override),
         effective=_build_effective(view.effective),
+        freshness=_build_freshness(view.freshness),
     )
 
 
@@ -170,6 +184,85 @@ async def delete_material_threshold(
         await audit_log_service.log_event(
             action="price_alerts.threshold_updated",
             entity_type="price_alert_material_threshold",
+            context=AuditLogContext.from_request(
+                request=request,
+                current_user=current_user,
+                entity_id=str(material_id),
+                metadata_json={"material_id": str(material_id), "changes": changes},
+            ),
+        )
+    await session.commit()
+
+
+@router.put("/{material_id}/freshness", response_model=MaterialFreshnessResponse)
+async def put_material_freshness(
+    request: Request,
+    material_id: UUID,
+    payload: MaterialFreshnessUpdateRequest,
+    current_user: Annotated[User, Depends(require_permission("price_alerts.manage"))],
+    service: Annotated[
+        PriceAlertMaterialThresholdService,
+        Depends(get_material_threshold_service),
+    ],
+    audit_log_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> MaterialFreshnessResponse:
+    try:
+        result = await service.set_freshness(
+            material_id=material_id,
+            is_watched=payload.is_watched,
+            expected_interval_days=payload.expected_interval_days,
+            updated_by_id=current_user.id,
+        )
+    except MaterialNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    if result.changes:
+        await audit_log_service.log_event(
+            action="price_alerts.freshness_updated",
+            entity_type="price_freshness_material",
+            context=AuditLogContext.from_request(
+                request=request,
+                current_user=current_user,
+                entity_id=str(material_id),
+                metadata_json={
+                    "material_id": str(material_id),
+                    "material_code": result.code,
+                    "changes": result.changes,
+                },
+            ),
+        )
+    await session.commit()
+    freshness = _build_freshness(result.config)
+    assert freshness is not None
+    return MaterialFreshnessResponse(material_id=result.material_id, freshness=freshness)
+
+
+@router.delete("/{material_id}/freshness", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_material_freshness(
+    request: Request,
+    material_id: UUID,
+    current_user: Annotated[User, Depends(require_permission("price_alerts.manage"))],
+    service: Annotated[
+        PriceAlertMaterialThresholdService,
+        Depends(get_material_threshold_service),
+    ],
+    audit_log_service: Annotated[AuditLogService, Depends(get_audit_log_service)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> None:
+    changes = await service.clear_freshness(material_id=material_id)
+    if changes:
+        await audit_log_service.log_event(
+            action="price_alerts.freshness_updated",
+            entity_type="price_freshness_material",
             context=AuditLogContext.from_request(
                 request=request,
                 current_user=current_user,

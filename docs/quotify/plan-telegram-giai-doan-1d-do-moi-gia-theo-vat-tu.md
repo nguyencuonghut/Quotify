@@ -296,12 +296,19 @@ Quản lý bật hoặc tắt theo dõi và đặt chu kỳ riêng cho từng v�
 
 ### Tiêu chí chấp nhận
 
-- [ ] Sửa và bỏ cấu hình hoạt động, có audit, không ảnh hưởng ngưỡng.
-- [ ] Spec cũ cập nhật, baseline không xấu hơn; xem bằng trình duyệt thật hoặc ảnh e2e.
+- [x] Sửa và bỏ cấu hình hoạt động, có audit, không ảnh hưởng ngưỡng.
+- [x] Spec cũ cập nhật, baseline không xấu hơn; xem bằng trình duyệt thật hoặc ảnh e2e.
 
 ### Rollback
 
 Gỡ route và cột giao diện; bảng cấu hình còn nguyên dữ liệu nhưng không ai đọc.
+
+### Kết quả Slice 3 (2026-10-07)
+
+- Backend: `PriceAlertMaterialThresholdService` thêm `set_freshness` (upsert, chu kỳ 1 đến 365, `changes[]` có nhãn tiếng Việt) và `clear_freshness` (idempotent); `list_materials` nối thêm bảng cấu hình theo dõi (khóa chính `material_id` nên không nhân đôi dòng); `GET` danh sách trả `freshness` (hoặc null); `PUT` và `DELETE /price-alert-settings/materials/{id}/freshness` (quyền `price_alerts.manage`, body chặt: `is_watched` phải là boolean, chu kỳ phải là số nguyên; audit `price_alerts.freshness_updated`, chỉ ghi khi có thay đổi). Tách khỏi endpoint ngưỡng nên xóa ngưỡng không xóa cấu hình theo dõi và ngược lại (có test).
+- Frontend: hai cột "Theo dõi" ("Có", "Không", "Chưa đặt") và "Chu kỳ (ngày)", nút icon mắt thứ hai ở cột "Thao tác", hộp thoại riêng (công tắc, chu kỳ, "Bỏ cấu hình"); trạng thái hộp thoại tách khỏi hộp thoại ngưỡng, dùng chung danh sách và thông báo thành công; chu kỳ kiểm bằng hàm tay (không dùng zod vì chỉ một ô); thông báo lỗi cố định. Nhãn nhật ký thêm `price_alerts.freshness_updated` và loại đối tượng `price_freshness_material` (nhãn và bộ lọc).
+- Kiểm thử: 7 test PostgreSQL thật mới (gồm đối chứng "dòng khác không bị ảnh hưởng" và ngưỡng/theo dõi độc lập), 12 test API mới, 2 phép đột biến (xóa không `WHERE`, bỏ kiểm tra chu kỳ) đều đỏ; 17 test đơn vị frontend mới, 2 e2e mới, xem ảnh e2e. Backend pytest 1.132 pass, ruff 61 và mypy 13 lỗi cũ không đổi; frontend lint 12/57, `vue-tsc` sạch, vitest 4 lỗi cũ.
+- Rà soát độc lập không thấy lỗi nghiêm trọng. Điểm nhẹ chấp nhận: DELETE vật tư không tồn tại vẫn 204 (giống DELETE ngưỡng); hộp thoại mất tiêu đề trong lúc đóng (hoạt ảnh); nhánh `ValueError` ở route gần như không chạm tới.
 
 ---
 

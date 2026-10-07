@@ -140,8 +140,12 @@
   min-width: 9rem;
 }
 
+.price-alert-settings-page__muted {
+  color: var(--app-text-muted);
+}
+
 .price-alert-settings-page__actions-column {
-  width: 6.5rem;
+  width: 9rem;
   white-space: nowrap;
   text-align: right;
 }

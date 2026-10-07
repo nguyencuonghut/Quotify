@@ -1141,3 +1141,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Telegram 1D: Slice 2 bang do moi gia tren Dashboard
 - Tom tat: Bang Do moi cua gia theo vat tu o tab Tong quan: MaterialFreshnessTable + useMaterialFreshness + api/mappers/types + SCSS, di cung tuan da ap dung cua bang nhap bao gia theo tuan (freshnessWeekStart va freshnessReloadToken trong useDashboardPage), moi nguoi dung Dashboard thay bang, lien ket cau hinh chi voi price_alerts.manage. 32 test don vi va 4 e2e moi; ra soat doc lap sua do uu tien CSS dong qua han, dau hieu dang tai, reset loc loai khi tuan moi khong con loai do. Baseline frontend khong doi.
+
+## 2026-10-07 01:54:09Z - claude
+
+- Tieu de: Telegram 1D: Slice 3 sua danh sach theo doi
+- Tom tat: PUT/DELETE /price-alert-settings/materials/{id}/freshness (audit price_alerts.freshness_updated), list tra freshness, cot Theo doi va Chu ky, hop thoai theo doi, nhan nhat ky. Tach khoi endpoint nguong. Test PG that, API, vitest, e2e; ra soat doc lap sach.

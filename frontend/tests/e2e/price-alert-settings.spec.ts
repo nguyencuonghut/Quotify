@@ -31,6 +31,7 @@ interface MockMaterial {
     large_over_percent: string
     anomaly_percent: string | null
   } | null
+  freshness?: { is_watched: boolean; expected_interval_days: number } | null
 }
 
 const defaults = {
@@ -105,6 +106,8 @@ async function mockPriceAlertApi(page: Page) {
     puts: [] as unknown[],
     materialPuts: [] as unknown[],
     deletes: [] as string[],
+    freshnessPuts: [] as unknown[],
+    freshnessDeletes: [] as string[],
   }
 
   await page.route('**/api/v1/price-alert-settings', async (route) => {
@@ -168,6 +171,31 @@ async function mockPriceAlertApi(page: Page) {
           override: material.override,
           effective: effective(material),
         },
+      })
+    },
+  )
+
+  await page.route(
+    '**/api/v1/price-alert-settings/materials/*/freshness',
+    async (route) => {
+      const id = route.request().url().split('/').slice(-2)[0] as string
+      const material = materials.find(
+        (m) => m.material_id === id,
+      ) as MockMaterial
+      if (route.request().method() === 'DELETE') {
+        calls.freshnessDeletes.push(id)
+        material.freshness = null
+        return route.fulfill({ status: 204 })
+      }
+      const body = route.request().postDataJSON()
+      calls.freshnessPuts.push(body)
+      material.freshness = {
+        is_watched: body.is_watched,
+        expected_interval_days: body.expected_interval_days,
+      }
+      return route.fulfill({
+        status: 200,
+        json: { material_id: id, freshness: material.freshness },
       })
     },
   )
@@ -266,4 +294,72 @@ test('stays inside the phone screen', async ({ page }) => {
     () => document.documentElement.scrollWidth - window.innerWidth,
   )
   expect(overflow).toBeLessThanOrEqual(1)
+})
+
+test('sets the watch list config of a material and removes it again', async ({
+  page,
+}) => {
+  await mockAuth(page, ['price_alerts.manage'])
+  const calls = await mockPriceAlertApi(page)
+  await page.goto('/price-alert-settings')
+
+  const row = page.locator('tr', { hasText: 'Lúa mỳ 3' })
+  await expect(row).toContainText('Chưa đặt')
+
+  await row.getByTestId('material-watch').click()
+  await expect(page.locator('#watch-interval')).toHaveValue('14 ngày')
+  if (process.env.E2E_SCREENSHOT_DIR) {
+    await page.waitForTimeout(600)
+    await page.screenshot({
+      path: `${process.env.E2E_SCREENSHOT_DIR}/watch-dialog.png`,
+    })
+  }
+
+  await page.locator('#watch-interval').fill('10')
+  await page.getByTestId('watch-save').click()
+
+  await expect(page.getByTestId('material-success')).toHaveText(
+    'Đã lưu theo dõi giá cho Lúa mỳ 3.',
+  )
+  expect(calls.freshnessPuts).toEqual([
+    { is_watched: true, expected_interval_days: 10 },
+  ])
+  await expect(row).toContainText('Có')
+  await expect(page.getByTestId('watch-save')).toBeHidden()
+  await page.waitForTimeout(400)
+  if (process.env.E2E_SCREENSHOT_DIR) {
+    await page.screenshot({
+      path: `${process.env.E2E_SCREENSHOT_DIR}/watch-table.png`,
+      fullPage: true,
+    })
+  }
+  await expect(row).toContainText('10')
+
+  await row.getByTestId('material-watch').click()
+  await page.getByTestId('watch-clear').click()
+  await expect(page.getByTestId('material-success')).toHaveText(
+    'Đã bỏ cấu hình theo dõi giá của Lúa mỳ 3.',
+  )
+  await expect(row).toContainText('Chưa đặt')
+  expect(calls.freshnessDeletes).toEqual(['m1'])
+})
+
+test('blocks a watch interval outside 1 to 365 days with a Vietnamese message', async ({
+  page,
+}) => {
+  await mockAuth(page, ['price_alerts.manage'])
+  const calls = await mockPriceAlertApi(page)
+  await page.goto('/price-alert-settings')
+
+  await page
+    .locator('tr', { hasText: 'Lúa mỳ 3' })
+    .getByTestId('material-watch')
+    .click()
+  await page.locator('#watch-interval').fill('')
+  await page.getByTestId('watch-save').click()
+
+  await expect(page.getByTestId('watch-error')).toHaveText(
+    'Chu kỳ phải là số nguyên từ 1 đến 365 ngày.',
+  )
+  expect(calls.freshnessPuts).toHaveLength(0)
 })

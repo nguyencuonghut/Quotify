@@ -86,6 +86,16 @@ function materialsState(overrides: Record<string, unknown> = {}) {
     closeDialog: vi.fn(),
     saveOverride: vi.fn(),
     resetToDefault: vi.fn(),
+    watchDialogVisible: ref(false),
+    watchTarget: ref(null),
+    watchEnabled: ref(true),
+    watchInterval: ref(14),
+    watchBusy: ref(false),
+    watchError: ref(null),
+    openWatchEdit: vi.fn(),
+    closeWatchDialog: vi.fn(),
+    saveWatch: vi.fn(),
+    clearWatch: vi.fn(),
     ...overrides,
   }
 }
@@ -257,6 +267,62 @@ describe('PriceAlertSettingsPage', () => {
     expect(mountPage().find('[data-testid="material-reset"]').exists()).toBe(
       false,
     )
+  })
+
+  it('shows the watch dialog with its fields, save, and clear only when a config exists', async () => {
+    const materials = materialsState({
+      watchDialogVisible: ref(true),
+      watchTarget: ref({
+        name: 'Ngô hạt',
+        freshness: { isWatched: true, expectedIntervalDays: 7 },
+      }),
+      watchError: ref('Chu kỳ phải là số nguyên từ 1 đến 365 ngày.'),
+    })
+    materialsMock.usePriceAlertMaterialThresholds.mockReturnValue(materials)
+
+    const wrapper = mountPage()
+    await wrapper.get('[data-testid="watch-save"]').trigger('click')
+    await wrapper.get('[data-testid="watch-clear"]').trigger('click')
+    await wrapper.get('[data-testid="watch-cancel"]').trigger('click')
+
+    expect(materials.saveWatch).toHaveBeenCalledTimes(1)
+    expect(materials.clearWatch).toHaveBeenCalledTimes(1)
+    expect(materials.closeWatchDialog).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="watch-error"]').attributes('role')).toBe(
+      'alert',
+    )
+    expect(wrapper.get('[data-testid="watch-error"]').text()).toContain(
+      'từ 1 đến 365 ngày',
+    )
+    expect(wrapper.find('[input-id="watch-enabled"]').exists()).toBe(true)
+    expect(wrapper.find('[input-id="watch-interval"]').exists()).toBe(true)
+
+    materialsMock.usePriceAlertMaterialThresholds.mockReturnValue(
+      materialsState({
+        watchDialogVisible: ref(true),
+        watchTarget: ref({ name: 'Ngô hạt', freshness: null }),
+      }),
+    )
+    expect(mountPage().find('[data-testid="watch-clear"]').exists()).toBe(false)
+  })
+
+  it('disables the controls and the buttons while a watch save is running', () => {
+    materialsMock.usePriceAlertMaterialThresholds.mockReturnValue(
+      materialsState({
+        watchDialogVisible: ref(true),
+        watchTarget: ref({ name: 'Ngô hạt', freshness: null }),
+        watchBusy: ref(true),
+      }),
+    )
+
+    const wrapper = mountPage()
+
+    expect(
+      wrapper.get('[data-testid="watch-save"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      wrapper.get('[data-testid="watch-cancel"]').attributes('disabled'),
+    ).toBeDefined()
   })
 
   it('registers the route guarded by price_alerts.manage', () => {

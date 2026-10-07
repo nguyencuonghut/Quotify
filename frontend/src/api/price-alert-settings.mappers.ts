@@ -108,10 +108,19 @@ export function mapMaterialItemDtoToDomain(
             : Number(dto.override.anomaly_percent),
       }
     : null
+  const freshness = dto.freshness
+    ? {
+        isWatched: dto.freshness.is_watched,
+        expectedIntervalDays: dto.freshness.expected_interval_days,
+      }
+    : null
   return {
     materialId: dto.material_id,
     code: dto.code,
     name: dto.name,
+    freshness,
+    watchLabel: freshness === null ? 'Chưa đặt' : freshness.isWatched ? 'Có' : 'Không',
+    intervalLabel: freshness === null ? '—' : String(freshness.expectedIntervalDays),
     hasOverride: override !== null,
     override,
     effective,

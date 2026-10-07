@@ -12,6 +12,8 @@ const apiMock = vi.hoisted(() => ({
   listMaterialThresholds: vi.fn(),
   putMaterialThreshold: vi.fn(),
   deleteMaterialThreshold: vi.fn(),
+  putMaterialFreshness: vi.fn(),
+  deleteMaterialFreshness: vi.fn(),
 }))
 
 vi.mock('@/api/price-alert-settings.api', () => apiMock)
@@ -31,6 +33,9 @@ function material(
     largeLabel: '10,00%',
     anomalyLabel: '30,00%',
     anomalyIsDefault: true,
+    freshness: null,
+    watchLabel: 'Chưa đặt',
+    intervalLabel: '—',
     ...overrides,
   }
 }
@@ -266,5 +271,139 @@ describe('usePriceAlertMaterialThresholds', () => {
       'Không thể tải danh sách ngưỡng theo vật tư.',
     )
     expect(page.materials.value).toEqual([])
+  })
+
+  describe('watch list editor', () => {
+    it('opens with a sensible default for a material that has no config yet', () => {
+      const page = usePriceAlertMaterialThresholds()
+
+      page.openWatchEdit(material())
+
+      expect(page.watchDialogVisible.value).toBe(true)
+      expect(page.watchTarget.value?.materialId).toBe('m1')
+      expect(page.watchEnabled.value).toBe(true)
+      expect(page.watchInterval.value).toBe(14)
+    })
+
+    it('opens with the saved config of a watched material', () => {
+      const page = usePriceAlertMaterialThresholds()
+
+      page.openWatchEdit(
+        material({ freshness: { isWatched: false, expectedIntervalDays: 30 } }),
+      )
+
+      expect(page.watchEnabled.value).toBe(false)
+      expect(page.watchInterval.value).toBe(30)
+    })
+
+    it('saves the config, shows a message, closes and reloads the list', async () => {
+      apiMock.putMaterialFreshness.mockResolvedValue(undefined)
+      const page = usePriceAlertMaterialThresholds()
+      await page.fetchMaterials()
+      apiMock.listMaterialThresholds.mockClear()
+      page.openWatchEdit(material())
+      page.watchInterval.value = 10
+
+      await page.saveWatch()
+
+      expect(apiMock.putMaterialFreshness).toHaveBeenCalledWith(
+        'm1',
+        { is_watched: true, expected_interval_days: 10 },
+        'token-1',
+      )
+      expect(page.successMessage.value).toBe(
+        'Đã lưu theo dõi giá cho Lúa mỳ 3.',
+      )
+      expect(page.watchDialogVisible.value).toBe(false)
+      expect(apiMock.listMaterialThresholds).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([0, 366, 7.5, null])(
+      'blocks the interval %s without calling the API',
+      async (bad) => {
+        const page = usePriceAlertMaterialThresholds()
+        page.openWatchEdit(material())
+        page.watchInterval.value = bad
+
+        await page.saveWatch()
+
+        expect(apiMock.putMaterialFreshness).not.toHaveBeenCalled()
+        expect(page.watchError.value).toBe(
+          'Chu kỳ phải là số nguyên từ 1 đến 365 ngày.',
+        )
+        expect(page.watchDialogVisible.value).toBe(true)
+      },
+    )
+
+    it('shows fixed Vietnamese messages for server errors and keeps the dialog open', async () => {
+      const page = usePriceAlertMaterialThresholds()
+      page.openWatchEdit(material())
+
+      for (const [status, message] of [
+        [404, 'Không tìm thấy vật tư này.'],
+        [422, 'Chu kỳ phải là số nguyên từ 1 đến 365 ngày.'],
+        [403, 'Bạn không có quyền sửa cấu hình thông báo giá.'],
+        [500, 'Không thể lưu theo dõi giá. Vui lòng thử lại.'],
+      ] as const) {
+        apiMock.putMaterialFreshness.mockRejectedValueOnce(
+          new ApiError('chi tiết nội bộ của server', status),
+        )
+        await page.saveWatch()
+        expect(page.watchError.value).toBe(message)
+      }
+      expect(page.watchDialogVisible.value).toBe(true)
+      expect(page.watchBusy.value).toBe(false)
+    })
+
+    it('refuses to save without the manage permission', async () => {
+      login([])
+      const page = usePriceAlertMaterialThresholds()
+      page.openWatchEdit(material())
+
+      await page.saveWatch()
+
+      expect(apiMock.putMaterialFreshness).not.toHaveBeenCalled()
+      expect(page.watchError.value).toBe(
+        'Bạn không có quyền sửa cấu hình thông báo giá.',
+      )
+    })
+
+    it('clears the config, shows a message, closes and reloads the list', async () => {
+      apiMock.deleteMaterialFreshness.mockResolvedValue(undefined)
+      const page = usePriceAlertMaterialThresholds()
+      await page.fetchMaterials()
+      apiMock.listMaterialThresholds.mockClear()
+      page.openWatchEdit(
+        material({ freshness: { isWatched: true, expectedIntervalDays: 7 } }),
+      )
+
+      await page.clearWatch()
+
+      expect(apiMock.deleteMaterialFreshness).toHaveBeenCalledWith(
+        'm1',
+        'token-1',
+      )
+      expect(page.successMessage.value).toBe(
+        'Đã bỏ cấu hình theo dõi giá của Lúa mỳ 3.',
+      )
+      expect(page.watchDialogVisible.value).toBe(false)
+      expect(apiMock.listMaterialThresholds).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not save twice while a save is in flight', async () => {
+      let release: () => void = () => {}
+      apiMock.putMaterialFreshness.mockImplementation(
+        () => new Promise<void>((resolve) => (release = resolve)),
+      )
+      const page = usePriceAlertMaterialThresholds()
+      page.openWatchEdit(material())
+
+      const first = page.saveWatch()
+      await page.saveWatch()
+      release()
+      await first
+
+      expect(apiMock.putMaterialFreshness).toHaveBeenCalledTimes(1)
+    })
   })
 })
