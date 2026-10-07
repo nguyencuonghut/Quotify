@@ -127,6 +127,8 @@ export interface MaterialThresholdListQuery {
   limit: number
   offset: number
   search?: string
+  sort?: 'name' | 'interval'
+  order?: 'asc' | 'desc'
 }
 
 export interface MaterialThresholdUpdatePayload {

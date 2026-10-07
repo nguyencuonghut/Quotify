@@ -46,6 +46,10 @@ export function listMaterialThresholds(
   if (params.search) {
     query.append('search', params.search)
   }
+  if (params.sort) {
+    query.append('sort', params.sort)
+    query.append('order', params.order ?? 'asc')
+  }
   return apiRequest<MaterialThresholdListDto>(
     `/price-alert-settings/materials?${query.toString()}`,
     { accessToken },

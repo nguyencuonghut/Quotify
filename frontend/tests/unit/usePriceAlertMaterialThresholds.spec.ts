@@ -104,6 +104,50 @@ describe('usePriceAlertMaterialThresholds', () => {
     expect(page.first.value).toBe(0)
   })
 
+  it('sorts by name or by watch interval from the server and goes back to the first row', async () => {
+    const page = usePriceAlertMaterialThresholds()
+    await page.fetchMaterials()
+    page.first.value = 20
+    apiMock.listMaterialThresholds.mockClear()
+
+    await page.onSort({ sortField: 'interval', sortOrder: -1 })
+
+    expect(apiMock.listMaterialThresholds).toHaveBeenCalledTimes(1)
+    expect(apiMock.listMaterialThresholds).toHaveBeenLastCalledWith(
+      { limit: 10, offset: 0, sort: 'interval', order: 'desc' },
+      'token-1',
+    )
+    expect(page.first.value).toBe(0)
+    expect(page.sortField.value).toBe('interval')
+    expect(page.sortOrder.value).toBe(-1)
+
+    await page.onSort({ sortField: 'name', sortOrder: 1 })
+    expect(apiMock.listMaterialThresholds).toHaveBeenLastCalledWith(
+      { limit: 10, offset: 0, sort: 'name', order: 'asc' },
+      'token-1',
+    )
+  })
+
+  it('keeps the sort while paging and searching, and ignores unknown columns', async () => {
+    const page = usePriceAlertMaterialThresholds()
+    await page.onSort({ sortField: 'name', sortOrder: 1 })
+    apiMock.listMaterialThresholds.mockClear()
+
+    await page.onPageChange({ first: 10, rows: 10 })
+    expect(apiMock.listMaterialThresholds).toHaveBeenLastCalledWith(
+      { limit: 10, offset: 10, sort: 'name', order: 'asc' },
+      'token-1',
+    )
+
+    apiMock.listMaterialThresholds.mockClear()
+    await page.onSort({ sortField: 'hacker', sortOrder: 1 })
+    expect(apiMock.listMaterialThresholds).toHaveBeenLastCalledWith(
+      { limit: 10, offset: 0 },
+      'token-1',
+    )
+    expect(page.sortField.value).toBeNull()
+  })
+
   it('refuses an anomaly threshold above what the server accepts (999,99)', async () => {
     const page = usePriceAlertMaterialThresholds()
     page.openEdit(material())

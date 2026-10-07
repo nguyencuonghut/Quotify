@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete, func, or_, select
@@ -93,6 +94,8 @@ class PriceAlertMaterialThresholdService:
         limit: int,
         offset: int,
         search: str | None,
+        sort: str = "code",
+        descending: bool = False,
     ) -> MaterialThresholdPage:
         defaults = await self._default_thresholds()
         term = (search or "").strip()
@@ -107,7 +110,7 @@ class PriceAlertMaterialThresholdService:
                 PriceFreshnessMaterial,
                 PriceFreshnessMaterial.material_id == Material.id,
             )
-            .order_by(Material.code, Material.id)
+            .order_by(*_order_by(sort, descending))
             .limit(limit)
             .offset(offset)
         )
@@ -404,6 +407,24 @@ def _diff(
             },
         )
     return changes
+
+
+def _order_by(sort: str, descending: bool) -> list[Any]:
+    """Thứ tự danh sách; luôn kết thúc bằng mã và id để phân trang ổn định khi giá trị trùng."""
+    if sort == "code":
+        primary: list[Any] = []
+    elif sort == "name":
+        primary = [Material.name.desc() if descending else Material.name.asc()]
+    elif sort == "interval":
+        column = PriceFreshnessMaterial.expected_interval_days
+        # Vật tư chưa đặt chu kỳ luôn nằm cuối, kể cả khi sắp giảm dần.
+        primary = [(column.desc() if descending else column.asc()).nulls_last()]
+    else:
+        raise ValueError("Khóa sắp xếp không hợp lệ.")
+    tail = (
+        [Material.code.desc(), Material.id.desc()] if descending else [Material.code, Material.id]
+    )
+    return [*primary, *tail]
 
 
 def _escape_like(value: str) -> str:

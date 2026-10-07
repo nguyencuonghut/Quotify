@@ -73,8 +73,24 @@ class MockThresholdService:
         self.freshness: FreshnessConfig | None = None
         self.calls: list[dict[str, Any]] = []
 
-    async def list_materials(self, *, limit: int, offset: int, search: str | None) -> Any:
-        self.calls.append({"limit": limit, "offset": offset, "search": search})
+    async def list_materials(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        search: str | None,
+        sort: str = "code",
+        descending: bool = False,
+    ) -> Any:
+        self.calls.append(
+            {
+                "limit": limit,
+                "offset": offset,
+                "search": search,
+                "sort": sort,
+                "descending": descending,
+            },
+        )
         view = MaterialThresholdView(
             material_id=MATERIAL_ID,
             code="NGO",
@@ -210,7 +226,35 @@ async def test_list_returns_contract_shape_and_forwards_paging(
     assert item["override"] is None
     assert item["freshness"] is None
     assert item["effective"]["anomaly_percent"] == "30.00"
-    assert service.calls == [{"limit": 50, "offset": 10, "search": "ng"}]
+    assert service.calls == [
+        {"limit": 50, "offset": 10, "search": "ng", "sort": "code", "descending": False},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_forwards_the_sort_key_and_direction(
+    client: AsyncClient,
+    deps: tuple[MockThresholdService, MockAuditLogService, MockSession],
+) -> None:
+    service, _, _ = deps
+
+    assert (await client.get(f"{BASE}?sort=interval&order=desc")).status_code == 200
+    assert (await client.get(f"{BASE}?sort=name")).status_code == 200
+
+    assert [(c["sort"], c["descending"]) for c in service.calls] == [
+        ("interval", True),
+        ("name", False),
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("query", ["sort=price", "order=up", "sort="])
+async def test_list_rejects_unknown_sort_values(
+    client: AsyncClient,
+    deps: tuple[MockThresholdService, MockAuditLogService, MockSession],
+    query: str,
+) -> None:
+    assert (await client.get(f"{BASE}?{query}")).status_code == 422
 
 
 @pytest.mark.asyncio

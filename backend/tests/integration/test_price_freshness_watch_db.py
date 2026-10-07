@@ -233,3 +233,77 @@ async def test_search_and_paging_do_not_duplicate_rows_when_both_configs_exist(
         )
     assert page.total == 1
     assert len(page.items) == 1
+
+
+async def _sorted_names(
+    session_factory: async_sessionmaker[AsyncSession],
+    tag: str,
+    sort: str,
+    descending: bool,
+) -> list[str]:
+    async with session_factory() as session:
+        page = await PriceAlertMaterialThresholdService(session).list_materials(
+            limit=100,
+            offset=0,
+            search=tag,
+            sort=sort,
+            descending=descending,
+        )
+    return [item.name.removeprefix(f"{tag} ") for item in page.items]
+
+
+@pytest.mark.asyncio
+async def test_list_can_be_sorted_by_name_and_by_watch_interval_with_unset_last(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id = await create_user(session_factory)
+    tag = f"SORT{uuid.uuid4().hex[:8]}"
+    cam = await create_material(session_factory, name=f"{tag} Cám")
+    ngo = await create_material(session_factory, name=f"{tag} Ngô")
+    bot = await create_material(session_factory, name=f"{tag} Bột")
+    await _set(session_factory, cam, user_id, interval=30)
+    await _set(session_factory, bot, user_id, watched=False, interval=7)
+    assert await _row(session_factory, ngo) is None
+
+    assert await _sorted_names(session_factory, tag, "name", False) == ["Bột", "Cám", "Ngô"]
+    assert await _sorted_names(session_factory, tag, "name", True) == ["Ngô", "Cám", "Bột"]
+    # Chu kỳ tăng dần: 7, 30; vật tư chưa đặt luôn nằm cuối, cả khi giảm dần.
+    assert await _sorted_names(session_factory, tag, "interval", False) == ["Bột", "Cám", "Ngô"]
+    assert await _sorted_names(session_factory, tag, "interval", True) == ["Cám", "Bột", "Ngô"]
+
+
+@pytest.mark.asyncio
+async def test_sorting_pages_consistently_and_default_order_is_by_code(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id = await create_user(session_factory)
+    tag = f"PAGE{uuid.uuid4().hex[:8]}"
+    ids = [await create_material(session_factory, name=f"{tag} {i}") for i in range(3)]
+    for material_id in ids:
+        await _set(session_factory, material_id, user_id, interval=14)  # cùng chu kỳ
+
+    async with session_factory() as session:
+        service = PriceAlertMaterialThresholdService(session)
+        first = await service.list_materials(
+            limit=2, offset=0, search=tag, sort="interval", descending=False
+        )
+        second = await service.list_materials(
+            limit=2, offset=2, search=tag, sort="interval", descending=False
+        )
+        default = await service.list_materials(limit=100, offset=0, search=tag)
+
+    seen = [item.material_id for item in first.items + second.items]
+    assert len(seen) == 3 and set(seen) == set(ids)  # không trùng, không sót khi hòa chu kỳ
+    codes = [item.code for item in default.items]
+    assert codes == sorted(codes)
+
+
+@pytest.mark.asyncio
+async def test_unknown_sort_key_is_rejected(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        with pytest.raises(ValueError, match="sắp xếp"):
+            await PriceAlertMaterialThresholdService(session).list_materials(
+                limit=10, offset=0, search=None, sort="price"
+            )

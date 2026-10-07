@@ -219,10 +219,13 @@
             current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
             data-key="materialId"
             lazy
+            :sort-field="sortField ?? undefined"
+            :sort-order="sortOrder"
             paginator
             paginator-template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
             responsive-layout="scroll"
             @page="onPageChange"
+            @sort="onSort"
           >
             <template #empty>
               <div class="price-alert-settings-page__empty-state">
@@ -230,7 +233,7 @@
               </div>
             </template>
 
-            <Column header="Vật tư">
+            <Column header="Vật tư" sortable sort-field="name">
               <template #body="{ data }">
                 <div class="price-alert-settings-page__cell">
                   <strong>{{ data.name }}</strong>
@@ -286,7 +289,7 @@
                 </span>
               </template>
             </Column>
-            <Column header="Chu kỳ (ngày)">
+            <Column header="Chu kỳ (ngày)" sortable sort-field="interval">
               <template #body="{ data }">
                 <span :class="valueClass(Boolean(data.freshness?.isWatched))">
                   {{ data.intervalLabel }}
@@ -544,6 +547,9 @@ const {
   fetchMaterials,
   onPageChange,
   onSearchInput,
+  sortField,
+  sortOrder,
+  onSort,
   openEdit,
   closeDialog,
   saveOverride,

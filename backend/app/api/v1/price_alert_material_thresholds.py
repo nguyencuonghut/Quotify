@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -101,8 +101,16 @@ async def list_material_thresholds(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query(max_length=100)] = None,
+    sort: Annotated[Literal["code", "name", "interval"], Query()] = "code",
+    order: Annotated[Literal["asc", "desc"], Query()] = "asc",
 ) -> MaterialThresholdListResponse:
-    page = await service.list_materials(limit=limit, offset=offset, search=search)
+    page = await service.list_materials(
+        limit=limit,
+        offset=offset,
+        search=search,
+        sort=sort,
+        descending=order == "desc",
+    )
     # Lần đọc đầu có thể tạo dòng cấu hình mặc định nên phải commit.
     await session.commit()
     return MaterialThresholdListResponse(

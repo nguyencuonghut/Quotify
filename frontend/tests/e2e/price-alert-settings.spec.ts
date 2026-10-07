@@ -106,6 +106,7 @@ async function mockPriceAlertApi(page: Page) {
     puts: [] as unknown[],
     materialPuts: [] as unknown[],
     deletes: [] as string[],
+    listQueries: [] as string[],
     freshnessPuts: [] as unknown[],
     freshnessDeletes: [] as string[],
   }
@@ -128,9 +129,9 @@ async function mockPriceAlertApi(page: Page) {
   await page.route(
     '**/api/v1/price-alert-settings/materials?**',
     async (route) => {
-      const search = new URL(route.request().url()).searchParams
-        .get('search')
-        ?.toLowerCase()
+      const params = new URL(route.request().url()).searchParams
+      calls.listQueries.push(params.toString())
+      const search = params.get('search')?.toLowerCase()
       const items = materials
         .filter((m) => !search || m.name.toLowerCase().includes(search))
         .map((m) => ({ ...m, effective: effective(m) }))
@@ -362,4 +363,32 @@ test('blocks a watch interval outside 1 to 365 days with a Vietnamese message', 
     'Chu kỳ phải là số nguyên từ 1 đến 365 ngày.',
   )
   expect(calls.freshnessPuts).toHaveLength(0)
+})
+
+test('sorts the materials table by the material name and by the watch interval', async ({
+  page,
+}) => {
+  await mockAuth(page, ['price_alerts.manage'])
+  const calls = await mockPriceAlertApi(page)
+  await page.goto('/price-alert-settings')
+  await expect(page.getByText('Lúa mỳ 3')).toBeVisible()
+
+  await page.getByRole('columnheader', { name: 'Vật tư' }).click()
+  await expect
+    .poll(() => calls.listQueries.at(-1))
+    .toContain('sort=name&order=asc')
+  await page.getByRole('columnheader', { name: 'Vật tư' }).click()
+  await expect
+    .poll(() => calls.listQueries.at(-1))
+    .toContain('sort=name&order=desc')
+
+  await page.getByRole('columnheader', { name: 'Chu kỳ (ngày)' }).click()
+  await expect
+    .poll(() => calls.listQueries.at(-1))
+    .toContain('sort=interval&order=asc')
+  // Cột không hỗ trợ sắp xếp thì không gọi lại.
+  const before = calls.listQueries.length
+  await page.getByRole('columnheader', { name: 'Nhẹ từ' }).click()
+  await page.waitForTimeout(300)
+  expect(calls.listQueries).toHaveLength(before)
 })

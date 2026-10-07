@@ -119,6 +119,9 @@ export function usePriceAlertMaterialThresholds() {
   const first = ref(0)
   const rowsPerPageOptions = [10, 20, 30, 50]
   const search = ref('')
+  // Sắp xếp do server làm (bảng phân trang theo offset): chỉ nhận các cột có hỗ trợ.
+  const sortField = ref<'name' | 'interval' | null>(null)
+  const sortOrder = ref<1 | -1>(1)
 
   const dialogVisible = ref(false)
   const target = ref<MaterialThresholdDomain | null>(null)
@@ -167,6 +170,13 @@ export function usePriceAlertMaterialThresholds() {
           limit: rows.value,
           offset: first.value,
           ...(keyword ? { search: keyword } : {}),
+          ...(sortField.value
+            ? {
+                sort: sortField.value,
+                order:
+                  sortOrder.value === -1 ? ('desc' as const) : ('asc' as const),
+              }
+            : {}),
         },
         authStore.accessToken,
       )
@@ -192,6 +202,17 @@ export function usePriceAlertMaterialThresholds() {
   async function onPageChange(event: { first: number; rows: number }) {
     first.value = event.first
     rows.value = event.rows
+    await fetchMaterials()
+  }
+
+  async function onSort(event: {
+    sortField?: unknown
+    sortOrder?: number | null
+  }) {
+    const field = event.sortField
+    sortField.value = field === 'name' || field === 'interval' ? field : null
+    sortOrder.value = event.sortOrder === -1 ? -1 : 1
+    first.value = 0
     await fetchMaterials()
   }
 
@@ -313,7 +334,8 @@ export function usePriceAlertMaterialThresholds() {
     watchError.value = null
     successMessage.value = null
     watchEnabled.value = item.freshness?.isWatched ?? true
-    watchInterval.value = item.freshness?.expectedIntervalDays ?? DEFAULT_WATCH_INTERVAL_DAYS
+    watchInterval.value =
+      item.freshness?.expectedIntervalDays ?? DEFAULT_WATCH_INTERVAL_DAYS
     watchDialogVisible.value = true
   }
 
@@ -396,6 +418,9 @@ export function usePriceAlertMaterialThresholds() {
     first,
     rowsPerPageOptions,
     search,
+    sortField,
+    sortOrder,
+    onSort,
     dialogVisible,
     target,
     isBusy,
