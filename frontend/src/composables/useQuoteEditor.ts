@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { getUsdSellRateToday } from '@/api/exchange-rates.api'
 import { getQuotifySettings } from '@/api/quotify-settings.api'
 import { getSupplier } from '@/api/suppliers.api'
@@ -69,6 +69,12 @@ export interface QuoteEditorLine {
 export function useQuoteEditor(accessToken: string | null) {
   const supplierId = ref<string | null>(null)
   const receivedDate = ref<string>(getTodayString())
+  // Giới hạn trên của ô chọn ngày: hôm nay theo giờ Việt Nam (đổi sang ngày giờ địa phương của
+  // trình duyệt để DatePicker không lệch múi giờ).
+  const maxReceivedDate = computed(() => {
+    const [year, month, day] = getTodayString().split('-').map(Number)
+    return new Date(year, month - 1, day)
+  })
   const isBackfilled = ref<boolean>(false)
   const backfillReason = ref<string | null>(null)
   const correctionReason = ref<string | null>(null)
@@ -350,6 +356,11 @@ export function useQuoteEditor(accessToken: string | null) {
       errorMsg.value = 'Vui lòng chọn Ngày nhận báo giá.'
       return false
     }
+    // Ngày nhận là ngày đã nhận báo giá nên không thể ở tương lai (backend cũng chặn).
+    if (receivedDate.value > getTodayString()) {
+      errorMsg.value = 'Ngày nhận báo giá không được ở tương lai.'
+      return false
+    }
     if (lines.value.length === 0) {
       errorMsg.value = 'Báo giá phải có ít nhất một dòng vật tư.'
       return false
@@ -437,6 +448,7 @@ export function useQuoteEditor(accessToken: string | null) {
   return {
     supplierId,
     receivedDate,
+    maxReceivedDate,
     isBackfilled,
     backfillReason,
     correctionReason,

@@ -55,6 +55,7 @@ vi.mock('@/composables/useQuoteEditor', () => ({
   useQuoteEditor: () => ({
     supplierId: ref(null),
     receivedDate: ref('2026-08-22'),
+    maxReceivedDate: ref(new Date(2026, 7, 22)),
     isBackfilled: ref(false),
     correctionReason: ref(null),
     lines,
@@ -138,5 +139,11 @@ describe('QuoteEditorPage line removal confirmation', () => {
 
     expect(quoteEditorMock.removeLine).not.toHaveBeenCalled()
     expect(lines.value).toHaveLength(2)
+  })
+
+  it('stops the received date picker at today so a future date cannot be picked', () => {
+    const wrapper = mountQuoteEditorPage()
+
+    expect(wrapper.get('#received-date-picker').attributes('max-date')).toBeDefined()
   })
 })

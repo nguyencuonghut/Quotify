@@ -52,6 +52,7 @@
             <DatePicker
               id="received-date-picker"
               v-model="receivedDateVal"
+              :max-date="maxReceivedDate"
               date-format="yy-mm-dd"
               placeholder="Chọn ngày nhận..."
               class="quote-editor-page__input-w"
@@ -456,6 +457,7 @@ function confirmRemoveLine() {
 const {
   supplierId,
   receivedDate,
+  maxReceivedDate,
   isBackfilled,
   correctionReason,
   lines,

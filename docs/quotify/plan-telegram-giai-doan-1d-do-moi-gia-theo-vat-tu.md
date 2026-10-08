@@ -753,3 +753,14 @@ Deploy nhanh theo runbook 15.6 (không migration, không bảo trì): sửa cộ
 
 Trạng thái production sau hai đợt: 1D và các bổ sung (sắp xếp, tìm kiếm, lọc người nhập, tin nhắc dễ đọc trên điện thoại, nhãn audit) đều đã lên; chưa có việc deploy nào còn chờ.
 
+## Chặn Ngày Nhận Báo Giá Ở Tương Lai (2026-10-08)
+
+Người dùng nhận thấy ô "Ngày nhận báo giá" ở trang "Nhập báo giá mới" cho chọn ngày tương lai. Kiểm tra code: ô chọn ngày không có giới hạn trên; backend chỉ chặn ngày tương lai **bên trong nhánh USD/MT** (`quote_pricing`), nên dòng VNĐ/KG với ngày tương lai vẫn lưu được; `_validate_backfill` chỉ xét ngày quá khứ. Ngày nhận là ngày đã nhận báo giá nên không thể ở tương lai; ngày tương lai làm lệch cửa sổ so sánh và biểu đồ, làm tin biến động coi phiếu như nhập kịp thời (độ trễ 0), và làm vật tư vẫn bị tính chưa có giá mới. Hiệu lực sau ngày đó thuộc về **kỳ giao hàng**, không phải ngày nhận.
+
+Đã sửa ở mọi tầng:
+- Backend `QuoteService._validate_received_date` (giờ Việt Nam, mọi loại tiền) gọi ở tạo phiếu, sửa bản nháp và tạo bản điều chỉnh; lỗi 422 "Ngày nhận báo giá không được ở tương lai."; dòng USD/MT vẫn có chốt cũ ở `quote_pricing`.
+- Nhập hàng loạt từ Excel (`parse_quote_backfill_import_row`) từ chối dòng có ngày nhận ở tương lai (ghi vào báo cáo lỗi của dòng đó).
+- Giao diện: `DatePicker` giới hạn tới hôm nay (giờ Việt Nam, `maxReceivedDate`) và `validateForm` báo cùng thông điệp nếu ngày gõ tay vượt hôm nay.
+- Không ảnh hưởng dữ liệu đã có (DB dev không có phiếu nào ngày tương lai); production kiểm bằng truy vấn chỉ đọc đã đưa cho người dùng.
+- Kiểm thử: 4 test tạo, sửa nháp, điều chỉnh, hôm nay vẫn hợp lệ, 2 test import (đỏ trước khi sửa), 4 test frontend. Backend 1.271 pass, ruff 61 và mypy 13 lỗi cũ không đổi; vitest 4 lỗi cũ, lint 12/57, `vue-tsc` sạch. Triển khai: build lại `backend`, `worker` và `frontend`, theo runbook 15.6 (nhớ `restart reverse-proxy`).
+

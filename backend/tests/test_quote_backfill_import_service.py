@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import io
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from openpyxl import load_workbook
@@ -587,6 +588,27 @@ async def test_import_rows_row_level_parse_failure_does_not_touch_db() -> None:
     assert summary.created_quote_count == 0
     assert quote_service.calls == []
     assert session.commit_count == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("row_factory", [_usd_row, _vnd_row])
+async def test_import_rows_rejects_a_future_received_date(row_factory) -> None:  # type: ignore[no-untyped-def]
+    session = FakeSession(suppliers=[], material_ids_by_code={})
+    quote_service = FakeQuoteService()
+    service = QuoteBackfillImportService(session, quote_service)  # type: ignore[arg-type]
+    tomorrow = (datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date() + timedelta(days=1)).strftime(
+        "%d/%m/%Y"
+    )
+
+    summary = await service.import_rows(
+        rows=[row_factory(received_date=tomorrow)],
+        fieldnames=QUOTE_BACKFILL_IMPORT_TEMPLATE_HEADERS,
+        created_by_id=uuid4(),
+    )
+
+    assert summary.failed_rows == 1
+    assert "Ngày nhận báo giá không được ở tương lai" in summary.errors[0]["errors"][0]
+    assert quote_service.calls == []
 
 
 @pytest.mark.asyncio

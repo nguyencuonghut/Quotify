@@ -607,6 +607,119 @@ async def test_create_quote_fail_future_date(test_setup: Any) -> None:
         )
 
 
+def _vnd_line(material_id: UUID) -> dict[str, object]:
+    return {
+        "material_id": material_id,
+        "price_original": Decimal("15000.00"),
+        "currency": "VND",
+        "unit": "KG",
+        "delivery_month": date(2026, 8, 1),
+    }
+
+
+FUTURE_DATE_MESSAGE = "Ngày nhận báo giá không được ở tương lai"
+
+
+@pytest.mark.asyncio
+async def test_a_vnd_quote_cannot_have_a_future_received_date(test_setup: Any) -> None:
+    """Trước đây chỉ dòng USD/MT bị chặn ngày tương lai; dòng VNĐ/KG lọt qua."""
+    session, quote_service, _ = test_setup
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+
+    for future in (date(2026, 7, 29), date(2027, 7, 28)):  # ngày mai và gõ nhầm năm
+        with pytest.raises(ValueError, match=FUTURE_DATE_MESSAGE):
+            await quote_service.create_quote(
+                supplier_id=supplier_id,
+                received_date=future,
+                is_backfilled=False,
+                backfill_reason=None,
+                lines_data=[_vnd_line(material_id)],
+                created_by_id=uuid4(),
+            )
+    assert session.quotes == {} or not any(
+        getattr(q, "versions", None) for q in session.quotes.values()
+    )
+
+
+@pytest.mark.asyncio
+async def test_today_is_still_a_valid_received_date(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),  # hôm nay theo giờ Việt Nam của bộ test
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[_vnd_line(material_id)],
+        created_by_id=uuid4(),
+    )
+
+    assert quote.versions[0].received_date == date(2026, 7, 28)
+
+
+@pytest.mark.asyncio
+async def test_a_draft_cannot_be_moved_to_a_future_received_date(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[_vnd_line(material_id)],
+        created_by_id=user_id,
+    )
+
+    with pytest.raises(ValueError, match=FUTURE_DATE_MESSAGE):
+        await quote_service.update_draft(
+            quote_id=quote.id,
+            version_id=quote.versions[0].id,
+            received_date=date(2026, 7, 29),
+            is_backfilled=False,
+            backfill_reason=None,
+            lines_data=[_vnd_line(material_id)],
+            updated_by_id=user_id,
+        )
+    assert quote.versions[0].received_date == date(2026, 7, 28)
+
+
+@pytest.mark.asyncio
+async def test_a_correction_cannot_use_a_future_received_date(test_setup: Any) -> None:
+    session, quote_service, _ = test_setup
+    supplier_id = list(session.suppliers.keys())[0]
+    material_id = list(session.materials.keys())[0]
+    user_id = uuid4()
+    quote = await quote_service.create_quote(
+        supplier_id=supplier_id,
+        received_date=date(2026, 7, 28),
+        is_backfilled=False,
+        backfill_reason=None,
+        lines_data=[_vnd_line(material_id)],
+        created_by_id=user_id,
+    )
+    await quote_service.confirm_version(
+        quote_id=quote.id,
+        version_id=quote.versions[0].id,
+        confirmed_by_id=user_id,
+    )
+
+    with pytest.raises(ValueError, match=FUTURE_DATE_MESSAGE):
+        await quote_service.create_version(
+            quote_id=quote.id,
+            received_date=date(2026, 7, 29),
+            is_backfilled=False,
+            backfill_reason=None,
+            lines_data=[_vnd_line(material_id)],
+            created_by_id=user_id,
+            correction_reason="Sửa ngày nhận",
+        )
+
+
 @pytest.mark.asyncio
 async def test_create_quote_backfill_required(test_setup: Any) -> None:
     session, quote_service, _ = test_setup

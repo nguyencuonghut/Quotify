@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Material, Quote, QuoteLine, QuoteVersion, Supplier
+from app.services.exchange_rate_service import get_business_today
 from app.services.material_type_admin import normalize_catalog_code, normalize_optional_text
 from app.services.quote_service import QuoteService
 
@@ -281,6 +282,8 @@ def parse_quote_backfill_import_row(row_number: int, row: dict[str, str | None])
         received_date = datetime.strptime(received_date_raw, "%d/%m/%Y").date()
     except ValueError as exc:
         raise ValueError("Ngày nhận báo giá phải theo định dạng DD/MM/YYYY.") from exc
+    if received_date > get_business_today():
+        raise ValueError("Ngày nhận báo giá không được ở tương lai.")
 
     delivery_month_raw = _require_field(row, "delivery_month", "Kỳ giao hàng")
     try:

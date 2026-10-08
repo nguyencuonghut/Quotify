@@ -320,6 +320,46 @@ describe('useQuoteEditor', () => {
     expect(editor.lines.value[0].exchangeRate).toBeNull()
   })
 
+  describe('received date cannot be in the future', () => {
+    function addDays(date: string, days: number): string {
+      const next = new Date(`${date}T00:00:00Z`)
+      next.setUTCDate(next.getUTCDate() + days)
+      return next.toISOString().slice(0, 10)
+    }
+
+    it('rejects tomorrow and a mistyped far-future year before anything else is checked', () => {
+      const editor = useQuoteEditor('mock-token')
+      editor.supplierId.value = 'supplier-1'
+      const today = getTodayString()
+
+      for (const future of [addDays(today, 1), '2099-01-01']) {
+        editor.receivedDate.value = future
+        expect(editor.validateForm()).toBe(false)
+        expect(editor.errorMsg.value).toBe('Ngày nhận báo giá không được ở tương lai.')
+      }
+    })
+
+    it('still accepts today and the past (the next missing field is reported instead)', () => {
+      const editor = useQuoteEditor('mock-token')
+      editor.supplierId.value = 'supplier-1'
+
+      for (const ok of [getTodayString(), '2020-01-01']) {
+        editor.receivedDate.value = ok
+        editor.validateForm()
+        expect(editor.errorMsg.value).toBe('Báo giá phải có ít nhất một dòng vật tư.')
+      }
+    })
+
+    it('limits the date picker to today in Vietnam time', () => {
+      const editor = useQuoteEditor('mock-token')
+      const max = editor.maxReceivedDate.value
+
+      expect(max).toBeInstanceOf(Date)
+      const [year, month, day] = getTodayString().split('-').map(Number)
+      expect([max.getFullYear(), max.getMonth() + 1, max.getDate()]).toEqual([year, month, day])
+    })
+  })
+
   it('validates form fields and stops invalid submits', () => {
     const editor = useQuoteEditor('mock-token')
 

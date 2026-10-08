@@ -1211,3 +1211,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Tai lieu huong dan nguoi dung thong bao gia Telegram
 - Tom tat: Viet docs/quotify/huong-dan-su-dung-thong-bao-gia-telegram.md cho Manager/User/Admin, doi chieu nhan va thong diep voi code, lien ket tu ke hoach cha.
+
+## 2026-10-08 02:01:53Z - claude
+
+- Tieu de: Chan ngay nhan bao gia o tuong lai
+- Tom tat: Truoc day chi dong USD/MT bi chan; VND/KG luu duoc ngay tuong lai. Them _validate_received_date (tao, sua nhap, dieu chinh), kiem tra o import Excel, DatePicker max hom nay va validateForm. Test do truoc. Chua deploy.

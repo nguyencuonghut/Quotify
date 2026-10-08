@@ -153,6 +153,11 @@ class QuoteService:
             for line in sorted(source_version.lines, key=lambda item: item.line_order)
         }
 
+    def _validate_received_date(self, received_date: date) -> None:
+        """Ngày nhận báo giá không thể ở tương lai (giờ Việt Nam), với mọi loại tiền."""
+        if received_date > get_business_today():
+            raise ValueError("Ngày nhận báo giá không được ở tương lai.")
+
     def _validate_backfill(self, received_date: date, delivery_month: date, is_backfilled: bool, backfill_reason: str | None) -> None:
         today = get_business_today()
         first_day_current_month = today.replace(day=1)
@@ -207,6 +212,7 @@ class QuoteService:
         # Validate backfill logic for each line
         for line in lines_data:
             delivery_m = self._parse_date_value(line["delivery_month"])
+            self._validate_received_date(received_date)
             self._validate_backfill(received_date, delivery_m, is_backfilled, backfill_reason)
 
         # Create Quote
@@ -356,6 +362,7 @@ class QuoteService:
 
         for line in lines_data:
             delivery_m = self._parse_date_value(line["delivery_month"])
+            self._validate_received_date(received_date)
             self._validate_backfill(received_date, delivery_m, is_backfilled, backfill_reason)
 
         # Get next version number
@@ -469,6 +476,7 @@ class QuoteService:
 
         for line in lines_data:
             delivery_m = self._parse_date_value(line["delivery_month"])
+            self._validate_received_date(received_date)
             self._validate_backfill(received_date, delivery_m, is_backfilled, backfill_reason)
 
         # Update metadata
