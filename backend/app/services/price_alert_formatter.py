@@ -79,6 +79,14 @@ def title(level: Level, direction: Direction) -> str:
     return f"{_LEVEL_DOT[level]} {_DIRECTION_WORD[direction]} {_LEVEL_LABEL[level]}"
 
 
+def _headline(event: EventView) -> str:
+    """"🔴 ▼18.08% · GIẢM LỚN": chấm màu là mức, mũi tên và phần trăm đứng ngay sau chấm."""
+    return (
+        f"{_LEVEL_DOT[event.level]} {_percent(event.percent_change)} · "
+        f"{_DIRECTION_WORD[event.direction]} {_LEVEL_LABEL[event.level]}"
+    )
+
+
 def chart_title(message: MessageView) -> str:
     """Tiêu đề trong ảnh: không emoji (DejaVu không vẽ được), dùng ▲ ▼."""
     top = top_event(message)
@@ -91,17 +99,16 @@ def chart_title(message: MessageView) -> str:
 def format_caption(message: MessageView) -> str:
     """Caption ngắn của ảnh (≤ 1.024 ký tự), mỗi dòng ngắn để không xuống dòng trên điện thoại.
 
-    Tiêu đề, "gốc → giá mới (chênh lệch)", phần trăm in đậm kèm gốc so sánh; có thể thêm dòng
-    nhắc các kỳ khác và dòng cảnh báo khi biến động rất lớn (nghi nhập nhầm).
+    Tiêu đề mở bằng chấm màu (mức) rồi mũi tên kèm phần trăm, sau đó chiều và mức bằng chữ, rồi
+    "gốc → giá mới (chênh lệch)"; gốc so sánh nằm ở tin chi tiết. Có thể thêm dòng nhắc các kỳ
+    khác và dòng cảnh báo khi biến động rất lớn (nghi nhập nhầm).
     """
     top = top_event(message)
     delta = top.price_new - top.price_ref
     lines = [
-        f"<b>{title(top.level, top.direction)} · {escape_html(message.material_name)}</b>",
+        f"<b>{_headline(top)} · {escape_html(message.material_name)}</b>",
         f"{_money_short(top.price_ref)} → {_money_short(top.price_new)} VNĐ/KG "
         f"({_signed_money(delta)})",
-        f"<b>{_percent(top.percent_change)}</b> "
-        f"{_reference_short(top.rule, message.reference_working_days)}",
     ]
     if top.prior_alert_price is not None and top.prior_alert_price > 0:
         since_last = (top.price_new - top.prior_alert_price) / top.prior_alert_price * 100
@@ -181,6 +188,7 @@ def _detail(message: MessageView, event: EventView, *, many: bool) -> str:
         heading += " (kỳ trong ảnh)"
     lines = [
         heading,
+        *_cnf_change_lines(event),
         f"So với {_reference_target_short(event.rule, window)}"
         + (f" (cách {event.reference_age_days} ngày)" if event.reference_age_days else ""),
         f"  {_money_short(event.price_ref)} ({_short_day(event.received_date_ref)})",
@@ -202,17 +210,17 @@ def _detail(message: MessageView, event: EventView, *, many: bool) -> str:
             f"{window} ngày qua: {_money_short(event.window_min)} – "
             f"{_money_short(event.window_max)}",
         )
-    lines.extend(_cnf_lines(event))
+    if event.cnf_price_new is not None:
+        lines.append(f"CNF: {_money(event.cnf_price_new)} USD/MT")
     return "\n".join(lines)
 
 
-def _cnf_lines(event: EventView) -> list[str]:
-    """QĐ-8: chỉ khi điểm mới là USD/MT; dòng 'so với' chỉ khi điểm tham chiếu cũng là USD/MT."""
-    if event.cnf_price_new is None:
-        return []
-    lines = [f"CNF: {_money(event.cnf_price_new)} USD/MT"]
+def _cnf_change_lines(event: EventView) -> list[str]:
+    """QĐ-8: dòng 'so với' chỉ khi điểm mới và điểm tham chiếu đều là USD/MT; đứng đầu chi tiết."""
+    lines: list[str] = []
     if (
-        event.cnf_price_ref is not None
+        event.cnf_price_new is not None
+        and event.cnf_price_ref is not None
         and event.cnf_date_ref is not None
         and event.cnf_price_ref > 0
     ):

@@ -81,23 +81,24 @@ Mỗi biến động có **hai phần** gửi liền nhau: một **ảnh biểu 
 Ảnh kèm tóm tắt (ví dụ):
 
 ```
-🟠 TĂNG TRUNG BÌNH · Ngô hạt
+🟠 ▲5.57% · TĂNG TRUNG BÌNH · Ngô hạt
 7,720 → 8,150 VNĐ/KG (+430)
-▲5.57% so với thấp nhất 7 ngày
 ```
 
 - **7,720 → 8,150**: giá cũ (điểm tham chiếu) và giá mới, đơn vị VNĐ/KG, làm tròn nguyên.
-- **▲ 5.57%**: giá tăng 5,57% (▼ là giảm), và so với mốc nào.
+- **🟠**: mức biến động (🟡 nhẹ, 🟠 trung bình, 🔴 lớn). Mũi tên chỉ là chữ nên không đổi màu; màu nằm ở chấm đứng trước.
+- **▲5.57%**: giá tăng 5,57% (▼ là giảm). Mốc so sánh (điểm gần nhất, thấp nhất hoặc cao nhất 7 ngày) ghi ở tin chi tiết.
 - Nếu có thêm dòng **"Kỳ 11/2026 và 2 kỳ khác"**: vật tư này còn kỳ giao hàng khác cũng biến động; ảnh vẽ kỳ mạnh nhất.
 - Nếu có **"⚠️ Tăng rất mạnh, nên kiểm tra phiếu"**: biến động từ 30% trở lên, có thể do nhập sai.
 
 Biểu đồ vẽ 14 ngày gần nhất: đường giá thấp nhất mỗi ngày, hai đường ngang là giá thấp nhất và cao nhất của vùng tham chiếu 7 ngày làm việc, điểm cuối tô màu theo mức.
 
 Tin chi tiết (gửi im lặng) gồm:
-- **Chi tiết kỳ giao hàng**, giá thấp nhất 7 ngày và ngày của nó, **giá mới và ngày nhận**;
+- **Chi tiết kỳ giao hàng**; với phiếu USD/MT, dòng phần trăm của giá CNF (ví dụ "▼17.74% so với 15,500.00 (29/09)") nằm ngay dưới tiêu đề;
+- mốc so sánh (ví dụ giá thấp nhất 7 ngày) và ngày của nó và ngày của nó, **giá mới và ngày nhận**;
 - dòng **"Cũng: ▲4.49% so với điểm gần nhất"** (so sánh phụ, chỉ in khi khác mốc chính);
 - **7 ngày qua: 7,720 – 7,900**: khoảng giá của tuần tham chiếu;
-- với phiếu nhập **USD/MT**: dòng **CNF** (giá USD/MT gốc); nếu chênh lệch chủ yếu do tỷ giá sẽ ghi "(chênh lệch do tỷ giá)";
+- với phiếu nhập **USD/MT**: dòng **CNF** (giá USD/MT mới) ở cuối phần số liệu; nếu chênh lệch chủ yếu do tỷ giá sẽ ghi "(chênh lệch do tỷ giá)";
 - **🔗 Xem phiếu →** để mở phiếu trên web;
 - **ℹ️** nhắc rằng điểm giá có thể thuộc **nhà cung cấp khác** với lần trước (vì so giá thấp nhất mọi nhà cung cấp).
 

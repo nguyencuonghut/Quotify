@@ -58,22 +58,21 @@ def _lines(text: str) -> list[str]:
 
 def test_example_1_caption_shows_from_to_and_the_difference() -> None:
     assert format_caption(_message()) == (
-        "<b>🟠 TĂNG TRUNG BÌNH · Ngô hạt</b>\n"
-        "7,720 → 8,150 VNĐ/KG (+430)\n"
-        "<b>▲5.57%</b> so với thấp nhất 7 ngày"
+        "<b>🟠 ▲5.57% · TĂNG TRUNG BÌNH · Ngô hạt</b>\n"
+        "7,720 → 8,150 VNĐ/KG (+430)"
     )
 
 
 def test_example_1_details_are_compact_labelled_lines_with_a_short_link() -> None:
     assert format_details(_message(), base_url=BASE_URL) == (
         "<b>Chi tiết kỳ 12/2026</b>\n"
+        "  ▲5.75% so với 287.00 (25/09)\n"
         "So với giá thấp nhất 7 ngày\n"
         "  7,720 (25/09)\n"
         "Giá mới: 8,150 (02/10)\n"
         "Cũng: ▲4.49% so với điểm gần nhất\n"
         "7 ngày qua: 7,720 – 7,900\n"
         "CNF: 303.50 USD/MT\n"
-        "  ▲5.75% so với 287.00 (25/09)\n"
         "\n"
         '🔗 <a href="https://quotify.honghafeed.com.vn/quotes/abc-123">Xem phiếu →</a>\n'
         "ℹ️ Điểm giá có thể thuộc nhà cung cấp khác lần trước."
@@ -105,6 +104,10 @@ def test_cnf_moving_against_the_vnd_direction_is_flagged_as_exchange_rate() -> N
     details = format_details(_message(event), base_url=BASE_URL)
 
     assert "▼5.16% so với 320.00 (25/09)\n  (chênh lệch do tỷ giá)" in details
+    # Dòng phần trăm CNF nằm ngay dưới tiêu đề; giá CNF mới vẫn ở cuối tin.
+    lines = details.splitlines()
+    assert lines[1].strip().startswith("▼5.16% so với 320.00")
+    assert lines[-4].startswith("CNF: 303.50 USD/MT")
 
 
 def test_a_flat_cnf_with_a_moving_vnd_price_is_flagged_as_exchange_rate() -> None:
@@ -141,9 +144,9 @@ def test_a_fall_uses_the_down_arrow_and_the_highest_reference() -> None:
 
     caption = format_caption(_message(event))
 
-    assert caption.startswith("<b>🔴 GIẢM LỚN · Ngô hạt</b>")
+    assert caption.startswith("<b>🔴 ▼10.58% · GIẢM LỚN · Ngô hạt</b>")
     assert "10,400 → 9,300 VNĐ/KG (−1,100)" in caption
-    assert "<b>▼10.58%</b> so với cao nhất 7 ngày" in caption
+    assert "so với cao nhất" not in caption  # gốc so sánh chỉ còn ở tin chi tiết
 
 
 @pytest.mark.parametrize(

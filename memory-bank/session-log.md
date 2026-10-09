@@ -1221,3 +1221,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Cot Telegram o danh muc nguoi dung
 - Tom tat: Them telegram_status vao danh sach nguoi dung (truy van gop, chi lien ket dang giu) va cot Telegram o UsersPage. Test tich hop DB, API va frontend.
+
+## 2026-10-09 08:09:10Z - claude
+
+- Tieu de: Doi thu tu mui ten va phan tram trong tin bien dong gia
+- Tom tat: Caption: chau mau, mui ten, phan tram, chieu va muc, ten vat tu. Chi tiet: dong phan tram CNF dung dau. Telegram HTML khong to mau chu nen mui ten khong co mau rieng.
