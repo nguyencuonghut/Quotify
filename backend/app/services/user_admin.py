@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.hashing import hash_password
-from app.models import Role, User, UserStatus
+from app.models import Role, TelegramAccount, User, UserStatus
+from app.models.telegram_account import TELEGRAM_ACCOUNT_HOLDING_STATUSES
 
 
 class EmailAlreadyExistsError(Exception):
@@ -95,6 +96,18 @@ class UserAdminService:
         result = await self.session.execute(stmt)
         users = result.scalars().all()
         return users, total
+
+    async def get_telegram_link_statuses(self, user_ids: Sequence[UUID]) -> dict[UUID, str]:
+        """Liên kết Telegram đang giữ (`active`/`blocked`); không có khóa nghĩa là chưa liên kết."""
+        if not user_ids:
+            return {}
+        rows = await self.session.execute(
+            select(TelegramAccount.user_id, TelegramAccount.status).where(
+                TelegramAccount.user_id.in_(user_ids),
+                TelegramAccount.status.in_(TELEGRAM_ACCOUNT_HOLDING_STATUSES),
+            ),
+        )
+        return {row.user_id: row.status for row in rows}
 
     async def update_user(
         self,

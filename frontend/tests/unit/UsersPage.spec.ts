@@ -132,3 +132,27 @@ describe('UsersPage row action permissions', () => {
     expect(editButton.attributes('title')).toBe('Chỉnh sửa')
   })
 })
+
+describe('UsersPage Telegram link column', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    const base = { fullName: 'A', status: 'active', roles: [], lastLoginAt: null, avatarUrl: null }
+    users.value = [
+      { ...base, id: 'u1', email: 'linked@quotify.local', telegramStatus: 'active' },
+      { ...base, id: 'u2', email: 'blocked@quotify.local', telegramStatus: 'blocked' },
+      { ...base, id: 'u3', email: 'none@quotify.local', telegramStatus: null },
+    ]
+  })
+
+  it('shows linked, blocked and not-linked accounts distinctly', () => {
+    const wrapper = mountUsersPage()
+
+    const tags = wrapper.findAll('[data-testid="users-page-telegram-status"]')
+    expect(tags.map((tag) => tag.attributes('value'))).toEqual([
+      'Đã liên kết',
+      'Đã chặn bot',
+      'Chưa liên kết',
+    ])
+    expect(tags.map((tag) => tag.attributes('severity'))).toEqual(['success', 'warn', 'secondary'])
+  })
+})

@@ -115,6 +115,15 @@
               </div>
             </template>
           </Column>
+          <Column header="Telegram">
+            <template #body="{ data }">
+              <Tag
+                :severity="telegramSeverity(data.telegramStatus)"
+                :value="telegramLabel(data.telegramStatus)"
+                data-testid="users-page-telegram-status"
+              />
+            </template>
+          </Column>
           <Column field="last_login_at" header="Đăng nhập cuối" sortable>
             <template #body="{ data }">
               {{ formatDateTime(data.lastLoginAt) }}
@@ -908,6 +917,18 @@ function statusSeverity(statusVal: string) {
     statusSeverityMap[statusVal as keyof typeof statusSeverityMap] ||
     'secondary'
   )
+}
+
+function telegramSeverity(telegramStatus?: string | null) {
+  if (telegramStatus === 'active') return 'success'
+  if (telegramStatus === 'blocked') return 'warn'
+  return 'secondary'
+}
+
+function telegramLabel(telegramStatus?: string | null) {
+  if (telegramStatus === 'active') return 'Đã liên kết'
+  if (telegramStatus === 'blocked') return 'Đã chặn bot'
+  return 'Chưa liên kết'
 }
 
 function statusLabel(statusVal: string) {

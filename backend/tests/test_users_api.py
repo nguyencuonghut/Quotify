@@ -36,9 +36,13 @@ class MockUserAdminService:
     def __init__(self, users: list[User]) -> None:
         self.users = {u.id: u for u in users}
         self.audit_service: MockAuditLogService | None = None
+        self.telegram_statuses: dict[UUID, str] = {}
 
     async def list_users(self, **kwargs: Any) -> tuple[list[User], int]:
         return list(self.users.values()), len(self.users)
+
+    async def get_telegram_link_statuses(self, user_ids: list[UUID]) -> dict[UUID, str]:
+        return {uid: status for uid, status in self.telegram_statuses.items() if uid in user_ids}
 
     async def get_user_by_id(self, user_id: UUID) -> User:
         user = self.users.get(user_id)
@@ -136,6 +140,20 @@ async def test_list_users_api(
     data = response.json()
     assert data["total"] == 2
     assert len(data["items"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_users_api_reports_the_telegram_link_status(
+    app: FastAPI, client: AsyncClient, override_dependencies: MockUserAdminService
+) -> None:
+    linked_id = next(iter(override_dependencies.users))
+    override_dependencies.telegram_statuses = {linked_id: "active"}
+
+    items = (await client.get("/api/v1/users")).json()["items"]
+
+    by_id = {item["id"]: item["telegram_status"] for item in items}
+    assert by_id[str(linked_id)] == "active"
+    assert [v for k, v in by_id.items() if k != str(linked_id)] == [None] * (len(items) - 1)
 
 
 @pytest.mark.asyncio

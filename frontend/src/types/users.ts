@@ -7,6 +7,7 @@ export interface UserDto {
   last_login_at: string | null
   full_name: string
   avatar_url?: string | null
+  telegram_status?: string | null
 }
 
 export interface UserListDto {
@@ -23,6 +24,8 @@ export interface UserDomain {
   lastLoginAt: string | null
   fullName: string
   avatarUrl?: string | null
+  /** `active`, `blocked`; null/undefined = chưa liên kết (chỉ danh sách người dùng có). */
+  telegramStatus?: string | null
 }
 
 export interface UserAvatarUploadDto {

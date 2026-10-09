@@ -1216,3 +1216,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Chan ngay nhan bao gia o tuong lai
 - Tom tat: Truoc day chi dong USD/MT bi chan; VND/KG luu duoc ngay tuong lai. Them _validate_received_date (tao, sua nhap, dieu chinh), kiem tra o import Excel, DatePicker max hom nay va validateForm. Test do truoc. Chua deploy.
+
+## 2026-10-09 07:48:47Z - claude
+
+- Tieu de: Cot Telegram o danh muc nguoi dung
+- Tom tat: Them telegram_status vao danh sach nguoi dung (truy van gop, chi lien ket dang giu) va cot Telegram o UsersPage. Test tich hop DB, API va frontend.

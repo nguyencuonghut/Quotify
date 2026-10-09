@@ -47,6 +47,8 @@ class UserResponse(BaseModel):
     last_login_at: datetime | None
     full_name: str
     avatar_url: str | None = None
+    # Chỉ danh sách người dùng điền: `active`, `blocked`; None = chưa liên kết Telegram.
+    telegram_status: str | None = None
 
 
 class UserListResponse(BaseModel):

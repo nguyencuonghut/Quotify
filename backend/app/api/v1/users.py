@@ -117,10 +117,13 @@ async def list_users(
         sort_order=sort_order,
     )
 
-    return UserListResponse(
-        items=[_build_user_response(u) for u in users],
-        total=total,
-    )
+    telegram_statuses = await user_admin_service.get_telegram_link_statuses([u.id for u in users])
+    items = []
+    for user in users:
+        item = _build_user_response(user)
+        item.telegram_status = telegram_statuses.get(user.id)
+        items.append(item)
+    return UserListResponse(items=items, total=total)
 
 
 @router.post(

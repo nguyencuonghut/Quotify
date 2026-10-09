@@ -16,6 +16,7 @@ export function mapUserDtoToDomain(dto: UserDto): UserDomain {
     lastLoginAt: dto.last_login_at,
     fullName: dto.full_name,
     avatarUrl: dto.avatar_url,
+    telegramStatus: dto.telegram_status ?? null,
   }
 }
 
