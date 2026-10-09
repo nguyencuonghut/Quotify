@@ -764,3 +764,13 @@ Người dùng nhận thấy ô "Ngày nhận báo giá" ở trang "Nhập báo 
 - Không ảnh hưởng dữ liệu đã có (DB dev không có phiếu nào ngày tương lai); production kiểm bằng truy vấn chỉ đọc đã đưa cho người dùng.
 - Kiểm thử: 4 test tạo, sửa nháp, điều chỉnh, hôm nay vẫn hợp lệ, 2 test import (đỏ trước khi sửa), 4 test frontend. Backend 1.271 pass, ruff 61 và mypy 13 lỗi cũ không đổi; vitest 4 lỗi cũ, lint 12/57, `vue-tsc` sạch. Triển khai: build lại `backend`, `worker` và `frontend`, theo runbook 15.6 (nhớ `restart reverse-proxy`).
 
+## Bỏ Giới Hạn Pilot Trên Production (2026-10-09)
+
+Người dùng quyết định chạy thật cho mọi người, không cần pilot, và để việc liên kết Telegram của các tài khoản còn lại làm sau.
+
+- Trước khi bỏ: pilot gồm 2 trưởng phòng (`lethihong@`, `nguyencuonghut55@`). Có 3 tài khoản đã liên kết (thêm Hoàng Thúy Dung, nhân viên, 15 vật tư trong 90 ngày, mới liên kết nên chưa nằm trong pilot) và 8 tài khoản đang hoạt động chưa liên kết. Công tắc tổng, nhắc cập nhật (giờ nhắc 9) và bất thường đều bật.
+- Thực hiện: sao lưu `.env` thành `.env.bak-pilot-20261009`, đặt `PRICE_ALERT_RECIPIENT_EMAILS=` (trống), `up -d --force-recreate worker`. Chỉ `worker` đọc biến này nên không đụng `backend`, `frontend` và không cần `restart reverse-proxy`. Log worker có `Starting worker for 19 functions`, không lỗi.
+- Hiệu lực: người chưa liên kết không sinh tin và không có tin kẹt; ai liên kết sau nhận từ lần quét kế tiếp, không có tin bù. Quy tắc nhóm không đổi (trưởng phòng mọi vật tư, nhân viên vật tư mình nhập, admin chỉ khi bật, tài khoản seed luôn loại).
+- Quay lại pilot: chép lại `.env.bak-pilot-20261009` rồi tạo lại `worker`.
+- Kiểm tra người nhận bất cứ lúc nào bằng `scripts/ops/price-alert-recipients.sql` (chỉ đọc).
+

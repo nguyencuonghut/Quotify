@@ -1236,3 +1236,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Bo cuc can doi dau trang Nguoi dung
 - Tom tat: Filter grid 4 cot / 3 cot / 1 cot, nut thao tac mot hang rieng canh phai, mobile Them tai khoan len dau, e2e kiem tra khong tran ngang.
+
+## 2026-10-09 08:44:46Z - claude
+
+- Tieu de: Bo gioi han pilot tren production
+- Tom tat: PRICE_ALERT_RECIPIENT_EMAILS de trong, tao lai worker; nguoi chua lien ket khong sinh tin, lien ket sau se nhan tu lan quet ke tiep. Quay lai: .env.bak-pilot-20261009.
