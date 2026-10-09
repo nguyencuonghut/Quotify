@@ -1231,3 +1231,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Bo loc vai tro va Telegram o danh muc nguoi dung
 - Tom tat: Them role_filter va telegram_filter vao GET /users (loc phia may chu de dung voi phan trang), UI co 3 bo loc Trang thai, Vai tro, Telegram. Test DB, API, frontend.
+
+## 2026-10-09 08:26:50Z - claude
+
+- Tieu de: Bo cuc can doi dau trang Nguoi dung
+- Tom tat: Filter grid 4 cot / 3 cot / 1 cot, nut thao tac mot hang rieng canh phai, mobile Them tai khoan len dau, e2e kiem tra khong tran ngang.
