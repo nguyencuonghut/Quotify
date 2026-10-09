@@ -156,3 +156,23 @@ describe('UsersPage Telegram link column', () => {
     expect(tags.map((tag) => tag.attributes('severity'))).toEqual(['success', 'warn', 'secondary'])
   })
 })
+
+describe('UsersPage list filters', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    users.value = []
+    usersPageMock.fetchUsers.mockClear()
+  })
+
+  it.each(['status', 'role', 'telegram'])('has a %s filter that reloads the list', async (name) => {
+    const wrapper = mountUsersPage()
+
+    const select = wrapper.findComponent(`[data-testid="users-page-${name}-filter"]`)
+    expect(select.exists()).toBe(true)
+    usersPageMock.fetchUsers.mockClear() // bỏ lần tải khi mở trang
+
+    await select.vm.$emit('change')
+
+    expect(usersPageMock.fetchUsers).toHaveBeenCalledTimes(1)
+  })
+})

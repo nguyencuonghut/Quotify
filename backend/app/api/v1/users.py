@@ -36,6 +36,7 @@ from app.services import (
     UserAdminService,
     UserNotFoundError,
 )
+from app.services.user_admin import TELEGRAM_FILTERS
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -95,6 +96,8 @@ async def list_users(
     offset: int = Query(default=0, ge=0),
     search: str | None = None,
     status_filter: str | None = None,
+    role_filter: str | None = None,
+    telegram_filter: str | None = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
 ) -> UserListResponse:
@@ -108,11 +111,19 @@ async def list_users(
                 detail="Invalid status filter.",
             ) from exc
 
+    if telegram_filter and telegram_filter not in TELEGRAM_FILTERS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid telegram filter.",
+        )
+
     users, total = await user_admin_service.list_users(
         limit=limit,
         offset=offset,
         search=search,
         status=user_status,
+        role_name=role_filter or None,
+        telegram=telegram_filter or None,
         sort_by=sort_by,
         sort_order=sort_order,
     )

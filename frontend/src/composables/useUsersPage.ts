@@ -41,6 +41,8 @@ export function useUsersPage() {
     offset: 0,
     search: '',
     status_filter: '',
+    role_filter: '',
+    telegram_filter: '',
     sort_by: 'created_at',
     sort_order: 'desc',
   })

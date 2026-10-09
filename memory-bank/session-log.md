@@ -1226,3 +1226,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Doi thu tu mui ten va phan tram trong tin bien dong gia
 - Tom tat: Caption: chau mau, mui ten, phan tram, chieu va muc, ten vat tu. Chi tiet: dong phan tram CNF dung dau. Telegram HTML khong to mau chu nen mui ten khong co mau rieng.
+
+## 2026-10-09 08:22:30Z - claude
+
+- Tieu de: Bo loc vai tro va Telegram o danh muc nguoi dung
+- Tom tat: Them role_filter va telegram_filter vao GET /users (loc phia may chu de dung voi phan trang), UI co 3 bo loc Trang thai, Vai tro, Telegram. Test DB, API, frontend.

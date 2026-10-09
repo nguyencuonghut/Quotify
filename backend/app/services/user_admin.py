@@ -3,13 +3,17 @@ from __future__ import annotations
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.hashing import hash_password
 from app.models import Role, TelegramAccount, User, UserStatus
 from app.models.telegram_account import TELEGRAM_ACCOUNT_HOLDING_STATUSES
+
+# Giá trị bộ lọc Telegram ở danh sách người dùng -> trạng thái liên kết đang giữ.
+TELEGRAM_FILTER_STATUS = {"linked": "active", "blocked": "blocked"}
+TELEGRAM_FILTERS = ("linked", "blocked", "none")
 
 
 class EmailAlreadyExistsError(Exception):
@@ -68,15 +72,22 @@ class UserAdminService:
         offset: int = 0,
         search: str | None = None,
         status: UserStatus | None = None,
+        role_name: str | None = None,
+        telegram: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
     ) -> tuple[Sequence[User], int]:
+        """`telegram`: `linked` (đang liên kết), `blocked` (chặn bot), `none` (chưa/đã hủy)."""
         stmt = select(User).options(selectinload(User.roles).selectinload(Role.permissions))
 
         if search:
             stmt = stmt.where(User.email.ilike(f"%{search}%"))
         if status:
             stmt = stmt.where(User.status == status)
+        if role_name:
+            stmt = stmt.where(User.roles.any(Role.name == role_name))
+        if telegram:
+            stmt = stmt.where(self._telegram_condition(telegram))
 
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_result = await self.session.execute(count_stmt)
@@ -96,6 +107,17 @@ class UserAdminService:
         result = await self.session.execute(stmt)
         users = result.scalars().all()
         return users, total
+
+    @staticmethod
+    def _telegram_condition(telegram: str) -> ColumnElement[bool]:
+        holding = select(TelegramAccount.id).where(
+            TelegramAccount.user_id == User.id,
+            TelegramAccount.status.in_(TELEGRAM_ACCOUNT_HOLDING_STATUSES),
+        )
+        if telegram == "none":
+            return ~holding.exists()
+        status = TELEGRAM_FILTER_STATUS[telegram]
+        return holding.where(TelegramAccount.status == status).exists()
 
     async def get_telegram_link_statuses(self, user_ids: Sequence[UUID]) -> dict[UUID, str]:
         """Liên kết Telegram đang giữ (`active`/`blocked`); không có khóa nghĩa là chưa liên kết."""

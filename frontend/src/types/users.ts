@@ -66,6 +66,9 @@ export interface UserListQueryParams {
   offset: number
   search?: string
   status_filter?: string
+  role_filter?: string
+  /** `linked`, `blocked`, `none` (chưa liên kết hoặc đã hủy). */
+  telegram_filter?: string
   sort_by: string
   sort_order: 'asc' | 'desc'
 }

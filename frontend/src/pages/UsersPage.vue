@@ -23,6 +23,35 @@
               option-value="value"
               placeholder="Tất cả"
               class="users-page__status-select"
+              data-testid="users-page-status-filter"
+              @change="onFilterChange"
+            />
+          </label>
+
+          <label class="users-page__filter-field">
+            <span class="users-page__filter-label">Vai trò</span>
+            <Select
+              v-model="lazyParams.role_filter"
+              :options="roleFilterOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="Tất cả"
+              class="users-page__status-select"
+              data-testid="users-page-role-filter"
+              @change="onFilterChange"
+            />
+          </label>
+
+          <label class="users-page__filter-field">
+            <span class="users-page__filter-label">Telegram</span>
+            <Select
+              v-model="lazyParams.telegram_filter"
+              :options="telegramFilterOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="Tất cả"
+              class="users-page__status-select"
+              data-testid="users-page-telegram-filter"
               @change="onFilterChange"
             />
           </label>
@@ -898,6 +927,18 @@ const statusFilterOptions = [
   { label: 'Đang hoạt động', value: 'active' },
   { label: 'Tạm ngưng', value: 'inactive' },
   { label: 'Bị khóa', value: 'locked' },
+]
+
+const roleFilterOptions = computed(() => [
+  { label: 'Tất cả', value: '' },
+  ...roles.value.map((role) => ({ label: role.name, value: role.name })),
+])
+
+const telegramFilterOptions = [
+  { label: 'Tất cả', value: '' },
+  { label: 'Đã liên kết', value: 'linked' },
+  { label: 'Đã chặn bot', value: 'blocked' },
+  { label: 'Chưa liên kết', value: 'none' },
 ]
 
 const statusSeverityMap = {

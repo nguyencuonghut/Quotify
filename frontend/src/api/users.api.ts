@@ -27,6 +27,12 @@ export function listUsers(
   if (params.status_filter) {
     query.append('status_filter', params.status_filter)
   }
+  if (params.role_filter) {
+    query.append('role_filter', params.role_filter)
+  }
+  if (params.telegram_filter) {
+    query.append('telegram_filter', params.telegram_filter)
+  }
   query.append('sort_by', params.sort_by)
   query.append('sort_order', params.sort_order)
 

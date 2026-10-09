@@ -37,8 +37,10 @@ class MockUserAdminService:
         self.users = {u.id: u for u in users}
         self.audit_service: MockAuditLogService | None = None
         self.telegram_statuses: dict[UUID, str] = {}
+        self.list_kwargs: dict[str, Any] = {}
 
     async def list_users(self, **kwargs: Any) -> tuple[list[User], int]:
+        self.list_kwargs = kwargs
         return list(self.users.values()), len(self.users)
 
     async def get_telegram_link_statuses(self, user_ids: list[UUID]) -> dict[UUID, str]:
@@ -154,6 +156,36 @@ async def test_list_users_api_reports_the_telegram_link_status(
     by_id = {item["id"]: item["telegram_status"] for item in items}
     assert by_id[str(linked_id)] == "active"
     assert [v for k, v in by_id.items() if k != str(linked_id)] == [None] * (len(items) - 1)
+
+
+@pytest.mark.asyncio
+async def test_list_users_api_passes_the_role_and_telegram_filters_on(
+    app: FastAPI, client: AsyncClient, override_dependencies: MockUserAdminService
+) -> None:
+    response = await client.get("/api/v1/users?role_filter=manager&telegram_filter=none")
+
+    assert response.status_code == 200
+    assert override_dependencies.list_kwargs["role_name"] == "manager"
+    assert override_dependencies.list_kwargs["telegram"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_list_users_api_without_the_new_filters_sends_none(
+    app: FastAPI, client: AsyncClient, override_dependencies: MockUserAdminService
+) -> None:
+    await client.get("/api/v1/users?role_filter=&telegram_filter=")
+
+    assert override_dependencies.list_kwargs["role_name"] is None
+    assert override_dependencies.list_kwargs["telegram"] is None
+
+
+@pytest.mark.asyncio
+async def test_list_users_api_rejects_an_unknown_telegram_filter(
+    app: FastAPI, client: AsyncClient, override_dependencies: MockUserAdminService
+) -> None:
+    response = await client.get("/api/v1/users?telegram_filter=maybe")
+
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
