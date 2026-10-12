@@ -106,6 +106,7 @@ async def review_price_alert_anomaly(
         actor_user_id=current_user.id,
         now=now,
         request_id=request_id_context.get() or None,
+        channel="web",
     )
     match result.outcome:
         case ReviewOutcome.FORBIDDEN:

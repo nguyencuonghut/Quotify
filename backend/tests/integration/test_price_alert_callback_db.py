@@ -14,7 +14,7 @@ from telegram_fakes import Outbox, make_client
 from test_price_alert_anomaly_messages_db import build, flag, new_run, scene  # noqa: F401
 
 import app.services.telegram_update_runner as runner_module
-from app.models import PriceAlertEvent, PriceAlertMessage, TelegramAccount
+from app.models import AuditLog, PriceAlertEvent, PriceAlertMessage, TelegramAccount
 from app.services.price_alert_review_service import PriceAlertReviewService
 from app.services.telegram_update_runner import TelegramUpdateRunner, TelegramUserRateLimiter
 
@@ -135,6 +135,20 @@ async def test_marking_the_price_wrong_is_recorded_and_the_card_is_closed(setup:
 
     assert await setup.status(event) == "rejected"
     assert "Đã đánh dấu nhập sai bởi" in setup.outbox.edits()[0]["text"]
+    async with setup.scene.sf() as session:
+        audit = (
+            await session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "price_alerts.anomaly_reviewed",
+                    AuditLog.entity_id == str(event),
+                )
+            )
+        ).scalar_one()
+    assert audit.actor_user_id == manager
+    assert (audit.metadata_json["status"], audit.metadata_json["channel"]) == (
+        "rejected",
+        "telegram",
+    )
 
 
 async def test_someone_without_permission_is_refused_and_nothing_changes(setup: Setup) -> None:

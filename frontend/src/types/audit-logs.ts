@@ -10,6 +10,8 @@ export interface AuditLogDto {
   request_id: string | null
   ip_address: string | null
   metadata: AuditLogMetadata | null
+  /** Nhãn đối tượng máy chủ tra từ DB (ví dụ "Phiếu #3599 · ADM0001"). */
+  target_label?: string | null
   created_at: string
 }
 

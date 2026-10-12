@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -11,7 +11,7 @@ from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import AuditLog
+from app.models import AuditLog, Quote, Supplier, TelegramAccount, User
 
 
 @dataclass(slots=True, frozen=True)
@@ -32,6 +32,11 @@ class AuditLogListResult:
     items: Sequence[AuditLog]
     next_cursor: str | None
     total: int
+    # Nhãn "Đối tượng" tra từ DB cho dòng chỉ có id (phiếu, liên kết Telegram), khóa theo log.id.
+    target_labels: dict[UUID, str] = field(default_factory=dict)
+
+
+_QUOTE_ENTITY_TYPES = frozenset({"quote", "quote_version", "quote_line"})
 
 
 class InvalidAuditLogCursorError(Exception):
@@ -76,7 +81,57 @@ class AuditLogAdminService:
                 audit_log_id=last_row.id,
             )
 
-        return AuditLogListResult(items=rows, next_cursor=next_cursor, total=total)
+        return AuditLogListResult(
+            items=rows,
+            next_cursor=next_cursor,
+            total=total,
+            target_labels=await self.resolve_target_labels(rows),
+        )
+
+    async def resolve_target_labels(self, rows: Sequence[AuditLog]) -> dict[UUID, str]:
+        """Người đọc cần thấy "Phiếu #3599 · ADM0001" hoặc email, không phải id (1 truy vấn mỗi loại).
+
+        Chỉ trả nhãn cho dòng tra được; dòng không tra được (đã xóa, id lạ) để giao diện tự xử lý.
+        """
+        quote_of: dict[UUID, UUID] = {}
+        link_of: dict[UUID, UUID] = {}
+        for row in rows:
+            if row.entity_type in _QUOTE_ENTITY_TYPES:
+                quote_id = _uuid(row.entity_id if row.entity_type == "quote" else None) or _uuid(
+                    (row.metadata_json or {}).get("quote_id"),
+                )
+                if quote_id is not None:
+                    quote_of[row.id] = quote_id
+            elif row.entity_type == "telegram_account":
+                account_id = _uuid(row.entity_id)
+                if account_id is not None:
+                    link_of[row.id] = account_id
+
+        labels: dict[UUID, str] = {}
+        if quote_of:
+            found = {
+                quote_id: f"Phiếu #{number} · {code}"
+                for quote_id, number, code in (
+                    await self.session.execute(
+                        select(Quote.id, Quote.sequence_number, Supplier.code)
+                        .join(Supplier, Supplier.id == Quote.supplier_id)
+                        .where(Quote.id.in_(set(quote_of.values()))),
+                    )
+                ).all()
+            }
+            labels.update({log_id: found[q] for log_id, q in quote_of.items() if q in found})
+        if link_of:
+            emails = dict(
+                (
+                    await self.session.execute(
+                        select(TelegramAccount.id, User.email)
+                        .join(User, User.id == TelegramAccount.user_id)
+                        .where(TelegramAccount.id.in_(set(link_of.values()))),
+                    )
+                ).all(),
+            )
+            labels.update({log_id: emails[a] for log_id, a in link_of.items() if a in emails})
+        return labels
 
     def _apply_filters(
         self,
@@ -98,6 +153,15 @@ class AuditLogAdminService:
         if query.created_to:
             stmt = stmt.where(AuditLog.created_at < query.created_to)
         return stmt
+
+
+def _uuid(value: object) -> UUID | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return UUID(value)
+    except ValueError:
+        return None
 
 
 def encode_audit_log_cursor(*, created_at: datetime, audit_log_id: UUID) -> str:

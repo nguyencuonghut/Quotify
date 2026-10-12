@@ -276,4 +276,106 @@ describe('audit log mappers', () => {
       ).toBe('a@b.c')
     })
   })
+
+  describe('readable labels for every audited action', () => {
+    function dto(overrides: Partial<AuditLogDto>): AuditLogDto {
+      return {
+        id: 'log-1',
+        actor_user_id: 'user-1',
+        actor_email: 'actor@example.com',
+        action: 'auth.logout',
+        entity_type: 'user',
+        entity_id: 'user-1',
+        request_id: null,
+        ip_address: null,
+        metadata: null,
+        created_at: '2026-10-12T06:22:23+00:00',
+        ...overrides,
+      }
+    }
+
+    it('shows the signed-out person instead of the id for logout', () => {
+      const result = mapAuditLogDtoToDomain(
+        dto({ metadata: { has_refresh_cookie: '[REDACTED]' } }),
+      )
+
+      expect(result.targetLabel).toBe('actor@example.com')
+      expect(result.actionLabel).toBe('Đăng xuất')
+    })
+
+    it('does not show the actor email for a row about somebody else', () => {
+      const result = mapAuditLogDtoToDomain(
+        dto({ action: 'users.roles_updated', entity_id: 'other-user' }),
+      )
+
+      expect(result.targetLabel).toBe('other-user')
+    })
+
+    it('prefers the label the server resolved from the database', () => {
+      const result = mapAuditLogDtoToDomain(
+        dto({
+          action: 'quotes.cancelled',
+          entity_type: 'quote',
+          entity_id: 'q-id',
+          metadata: { quote_id: 'q-id', reason: 's' },
+          target_label: 'Phiếu #3599 · ADM0001',
+        }),
+      )
+
+      expect(result.targetLabel).toBe('Phiếu #3599 · ADM0001')
+    })
+
+    it.each([
+      ['quotes.quote_created', 'Tạo phiếu báo giá'],
+      ['quotes.version_confirmed', 'Chốt phiếu báo giá'],
+      ['quotes.cancelled', 'Hủy phiếu báo giá'],
+      ['materials.material_updated', 'Cập nhật vật tư'],
+      ['suppliers.supplier_updated', 'Cập nhật nhà cung cấp'],
+      ['catalog.materials_import_completed', 'Nhập danh mục vật tư hoàn tất'],
+    ])('labels %s in Vietnamese', (action, label) => {
+      expect(getAuditActionLabel(action)).toBe(label)
+    })
+
+    it.each([
+      ['quote', 'Phiếu báo giá'],
+      ['quote_version', 'Phiên bản phiếu'],
+      ['quote_line', 'Dòng báo giá'],
+      ['material', 'Vật tư'],
+      ['supplier', 'Nhà cung cấp'],
+    ])('labels entity type %s in Vietnamese', (entityType, label) => {
+      expect(getAuditEntityTypeLabel(entityType)).toBe(label)
+    })
+
+    it('summarises a price review with its decision and channel', () => {
+      const result = mapAuditLogDtoToDomain(
+        dto({
+          action: 'price_alerts.anomaly_reviewed',
+          entity_type: 'price_alert_event',
+          entity_id: 'e-1',
+          metadata: {
+            status: 'rejected',
+            channel: 'telegram',
+            material_code: '100087',
+            material_name: 'Lúa mỳ 3',
+          },
+        }),
+      )
+
+      expect(result.changeSummary).toBe('Đánh dấu nhập sai · qua Telegram')
+      expect(result.targetLabel).toBe('100087 · Lúa mỳ 3')
+    })
+
+    it('summarises an older review that has no channel', () => {
+      const result = mapAuditLogDtoToDomain(
+        dto({
+          action: 'price_alerts.anomaly_reviewed',
+          entity_type: 'price_alert_event',
+          entity_id: 'e-1',
+          metadata: { status: 'accepted' },
+        }),
+      )
+
+      expect(result.changeSummary).toBe('Xác nhận giá đúng')
+    })
+  })
 })

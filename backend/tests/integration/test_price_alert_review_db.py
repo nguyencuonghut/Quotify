@@ -22,11 +22,15 @@ AT = datetime(2052, 5, 5, 4, 0, tzinfo=UTC)
 
 
 async def review(
-    sf: async_sessionmaker[AsyncSession], event_id: uuid.UUID, action: str, actor: uuid.UUID
+    sf: async_sessionmaker[AsyncSession],
+    event_id: uuid.UUID,
+    action: str,
+    actor: uuid.UUID,
+    **extra: str,
 ):  # type: ignore[no-untyped-def]
     async with sf() as session:
         result = await PriceAlertReviewService(session).review(
-            event_id, action, actor_user_id=actor, now=AT
+            event_id, action, actor_user_id=actor, now=AT, **extra
         )
         await session.commit()
     return result
@@ -71,6 +75,7 @@ async def test_a_manager_confirming_the_price_makes_the_line_valid_again(scene: 
             )
         ).scalar_one()
     assert audit.metadata_json["status"] == "accepted"
+    assert audit.metadata_json["channel"] == "web"  # mặc định: duyệt trên giao diện web
     assert "telegram_user_id" not in audit.metadata_json
     async with scene.sf() as session:
         code = (
@@ -79,6 +84,28 @@ async def test_a_manager_confirming_the_price_makes_the_line_valid_again(scene: 
     # Người đọc nhật ký cần thấy vật tư nào, không chỉ id của thẻ.
     assert audit.metadata_json["material_code"] == code
     assert audit.metadata_json["material_name"] == "Vật tư thử"
+
+
+async def test_the_audit_log_records_which_channel_the_review_came_from(scene: Scene) -> None:  # noqa: F811
+    manager = await scene.person("it-manager")
+    run = await new_run(scene.sf)
+    event_id = await flag(scene.sf, run, scene.material, None, with_line=True)
+
+    await review(scene.sf, event_id, "no", manager, channel="telegram")
+
+    async with scene.sf() as session:
+        audit = (
+            await session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "price_alerts.anomaly_reviewed",
+                    AuditLog.entity_id == str(event_id),
+                )
+            )
+        ).scalar_one()
+    assert (audit.metadata_json["status"], audit.metadata_json["channel"]) == (
+        "rejected",
+        "telegram",
+    )
 
 
 async def test_marking_the_price_wrong_keeps_the_line_excluded(scene: Scene) -> None:  # noqa: F811

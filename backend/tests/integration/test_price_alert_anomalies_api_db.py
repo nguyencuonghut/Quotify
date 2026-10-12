@@ -126,6 +126,15 @@ async def test_a_manager_sees_a_pending_card_and_confirms_it(harness: Harness) -
     saved = await harness.event(event_id)
     assert (saved.review_status, saved.reviewed_by_id) == ("accepted", manager)
     async with harness.scene.sf() as session:
+        audit = (
+            await session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "price_alerts.anomaly_reviewed",
+                    AuditLog.entity_id == str(event_id),
+                )
+            )
+        ).scalar_one()
+        assert audit.metadata_json["channel"] == "web"
         assert saved.quote_line_id not in await excluded_line_ids(
             session, harness.scene.material, saved.delivery_month
         )

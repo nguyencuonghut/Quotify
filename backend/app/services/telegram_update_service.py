@@ -282,6 +282,7 @@ class TelegramUpdateService:
             actor_user_id=user_id,
             now=datetime.now(UTC),
             request_id=f"tg-update-{update_id}",
+            channel="telegram",
         )
         match result.outcome:
             case ReviewOutcome.FORBIDDEN:

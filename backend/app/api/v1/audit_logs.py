@@ -68,13 +68,19 @@ async def list_audit_logs(
         ) from exc
 
     return AuditLogListResponse(
-        items=[_build_audit_log_response(item) for item in result.items],
+        items=[
+            _build_audit_log_response(item, result.target_labels.get(item.id))
+            for item in result.items
+        ],
         next_cursor=result.next_cursor,
         total=result.total,
     )
 
 
-def _build_audit_log_response(audit_log: AuditLog) -> AuditLogResponse:
+def _build_audit_log_response(
+    audit_log: AuditLog,
+    target_label: str | None = None,
+) -> AuditLogResponse:
     actor = audit_log.actor_user
     return AuditLogResponse(
         id=audit_log.id,
@@ -86,6 +92,7 @@ def _build_audit_log_response(audit_log: AuditLog) -> AuditLogResponse:
         request_id=audit_log.request_id,
         ip_address=audit_log.ip_address,
         metadata=sanitize_audit_metadata(audit_log.metadata_json),
+        target_label=target_label,
         created_at=audit_log.created_at,
     )
 

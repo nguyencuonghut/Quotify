@@ -17,6 +17,8 @@ class AuditLogResponse(BaseModel):
     request_id: str | None = None
     ip_address: str | None = None
     metadata: dict[str, Any] | None = None
+    # Nhãn đối tượng tra từ DB (ví dụ "Phiếu #3599 · ADM0001"); None thì giao diện tự dựng.
+    target_label: str | None = None
     created_at: datetime
 
 

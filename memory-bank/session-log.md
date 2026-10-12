@@ -1241,3 +1241,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Bo gioi han pilot tren production
 - Tom tat: PRICE_ALERT_RECIPIENT_EMAILS de trong, tao lai worker; nguoi chua lien ket khong sinh tin, lien ket sau se nhan tu lan quet ke tiep. Quay lai: .env.bak-pilot-20261009.
+
+## 2026-10-12 06:33:53Z - claude
+
+- Tieu de: Nhat ky audit doc duoc: kenh duyet gia va nhan doi tuong
+- Tom tat: Review anomaly ghi channel web/telegram; list audit tra target_label tu DB cho phieu va lien ket telegram; mapper them nhan hanh dong, loai doi tuong, logout hien email, tom tat duyet gia. Dev poller telegram dang dung nen click Nhap sai tren Telegram khong toi backend.

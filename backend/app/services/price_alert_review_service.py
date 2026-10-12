@@ -61,6 +61,7 @@ class PriceAlertReviewService:
         actor_user_id: UUID,
         now: datetime,
         request_id: str | None = None,
+        channel: Literal["web", "telegram"] = "web",
     ) -> ReviewResult:
         actor = await AuthService(self.session).get_active_user(user_id=actor_user_id)
         if actor is None or not has_permission(actor, REVIEW_PERMISSION):
@@ -99,6 +100,7 @@ class PriceAlertReviewService:
                 entity_id=str(event_id),
                 metadata_json={
                     "status": status,
+                    "channel": channel,
                     "material_id": str(won),
                     **await self._material_labels(won),
                 },

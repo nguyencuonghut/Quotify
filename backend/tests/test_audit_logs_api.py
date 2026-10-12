@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import FastAPI, HTTPException, status
@@ -24,6 +24,7 @@ class MockAuditLogAdminService:
     def __init__(self, audit_logs: Sequence[AuditLog]) -> None:
         self.audit_logs = audit_logs
         self.received_query: AuditLogListQuery | None = None
+        self.target_labels: dict[UUID, str] = {}
 
     async def list_audit_logs(self, query: AuditLogListQuery) -> AuditLogListResult:
         self.received_query = query
@@ -31,6 +32,7 @@ class MockAuditLogAdminService:
             items=self.audit_logs,
             next_cursor="next-cursor",
             total=len(self.audit_logs),
+            target_labels=self.target_labels,
         )
 
 
@@ -97,6 +99,21 @@ async def test_list_audit_logs_api_success(
         "nested": {"authorization": REDACTED_METADATA_VALUE},
         "items": [{"signed_url": REDACTED_METADATA_VALUE}],
     }
+
+
+@pytest.mark.asyncio
+async def test_list_audit_logs_returns_the_resolved_target_label(
+    audit_log_service: MockAuditLogAdminService,
+) -> None:
+    [audit_log] = audit_log_service.audit_logs
+    audit_log_service.target_labels = {audit_log.id: "Phiếu #3599 · ADM0001"}
+
+    response = await list_audit_logs(
+        current_user=build_user_with_permissions(["audit.read"]),
+        audit_log_admin_service=cast(AuditLogAdminService, audit_log_service),
+    )
+
+    assert response.items[0].target_label == "Phiếu #3599 · ADM0001"
 
 
 @pytest.mark.asyncio
