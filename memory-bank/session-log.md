@@ -1251,3 +1251,33 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Truong phong mac dinh nhan tu muc Nhe
 - Tom tat: Doi D9: manager default light, admin van medium; sua o recipients va profile default; light cua moi vat tu vao ban tin 08:00 cua manager.
+
+## 2026-10-13 07:07:06Z - claude
+
+- Tieu de: Soạn kế hoạch kiến trúc chatbot mục 5.1
+- Tom tat: Soạn docs/quotify/plan-telegram-chatbot-5-1-kien-truc.md (bản nháp chờ xác nhận, chưa có code). Phát hiện bền: webhook hiện xử lý trong request chứ chưa enqueue arq; repo chưa có khóa Redis, BotWorkerSettings hay engine DB chỉ đọc. Thiết kế: hộp thư bot_updates cùng giao dịch với dedupe, arq chỉ đánh chuông với _job_id theo update (không theo chat vì sau SIGKILL job mồ côi chặn cùng id khoảng 310 giây), claim có advisory lock theo giao dịch cộng điều kiện lease (cấm SKIP LOCKED, khóa dòng đơn thuần thất bại khi tin đến lệch thứ tự), rào chắn theo attempts, nhả lease khi SIGTERM, cổng pilot CHATBOT_PILOT_USER_EMAILS. Reviewer độc lập chạy thực nghiệm đã làm đổi thiết kế; các kết quả đó chưa được tái lập, S0 chạy lại trong Docker.
+
+## 2026-10-13 07:28:36Z - claude
+
+- Tieu de: Bổ sung hạn mức sử dụng mỗi người mỗi ngày vào kế hoạch chatbot 5.1
+- Tom tat: Thêm mục 4.11, KT19 đến KT21, lát S10, RC-21 đến RC-23 vào docs/quotify/plan-telegram-chatbot-5-1-kien-truc.md và ghi lệch của mục 5.6 tài liệu cha. Quyết định bền: hạn mức gồm ba loại (lượt hỏi, lượt dùng file, token) vì chỉ đếm lượt có thể vượt ngân sách còn chỉ đếm token thì người dùng khó hiểu và không biết trước; cổng UsageGate ở worker trước engine, đếm lượt từ bot_updates.reply_saved_at (không dùng status replied vì chi phí phát sinh ngay khi engine trả lời); ngày theo Asia/Ho_Chi_Minh làm mới 00:00; mỗi người một liên kết cộng mỗi chat tuần tự nên kiểm rồi làm không đua, ngoại lệ hẹp khi đổi tài khoản Telegram giữa lúc đang xử lý; mức vượt token trong một lượt chỉ giới hạn được nếu 5.2 và 5.5 áp trần mỗi lượt. Chi phí thật mỗi lượt chưa đo nên mặc định 20 lượt và 5 file là đề xuất.
+
+## 2026-10-13 07:32:17Z - claude
+
+- Tieu de: Chốt hạn mức sử dụng AI mỗi người mỗi ngày (QĐ-21)
+- Tom tat: Người dùng đồng ý ngày 2026-10-13: hạn mức kết hợp lượt hỏi, lượt dùng file và token (mặc định 20 lượt và 5 file, token đặt sau khi đo chi phí thật); ghi đè theo từng người ở 5.6; lệnh /hanmuc cho người dùng xem số lượt còn lại. Quản trị viên không được miễn là diễn giải của agent (người dùng trả lời đồng ý chung cho câu hỏi gộp), cần người dùng xác nhận lại nếu sai: cổng UsageGate không được bypass theo tên role như has_permission, và S10 có test cho việc này. Việc đăng ký /hanmuc vào menu bot (set_my_commands) là thao tác ngoại vi trên production, để lúc bật chatbot chính thức và phải xin xác nhận lại. Đã ghi QĐ-21 và H16 vào tài liệu cha, cập nhật mục 4.3, 4.11, S9, S10, mục 9 của kế hoạch 5.1.
+
+## 2026-10-13 07:38:01Z - claude
+
+- Tieu de: Chốt các điểm mở của kế hoạch chatbot 5.1 (QĐ-22)
+- Tom tat: Người dùng trả lời 6 điểm mở ngày 2026-10-13: lưu tạm nội dung tin trong bot_updates (có); cổng pilot CHATBOT_PILOT_USER_EMAILS; restart/stop_grace_period/healthcheck arq --check cho bot-worker (đồng ý); webhook production max_connections=1 (đồng ý, thực hiện ở S9 và phải xin xác nhận lại lúc làm vì là thao tác ngoại vi); tham số mục 4.8 làm giá trị khởi điểm, chạy thử dev rồi tinh chỉnh; bỏ kiểm VPS ra endpoint LLM và max_connections Postgres (S0(e)), thành điều kiện bắt buộc của 2A trước khi nối LLM thật. Admin cấu hình hạn mức từng người, thường nâng cho trưởng phòng. Hệ quả: S0(e) không còn chặn S9 vì S9 chỉ dùng StubChatEngine; thêm RC-24 (max_connections=1 làm mọi update xếp hàng sau một request webhook chậm); set_webhook cần nhận tham số max_connections. Còn mở: email tài khoản thử cho S9; quản trị viên không được miễn hạn mức là diễn giải của agent, chờ người dùng xác nhận nếu sai. Đã ghi QĐ-22 và H17 vào tài liệu cha.
+
+## 2026-10-13 07:39:35Z - claude
+
+- Tieu de: Đổi tên lệnh bot /hanmuc thành /limit
+- Tom tat: Quy ước bền: tên lệnh Telegram của bot Quotify bằng tiếng Anh (start, stop, help, và limit sắp thêm ở S10), còn phần mô tả hiển thị trong menu bot (BOT_COMMANDS ở backend/app/telegram_cli.py) bằng tiếng Việt có dấu. Đã đổi /hanmuc thành /limit trong kế hoạch 5.1, QĐ-21 và H16 của tài liệu cha, memory-bank. Khi làm S10 nhớ sửa cả dòng thông báo cứng liệt kê lệnh đã đăng ký trong telegram_cli.py. Việc đăng ký /limit vào menu bot trên production vẫn là thao tác ngoại vi phải xin xác nhận lại lúc bật chatbot chính thức.
+
+## 2026-10-13 08:45:47Z - claude
+
+- Tieu de: Hoàn thành S0 kế hoạch chatbot 5.1 (trừ S0(d))
+- Tom tat: Chạy S0(a),(b),(c),(f) bằng ba agent trong container riêng. Thực nghiệm đã đổi thiết kế: claim hộp thư cần advisory lock theo giao dịch cộng điều kiện không có dòng processing còn lease và UPDATE có status IN (queued,processing) thử lại khi 0 dòng (khóa dòng đơn thuần, SKIP LOCKED, advisory không có điều kiện lease đều hỏng 300/300 vòng); lock key phải CAST(:chat_id AS BIGINT) với asyncpg; mốc thời gian phải có múi giờ; arq dùng _job_id theo update cộng keep_result=0 cộng retry_jobs=False, create_pool phải nằm trong wait_for vì treo vô hạn khi Redis pause, BotWorkerSettings không được kế thừa WorkerSettings; engine DB chỉ đọc chỉ là rào chắn (SET lại được và rò sang pool). Baseline cổng chất lượng không xanh sẵn: make docker-test-backend có 6 âm tính giả, e2e Docker 31/40 fail do 27 spec 1C/1D gắn cứng URL cookie 127.0.0.1:4173, mypy . dừng vì trùng conftest. S0(e) bỏ qua theo quyết định người dùng, S0(d) chờ tài khoản Telegram thử. Script và kết quả thô lưu ở docs/quotify/analysis-chatbot-5-1/.

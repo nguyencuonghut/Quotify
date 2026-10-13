@@ -10,6 +10,7 @@ Tài liệu liên quan:
 - [plan-telegram-giai-doan-1b-engine-bien-dong-gia.md](plan-telegram-giai-doan-1b-engine-bien-dong-gia.md): kế hoạch triển khai chi tiết Giai đoạn 1B (chia slice, bản nháp 2026-10-04). Kiểm chứng lại tài liệu này với code và dữ liệu thật; các chỗ lệch (head Alembic, D2 mục 5, đơn vị của D6, nhận biết import) được liệt kê ở mục "Độ Lệch Và Bổ Sung" của kế hoạch 1B và sẽ được sửa ở Slice 0 của 1B.
 - [plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md](plan-telegram-giai-doan-1c-giao-dien-ban-tin-van-hanh.md): kế hoạch triển khai chi tiết Giai đoạn 1C (đã lên production 2026-10-06).
 - [plan-telegram-giai-doan-1d-do-moi-gia-theo-vat-tu.md](plan-telegram-giai-doan-1d-do-moi-gia-theo-vat-tu.md): kế hoạch Giai đoạn 1D, nhu cầu mới sau 1C: bảng độ mới của giá theo vật tư trên Dashboard và nhắc cập nhật giá qua Telegram (bản chốt 2026-10-06, Q1 đến Q10 đã chốt).
+- [plan-telegram-chatbot-5-1-kien-truc.md](plan-telegram-chatbot-5-1-kien-truc.md): kế hoạch triển khai chi tiết **mục 5.1 (kiến trúc đường ống bot)** của Bước 2, bản nháp chờ xác nhận 2026-10-13. Đối chiếu mục 5.1 với code thật và **thay đổi ba điểm của mục 5.1** (khóa theo chat bằng claim Postgres thay vì Redis lock, module `app/bot_worker.py`, hộp thư `bot_updates` thay cho việc enqueue trực tiếp từ webhook); mục 3 của kế hoạch đó liệt kê thêm các điểm lệch ở 5.2 và 5.4.
 - [huong-dan-su-dung-thong-bao-gia-telegram.md](huong-dan-su-dung-thong-bao-gia-telegram.md): **hướng dẫn sử dụng cho người dùng** (trưởng phòng, nhân viên nhập báo giá, admin) về Bước 1: thông báo biến động giá qua Telegram.
 - [review-telegram-plan-rasoat-2026-10-03.md](review-telegram-plan-rasoat-2026-10-03.md): kết quả rà soát độc lập tài liệu này và trạng thái áp dụng từng mục.
 
@@ -18,7 +19,7 @@ Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, A
 **Quy ước trong tài liệu.**
 - Số trong văn xuôi và bảng dùng dấu phẩy thập phân kiểu Việt (ví dụ 4,49%). Số trong khối mẫu tin nhắn và ví dụ dữ liệu theo quy ước hiển thị của sản phẩm (ví dụ `7,900.00 VNĐ/KG`, `+5.57%`).
 - "Vật tư" là thuật ngữ chuẩn (CONTEXT.md). "Điểm giá" là giá thấp nhất trong ngày của một chuỗi.
-- **Ký hiệu:** `R1`, `R2`, `R3` là các **quy tắc** tính biến động (D2). `RR-1` đến `RR-n` là các **rủi ro** (Mục 6). `QĐ-n` là quyết định đã chốt (Mục 0.1). `H1` đến `H15` là các câu hỏi đã trả lời (Mục 9.1). `K1` đến `K19` là quyết định kỹ thuật của kế hoạch 1A.
+- **Ký hiệu:** `R1`, `R2`, `R3` là các **quy tắc** tính biến động (D2). `RR-1` đến `RR-n` là các **rủi ro** (Mục 6). `QĐ-n` là quyết định đã chốt (Mục 0.1). `H1` đến `H17` là các câu hỏi đã trả lời (Mục 9.1). `K1` đến `K19` là quyết định kỹ thuật của kế hoạch 1A.
 
 **Mục lục:** 0 Tóm tắt · 0.1 Quyết định đã chốt · 1 Nền tảng · 2 Phạm vi và thuật ngữ · 3 Quyết định D1 đến D12 (nhóm A: D1 đến D6 và D12; nhóm B: D7 đến D10; nhóm C: D11) · 4 Bước 1 · 5 Bước 2 · 6 Rủi ro · 7 Kế hoạch theo giai đoạn · 8 Khuyến nghị production · 9 Câu hỏi đã trả lời và điểm còn mở · 10 Phụ lục A: tập tin · Phụ lục B: backtest.
 
@@ -63,6 +64,8 @@ Nguồn: 4 agent đọc toàn bộ tài liệu `.md`, backend (model, service, A
 | QĐ-18 | 2026-10-04 | **Vòng đời giá bất thường:** loại ở mức dòng rồi tính lại daily-min; cửa sổ gắn cờ 30 ngày; gộp cụm; người nhập nhận tin không có nút; chỉ người có `price_alerts.receive_all` và admin bấm được; có nhắc và hết hạn. Cảnh báo ngay lúc nhập (USD gõ vào ô VNĐ/KG) tách thành tính năng riêng, ngoài phạm vi 1A đến 1C | D12 |
 | QĐ-19 | 2026-10-04 | **Quyền:** `price_alerts.manage` cho admin **và trưởng phòng, gồm cả bật/tắt tính năng**; cấp bằng migration tự chèn quyền (phương án a); giao diện cấu hình ở **trang mới** `/price-alert-settings`, không cấp `quotify_settings.read` cho trưởng phòng; cờ môi trường là điều kiện cần, cờ DB là điều kiện đủ | 4.6, 4.9 |
 | QĐ-20 | 2026-10-04 | **Chu kỳ quét 30 giây** (thay 2 phút), giữ cơ chế cron quét + watermark chồng lấp 5 phút + khóa advisory; chỉ ghi `scan_runs` khi có việc, nhịp tim ở `scan_state.last_run_at`; thêm trần 30 tin trong 10 phút cho mỗi người. Chi tiết ở kế hoạch 1B, L27 | 4.1, D5(d) |
+| QĐ-21 | 2026-10-13 | **Hạn mức sử dụng AI mỗi người mỗi ngày** gồm ba loại: lượt hỏi (hiển thị chính), lượt dùng file và token (chốt chặn). Mặc định 20 lượt và 5 lượt file, token đặt sau khi đo; ghi đè theo từng người do Admin cấu hình ở 5.6 (thường nâng cho trưởng phòng); quản trị viên không được miễn; lệnh `/limit` cho người dùng xem số lượt còn lại. Cổng thực thi ở worker bot trước engine, đếm bằng DB, ngày theo `Asia/Ho_Chi_Minh` | 5.6, mục 4.11 của kế hoạch 5.1 |
+| QĐ-22 | 2026-10-13 | **Kiến trúc đường ống chatbot (5.1):** hộp thư `bot_updates` ghi cùng giao dịch với dedupe (Postgres là sự thật, arq chỉ đánh chuông), worker `bot-worker` riêng, mỗi chat một dòng chạy tại một thời điểm; **lưu tạm nội dung tin** trong hộp thư (xóa khi xong); cổng bật dần bằng `CHATBOT_PILOT_USER_EMAILS`; webhook production đặt `max_connections=1`; tham số ở mục 4.8 của kế hoạch 5.1 là giá trị khởi điểm, tinh chỉnh sau khi chạy thử trên dev | mục 4 và 9 của kế hoạch 5.1 |
 
 ---
 
@@ -740,6 +743,8 @@ Secret đi qua `env_file: .env` của backend và worker. **Không** dùng `${TE
 
 ### 5.1 Kiến trúc
 
+> **Cập nhật 2026-10-13:** kế hoạch triển khai chi tiết nằm ở [plan-telegram-chatbot-5-1-kien-truc.md](plan-telegram-chatbot-5-1-kien-truc.md). Sơ đồ dưới đây là thiết kế ban đầu; đối chiếu với code thật cho thấy webhook hiện **xử lý trong request** (chưa có đường tới arq), nên sơ đồ, "Redis lock theo chat" và vị trí `BotWorkerSettings` sẽ khác khi triển khai. Điểm "[CHƯA XÁC MINH] VPS ra được `api.telegram.org`" bên dưới đã lỗi thời: production gửi và nhận webhook Telegram từ 2026-10-04.
+
 ```
 Telegram ──► POST /api/v1/telegram/webhook ──► xác thực secret, dedupe update_id, 200 ngay
                                                   │ enqueue arq (queue riêng "bot")
@@ -844,6 +849,8 @@ class LLMClient(Protocol):
 - Test bằng transport giả, không gọi LLM thật. Cần bộ test "đánh giá" nhỏ (golden set) cho trích xuất báo giá tiếng Việt.
 
 ### 5.6 Ngân sách và chi phí LLM (QĐ-10)
+
+> **Cập nhật 2026-10-13 (yêu cầu bổ sung, đã chốt, QĐ-21): hạn mức sử dụng mỗi người mỗi ngày.** Cột đơn lẻ `daily_user_limit` và câu "giới hạn lượt mỗi người mỗi ngày (Redis)" bên dưới được thay bằng thiết kế ở [mục 4.11 của kế hoạch 5.1](plan-telegram-chatbot-5-1-kien-truc.md): ba hạn mức kết hợp (lượt hỏi, lượt dùng file, token), đếm bằng DB chứ không bằng Redis, ngày theo `Asia/Ho_Chi_Minh`, cấu hình ưu tiên ghi đè theo người > mặc định toàn hệ thống > env. Việc của 5.6 gồm: ba cột `daily_turn_limit`, `daily_file_limit`, `daily_token_limit` trong `chatbot_settings`, bảng `chatbot_user_limits` (ghi đè theo từng người), `TokenLimitGate` đếm từ `llm_usage_events`, trang cấu hình và audit thay đổi hạn mức. 5.2 và 5.5 phải áp trần mỗi lượt (số vòng công cụ, `max_tokens`, kích thước kết quả công cụ) để mức vượt token trong một lượt có giới hạn.
 
 - **Admin hệ thống quản lý chi phí.** Trần ngân sách khoảng **2.000.000 VNĐ mỗi tháng** (khoảng 75 USD ở tỷ giá ~26.500), cấu hình được.
 
@@ -1023,6 +1030,8 @@ Mã `H` đánh số các câu hỏi, cột QĐ trỏ tới quyết định tươ
 | Q3 | 10-04 | Vòng đời giá bất thường | Đồng ý các đề xuất ở D12 | QĐ-18 |
 | Q4 | 10-04 | Quyền và vị trí giao diện cấu hình | Đồng ý. Trưởng phòng được tắt/bật tính năng | QĐ-19 |
 | Q5 | 10-04 | Có nên tính biến động ngay khi người dùng chốt phiếu thay vì cron quét | Giữ cron quét + watermark (bắt đủ ba đường chốt, không mất sự kiện khi Redis hỏng, không sửa `quotes.py`), đổi chu kỳ thành 30 giây. Enqueue sau commit hoặc outbox để dành cho 1C nếu cần | QĐ-20 |
+| H16 | 10-13 | Hạn mức sử dụng AI mỗi người mỗi ngày: đếm theo lượt hay token, ghi đè theo người, quản trị viên, lệnh xem số lượt còn lại | Kết hợp lượt, file và token (mặc định 20 lượt, 5 file); ghi đè theo từng người; quản trị viên không được miễn (diễn giải); có lệnh `/limit` | QĐ-21 |
+| H17 | 10-13 | Sáu điểm mở của kế hoạch 5.1: lưu tạm nội dung tin, cổng bật dần, `restart` và healthcheck cho `bot-worker`, webhook `max_connections=1`, tham số khởi điểm, kiểm VPS ra endpoint LLM | Có; dùng `CHATBOT_PILOT_USER_EMAILS`; đồng ý; đồng ý; đồng ý làm giá trị khởi điểm, chạy thử dev rồi tinh chỉnh; không cần kiểm (thành điều kiện của 2A) | QĐ-22 |
 
 ### 9.2 Còn mở
 
