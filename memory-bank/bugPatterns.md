@@ -905,3 +905,10 @@ Before changing behavior in an area with prior bugs, read the relevant entries f
 - **Root cause:** SQLAlchemy đưa `[SQL: ...] [parameters: (...)]` vào thông điệp ngoại lệ, nên nội dung tin (và câu trả lời) xuất hiện trong log lỗi của runner (`exc_info=True`) và trong log job lỗi của arq. Kế hoạch 4.9 cấm log nội dung.
 - **Fix:** mọi lệnh DB mang nội dung bọc `BotInboxError` có thông điệp không chứa tham số (`from None`); `repr` của `ChatTurn`, `ClaimedRow`, `BotPrincipal` che nội dung.
 - **Guardrail:** test chuỗi mồi ở đường webhook và đường worker trong `test_bot_pipeline_db.py`. Không đặt `hide_parameters=True` ở engine chung vì đổi hành vi toàn ứng dụng; nếu muốn bảo vệ rộng hơn thì quyết định riêng.
+
+## Test đua và chaos xanh giả (2026-10-13)
+
+- **Trigger:** viết bài chaos cho claim hộp thư: lần chạy đầu qua cả với biến thể sai, và reviewer tìm ra 6 đột biến trên code thật mà bộ test không bắt.
+- **Root cause:** (1) trải 4 tiến trình trên 24 chat nên hiếm khi tranh cùng một chat (5 lần tiếp quản trên 120 dòng); (2) lớp bảo vệ chỉ được che bởi bài xác suất; (3) chỉ mục từng phần tình cờ trả dòng đã sắp xếp nên mất `ORDER BY` không lộ; (4) test câu xin lỗi không kiểm chat đích và không kiểm lỗi gửi.
+- **Fix:** dồn tranh chấp vào vài chat kèm sàn số lần tiếp quản trong test; thêm test xác định cho từng lớp bảo vệ (khóa dòng dựng sẵn cho vòng thử lại, tắt quét chỉ mục cho `ORDER BY`); mọi biến thể sai phải bị bắt bằng một vi phạm thật; thời hạn cho mọi vòng chờ; kill tiến trình con; không đưa URL có mật khẩu vào tham số test.
+- **Guardrail:** kiểm độ nhạy bằng đột biến trên code thật mỗi khi thêm bài đua; so danh sách đột biến sống sót với reviewer độc lập.

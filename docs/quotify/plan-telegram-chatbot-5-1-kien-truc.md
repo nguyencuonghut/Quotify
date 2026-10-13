@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-**ĐÃ CHỐT CÁC ĐIỂM CẦN QUYẾT (2026-10-13, bản 8, sau rà soát độc lập). S0 VÀ S1 ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa commit, chưa merge vào `main`); bạn đã xác nhận trên Telegram thật.** Chưa có dòng code nào. Các điểm "đã quyết theo bằng chứng" ở mục 9 chưa gặp phản đối nhưng chưa được xác nhận riêng. Cơ sở: commit `7eb64e9` trên `main`, cây git sạch, Alembic head `20261007_0900`.
+**ĐÃ CHỐT CÁC ĐIỂM CẦN QUYẾT (2026-10-13, bản 8, sau rà soát độc lập). S0, S1 VÀ S2 ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa merge vào `main`); S0 và S1 bạn đã xác nhận trên Telegram thật.** Chưa có dòng code nào. Các điểm "đã quyết theo bằng chứng" ở mục 9 chưa gặp phản đối nhưng chưa được xác nhận riêng. Cơ sở: commit `7eb64e9` trên `main`, cây git sạch, Alembic head `20261007_0900`.
 
 Kế hoạch này là phần triển khai chi tiết của **mục 5.1** (và phần hạ tầng của Giai đoạn 2A) trong [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md). Nó chỉ xây **đường ống**: nhận tin, xếp hàng, xử lý ở worker riêng, trả lời. Phần "bộ não" (LLM, công cụ, bộ nhớ, ngân sách) cắm vào đường ống qua một cổng duy nhất (`ChatEngine`, mục 4.6) và thuộc các kế hoạch riêng của 5.2 đến 5.6.
 
@@ -11,7 +11,7 @@ Cách soạn:
 - Local skill `tdd`: trong mỗi lát, test đầu tiên là tracer bullet đi hết đường, rồi mới tới từng hành vi, một test một đoạn code. Test đo hành vi qua giao diện công khai (webhook vào, request Telegram ra, trạng thái DB), chỉ giả lập ranh giới hệ thống (Telegram, Redis, LLM).
 - Local agent: 4 agent Explore chỉ đọc chạy song song ngày 2026-10-13 (luồng webhook và update; worker, Redis, compose; service, DB, quyền; lịch sử bug và memory-bank), cộng ba điểm tôi tự kiểm trực tiếp (ngữ nghĩa `_job_id` của arq, `parse_mode=None` của client Telegram, khối `worker` trong compose production). Sau đó **một agent rà soát độc lập** kiểm lại trích dẫn, tấn công thiết kế và chạy thực nghiệm; kết quả và các sửa đổi đã áp dụng ở mục 12 và Phụ lục A.
 
-Quy ước: `KT1` đến `KT21` là quyết định kiến trúc (mục 5). `RC-1` đến `RC-28` là rủi ro (mục 8). `S0` đến `S10` là lát cắt (mục 6). Mục nào chưa kiểm chứng ghi **[CHƯA XÁC MINH]**.
+Quy ước: `KT1` đến `KT21` là quyết định kiến trúc (mục 5). `RC-1` đến `RC-29` là rủi ro (mục 8). `S0` đến `S10` là lát cắt (mục 6). Mục nào chưa kiểm chứng ghi **[CHƯA XÁC MINH]**.
 
 ---
 
@@ -396,7 +396,7 @@ Trạng thái 2026-10-13: (a) đến (d), (f), (g) đã xong, (e) bỏ qua theo 
 
 ### S1: Tracer bullet, một tin văn bản đi hết đường (AFK)
 
-**Trạng thái 2026-10-13: ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa commit, chưa merge vào `main`).** Bằng chứng ở Phụ lục A.3.
+**Trạng thái 2026-10-13: ĐÃ XONG và đã commit trên nhánh `feat/telegram-chatbot` (`25e1ff4`, `58f8c2b`), chưa merge vào `main`.** Bằng chứng ở Phụ lục A.3.
 
 Chặn bởi: S0.
 
@@ -424,18 +424,25 @@ Test đầu tiên (tracer): qua harness `bot` có sẵn (đã mở rộng để 
 
 ### S2: Một dòng chạy mỗi chat (AFK)
 
+**Trạng thái 2026-10-13: ĐÃ XONG trên nhánh `feat/telegram-chatbot`.** Bằng chứng ở Phụ lục A.4.
+
 Chặn bởi: S1.
 
-Test thuộc tầng integration, Postgres thật, hai worker thật chạy đồng thời:
-- [ ] Năm tin liền nhau của một chat được trả lời lần lượt đúng thứ tự `update_id`, mỗi tin xử lý đúng một lần.
-- [ ] Hai chat khác nhau chạy song song.
-- [ ] Dòng đầu đang `processing` với lease còn hạn thì worker thứ hai không claim được và không nhảy cóc sang dòng sau.
-- [ ] **Tin đến lệch thứ tự:** chèn dòng 101, claim, rồi mới chèn dòng 100: dòng 100 không được claim trong lúc 101 còn lease; sau khi 101 xong thì 100 được xử lý.
-- [ ] Dòng `queued` đang chờ thử lại (`lease_until` tương lai) chặn cả chat, không bị bỏ qua.
-- [ ] Tiếp quản lease hết hạn: claim lấy lại dòng và tăng `attempts`; hai worker đua nhau chỉ một bên thắng.
-- [ ] Câu `UPDATE` của claim có điều kiện `status IN ('queued','processing')` và khi trả 0 dòng thì thử lại. Test chaos: lease ngắn, nhiều tiến trình thật, mỗi dòng hoàn tất đúng một lần, không dòng nào bị hồi sinh sau khi hoàn tất.
-- [ ] Hàm claim trả về danh sách dòng bị chuyển `failed` (`lease_exhausted`), và câu xin lỗi chỉ gửi sau commit.
-- [ ] Các **biến thể sai phải fail** trong bộ test (khóa dòng đầu hàng đợi đơn thuần, khóa dòng đầu cộng kiểm tra dòng đầu, `SKIP LOCKED`, advisory lock không có điều kiện lease), nếu không test có thể xanh giả. Dùng lại kịch bản và biến thể ở `docs/quotify/analysis-chatbot-5-1/s0/pg/`.
+Test thuộc tầng integration, Postgres thật. Hai kiểu "worker đồng thời": coroutine trong một tiến trình (bài đua claim và bài `drain_chat`), và **nhiều tiến trình thật** (bài chaos, 4 tiến trình con).
+
+- [x] Năm tin liền nhau của một chat được trả lời lần lượt đúng thứ tự `update_id`, mỗi tin xử lý đúng một lần, kể cả khi ba worker cùng tranh (`test_five_messages_of_one_chat_are_answered_in_order_once_each_by_competing_workers`: engine không bao giờ chạy hai tin cùng lúc) và bài đua claim 40 vòng.
+- [x] Hai chat khác nhau chạy song song (chat chậm không chặn chat khác; khóa của chat này không chặn claim của chat kia, nhưng cùng một chat thì chờ).
+- [x] Dòng đầu đang `processing` với lease còn hạn thì worker thứ hai không claim được và không nhảy cóc sang dòng sau.
+- [x] **Tin đến lệch thứ tự:** chèn dòng 101, claim, rồi mới chèn dòng 100: 100 không được claim trong lúc 101 còn lease; sau khi 101 xong thì 100 được xử lý (cả hai nửa đều có assert).
+- [x] Dòng `queued` đang chờ thử lại (`lease_until` tương lai) chặn cả chat, không bị bỏ qua.
+- [x] Tiếp quản lease hết hạn: claim lấy lại dòng và tăng `attempts`; bốn worker đua nhau chỉ một bên thắng.
+- [x] Câu `UPDATE` của claim có điều kiện `status IN ('queued','processing')` và khi trả 0 dòng thì thử lại. Có **test xác định** (khóa dòng dựng sẵn: lệnh hoàn tất của worker cũ chưa commit trong lúc claim đang chờ, rồi claim phải chuyển sang dòng kế tiếp và dòng đã xong không bị hồi sinh) và test chaos nhiều tiến trình (lease 40 ms; bản thật có 70 lần tiếp quản trên 60 dòng mà mỗi dòng hoàn tất đúng một lần).
+- [x] Hàm claim trả về danh sách dòng bị chuyển `failed` (`lease_exhausted`), và câu xin lỗi chỉ gửi **sau commit** (client giả đọc DB đúng lúc gửi và thấy dòng đã `failed`): đúng chat, một câu cho mỗi lần claim dù nhiều dòng cùng hết số lần thử, lỗi gửi (người dùng đã chặn bot) không làm hỏng vòng xử lý.
+- [x] Các **biến thể sai phải fail**: khóa dòng đầu hàng đợi đơn thuần, `SKIP LOCKED`, advisory lock không có điều kiện lease, không khóa không rào chắn (bài đua); khóa dòng đầu cộng kiểm tra dòng đầu (kịch bản lệch thứ tự); nhận dòng đến hạn (kịch bản backoff); nhận dòng không có điều kiện `status` (bài chaos). Mỗi biến thể phải bị bắt bằng một vi phạm bất biến thật, không tính "quá hạn". Dùng lại biến thể của `docs/quotify/analysis-chatbot-5-1/s0/pg/claimlib.py` (viết lại thành `tests/integration/bot_claim_variants.py`, chỉ dùng trong test).
+- [x] **(thêm sau rà soát)** `ORDER BY update_id` được bảo vệ bằng test tắt quét chỉ mục (chỉ mục từng phần tình cờ trả về dòng đã sắp xếp nên một test chèn lệch thứ tự thông thường không phát hiện mất `ORDER BY`).
+- [x] **(thêm sau rà soát)** `complete` và `save_reply` không ghi được lên dòng đã kết thúc; dòng hết số lần thử ghi đúng `error_category`, `finished_at` và xóa nội dung.
+
+**Chuyển sang S4:** câu xin lỗi hiện **không kiểm liên kết còn hiệu lực** (người dùng đã `/stop` hay đã chặn bot vẫn nhận) và không đánh dấu `blocked` khi Telegram trả 403 cho câu xin lỗi. Khi làm S4 dùng cùng bước kiểm lần cuối trước khi gửi cho cả câu xin lỗi.
 
 ### S3: Chịu lỗi (AFK)
 
@@ -461,6 +468,7 @@ Mở rộng giả lập (hiện `Outbox` và `fake_telegram_server` không thể
 - [ ] 429: chờ `retry_after` trong giới hạn `BOT_SEND_BUDGET_SECONDS`; hết ngân sách thì dừng, không để lease hết hạn lúc đang gửi.
 - [ ] 403: `mark_blocked` và dòng `dropped` (`forbidden`).
 - [ ] Người dùng bị khóa, hủy liên kết, hoặc liên kết thành `blocked` trong lúc tin còn chờ: dòng `dropped`, không gọi engine.
+- [ ] Câu xin lỗi của S2 cũng qua bước kiểm liên kết còn hiệu lực trước khi gửi, và 403 cho câu xin lỗi cũng gọi `mark_blocked`.
 
 ### S5: Chặn lũ và tin không phải văn bản (AFK)
 
@@ -584,6 +592,7 @@ Theo skill `tdd`: lát cắt dọc, một test rồi một đoạn code, test đ
 | RC-26 | Các cổng chất lượng gốc của repo không xanh sẵn (S0(f)): `make docker-test-backend` có 6 âm tính giả nên không bao giờ tới ruff, mypy, bandit; `mypy .` dừng vì trùng tên module; `make docker-test-frontend` dừng ở ESLint (12 lỗi cũ); vitest mặc định treo khi máy thiếu bộ nhớ; e2e Docker 31 trên 40 spec fail. Dễ che lỗi mới hoặc báo lỗi giả | Dùng bảng baseline ở Phụ lục A.2: so **danh sách test fail** thay vì kỳ vọng xanh, chạy pytest trên host cho 6 test đọc file ngoài `backend/`, dùng `mypy app`, vitest với `--maxWorkers=4`; spec e2e mới của chatbot lấy URL cookie từ `baseURL`. Ghi nợ, không sửa lan trong phạm vi chatbot |
 | RC-27 | Engine DB chỉ đọc chỉ là rào chắn: một câu `SET default_transaction_read_only=off` hoặc `SET TRANSACTION READ WRITE` tắt được chế độ chỉ đọc, cài đặt đó rò sang kết nối dùng lại trong pool (cả `SET statement_timeout=0`), và `pg_advisory_lock` mức phiên vẫn được phép (đo ở S0(a)) | Không công cụ nào nhận SQL hay chuỗi truy vấn tự do từ model (5.2); test ở S6; kiểm xem cần đặt lại cài đặt khi trả kết nối về pool không; ranh giới cứng là role chỉ-`SELECT` ở 2D |
 | RC-28 | Thông điệp ngoại lệ của SQLAlchemy kèm **tham số của câu lệnh lỗi**, tức nội dung tin hay câu trả lời (reviewer tái hiện với ký tự NUL), và log lỗi hoặc log của arq in ra | Mọi lệnh DB mang nội dung bọc `BotInboxError` không chứa tham số (S1, có test chuỗi mồi ở cả đường webhook và đường worker); `repr` của `ChatTurn`, `ClaimedRow`, `BotPrincipal` che nội dung; S7 mở rộng sang mọi nhánh lỗi. Chưa đặt `hide_parameters` ở engine chung vì đổi hành vi toàn ứng dụng |
+| RC-29 | Test đua và chaos dễ **xanh giả** hoặc **chập chờn**: lần chạy đầu của bài chaos chỉ có 5 lần tiếp quản trên 120 dòng (trải 4 tiến trình trên 24 chat nên hiếm khi tranh cùng một chat) và biến thể sai chỉ bị bắt 1 trong 3 lượt; sau rà soát còn 6 đột biến trên code thật mà bộ test không bắt được | Tập trung tranh chấp vào vài chat (70 lần tiếp quản trên 60 dòng) kèm sàn `takeovers >= 10` trong test; mọi biến thể sai phải bị bắt đúng bằng một vi phạm thật (không tính quá hạn); thêm test xác định cho các lớp bảo vệ mà chaos chỉ che xác suất; mọi chờ đều có thời hạn và tiến trình con luôn bị kill; URL có mật khẩu không làm tham số test |
 
 ---
 
@@ -771,6 +780,21 @@ Hai điều rút ra cho S4: (1) chỉ báo ở tiêu đề khá kín đáo, nên
 
 Chưa kiểm: nút duyệt giá thật với cờ bật; `arq --check` và `SIGTERM` trên image production (chỉ kiểm trên image dev).
 
+### A.4 Kiểm chứng S2 (2026-10-13)
+
+| Hạng mục | Kết quả |
+|---|---|
+| Test mới của S2 | 22 test: 14 claim (đua, kịch bản xác định, đối chứng), 2 chaos nhiều tiến trình, 5 `drain_chat` dưới tranh chấp, thêm 1 test rào chắn ở `BotInbox` (cộng `bot_claim_variants.py` và `bot_claim_chaos_worker.py` hỗ trợ) |
+| Toàn bộ bộ test backend (máy host) | **1.352 qua, 0 fail** (143,6 giây trên máy yên tĩnh); mốc trước S2 là 1.330, nên đúng 22 test thêm |
+| Cổng chất lượng | ruff 62, `mypy app` 15, bandit 16 low và 1 medium: bằng baseline; mọi file đụng tới sạch ruff và đã định dạng |
+| Độ nhạy trên code thật | Đột biến claim: bỏ advisory lock (4 test fail), bỏ kiểm lease còn sống (7 fail), bỏ điều kiện `status` (bài chaos bắt), bỏ chặn dòng đang chờ thử lại, bỏ câu xin lỗi, xin lỗi trước commit: **6 trên 6 bị bắt** |
+| Rà soát độc lập (agent) | Không có lỗi BLOCKER; tìm ra **6 đột biến còn sống** (xin lỗi sai chat, không bắt lỗi gửi xin lỗi, bỏ vòng thử lại khi `UPDATE` 0 dòng, bỏ `ORDER BY`, `complete` thiếu điều kiện `status`, không ghi `error_category`); đã thêm test cho cả sáu và **sáu đột biến đó nay đều bị bắt** |
+| Độ ổn định | Reviewer: 8 lần chạy mỗi file khi yên tĩnh (24/24 qua), 12 lõi CPU bị đốt (6/6 qua), Python bị ghim 2 lõi (6/6 qua); sàn tranh chấp `takeovers >= 10` có biên 3,6 lần (36 đến 71 lần tiếp quản); biến thể thiếu điều kiện `status` bị bắt ngay lượt đầu 18/18; các biến thể trong bài đua bị bắt ở vòng đầu 140/140. Tôi: 3 lần chạy dưới tải; một lần mất 205 giây thay vì 24 giây vì biến thể sai kẹt đến hết hạn mỗi vòng, đã chặn bằng "dừng ở vi phạm đầu tiên" và thời hạn 8 giây mỗi vòng (còn khoảng 8 giây cho cả file) |
+| Điểm yếu tìm thấy ở chính bài chaos của tôi | Lần chạy đầu chỉ có 5 lần tiếp quản trên 120 dòng (bản S0 có 2.062 trên 1.500 dòng) và biến thể sai chỉ lộ 1 trong 3 lượt. Sau khi dồn tranh chấp vào vài chat: 70 lần tiếp quản trên 60 dòng, biến thể sai lộ ngay lượt đầu (RC-29) |
+| Vệ sinh test | Mật khẩu DB không còn là tham số test (pytest in tham số khi test fail); tiến trình con luôn bị kill kể cả khi quá hạn; mọi vòng chờ có thời hạn; đồng hồ giữa các tiến trình dùng `time.monotonic()` |
+
+Chưa kiểm: môi trường `backend-test` của compose, Postgres bị đói CPU, chạy song song bằng xdist, và nút duyệt giá thật với cờ bật.
+
 ---
 
 ## 12. Nhật Ký Soạn Và Rà Soát
@@ -792,4 +816,5 @@ Chưa kiểm: nút duyệt giá thật với cờ bật; `arq --check` và `SIGT
 - **2026-10-13, bản 7.** Bạn bỏ ý định dùng nhánh riêng dài hạn và chọn làm theo kế hoạch. Đã thêm quy trình git ở mục 6, RC-25, và ghi rõ S9 không build `frontend`. Bắt đầu S0.
 - **2026-10-13, bản 8, kết quả S0.** Chạy S0(a), (b), (c), (f) bằng ba agent (Phụ lục A.2). Thiết kế qua thực nghiệm; sửa các điểm sau: câu lệnh claim (ép kiểu `CAST(:chat_id AS BIGINT)`, điều kiện `status IN ('queued','processing')` bắt buộc và thử lại khi 0 dòng, trả danh sách dòng hết lượt để gửi câu xin lỗi sau commit); mọi mốc thời gian truyền vào truy vấn phải có múi giờ; không dùng `received_at::date` cho hạn mức; cảnh báo `READ COMMITTED` của SQLAlchemy là lỗi thời nhưng engine chỉ đọc chỉ là rào chắn (RC-27); hành vi `SIGTERM` và `SIGKILL` của arq (`retry_jobs=False`, `keep_result=0` bắt buộc, `health_check_interval` nhỏ, `BotWorkerSettings` không kế thừa); `create_pool` phải nằm trong `wait_for`; baseline cổng chất lượng không xanh sẵn (RC-26) và mốc mới ở A.2. Script và kết quả thô lưu ở `docs/quotify/analysis-chatbot-5-1/`.
 - **2026-10-13, bản 9, S1 xong.** Cài S1 theo TDD (tracer bullet rồi từng hành vi), rà soát độc lập, sửa các lỗi rà soát tìm ra, chạy thật trên Docker dev và bot dev. Thêm RC-28 (rò nội dung qua tham số SQLAlchemy), bốn tiêu chí S1 sau rà soát, Phụ lục A.3. Hoãn compose test và `sendChatAction` của fake Telegram sang S4 và S8.
+- **2026-10-13, bản 10, S2 xong.** S2 chủ yếu là test chứng minh claim của S1, cộng việc gửi câu xin lỗi sau commit. Port các biến thể sai và kịch bản đua của S0 thành test hồi quy, thêm chaos nhiều tiến trình thật; rà soát độc lập tìm 6 đột biến sống sót, đã đóng hết; phát hiện bài chaos ban đầu yếu và sửa (RC-29). Dồn việc xin lỗi theo liên kết sang S4. Phụ lục A.4.
 - **Chưa xác minh:** các điểm đánh dấu **[CHƯA XÁC MINH]** ở trên; các con số ở Phụ lục A.2 do agent đo, tôi chưa tái lập; quan sát bằng mắt chỉ báo "đang gõ" của S0(d) chờ bạn xác nhận; hành vi `SIGTERM` của lệnh dev `sh -lc "uv sync && uv run arq ..."`.
