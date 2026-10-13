@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-**ĐÃ CHỐT CÁC ĐIỂM CẦN QUYẾT (2026-10-13, bản 8, sau rà soát độc lập). S0 ĐÃ XONG (còn chờ bạn xác nhận quan sát chỉ báo "đang gõ"), S1 CHƯA BẮT ĐẦU.** Chưa có dòng code nào. Các điểm "đã quyết theo bằng chứng" ở mục 9 chưa gặp phản đối nhưng chưa được xác nhận riêng. Cơ sở: commit `7eb64e9` trên `main`, cây git sạch, Alembic head `20261007_0900`.
+**ĐÃ CHỐT CÁC ĐIỂM CẦN QUYẾT (2026-10-13, bản 8, sau rà soát độc lập). S0 VÀ S1 ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa commit, chưa merge vào `main`); bạn đã xác nhận trên Telegram thật.** Chưa có dòng code nào. Các điểm "đã quyết theo bằng chứng" ở mục 9 chưa gặp phản đối nhưng chưa được xác nhận riêng. Cơ sở: commit `7eb64e9` trên `main`, cây git sạch, Alembic head `20261007_0900`.
 
 Kế hoạch này là phần triển khai chi tiết của **mục 5.1** (và phần hạ tầng của Giai đoạn 2A) trong [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md). Nó chỉ xây **đường ống**: nhận tin, xếp hàng, xử lý ở worker riêng, trả lời. Phần "bộ não" (LLM, công cụ, bộ nhớ, ngân sách) cắm vào đường ống qua một cổng duy nhất (`ChatEngine`, mục 4.6) và thuộc các kế hoạch riêng của 5.2 đến 5.6.
 
@@ -11,7 +11,7 @@ Cách soạn:
 - Local skill `tdd`: trong mỗi lát, test đầu tiên là tracer bullet đi hết đường, rồi mới tới từng hành vi, một test một đoạn code. Test đo hành vi qua giao diện công khai (webhook vào, request Telegram ra, trạng thái DB), chỉ giả lập ranh giới hệ thống (Telegram, Redis, LLM).
 - Local agent: 4 agent Explore chỉ đọc chạy song song ngày 2026-10-13 (luồng webhook và update; worker, Redis, compose; service, DB, quyền; lịch sử bug và memory-bank), cộng ba điểm tôi tự kiểm trực tiếp (ngữ nghĩa `_job_id` của arq, `parse_mode=None` của client Telegram, khối `worker` trong compose production). Sau đó **một agent rà soát độc lập** kiểm lại trích dẫn, tấn công thiết kế và chạy thực nghiệm; kết quả và các sửa đổi đã áp dụng ở mục 12 và Phụ lục A.
 
-Quy ước: `KT1` đến `KT21` là quyết định kiến trúc (mục 5). `RC-1` đến `RC-27` là rủi ro (mục 8). `S0` đến `S10` là lát cắt (mục 6). Mục nào chưa kiểm chứng ghi **[CHƯA XÁC MINH]**.
+Quy ước: `KT1` đến `KT21` là quyết định kiến trúc (mục 5). `RC-1` đến `RC-28` là rủi ro (mục 8). `S0` đến `S10` là lát cắt (mục 6). Mục nào chưa kiểm chứng ghi **[CHƯA XÁC MINH]**.
 
 ---
 
@@ -254,7 +254,7 @@ Thêm vào `Settings` và `.env.example`, `.env.production.example`. **Không** 
 | Biến | Mặc định đề xuất | Ghi chú |
 |---|---|---|
 | `CHATBOT_ENABLED` | `false` | Cổng env. Cần `TELEGRAM_ENABLED=true`. Cờ DB (`chatbot_settings.is_enabled`) thêm ở 5.6 |
-| `CHATBOT_PILOT_USER_EMAILS` | rỗng | Danh sách email, so không phân biệt hoa thường. **Rỗng = mọi người đã liên kết** khi cờ bật; có giá trị = chỉ những người này được hand-off. Tiền lệ: `PRICE_ALERT_RECIPIENT_EMAILS` của 1B. Cần thêm email vào kết quả tra liên kết hoặc một truy vấn nhỏ |
+| `CHATBOT_PILOT_USER_EMAILS` | rỗng | Danh sách email, so không phân biệt hoa thường. **Rỗng (hoặc chỉ khoảng trắng) = mọi người đã liên kết** khi cờ bật; có giá trị = chỉ những người này được hand-off; có giá trị mà không có email nào (ví dụ chỉ dấu phẩy) thì **đóng**, không ai được hand-off. Tiền lệ: `PRICE_ALERT_RECIPIENT_EMAILS` của 1B. Cần thêm email vào kết quả tra liên kết hoặc một truy vấn nhỏ |
 | `BOT_QUEUE_NAME` | `quotify:bot` | Khác `arq:queue` nên worker cũ không bao giờ lấy job bot |
 | `BOT_WORKER_MAX_JOBS` | `8` | Việc chủ yếu chờ I/O, giới hạn thật nằm ở hạn mức nhà cung cấp LLM |
 | `BOT_HEALTH_CHECK_INTERVAL_SECONDS` | `30` | Chu kỳ ghi khóa sức khỏe của arq; khóa sống `giá trị + 1` giây nên worker bị kill vẫn báo khỏe đến hết từng ấy (mặc định 3600 giây là 1 giờ, đo ở S0(b)). Healthcheck compose dùng `arq --check` |
@@ -387,30 +387,40 @@ Chặn bởi: không.
 - [x] **(a) Engine chỉ đọc (ĐÃ CHẠY 2026-10-13, Phụ lục A.2)** trên Postgres 16 thật (`INTEGRATION_DATABASE_URL`): `server_settings` được asyncpg chấp nhận; `INSERT`, `UPDATE`, DDL bị từ chối (SQLSTATE `25006`); `pg_sleep` quá `statement_timeout` bị hủy (`57014`); chế độ chỉ đọc còn nguyên sau commit và rollback. Đồng thời thử `postgresql_readonly` dưới READ COMMITTED để đóng điểm cảnh báo của SQLAlchemy.
 - [x] **(b) arq trên Redis 7 thật, chạy trong Docker (Python 3.12; CLI arq cục bộ lỗi trên Python 3.14), ĐÃ CHẠY 2026-10-13, kết quả ở Phụ lục A.2:** tái lập các thực nghiệm của reviewer (Phụ lục A): job bị kill chặn cùng `_job_id` đến `job_timeout + 10` giây; `SIGTERM` làm job bị hủy và không chạy lại; `max_tries=1`; `_queue_name="quotify:bot"` không bị `WorkerSettings` hiện có lấy; `job_completion_wait` có trong arq 0.26.3.
 - [x] **(c) Claim bằng thực nghiệm (ĐÃ CHẠY 2026-10-13, Phụ lục A.2):** tái lập thí nghiệm hai phiên trên Postgres thật cho thuật toán claim mục 4.5 (dòng 101 đang chạy rồi dòng 100 mới đến; hai phiên đua nhau nhiều vòng) để có test hồi quy cho S2.
-- [x] **(d) Telegram thật** với bot dev `@HHQuotifyBot`: hành vi `sendChatAction`. **ĐÃ CHẠY 2026-10-13** với chat riêng của tài khoản bạn cung cấp (Phụ lục A.2); phần quan sát bằng mắt chờ bạn xác nhận. Lỗi 403 khi bị chặn không đo riêng cho `sendChatAction` vì lỗi của chỉ báo bị bỏ qua theo thiết kế.
+- [x] **(d) Telegram thật** với bot dev `@HHQuotifyBot`: hành vi `sendChatAction`. **ĐÃ CHẠY 2026-10-13** với chat riêng của tài khoản bạn cung cấp và bạn đã quan sát bằng mắt (Phụ lục A.2). Lỗi 403 khi bị chặn không đo riêng cho `sendChatAction` vì lỗi của chỉ báo bị bỏ qua theo thiết kế.
 - [x] **(e) Hạ tầng: BỎ QUA theo quyết định của bạn (2026-10-13, "không cần").** Việc `curl` từ VPS ra endpoint LLM và `SHOW max_connections` không còn chặn S9 (S9 chỉ dùng `StubChatEngine`, không gọi LLM); chuyển thành điều kiện bắt buộc của 2A trước khi nối LLM thật (RC-5, RC-15 vẫn **[CHƯA XÁC MINH]**).
 - [x] **(f) Chạy lại baseline** (pytest, mypy, bandit, vitest) để chốt mốc hồi quy thật. **ĐÃ CHẠY 2026-10-13, kết quả ở Phụ lục A.2; phát hiện cổng chất lượng gốc không xanh sẵn (RC-26).**
 - [x] **(g)** Người dùng đã trả lời các điểm ở mục 9 (2026-10-13).
 
-Trạng thái 2026-10-13: (a) đến (d), (f), (g) đã xong (phần quan sát bằng mắt của (d) chờ bạn xác nhận), (e) bỏ qua theo quyết định của bạn; **S1 không bị chặn**. Hoàn thành khi: Phụ lục A điền đủ cho (a) đến (d) và (f); điểm nào thất bại thì sửa thiết kế (KT3, KT4, KT10) trước khi qua S1.
+Trạng thái 2026-10-13: (a) đến (d), (f), (g) đã xong, (e) bỏ qua theo quyết định của bạn; **S1 không bị chặn**. Hoàn thành khi: Phụ lục A điền đủ cho (a) đến (d) và (f); điểm nào thất bại thì sửa thiết kế (KT3, KT4, KT10) trước khi qua S1.
 
 ### S1: Tracer bullet, một tin văn bản đi hết đường (AFK)
 
+**Trạng thái 2026-10-13: ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa commit, chưa merge vào `main`).** Bằng chứng ở Phụ lục A.3.
+
 Chặn bởi: S0.
 
-Xây: migration và model `bot_updates` (đã gồm cột `reply_saved_at` và chỉ mục theo người dùng, dùng cho S10); `BotInbox` (ghi hàng, claim theo mục 4.5, hoàn tất có rào chắn); cờ `CHATBOT_ENABLED`, `CHATBOT_PILOT_USER_EMAILS` và nhóm tham số tối thiểu; hand-off trong `TelegramUpdateService` và `TelegramUpdateRunner` (loại outbound mới "đánh chuông", chỉ phát sau commit); `BotDispatcher` (pool lười, giới hạn 2 giây), nối cả vào poller dev; `BotPrincipal`; `BotWorkerSettings` và `drain_chat` xử lý một dòng; `StubChatEngine`; service `bot-worker` trong compose test; `fake-telegram` ghi nhận cả `sendChatAction`.
+Đã xây: migration và model `bot_updates` (đã gồm cột `reply_saved_at` và chỉ mục theo người dùng, dùng cho S10); `BotInbox` (ghi hàng, claim theo mục 4.5 **đầy đủ, kể cả vòng "hết số lần thử"**, lưu và hoàn tất có rào chắn); cờ `CHATBOT_ENABLED`, `CHATBOT_PILOT_USER_EMAILS` và nhóm tham số tối thiểu; hand-off trong `TelegramUpdateService` và `TelegramUpdateRunner` (loại outbound mới `BotWakeup`, chỉ phát sau commit); `BotDispatcher` (pool lười, giới hạn 2 giây), nối cả vào poller dev và webhook; `BotPrincipal`; `BotWorkerSettings` và `drain_chat`; `StubChatEngine`; service `bot-worker` trong compose dev.
 
-Test đầu tiên (tracer): qua harness `bot` có sẵn (cần mở rộng để dựng runner có dispatcher), người dùng đã liên kết gửi "xin chào" khi cờ bật, đúng một dòng `queued` xuất hiện, chạy `drain_chat` một lần, hộp thư ra của Telegram giả có đúng một câu trả lời tới chat đó, dòng thành `replied` và `payload_text`, `reply_text` bị xóa.
+**Hoãn có chủ đích (không có tiêu chí nào của S1 cần):** service `bot-worker-test` trong compose test và việc `fake-telegram` ghi `sendChatAction` chuyển sang S4 và S8. Đường ống đã được chứng minh bằng test trên Postgres thật, bằng Docker dev (`arq`) và bằng chạy thật với bot dev.
 
-- [ ] Cờ tắt: văn bản thường vẫn trả `UNKNOWN_TEXT` và **không** ghi dòng nào (test hồi quy). Cờ bật nhưng email ngoài danh sách thử: như cờ tắt.
-- [ ] `/start`, `/stop`, `/help`, nút duyệt giá, `my_chat_member`: hành vi và deadline 4 giây không đổi (test hồi quy).
-- [ ] Webhook trả 200 **trước khi** engine xong (test với engine bị chặn), và vẫn trả 200 khi `notify` ném lỗi hoặc treo quá 2 giây (bên gửi giả, gồm cả lúc việc tạo pool lười bị treo).
-- [ ] Lỗi DB vẫn trả 503 và không để lại dòng nào.
-- [ ] Quyền bị thu hồi giữa hai tin: tin sau mất quyền đó (principal nạp mới mỗi tin).
-- [ ] `reply_saved_at` được đặt đúng lúc lưu câu trả lời của engine (cơ sở đếm hạn mức, S10).
-- [ ] `bot-worker` gọi `configure_logging` khi khởi động (token bị che), có test.
-- [ ] `arq app.bot_worker.BotWorkerSettings` khởi động được (lớp độc lập, khai báo đủ thuộc tính, không kế thừa) và `arq --check app.bot_worker.BotWorkerSettings` thoát 0 khi worker sống, 1 khi không có worker.
-- [ ] Alembic còn đúng một head; up, down, up chạy được.
+Test đầu tiên (tracer): qua harness `bot` có sẵn (đã mở rộng để dựng runner có dispatcher), người dùng đã liên kết gửi "xin chào" khi cờ bật, đúng một dòng `queued` xuất hiện, chạy `drain_chat` một lần, hộp thư ra của Telegram giả có đúng một câu trả lời tới chat đó, dòng thành `replied` và `payload_text`, `reply_text` bị xóa.
+
+- [x] Cờ tắt: văn bản thường vẫn trả `UNKNOWN_TEXT` và **không** ghi dòng nào. Cờ bật nhưng email ngoài danh sách thử: như cờ tắt. Người chưa liên kết và người bị khóa: không hand-off. Cờ dựng từ `Settings` thật mặc định tắt và cần cả `TELEGRAM_ENABLED` (`tests/test_bot_policy.py`).
+- [x] `/start`, `/stop`, `/help`, lệnh lạ, nút bấm không hợp lệ, `my_chat_member` với cờ bật giữ nguyên đường tại chỗ; toàn bộ test Telegram có sẵn xanh nguyên. Nút duyệt giá thật chưa chạy lại với cờ bật, nhưng nhánh `callback` trả về trước mọi logic chatbot.
+- [x] Webhook không bị chặn khi engine bận (test với engine bị kẹt: tin của người khác và lệnh của chính người đó vẫn được trả lời ngay), vẫn 200 khi `notify` ném lỗi, treo, hoặc việc tạo pool treo; nhiều `notify` đồng thời chỉ tạo một pool.
+- [x] Lỗi DB lúc commit: `TelegramTemporaryError` (webhook trả 503), không để lại dòng hộp thư và không ghi `update_id` đã xử lý.
+- [x] Quyền bị thu hồi giữa hai tin: tin sau mất quyền đó (principal nạp mới mỗi tin).
+- [x] `reply_saved_at` được đặt đúng lúc lưu câu trả lời của engine (cơ sở đếm hạn mức, S10).
+- [x] `bot-worker` gọi `configure_logging` khi khởi động (test với hàm giả; việc che token do lớp logging đã có test riêng).
+- [x] `arq app.bot_worker.BotWorkerSettings` khởi động được (lớp độc lập, khai báo đủ thuộc tính) và `arq --check` thoát 0 khi worker sống, 1 khi không có worker (kiểm trong Docker dev); `SIGTERM` tới được arq qua dạng `exec`.
+- [x] Alembic còn đúng một head; up, down, up chạy được; không lệch giữa model và migration (reviewer).
+- [x] **(thêm sau rà soát)** Nội dung tin và câu trả lời không bao giờ vào log hay thông điệp lỗi khi ghi hộp thư thất bại (`BotInboxError`, test chuỗi mồi ở đường webhook và đường worker; RC-28).
+- [x] **(thêm sau rà soát)** Công tắc tắt khẩn cấp ở worker: `BotWorkerConfig.enabled=False` thì `drain_chat` trả 0 và dòng ở lại `queued`.
+- [x] **(thêm sau rà soát)** Danh sách thử đã đặt nhưng không có email nào thì đóng, không mở cho mọi người.
+- [x] **(thêm sau rà soát)** `BotInbox` có test trực tiếp trên Postgres thật: thứ tự và một dòng sống mỗi chat, rào chắn khi lease bị tiếp quản, hết số lần thử, đồng hồ phải có múi giờ.
+
+**Hành vi cố ý chưa làm (S2 đến S4):** dòng bị kẹt `processing` (lỗi engine, lỗi gửi tin, người dùng bị khóa) chỉ được claim lại khi có chuông sau đó, và một dòng đã commit mà chuông không rung chờ đến khi có cron quét. S3 thêm cron quét, thử lại có backoff và `failed`; S4 thêm `dropped`, chia tin, chỉ báo "đang gõ". Đây chấp nhận được khi cờ tắt mặc định.
 
 ### S2: Một dòng chạy mỗi chat (AFK)
 
@@ -573,6 +583,7 @@ Theo skill `tdd`: lát cắt dọc, một test rồi một đoạn code, test đ
 | RC-25 | Vì không dùng nhánh dài hạn, các lát đã vào `main` trước S9 sẽ được **bất kỳ** lần `git pull` deploy nào mang lên production (kể cả hotfix không liên quan): code hand-off (cờ tắt) và migration `bot_updates` | Mọi lát phát hành tắt và additive; test hồi quy ở S1 chứng minh cờ tắt thì hành vi y hệt; migration chỉ thêm bảng; lát nào chưa đủ tin cậy thì chưa merge vào `main` |
 | RC-26 | Các cổng chất lượng gốc của repo không xanh sẵn (S0(f)): `make docker-test-backend` có 6 âm tính giả nên không bao giờ tới ruff, mypy, bandit; `mypy .` dừng vì trùng tên module; `make docker-test-frontend` dừng ở ESLint (12 lỗi cũ); vitest mặc định treo khi máy thiếu bộ nhớ; e2e Docker 31 trên 40 spec fail. Dễ che lỗi mới hoặc báo lỗi giả | Dùng bảng baseline ở Phụ lục A.2: so **danh sách test fail** thay vì kỳ vọng xanh, chạy pytest trên host cho 6 test đọc file ngoài `backend/`, dùng `mypy app`, vitest với `--maxWorkers=4`; spec e2e mới của chatbot lấy URL cookie từ `baseURL`. Ghi nợ, không sửa lan trong phạm vi chatbot |
 | RC-27 | Engine DB chỉ đọc chỉ là rào chắn: một câu `SET default_transaction_read_only=off` hoặc `SET TRANSACTION READ WRITE` tắt được chế độ chỉ đọc, cài đặt đó rò sang kết nối dùng lại trong pool (cả `SET statement_timeout=0`), và `pg_advisory_lock` mức phiên vẫn được phép (đo ở S0(a)) | Không công cụ nào nhận SQL hay chuỗi truy vấn tự do từ model (5.2); test ở S6; kiểm xem cần đặt lại cài đặt khi trả kết nối về pool không; ranh giới cứng là role chỉ-`SELECT` ở 2D |
+| RC-28 | Thông điệp ngoại lệ của SQLAlchemy kèm **tham số của câu lệnh lỗi**, tức nội dung tin hay câu trả lời (reviewer tái hiện với ký tự NUL), và log lỗi hoặc log của arq in ra | Mọi lệnh DB mang nội dung bọc `BotInboxError` không chứa tham số (S1, có test chuỗi mồi ở cả đường webhook và đường worker); `repr` của `ChatTurn`, `ClaimedRow`, `BotPrincipal` che nội dung; S7 mở rộng sang mọi nhánh lỗi. Chưa đặt `hide_parameters` ở engine chung vì đổi hành vi toàn ứng dụng |
 
 ---
 
@@ -740,7 +751,25 @@ Thuật toán đã qua thực nghiệm nằm ở mục 4.5. Quy mô tệ nhất 
 | Chat không tồn tại | HTTP 400 `Bad Request: chat not found` (760 ms) |
 | Chuỗi 6 lần cách nhau 4 giây trong 22,5 giây | Cả 6 lần `ok: true`, 397 đến 477 ms mỗi lần |
 
-Ý nghĩa cho S1 và S4: mỗi lời gọi tốn khoảng 0,4 giây nên tác vụ nền "đang gõ" không được chặn đường xử lý chính; lỗi 400 của chỉ báo là `TelegramApiError` và bị bỏ qua theo thiết kế; 403 khi người dùng chặn bot không đo riêng cho `sendChatAction` (1A đã đo `sendMessage`: `bot was blocked by the user`) vì lỗi của chỉ báo bị bỏ qua và việc đánh dấu `blocked` do đường gửi tin chính hoặc `my_chat_member` đảm nhiệm. **Chờ bạn xác nhận bằng mắt:** chỉ báo "đang gõ" có hiện liên tục trong lúc chuỗi 6 lần chạy (khoảng 27 giây) và tắt sau khoảng 5 giây khi ngừng gửi hay không (con số 5 giây là theo tài liệu Telegram, chưa được tôi đo).
+Ý nghĩa cho S1 và S4: mỗi lời gọi tốn khoảng 0,4 giây nên tác vụ nền "đang gõ" không được chặn đường xử lý chính; lỗi 400 của chỉ báo là `TelegramApiError` và bị bỏ qua theo thiết kế; 403 khi người dùng chặn bot không đo riêng cho `sendChatAction` (1A đã đo `sendMessage`: `bot was blocked by the user`) vì lỗi của chỉ báo bị bỏ qua và việc đánh dấu `blocked` do đường gửi tin chính hoặc `my_chat_member` đảm nhiệm. **Quan sát bằng mắt của bạn (2026-10-13, lần thử thứ hai, script `s0d_typing_observation.py`, giờ Việt Nam):** chỉ báo "đang gõ" **có hiện**, nhưng ở **tiêu đề chat, dưới tên bot**, không phải trong khung tin nhắn. Đây là cách Telegram hiển thị trạng thái này ở chat riêng, không phải lỗi. Chưa ghi nhận độ liên tục của chuỗi 6 lần, thời gian tắt sau khi ngừng gửi và việc tắt ngay khi tin tới (con số 5 giây là theo tài liệu Telegram, chưa đo).
+
+Hai điều rút ra cho S4: (1) chỉ báo ở tiêu đề khá kín đáo, nên với câu trả lời mất hàng chục giây người dùng có thể vẫn tưởng bot không phản hồi; có thể cân nhắc thêm một tin tạm "Đang xử lý..." cho lượt chậm (quyết định UX riêng, chưa chốt); (2) log cho thấy hai lần gửi liên tiếp cách nhau khoảng 4,4 giây (4 giây chờ cộng 0,4 giây độ trễ lời gọi) trong khi chỉ báo sống tối đa khoảng 5 giây, biên chỉ khoảng 0,6 giây, nên khi tinh chỉnh `BOT_TYPING_INTERVAL_SECONDS` ở S4 nên thử 3 giây (chưa đổi giá trị đã chốt).
+
+### A.3 Kiểm chứng S1 (2026-10-13)
+
+| Hạng mục | Kết quả |
+|---|---|
+| Test mới của S1 | 42 test: 19 tích hợp đường ống (`test_bot_pipeline_db.py`), 4 `BotInbox` trực tiếp, 2 migration, 8 chính sách và nối từ `Settings`, 6 bên đánh chuông, 3 cấu hình worker (cộng harness và fixture dùng chung) |
+| Toàn bộ bộ test backend (máy host, Postgres dev tạm `it_*`) | **1.330 qua, 0 fail** (143 giây). Mốc trước S1 là 1.288 trên cùng môi trường, nên đúng 42 test thêm |
+| Độ nhạy của test | Đột biến có chủ đích, mỗi lần chỉ một test fail rồi hoàn nguyên: cổng pilot, cờ bật, xóa nội dung khi hoàn tất, tin báo `BotWakeup`, `reply_saved_at`, kill switch, làm sạch lỗi DB, danh sách thử rỗng, khóa tạo pool, điều kiện lease khi claim, rào chắn `attempts`, `retry_jobs`, `keep_result`, chu kỳ health check, `configure_logging`, `_job_id` theo chat, hàng đợi, `ON DELETE CASCADE` (18 đột biến, đều bị bắt) |
+| Cổng chất lượng so với `main` (worktree sạch) | ruff 62 = 62, `mypy app` 15 = 15, bandit 16 low và 1 medium = giống; mọi file tôi sửa sạch ruff và đã định dạng |
+| Docker dev (`bot-worker`) | `arq` khởi động ("Starting worker for 1 functions: drain_chat"), `arq --check` thoát 0 khi sống và 1 ("no health check sentinel value found") khi dừng; `SIGTERM` tới arq và hook tắt chạy; job thật qua `ArqBotDispatcher` vào đúng hàng đợi `quotify:bot` trong 8 ms, chỉ `bot-worker` nhận (worker thường không thấy), xử lý xong, hàng đợi trống và không còn khóa kết quả |
+| Chạy thật với bot dev (`@HHQuotifyBot`, chỉ email bạn trong danh sách thử) | Tin gửi lúc poller còn tắt được giao khi poller bật: poller, hộp thư, arq, `bot-worker`, câu trả lời của `StubChatEngine` tới Telegram; dòng `replied`, `attempts=1`, nội dung và câu trả lời đã bị xóa, `reply_saved_at` được đặt, 1,07 giây; log chỉ có `bot.row_done update_id=... duration_ms=...` |
+| Rà soát độc lập (agent) | Không có lỗi BLOCKER; hành vi cũ không đổi khi chatbot tắt; claim giống hệt bản S0 (đua 3 bên × 60 vòng không bao giờ hai bên cùng sống); không lệch model và migration. Bốn lỗi MAJOR và các lỗi nhỏ đã sửa trong S1 (rò nội dung qua tham số SQLAlchemy, kill switch ở worker, hai test không bắt được gì, thiếu test `from_settings` và nối webhook) |
+
+| Bạn thử trên Telegram thật (ảnh chụp, giờ Việt Nam) | 16:24 câu trả lời của stub khi poller vừa bật; 16:49 "xin chào" nhận câu trả lời ngay (bản mã sau rà soát); 16:50 "một" và "hai" liền nhau nhận đủ hai câu trả lời (thứ tự không phân biệt được bằng mắt vì nội dung stub giống nhau; thứ tự đã có test); `/help` trả lời tại chỗ bằng hướng dẫn cũ |
+
+Chưa kiểm: nút duyệt giá thật với cờ bật; `arq --check` và `SIGTERM` trên image production (chỉ kiểm trên image dev).
 
 ---
 
@@ -762,4 +791,5 @@ Thuật toán đã qua thực nghiệm nằm ở mục 4.5. Quy mô tệ nhất 
 - **2026-10-13, bản 6.** Đổi tên lệnh `/hanmuc` thành `/limit` theo góp ý của bạn: các lệnh hiện có (`/start`, `/stop`, `/help`) đều có tên tiếng Anh, chỉ phần mô tả trong menu là tiếng Việt (`BOT_COMMANDS` ở `app/telegram_cli.py`). Các mục nhật ký trước đó giữ nguyên tên cũ như đã ghi lúc đó.
 - **2026-10-13, bản 7.** Bạn bỏ ý định dùng nhánh riêng dài hạn và chọn làm theo kế hoạch. Đã thêm quy trình git ở mục 6, RC-25, và ghi rõ S9 không build `frontend`. Bắt đầu S0.
 - **2026-10-13, bản 8, kết quả S0.** Chạy S0(a), (b), (c), (f) bằng ba agent (Phụ lục A.2). Thiết kế qua thực nghiệm; sửa các điểm sau: câu lệnh claim (ép kiểu `CAST(:chat_id AS BIGINT)`, điều kiện `status IN ('queued','processing')` bắt buộc và thử lại khi 0 dòng, trả danh sách dòng hết lượt để gửi câu xin lỗi sau commit); mọi mốc thời gian truyền vào truy vấn phải có múi giờ; không dùng `received_at::date` cho hạn mức; cảnh báo `READ COMMITTED` của SQLAlchemy là lỗi thời nhưng engine chỉ đọc chỉ là rào chắn (RC-27); hành vi `SIGTERM` và `SIGKILL` của arq (`retry_jobs=False`, `keep_result=0` bắt buộc, `health_check_interval` nhỏ, `BotWorkerSettings` không kế thừa); `create_pool` phải nằm trong `wait_for`; baseline cổng chất lượng không xanh sẵn (RC-26) và mốc mới ở A.2. Script và kết quả thô lưu ở `docs/quotify/analysis-chatbot-5-1/`.
+- **2026-10-13, bản 9, S1 xong.** Cài S1 theo TDD (tracer bullet rồi từng hành vi), rà soát độc lập, sửa các lỗi rà soát tìm ra, chạy thật trên Docker dev và bot dev. Thêm RC-28 (rò nội dung qua tham số SQLAlchemy), bốn tiêu chí S1 sau rà soát, Phụ lục A.3. Hoãn compose test và `sendChatAction` của fake Telegram sang S4 và S8.
 - **Chưa xác minh:** các điểm đánh dấu **[CHƯA XÁC MINH]** ở trên; các con số ở Phụ lục A.2 do agent đo, tôi chưa tái lập; quan sát bằng mắt chỉ báo "đang gõ" của S0(d) chờ bạn xác nhận; hành vi `SIGTERM` của lệnh dev `sh -lc "uv sync && uv run arq ..."`.

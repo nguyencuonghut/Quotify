@@ -7,7 +7,7 @@ Script thí nghiệm và kết quả đo của **Slice S0** trong [plan-telegram
 | Thư mục | Nội dung | Phục vụ |
 |---|---|---|
 | `s0/pg/` | Engine DB chỉ đọc (`s0a_*`, `s0a6_*`, `s0a7_*`, `s0a8_*`), thuật toán claim hộp thư (`claimlib.py` là bản đã qua thực nghiệm, cùng các biến thể sai để làm đối chứng), kịch bản xác định (`s0c_scenarios*.py`), đua đồng thời và chaos (`s0c_race.py`, `s0c_chaos.py`), EXPLAIN và truy vấn hạn mức (`explain*.sql`, `s0c_quota_tz.py`), lược đồ `schema.sql` | S0(a), S0(c); nguồn cho test S2, S3, S6, S10 |
-| `s0/telegram/` | `sendChatAction` với bot dev thật (`s0d_chat_action.py` và kết quả; không chứa token hay chat ID, ID lấy từ biến môi trường lúc chạy) | S0(d); nguồn cho test S1 và S4 |
+| `s0/telegram/` | `sendChatAction` với bot dev thật (`s0d_chat_action.py` và `s0d_typing_observation.py`, cùng kết quả; không chứa token hay chat ID, ID lấy từ biến môi trường lúc chạy) | S0(d); nguồn cho test S1 và S4 |
 | `s0/arq/` | Hành vi arq 0.26.3 trên Redis 7: `_job_id`, `SIGKILL`, `SIGTERM`, hàng đợi riêng, `create_pool` khi Redis tắt hoặc `pause`, `arq --check` | S0(b); nguồn cho test S1, S3, S8 |
 
 File `.out` là kết quả chạy thật. `pg/s0c_race_plan.out` là lần chạy đầu và có một lần hết hạn rào chắn của chính bộ chạy thử (không phải bằng chứng vi phạm bất biến, không tái hiện ở tám lần chạy sau); kết quả cuối là `s0c_race_plan_final.out`.

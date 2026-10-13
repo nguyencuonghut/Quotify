@@ -898,3 +898,10 @@ Agents must read the relevant entries before changing behavior in the same area,
 ## Usage Rule
 
 Before changing behavior in an area with prior bugs, read the relevant entries first and explicitly avoid repeating the same failure mode.
+
+## Chatbot hộp thư: thông điệp ngoại lệ SQLAlchemy kèm tham số của câu lệnh lỗi (2026-10-13)
+
+- **Trigger:** lệnh `INSERT` hay `UPDATE` mang nội dung tin nhắn (hộp thư chatbot) thất bại, ví dụ văn bản chứa ký tự NUL mà Postgres không lưu được. Reviewer độc lập tái hiện, và tôi tái hiện lại bằng test chuỗi mồi.
+- **Root cause:** SQLAlchemy đưa `[SQL: ...] [parameters: (...)]` vào thông điệp ngoại lệ, nên nội dung tin (và câu trả lời) xuất hiện trong log lỗi của runner (`exc_info=True`) và trong log job lỗi của arq. Kế hoạch 4.9 cấm log nội dung.
+- **Fix:** mọi lệnh DB mang nội dung bọc `BotInboxError` có thông điệp không chứa tham số (`from None`); `repr` của `ChatTurn`, `ClaimedRow`, `BotPrincipal` che nội dung.
+- **Guardrail:** test chuỗi mồi ở đường webhook và đường worker trong `test_bot_pipeline_db.py`. Không đặt `hide_parameters=True` ở engine chung vì đổi hành vi toàn ứng dụng; nếu muốn bảo vệ rộng hơn thì quyết định riêng.
