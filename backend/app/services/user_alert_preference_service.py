@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.permissions import has_permission, has_role
+from app.auth.permissions import has_role
 from app.models import User, UserAlertPreference
 
 LEVELS = ("light", "medium", "large")
@@ -21,10 +21,8 @@ class AlertPreferences:
 
 
 def default_min_level(user: User) -> str:
-    """Trưởng phòng và người nhận mọi vật tư mặc định từ mức Trung bình (D9)."""
-    if has_role(user, "manager") or has_permission(user, "price_alerts.receive_all"):
-        return "medium"
-    return "light"
+    """Mặc định từ Nhẹ; riêng admin (chỉ nhận khi tự bật) từ Trung bình. Khớp người nhận (D9)."""
+    return "medium" if has_role(user, "admin") else "light"
 
 
 def build_preferences(user: User, row: UserAlertPreference | None) -> AlertPreferences:

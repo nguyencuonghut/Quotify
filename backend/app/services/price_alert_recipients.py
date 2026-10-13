@@ -66,8 +66,9 @@ async def resolve_recipients(
     """Ai nhận tin của một sự kiện (D7 đến D10, L12, L16).
 
     - Trưởng phòng (quyền `price_alerts.receive_all`, không phải admin): mọi vật tư, mặc định từ
-      Trung bình. Nhân viên: vật tư mình là `quotes.created_by_id` trong `staff_lookback_days`
-      ngày, mặc định từ Nhẹ. Admin: chỉ khi bật `admin_receive_all`, mặc định từ Trung bình.
+      Nhẹ (cần nắm toàn bộ biến động giá). Nhân viên: vật tư mình là `quotes.created_by_id` trong
+      `staff_lookback_days` ngày, mặc định từ Nhẹ. Admin: chỉ khi bật `admin_receive_all`, mặc
+      định từ Trung bình.
     - Chỉ người dùng `ACTIVE` có liên kết Telegram `active` (không `blocked`); tài khoản seed bị
       loại (NULL-safe). Cờ cá nhân tắt thì không nhận. `kind='anomaly'` bỏ qua mức tối thiểu và
       thêm `entered_by_id` (người nhập, nhận thẻ không nút).
@@ -234,7 +235,7 @@ def _meets_minimum(
     if event_level not in LEVEL_ORDER:
         return False
     chosen = preference.min_level if preference is not None else None
-    minimum = chosen or ("light" if audience == "staff" else "medium")
+    minimum = chosen or ("medium" if audience == "admin" else "light")
     return LEVEL_ORDER[event_level] >= LEVEL_ORDER[minimum]
 
 

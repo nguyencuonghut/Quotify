@@ -39,15 +39,23 @@ async def test_a_linked_manager_receives_a_medium_event_of_any_material(scene: S
     assert recipient.chat_id > 0
 
 
-async def test_a_manager_does_not_receive_light_by_default_but_staff_does(scene: Scene) -> None:
+async def test_managers_and_staff_both_receive_light_by_default(scene: Scene) -> None:
     manager = await scene.person("it-manager")
     staff = await scene.person()
     await scene.entered(staff)
 
     decision = await scene.resolve("light")
 
-    assert scene.ids(decision) == {staff}
-    assert manager not in scene.ids(decision)
+    # Trưởng phòng cần nắm toàn bộ biến động giá nên mặc định cũng từ mức Nhẹ (như nhân viên).
+    assert scene.ids(decision) == {manager, staff}
+
+
+async def test_an_admin_who_opted_in_still_defaults_to_medium(scene: Scene) -> None:
+    admin = await scene.person("admin")
+    await scene.prefer(admin, admin_receive_all=True)
+
+    assert scene.ids(await scene.resolve("light")) == set()
+    assert scene.ids(await scene.resolve("medium")) == {admin}
 
 
 async def test_staff_receive_only_materials_they_entered_recently(scene: Scene) -> None:

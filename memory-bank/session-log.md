@@ -1246,3 +1246,8 @@ Nhật ký append-only cho các lần đóng task của agent.
 
 - Tieu de: Nhat ky audit doc duoc: kenh duyet gia va nhan doi tuong
 - Tom tat: Review anomaly ghi channel web/telegram; list audit tra target_label tu DB cho phieu va lien ket telegram; mapper them nhan hanh dong, loai doi tuong, logout hien email, tom tat duyet gia. Dev poller telegram dang dung nen click Nhap sai tren Telegram khong toi backend.
+
+## 2026-10-13 04:49:51Z - claude
+
+- Tieu de: Truong phong mac dinh nhan tu muc Nhe
+- Tom tat: Doi D9: manager default light, admin van medium; sua o recipients va profile default; light cua moi vat tu vao ban tin 08:00 cua manager.

@@ -406,10 +406,13 @@ async def test_missing_preference_row_returns_defaults_without_creating_one(
     async with session_factory() as session:
         staff = await UserAlertPreferenceService(session).get(_actor(user_id, "user"))
         manager = await UserAlertPreferenceService(session).get(_actor(user_id, "manager"))
+        admin = await UserAlertPreferenceService(session).get(_actor(user_id, "admin"))
         rows = (await session.execute(select(UserAlertPreference))).scalars().all()
 
     assert (staff.is_enabled, staff.min_level, staff.effective_min_level) == (True, None, "light")
-    assert manager.effective_min_level == "medium"
+    # Trưởng phòng cần nắm toàn bộ biến động giá nên mặc định cũng từ Nhẹ; admin vẫn từ Trung bình.
+    assert manager.effective_min_level == "light"
+    assert admin.effective_min_level == "medium"
     assert staff.admin_receive_all is False
     assert user_id not in {r.user_id for r in rows}
 
@@ -453,7 +456,7 @@ async def test_put_creates_then_updates_one_row_and_null_returns_to_role_default
     assert (second.is_enabled, second.min_level, second.effective_min_level) == (
         True,
         None,
-        "medium",
+        "light",
     )
     assert count == 1
 

@@ -591,8 +591,9 @@ async def test_preferences_route_is_not_swallowed_by_users_id_route(
     ("role_names", "codes", "expected"),
     [
         (["user"], [], "light"),
-        (["manager"], [], "medium"),
-        (["staff"], ["price_alerts.receive_all"], "medium"),
+        (["manager"], [], "light"),
+        (["staff"], ["price_alerts.receive_all"], "light"),
+        (["admin"], ["price_alerts.receive_all"], "medium"),
     ],
 )
 async def test_default_effective_level_depends_on_role(

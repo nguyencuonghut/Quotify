@@ -774,3 +774,12 @@ Người dùng quyết định chạy thật cho mọi người, không cần pi
 - Quay lại pilot: chép lại `.env.bak-pilot-20261009` rồi tạo lại `worker`.
 - Kiểm tra người nhận bất cứ lúc nào bằng `scripts/ops/price-alert-recipients.sql` (chỉ đọc).
 
+## Trưởng Phòng Mặc Định Nhận Từ Mức Nhẹ (2026-10-13)
+
+Trước đây quyết định D9 đặt trưởng phòng nhận từ mức Trung bình (nhân viên từ Nhẹ). Người dùng muốn trưởng phòng nắm toàn bộ biến động giá của hệ thống nên đổi: **trưởng phòng mặc định từ mức Nhẹ**; admin (chỉ nhận khi bật `admin_receive_all`) vẫn từ Trung bình.
+
+- Đổi ở hai nơi cho khớp nhau: `_meets_minimum` (`price_alert_recipients.py`, quyết định ai nhận) và `default_min_level` (`user_alert_preference_service.py`, số hiện ở trang Hồ sơ).
+- Hệ quả: biến động Nhẹ của **mọi vật tư** đi vào bản tin 08:00 của trưởng phòng (không gửi lẻ); mức Trung bình trở lên vẫn gửi ngay. Bản tin tối đa 30 dòng, phần dư ghi "và N vật tư nữa, xem trên web".
+- Ai đã tự chọn mức tối thiểu ở Hồ sơ thì giữ nguyên lựa chọn; chỉ người để "mặc định theo vai trò" đổi theo. Muốn quay lại mức cũ, đặt Trung bình ở Hồ sơ.
+- Không đổi dữ liệu cũ, không cần migration; chỉ cần build lại `backend` và `worker`, và `frontend` nếu muốn nhãn mặc định ở Hồ sơ đổi (nhãn lấy từ API nên thực ra không cần).
+

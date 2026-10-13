@@ -21,7 +21,7 @@ Hệ thống chỉ **thông báo**, không tự sửa giá, không tự mua bán
 
 | Vai trò | Tin biến động giá | Bản tin 08:00 | Giá bất thường | Nhắc cập nhật giá |
 |---|---|---|---|---|
-| **Trưởng phòng (Manager)** | Mọi vật tư, mặc định từ mức **Trung bình** | Nếu bạn chọn mức tối thiểu là Nhẹ | Có, **kèm nút duyệt** | Mọi vật tư đến hạn nhắc |
+| **Trưởng phòng (Manager)** | **Mọi vật tư**, mặc định từ mức **Nhẹ** | Có (mọi biến động Nhẹ của mọi vật tư nằm ở đây) | Có, **kèm nút duyệt** | Mọi vật tư đến hạn nhắc |
 | **Nhân viên nhập báo giá (User)** | Vật tư **bạn đã nhập trong 90 ngày gần đây**, mặc định từ mức **Nhẹ** | Có (các tin mức Nhẹ nằm ở đây) | Chỉ khi **chính bạn nhập** giá đó, **không có nút duyệt** | Chỉ vật tư bạn đã nhập gần đây |
 | **Admin** | Chỉ khi bạn tự bật "nhận mọi thông báo" ở Hồ sơ | như trên | có nút duyệt nếu nhận | Chỉ khi bật như trên |
 
@@ -131,7 +131,7 @@ Xem trên web →
 - **Không có biến động nhẹ thì không có bản tin.** Cuối tuần vẫn có nếu có tin.
 - Bản tin chỉ gom tin của hôm trước; tin nhẹ quá 3 ngày chưa gửi sẽ không còn được gửi.
 
-Trưởng phòng mặc định không nhận mức Nhẹ; muốn nhận, đặt mức tối thiểu là **Nhẹ** ở Hồ sơ.
+Trưởng phòng cũng nhận bản tin này mặc định, cho **mọi vật tư** (nhân viên chỉ nhận vật tư mình đã nhập). Nếu thấy dài, đặt mức tối thiểu là **Trung bình** ở Hồ sơ để chỉ nhận tin gửi ngay.
 
 ## 6. Giá bất thường (nghi nhập sai)
 
@@ -244,7 +244,7 @@ Xem chi tiết trên web →
 
 **Hồ sơ → Tùy chọn thông báo giá** (hiện khi tính năng Telegram đang bật):
 - **Nhận thông báo biến động giá qua Telegram**: bật hoặc tắt toàn bộ. Tắt thì bạn không nhận **cả tin biến động, bản tin, giá bất thường lẫn nhắc cập nhật giá**.
-- **Mức tối thiểu**: Nhẹ, Trung bình hoặc Lớn, hoặc để **mặc định theo vai trò** (trưởng phòng: Trung bình; nhân viên: Nhẹ). Mức tối thiểu **không áp dụng** cho giá bất thường (nhận theo vai trò) và nhắc cập nhật giá.
+- **Mức tối thiểu**: Nhẹ, Trung bình hoặc Lớn, hoặc để **mặc định theo vai trò** (trưởng phòng và nhân viên: Nhẹ; admin, chỉ khi bật nhận tất cả: Trung bình). Mức tối thiểu **không áp dụng** cho giá bất thường (nhận theo vai trò) và nhắc cập nhật giá.
 - **Admin** có thêm tùy chọn nhận mọi thông báo như trưởng phòng.
 
 ## 9. Trang cấu hình (trưởng phòng và admin)
