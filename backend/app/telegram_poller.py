@@ -26,6 +26,7 @@ from app.integrations.telegram import (
     TelegramNetworkError,
     TelegramRateLimitError,
 )
+from app.services.bot_dispatcher import build_chatbot_runtime
 from app.services.telegram_update_runner import TelegramTemporaryError, TelegramUpdateRunner
 
 logger = logging.getLogger("app.telegram")
@@ -148,7 +149,13 @@ async def amain() -> int:
         print(f"Lỗi cấu hình: {exc}", file=sys.stderr)
         return 1
 
-    runner = TelegramUpdateRunner(session_factory=get_sessionmaker(), client=client)
+    chatbot, dispatcher = build_chatbot_runtime(settings)
+    runner = TelegramUpdateRunner(
+        session_factory=get_sessionmaker(),
+        client=client,
+        chatbot=chatbot,
+        dispatcher=dispatcher,
+    )
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):

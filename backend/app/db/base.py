@@ -7,6 +7,7 @@ class Base(DeclarativeBase):
 
 from app.models import (  # noqa: F401,E402
     audit_log,
+    bot_update,
     export_job,
     file,
     import_job,

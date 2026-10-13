@@ -69,6 +69,7 @@ class LinkedIdentity:
     account: TelegramAccount
     full_name: str
     user_status: UserStatus
+    email: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,7 +195,7 @@ class TelegramLinkService:
         """
         row = (
             await self.session.execute(
-                select(TelegramAccount, User.full_name, User.status)
+                select(TelegramAccount, User.full_name, User.status, User.email)
                 .join(User, User.id == TelegramAccount.user_id)
                 .where(
                     TelegramAccount.telegram_user_id == telegram_user_id,
@@ -204,7 +205,7 @@ class TelegramLinkService:
         ).first()
         if row is None:
             return None
-        account, full_name, user_status = row
+        account, full_name, user_status, email = row
         account.last_seen_at = datetime.now(UTC)
         account.chat_id = chat_id
         account.username = username
@@ -212,7 +213,12 @@ class TelegramLinkService:
         if account.status == "blocked":
             account.status = "active"
         await self.session.flush()
-        return LinkedIdentity(account=account, full_name=full_name, user_status=user_status)
+        return LinkedIdentity(
+            account=account,
+            full_name=full_name,
+            user_status=user_status,
+            email=email,
+        )
 
     async def revoke_user_link(self, user_id: UUID, *, reason: str) -> TelegramAccount | None:
         """Thu hồi liên kết đang giữ của người dùng; không có thì trả `None` (idempotent)."""

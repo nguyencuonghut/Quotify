@@ -172,6 +172,22 @@ class Settings(BaseSettings):
         default=10.0,
         alias="TELEGRAM_HTTP_TIMEOUT_SECONDS",
     )
+    # Chatbot (kế hoạch 5.1): tắt mặc định, cần thêm TELEGRAM_ENABLED. Danh sách email người dùng
+    # thử cách nhau bằng dấu phẩy: rỗng nghĩa là mọi người đã liên kết, có giá trị thì CHỈ những
+    # người này được chuyển tin cho chatbot.
+    chatbot_enabled: bool = Field(default=False, alias="CHATBOT_ENABLED")
+    chatbot_pilot_user_emails: str = Field(default="", alias="CHATBOT_PILOT_USER_EMAILS")
+    bot_queue_name: str = Field(default="quotify:bot", alias="BOT_QUEUE_NAME")
+    bot_worker_max_jobs: int = Field(default=8, alias="BOT_WORKER_MAX_JOBS")
+    bot_job_timeout_seconds: int = Field(default=300, alias="BOT_JOB_TIMEOUT_SECONDS")
+    bot_drain_budget_seconds: float = Field(default=90.0, alias="BOT_DRAIN_BUDGET_SECONDS")
+    bot_row_timeout_seconds: float = Field(default=120.0, alias="BOT_ROW_TIMEOUT_SECONDS")
+    bot_lease_seconds: float = Field(default=240.0, alias="BOT_LEASE_SECONDS")
+    bot_max_attempts: int = Field(default=3, alias="BOT_MAX_ATTEMPTS")
+    bot_health_check_interval_seconds: int = Field(
+        default=30,
+        alias="BOT_HEALTH_CHECK_INTERVAL_SECONDS",
+    )
     # Danh sách email người nhận thử thông báo biến động giá (cách nhau bằng dấu phẩy). Rỗng nghĩa
     # là không giới hạn; có giá trị thì CHỈ những người này nhận tin (giai đoạn pilot).
     price_alert_recipient_emails: str = Field(default="", alias="PRICE_ALERT_RECIPIENT_EMAILS")

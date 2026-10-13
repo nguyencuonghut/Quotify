@@ -3,6 +3,7 @@
 from app.models.audit_log import AuditLog
 from app.models.backup_log import BackupLog
 from app.models.backup_schedule import BackupSchedule
+from app.models.bot_update import BotUpdate
 from app.models.export_job import ExportJob
 from app.models.file import File
 from app.models.import_job import ImportJob
@@ -69,6 +70,7 @@ __all__ = [
     "Supplier",
     "SupplierContact",
     "SupplierMaterial",
+    "BotUpdate",
     "TelegramAccount",
     "TelegramLinkToken",
     "TelegramProcessedUpdate",

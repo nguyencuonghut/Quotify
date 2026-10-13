@@ -16,9 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.integrations.telegram import TelegramClient, TelegramForbiddenError
 from app.models.telegram_link_token import TelegramLinkToken
 from app.models.telegram_processed_update import TelegramProcessedUpdate
+from app.services.bot_dispatcher import BotDispatcher, NullBotDispatcher
+from app.services.bot_policy import ChatbotPolicy
 from app.services.telegram_bot_messages import BUSY_TEXT, SYSTEM_ERROR_TEXT, TOO_FAST_TEXT
 from app.services.telegram_link_service import TelegramLinkService
 from app.services.telegram_update_service import (
+    BotWakeup,
     CallbackAnswer,
     MessageEdit,
     Outbound,
@@ -98,9 +101,13 @@ class TelegramUpdateRunner:
         cleanup_interval_seconds: float = 3600.0,
         processed_retention_days: int = 3,
         link_token_retention_days: int = 7,
+        chatbot: ChatbotPolicy | None = None,
+        dispatcher: BotDispatcher | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._client = client
+        self._chatbot = chatbot or ChatbotPolicy()
+        self._dispatcher: BotDispatcher = dispatcher or NullBotDispatcher()
         self._rate_limiter = rate_limiter or TelegramUserRateLimiter()
         self._callback_rate_limiter = callback_rate_limiter or TelegramUserRateLimiter(
             limit=30, clock=clock
@@ -116,7 +123,19 @@ class TelegramUpdateRunner:
     def client(self) -> TelegramClient:
         return self._client
 
+    @property
+    def chatbot(self) -> ChatbotPolicy:
+        return self._chatbot
+
+    @property
+    def dispatcher(self) -> BotDispatcher:
+        return self._dispatcher
+
     async def aclose(self) -> None:
+        try:
+            await asyncio.wait_for(self._dispatcher.aclose(), timeout=5.0)
+        except Exception as exc:  # đóng pool Redis không được chặn việc đóng client Telegram
+            logger.warning("telegram.dispatcher_close_failed error=%s", type(exc).__name__)
         await self._client.aclose()
 
     async def process(self, payload: Any) -> None:
@@ -194,7 +213,7 @@ class TelegramUpdateRunner:
     async def _handle_in_transaction(self, update: TelegramUpdate) -> Sequence[Outbound]:
         async with self._session_factory() as session:
             try:
-                outbound = await TelegramUpdateService(session).handle(update)
+                outbound = await TelegramUpdateService(session, self._chatbot).handle(update)
                 await session.commit()
             except Exception:
                 await session.rollback()
@@ -252,6 +271,8 @@ class TelegramUpdateRunner:
                 await self._client.send_message(
                     item.chat_id, item.text, reply_markup=item.reply_markup
                 )
+            case BotWakeup():
+                await self._dispatcher.notify(item.chat_id, item.update_id)
 
     async def _mark_blocked(self, update_id: int, chat_id: int) -> None:
         """Telegram trả 403: người dùng đã chặn bot. Chat riêng có `chat_id` = id người dùng."""

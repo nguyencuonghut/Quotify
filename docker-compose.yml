@@ -192,6 +192,44 @@ services:
     environment:
       POSTGRES_HOST: postgres
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/app
+      # Chatbot (kế hoạch 5.1): tắt mặc định, bật bằng biến shell khi chạy lệnh up (xem bot-worker).
+      CHATBOT_ENABLED: ${CHATBOT_ENABLED:-false}
+      CHATBOT_PILOT_USER_EMAILS: ${CHATBOT_PILOT_USER_EMAILS:-}
+    volumes:
+      - ./backend:/app
+      - backend_venv:/app/.venv
+
+  # Worker của chatbot (kế hoạch 5.1) CHỈ DÙNG CHO DEV khi thử đường ống. Cần cùng cấu hình Telegram
+  # như telegram-poller và bật chatbot bằng biến shell (không cần sửa .env), nên giới hạn người thử:
+  #   CHATBOT_ENABLED=true CHATBOT_PILOT_USER_EMAILS=ten@example.com \
+  #     docker compose --profile telegram up -d telegram-poller bot-worker
+  # Worker không tự reload code: sửa code xong phải restart. `exec` để SIGTERM tới được arq.
+  bot-worker:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+      target: dev
+    profiles:
+      - telegram
+    command: >
+      sh -lc "uv sync &&
+      exec uv run arq app.bot_worker.BotWorkerSettings"
+    stop_grace_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/app
+      REDIS_URL: redis://redis:6379/0
+      # Worker chỉ đọc cờ bật/tắt (công tắc tắt khẩn cấp); danh sách thử chỉ áp lúc chuyển tin.
+      CHATBOT_ENABLED: ${CHATBOT_ENABLED:-false}
     volumes:
       - ./backend:/app
       - backend_venv:/app/.venv

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from app.core.config import Settings, get_settings
 from app.db.session import get_sessionmaker
 from app.integrations.telegram import TelegramClient, TelegramConfigurationError
+from app.services.bot_dispatcher import build_chatbot_runtime
 from app.services.telegram_update_runner import (
     TelegramTemporaryError,
     TelegramUpdateRunner,
@@ -51,7 +52,13 @@ def get_telegram_runner(
                 status.HTTP_503_SERVICE_UNAVAILABLE,
                 "Telegram chưa được cấu hình.",
             ) from None
-        runner = TelegramUpdateRunner(session_factory=get_sessionmaker(), client=client)
+        chatbot, dispatcher = build_chatbot_runtime(settings)
+        runner = TelegramUpdateRunner(
+            session_factory=get_sessionmaker(),
+            client=client,
+            chatbot=chatbot,
+            dispatcher=dispatcher,
+        )
         request.app.state.telegram_runner = runner
     return runner
 

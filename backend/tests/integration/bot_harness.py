@@ -22,6 +22,9 @@ class Bot:
     session_factory: async_sessionmaker[AsyncSession]
     runner: TelegramUpdateRunner
     outbox: Outbox
+    # Chỉ có khi dựng bằng fixture `chatbot_bot` (đường ống chatbot bật).
+    dispatcher: Any = None
+    client: Any = None
 
     async def send(self, text_: str, *, tg: int, username: str | None = None) -> int:
         update_id = next_update_id()
@@ -29,6 +32,35 @@ class Bot:
             make_update(update_id, text_, user_id=tg, first_name="Telegram An", username=username),
         )
         return update_id
+
+    async def inbox_rows(self, chat_id: int) -> list[Any]:
+        """Các dòng hộp thư bot của một chat, theo thứ tự `update_id`.
+
+        DB tạm dùng chung cả phiên test nên phải lọc theo chat (mỗi test có chat riêng).
+        """
+        async with self.session_factory() as session:
+            result = await session.execute(
+                text(
+                    "select update_id, chat_id, user_id, status, payload_text, reply_text, "
+                    "reply_saved_at, attempts from bot_updates where chat_id = :c "
+                    "order by update_id"
+                ),
+                {"c": chat_id},
+            )
+            return list(result.all())
+
+    async def drain(self, chat_id: int, *, engine: Any = None, config: Any = None) -> int:
+        """Chạy `drain_chat` của worker bot một lần cho một chat. Trả số dòng đã xử lý."""
+        from app.bot_worker import BotWorkerConfig, drain_chat
+        from app.services.chat_engine import StubChatEngine
+
+        ctx = {
+            "session_factory": self.session_factory,
+            "telegram_client": self.client,
+            "chat_engine": engine or StubChatEngine(),
+            "bot_config": config or BotWorkerConfig(),
+        }
+        return await drain_chat(ctx, chat_id)
 
     async def process_raw(self, payload: dict[str, Any]) -> None:
         await self.runner.process(payload)

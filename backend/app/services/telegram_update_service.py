@@ -15,6 +15,8 @@ from app.models.telegram_account import TelegramAccount
 from app.models.telegram_processed_update import TelegramProcessedUpdate
 from app.models.user import UserStatus
 from app.services.audit_log import AuditLogContext, AuditLogService
+from app.services.bot_inbox import BotInbox
+from app.services.bot_policy import ChatbotPolicy
 from app.services.price_alert_review_service import (
     PriceAlertReviewService,
     ReviewOutcome,
@@ -72,7 +74,18 @@ class MessageEdit:
     reply_markup: dict[str, Any] | None = None
 
 
-Outbound = OutboundMessage | CallbackAnswer | MessageEdit
+@dataclass(frozen=True, slots=True)
+class BotWakeup:
+    """Đánh chuông worker bot sau khi tin đã vào hộp thư (chỉ phát SAU commit, kế hoạch 5.1).
+
+    Không gửi gì tới Telegram: người dùng nhận câu trả lời từ worker.
+    """
+
+    chat_id: int
+    update_id: int
+
+
+Outbound = OutboundMessage | CallbackAnswer | MessageEdit | BotWakeup
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,8 +225,9 @@ def parse_command(text: str | None) -> tuple[str | None, str]:
 class TelegramUpdateService:
     """Xử lý một update Telegram. Chỉ `flush`, không `commit`; gửi tin do runner làm sau commit."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, chatbot: ChatbotPolicy | None = None) -> None:
         self.session = session
+        self._chatbot = chatbot or ChatbotPolicy()
 
     async def handle(self, update: TelegramUpdate) -> Sequence[Outbound]:
         if not await self._record_update(update.update_id):
@@ -260,6 +274,23 @@ class TelegramUpdateService:
             return await self._handle_stop(update.update_id, message, telegram_user_id)
         if command == "/help":
             return [OutboundMessage(message.chat_id, HELP_TEXT)]
+        if (
+            command is None
+            and message.text
+            and message.text.strip()
+            and identity is not None
+            and self._chatbot.allows(identity.email)
+        ):
+            # Văn bản thường của người đã liên kết: vào hộp thư cùng giao dịch với dedupe, rồi
+            # đánh chuông SAU commit. Lệnh và nút bấm giữ nguyên đường xử lý tại chỗ.
+            await BotInbox(self.session).enqueue(
+                update_id=update.update_id,
+                chat_id=message.chat_id,
+                telegram_user_id=telegram_user_id,
+                user_id=identity.account.user_id,
+                text=message.text,
+            )
+            return [BotWakeup(message.chat_id, update.update_id)]
         return [OutboundMessage(message.chat_id, UNKNOWN_TEXT)]
 
     async def _handle_callback(

@@ -17,9 +17,9 @@ import os
 import subprocess
 import sys
 import uuid
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from sqlalchemy import text
@@ -144,3 +144,64 @@ async def bot(session_factory: async_sessionmaker[AsyncSession]) -> AsyncIterato
     runner = TelegramUpdateRunner(session_factory=session_factory, client=client)
     yield Bot(session_factory, runner, outbox)
     await http_client.aclose()
+
+
+@pytest.fixture
+async def chatbot_bot(session_factory: async_sessionmaker[AsyncSession]) -> AsyncIterator[Bot]:
+    """Như `bot` nhưng bật đường ống chatbot (hộp thư) và dùng bên đánh chuông giả."""
+    from bot_harness import Bot
+    from telegram_fakes import FakeBotDispatcher, Outbox, make_client
+
+    from app.services.bot_policy import ChatbotPolicy
+    from app.services.telegram_update_runner import TelegramUpdateRunner
+
+    outbox = Outbox()
+    client, http_client = make_client(outbox)
+    dispatcher = FakeBotDispatcher()
+    runner = TelegramUpdateRunner(
+        session_factory=session_factory,
+        client=client,
+        chatbot=ChatbotPolicy(enabled=True),
+        dispatcher=dispatcher,
+    )
+    yield Bot(session_factory, runner, outbox, dispatcher=dispatcher, client=client)
+    await http_client.aclose()
+
+
+@pytest.fixture
+async def chatbot_bot_factory(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[Callable[..., Bot]]:
+    """Dựng bot với chính sách chatbot, bên đánh chuông và session factory của runner tùy ý.
+
+    `session_factory_for_runner` chỉ dành cho runner (vd mô phỏng DB hỏng lúc commit); các hàm
+    kiểm tra của `Bot` vẫn đọc DB bằng session factory thật.
+    """
+    from bot_harness import Bot
+    from telegram_fakes import FakeBotDispatcher, Outbox, make_client
+
+    from app.services.telegram_update_runner import TelegramUpdateRunner
+
+    http_clients: list[Any] = []
+
+    def build(
+        policy: Any,
+        *,
+        dispatcher: Any = None,
+        session_factory_for_runner: Any = None,
+    ) -> Bot:
+        outbox = Outbox()
+        client, http_client = make_client(outbox)
+        http_clients.append(http_client)
+        used_dispatcher = dispatcher if dispatcher is not None else FakeBotDispatcher()
+        runner = TelegramUpdateRunner(
+            session_factory=session_factory_for_runner or session_factory,
+            client=client,
+            chatbot=policy,
+            dispatcher=used_dispatcher,
+        )
+        return Bot(session_factory, runner, outbox, dispatcher=used_dispatcher, client=client)
+
+    yield build
+    for http_client in http_clients:
+        await http_client.aclose()

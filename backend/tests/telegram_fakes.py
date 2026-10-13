@@ -131,6 +131,19 @@ class Outbox:
         return [item["text"] for item in self.sent_messages() if item["chat_id"] == chat_id]
 
 
+class FakeBotDispatcher:
+    """Bên đánh chuông giả của đường ống chatbot: ghi lại các lần `notify`."""
+
+    def __init__(self) -> None:
+        self.notified: list[tuple[int, int]] = []
+
+    async def notify(self, chat_id: int, update_id: int) -> None:
+        self.notified.append((chat_id, update_id))
+
+    async def aclose(self) -> None:
+        return None
+
+
 def make_client(outbox: Outbox) -> tuple[TelegramClient, httpx.AsyncClient]:
     def handler(request: httpx.Request) -> httpx.Response:
         outbox.requests.append(request)
