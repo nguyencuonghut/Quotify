@@ -23,6 +23,7 @@ from app.services.bot_inbox import BotInbox, ClaimedRow
 from app.services.bot_policy import ChatbotPolicy
 from app.services.bot_principal import load_bot_principal
 from app.services.chat_engine import ChatTurn, StubChatEngine
+from app.services.telegram_bot_messages import LOST_MESSAGE_TEXT
 
 logger = logging.getLogger("app.bot")
 
@@ -69,11 +70,22 @@ async def drain_chat(ctx: dict[str, Any], chat_id: int) -> int:
                 max_attempts=config.max_attempts,
             )
             await session.commit()
+        if claim.exhausted:
+            # Gửi SAU commit: người dùng chỉ được báo khi dòng đã thật sự `failed`.
+            await _apologise(ctx, chat_id)
         if claim.row is None:
             break
         await _process_row(ctx, claim.row)
         handled += 1
     return handled
+
+
+async def _apologise(ctx: dict[str, Any], chat_id: int) -> None:
+    """Một câu xin lỗi cho (các) tin đã hết số lần thử. Lỗi gửi không được làm hỏng vòng xử lý."""
+    try:
+        await ctx["telegram_client"].send_message(chat_id, LOST_MESSAGE_TEXT)
+    except Exception as exc:
+        logger.warning("bot.apology_failed error=%s", type(exc).__name__)
 
 
 async def _process_row(ctx: dict[str, Any], row: ClaimedRow) -> None:

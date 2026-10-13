@@ -119,3 +119,19 @@ async def test_the_clock_given_to_the_inbox_must_have_a_timezone(
 
     with pytest.raises(ValueError, match="múi giờ"):
         await _claim(session_factory, chat, datetime(2026, 10, 13, 3, 0))  # noqa: DTZ001
+
+
+async def test_a_row_that_already_ended_cannot_be_completed_again(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    chat = next_telegram_id()
+    user_id = await create_user(session_factory)
+    (update_id,) = await _enqueue(session_factory, chat, user_id, ["xin chào"])
+    row, _ = await _claim(session_factory, chat, NOW)
+    assert row is not None
+    async with session_factory() as session:
+        inbox = BotInbox(session)
+        assert await inbox.complete(update_id, row.attempts, now=NOW)
+        assert not await inbox.complete(update_id, row.attempts, now=NOW)  # đã `replied`
+        assert not await inbox.save_reply(update_id, row.attempts, "muộn", now=NOW)
+        await session.commit()

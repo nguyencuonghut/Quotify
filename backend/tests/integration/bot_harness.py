@@ -42,25 +42,64 @@ class Bot:
             result = await session.execute(
                 text(
                     "select update_id, chat_id, user_id, status, payload_text, reply_text, "
-                    "reply_saved_at, attempts from bot_updates where chat_id = :c "
+                    "reply_saved_at, attempts, error_category, finished_at "
+                    "from bot_updates where chat_id = :c "
                     "order by update_id"
                 ),
                 {"c": chat_id},
             )
             return list(result.all())
 
-    async def drain(self, chat_id: int, *, engine: Any = None, config: Any = None) -> int:
+    async def drain(
+        self,
+        chat_id: int,
+        *,
+        engine: Any = None,
+        config: Any = None,
+        client: Any = None,
+    ) -> int:
         """Chạy `drain_chat` của worker bot một lần cho một chat. Trả số dòng đã xử lý."""
         from app.bot_worker import BotWorkerConfig, drain_chat
         from app.services.chat_engine import StubChatEngine
 
         ctx = {
             "session_factory": self.session_factory,
-            "telegram_client": self.client,
+            "telegram_client": client or self.client,
             "chat_engine": engine or StubChatEngine(),
             "bot_config": config or BotWorkerConfig(),
         }
         return await drain_chat(ctx, chat_id)
+
+    async def insert_row(
+        self,
+        chat_id: int,
+        user_id: uuid.UUID,
+        update_id: int,
+        *,
+        status: str = "queued",
+        attempts: int = 0,
+        lease_until: Any = None,
+        text_: str = "x",
+    ) -> None:
+        """Chèn thẳng một dòng hộp thư ở trạng thái tùy ý (dựng sẵn tình huống sự cố)."""
+        async with self.session_factory() as session:
+            await session.execute(
+                text(
+                    "insert into bot_updates (update_id, chat_id, telegram_user_id, user_id, "
+                    "status, payload_text, attempts, lease_until) values "
+                    "(:id, :chat, :chat, :user, :status, :text, :attempts, :lease)"
+                ),
+                {
+                    "id": update_id,
+                    "chat": chat_id,
+                    "user": user_id,
+                    "status": status,
+                    "text": text_,
+                    "attempts": attempts,
+                    "lease": lease_until,
+                },
+            )
+            await session.commit()
 
     async def process_raw(self, payload: dict[str, Any]) -> None:
         await self.runner.process(payload)
