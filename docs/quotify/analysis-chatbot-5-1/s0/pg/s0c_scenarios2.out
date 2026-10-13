@@ -1,0 +1,16 @@
+=== (4) contrast: claiming the next *due* row instead of the head row skips ahead
+    due_filter during row1 backoff claims: Claimed(update_id=2, attempts=1, chat_id=20, live_count_in_txn=1)  -> SKIPS AHEAD (broken)
+[PASS] (4/6) due_filter variant is broken (claims row 2 while row 1 is in backoff)  
+=== stale-select race: HEAD read, finished row completed by stale worker, then TAKE
+    guarded_take=True: A.complete rc=1; B claimed=None; row1 now status=replied attempts=1
+[PASS] guarded TAKE: finished row not revived (B claim returns nothing)  
+[PASS] guarded TAKE + loop-back on miss: B claims row 2 in the same call  Claimed(update_id=2, attempts=1, chat_id=21, live_count_in_txn=1)
+    guarded_take=False: A.complete rc=1; B claimed=Claimed(update_id=1, attempts=2, chat_id=21, live_count_in_txn=1); row1 now status=processing attempts=2
+[PASS] UNGUARDED TAKE revives the completed row (broken, as predicted)  
+=== (7) different chats do not block each other (advisory lock per chat)
+[PASS] (7) chat 32 claim completes while chat 31's lock is held  9.6 ms
+[PASS] (7) same-chat claim blocks until holder commits, then succeeds  blocked 1.02s
+[PASS] (7) 500 chats claimed concurrently (12 in flight), all got their row  0.75s total
+    hashtextextended('bot:chat:'||chat_id,0): 2000000 distinct keys for 2000000 chat ids
+[PASS] (7) no 64-bit key collisions in 2M chat ids  
+TOTAL 8 checks, failed=0

@@ -1,0 +1,22 @@
+1791879376.454 CLI warm enqueue w1: returned <arq job w1> after 0.00s
+1791879376.454 CLI pool: in_use=0 available=1
+1791879376.504 CLI ---- redis PAUSED ----
+1791879378.506 CLI A1 enqueue_job w2 inside wait_for(2): raised builtins.TimeoutError '' after 2.00s
+1791879378.506 CLI pool: in_use=0 available=1
+1791879380.509 CLI A2 ping inside wait_for(2): raised builtins.TimeoutError '' after 2.00s
+1791879382.512 CLI A3 enqueue_job w3 inside wait_for(2): raised builtins.TimeoutError '' after 2.00s
+1791879384.514 CLI A4 enqueue_job w4 inside wait_for(2): raised builtins.TimeoutError '' after 2.00s
+1791879384.514 CLI pool after 4 timeouts: in_use=0 available=1
+1791879392.523 CLI B1 NEW create_pool (defaults) inside wait_for(8): raised builtins.TimeoutError '' after 8.01s
+1791879394.526 CLI B2 NEW create_pool inside wait_for(2): raised builtins.TimeoutError '' after 2.00s
+1791879394.627 CLI ---- redis UNPAUSED ----
+1791879394.632 CLI C1 ping on SAME pool: returned True after 0.00s
+1791879394.633 CLI C2 enqueue_job w5 on SAME pool: returned <arq job w5> after 0.00s
+1791879394.644 CLI C3 30 set/get round trips on same pool: mismatches=0
+1791879394.644 CLI job key w1 exists in redis: 1
+1791879394.644 CLI job key w2 exists in redis: 0
+1791879394.645 CLI job key w3 exists in redis: 0
+1791879394.645 CLI job key w4 exists in redis: 0
+1791879394.645 CLI job key w5 exists in redis: 1
+1791879394.645 CLI zset arq:queue: ['w1', 'w5']
+1791879394.645 CLI pool: in_use=0 available=1

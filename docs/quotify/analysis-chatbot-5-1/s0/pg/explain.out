@@ -1,0 +1,184 @@
+Timing is off.
+===== Q1 step2 live-lease check, chat 1000 (no processing row -> must scan all open rows of chat), literals
+                                                                      QUERY PLAN                                                                       
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=10.79..14.81 rows=1 width=4) (actual time=0.066..0.066 rows=0 loops=1)
+   Buffers: shared hit=10
+   ->  Bitmap Heap Scan on bot_updates  (cost=10.79..14.81 rows=1 width=4) (actual time=0.065..0.065 rows=0 loops=1)
+         Recheck Cond: ((chat_id = 1000) AND ((status)::text = ANY ('{queued,processing}'::text[])) AND ((status)::text = 'processing'::text))
+         Filter: (lease_until > '2026-10-13 03:00:10+00'::timestamp with time zone)
+         Buffers: shared hit=10
+         ->  BitmapAnd  (cost=10.79..10.79 rows=1 width=0) (actual time=0.062..0.063 rows=0 loops=1)
+               Buffers: shared hit=10
+               ->  Bitmap Index Scan on ix_bot_updates_chat_open  (cost=0.00..4.31 rows=4 width=0) (actual time=0.023..0.023 rows=4 loops=1)
+                     Index Cond: (chat_id = 1000)
+                     Buffers: shared hit=5
+               ->  Bitmap Index Scan on ix_bot_updates_status_received  (cost=0.00..6.23 rows=242 width=0) (actual time=0.038..0.038 rows=250 loops=1)
+                     Index Cond: ((status)::text = 'processing'::text)
+                     Buffers: shared hit=5
+ Planning:
+   Buffers: shared hit=194
+ Planning Time: 0.513 ms
+ Execution Time: 0.104 ms
+(18 rows)
+
+===== Q1 chat 1001 (has live processing row)
+                                                                      QUERY PLAN                                                                       
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=10.79..14.81 rows=1 width=4) (actual time=0.036..0.036 rows=1 loops=1)
+   Buffers: shared hit=8
+   ->  Bitmap Heap Scan on bot_updates  (cost=10.79..14.81 rows=1 width=4) (actual time=0.035..0.036 rows=1 loops=1)
+         Recheck Cond: ((chat_id = 1001) AND ((status)::text = ANY ('{queued,processing}'::text[])) AND ((status)::text = 'processing'::text))
+         Filter: (lease_until > '2026-10-13 03:00:10+00'::timestamp with time zone)
+         Heap Blocks: exact=1
+         Buffers: shared hit=8
+         ->  BitmapAnd  (cost=10.79..10.79 rows=1 width=0) (actual time=0.029..0.029 rows=0 loops=1)
+               Buffers: shared hit=7
+               ->  Bitmap Index Scan on ix_bot_updates_chat_open  (cost=0.00..4.31 rows=4 width=0) (actual time=0.004..0.004 rows=4 loops=1)
+                     Index Cond: (chat_id = 1001)
+                     Buffers: shared hit=2
+               ->  Bitmap Index Scan on ix_bot_updates_status_received  (cost=0.00..6.23 rows=242 width=0) (actual time=0.024..0.024 rows=250 loops=1)
+                     Index Cond: ((status)::text = 'processing'::text)
+                     Buffers: shared hit=5
+ Planning Time: 0.050 ms
+ Execution Time: 0.049 ms
+(17 rows)
+
+===== Q2 step3 head row selection, chat 1000
+                                                                  QUERY PLAN                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..5.29 rows=1 width=25) (actual time=0.006..0.006 rows=1 loops=1)
+   Buffers: shared hit=3
+   ->  Index Scan using ix_bot_updates_chat_open on bot_updates  (cost=0.28..20.35 rows=4 width=25) (actual time=0.005..0.005 rows=1 loops=1)
+         Index Cond: (chat_id = 1000)
+         Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=28
+ Planning Time: 0.127 ms
+ Execution Time: 0.013 ms
+(9 rows)
+
+===== Q2b head row selection with FOR UPDATE
+                                                                     QUERY PLAN                                                                     
+----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..5.31 rows=1 width=31) (actual time=0.037..0.037 rows=1 loops=1)
+   Buffers: shared hit=5
+   ->  LockRows  (cost=0.28..20.40 rows=4 width=31) (actual time=0.036..0.036 rows=1 loops=1)
+         Buffers: shared hit=5
+         ->  Index Scan using ix_bot_updates_chat_open on bot_updates  (cost=0.28..20.36 rows=4 width=31) (actual time=0.011..0.011 rows=1 loops=1)
+               Index Cond: (chat_id = 1000)
+               Filter: ((status)::text = ANY ('{queued,processing}'::text[]))
+               Buffers: shared hit=3
+ Planning Time: 0.078 ms
+ Execution Time: 0.051 ms
+(10 rows)
+
+===== Q3 TAKE by pk (rolled back)
+BEGIN
+                                                             QUERY PLAN                                                              
+-------------------------------------------------------------------------------------------------------------------------------------
+ Update on bot_updates  (cost=0.42..8.45 rows=1 width=66) (actual time=0.243..0.245 rows=1 loops=1)
+   Buffers: shared hit=23 dirtied=1 written=1
+   ->  Index Scan using bot_updates_pkey on bot_updates  (cost=0.42..8.45 rows=1 width=66) (actual time=0.029..0.030 rows=1 loops=1)
+         Index Cond: (update_id = 200501)
+         Filter: ((status)::text = ANY ('{queued,processing}'::text[]))
+         Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=3
+ Planning Time: 0.167 ms
+ Execution Time: 0.331 ms
+(10 rows)
+
+ROLLBACK
+===== GENERIC PLAN (what asyncpg prepared statements may settle on after 5 executions)
+SET
+PREPARE
+PREPARE
+                                                                      QUERY PLAN                                                                       
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=10.79..14.81 rows=1 width=4) (actual time=0.069..0.070 rows=0 loops=1)
+   Buffers: shared hit=8
+   ->  Bitmap Heap Scan on bot_updates  (cost=10.79..14.81 rows=1 width=4) (actual time=0.068..0.069 rows=0 loops=1)
+         Recheck Cond: ((chat_id = $1) AND ((status)::text = ANY ('{queued,processing}'::text[])) AND ((status)::text = 'processing'::text))
+         Filter: (lease_until > $2)
+         Heap Blocks: exact=1
+         Buffers: shared hit=8
+         ->  BitmapAnd  (cost=10.79..10.79 rows=1 width=0) (actual time=0.063..0.063 rows=0 loops=1)
+               Buffers: shared hit=7
+               ->  Bitmap Index Scan on ix_bot_updates_chat_open  (cost=0.00..4.31 rows=4 width=0) (actual time=0.021..0.021 rows=5 loops=1)
+                     Index Cond: (chat_id = $1)
+                     Buffers: shared hit=2
+               ->  Bitmap Index Scan on ix_bot_updates_status_received  (cost=0.00..6.23 rows=242 width=0) (actual time=0.039..0.039 rows=251 loops=1)
+                     Index Cond: ((status)::text = 'processing'::text)
+                     Buffers: shared hit=5
+ Planning Time: 0.176 ms
+ Execution Time: 0.103 ms
+(17 rows)
+
+                                                                  QUERY PLAN                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..5.29 rows=1 width=25) (actual time=0.013..0.014 rows=1 loops=1)
+   Buffers: shared hit=3
+   ->  Index Scan using ix_bot_updates_chat_open on bot_updates  (cost=0.28..20.35 rows=4 width=25) (actual time=0.013..0.013 rows=1 loops=1)
+         Index Cond: (chat_id = $1)
+         Buffers: shared hit=3
+ Planning Time: 0.170 ms
+ Execution Time: 0.031 ms
+(7 rows)
+
+RESET
+===== Q4 webhook pending cap: count open rows of chat
+                                                                   QUERY PLAN                                                                    
+-------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=8.36..8.37 rows=1 width=8) (actual time=0.021..0.022 rows=1 loops=1)
+   Buffers: shared hit=5
+   ->  Index Only Scan using ix_bot_updates_chat_open on bot_updates  (cost=0.28..8.35 rows=4 width=0) (actual time=0.008..0.017 rows=4 loops=1)
+         Index Cond: (chat_id = 1000)
+         Heap Fetches: 2
+         Buffers: shared hit=5
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.122 ms
+ Execution Time: 0.037 ms
+(10 rows)
+
+===== Q5 cron sweep: chats with claimable rows older than 30s
+                                                                        QUERY PLAN                                                                         
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate  (cost=3064.75..3069.65 rows=490 width=8) (actual time=0.045..0.052 rows=30 loops=1)
+   Group Key: chat_id
+   Batches: 1  Memory Usage: 49kB
+   Buffers: shared hit=9
+   ->  Bitmap Heap Scan on bot_updates  (cost=52.97..3059.84 rows=1962 width=8) (actual time=0.027..0.037 rows=30 loops=1)
+         Recheck Cond: (((status)::text = ANY ('{queued,processing}'::text[])) AND (received_at < '2026-10-13 03:00:00+00'::timestamp with time zone))
+         Filter: ((lease_until IS NULL) OR (lease_until < '2026-10-13 03:00:00+00'::timestamp with time zone))
+         Rows Removed by Filter: 29
+         Heap Blocks: exact=2
+         Buffers: shared hit=9
+         ->  Bitmap Index Scan on ix_bot_updates_status_received  (cost=0.00..52.48 rows=1964 width=0) (actual time=0.020..0.021 rows=59 loops=1)
+               Index Cond: (((status)::text = ANY ('{queued,processing}'::text[])) AND (received_at < '2026-10-13 03:00:00+00'::timestamp with time zone))
+               Buffers: shared hit=7
+ Planning:
+   Buffers: shared hit=12
+ Planning Time: 0.144 ms
+ Execution Time: 0.085 ms
+(17 rows)
+
+===== CONTROL: same Q2 without the partial index (drop in a txn, rolled back)
+BEGIN
+DROP INDEX
+                                                                QUERY PLAN                                                                 
+-------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..2518.32 rows=1 width=25) (actual time=28.493..28.494 rows=1 loops=1)
+   Buffers: shared hit=3828
+   ->  Index Scan using bot_updates_pkey on bot_updates  (cost=0.42..10072.02 rows=4 width=25) (actual time=28.493..28.493 rows=1 loops=1)
+         Filter: (((status)::text = ANY ('{queued,processing}'::text[])) AND (chat_id = 1000))
+         Rows Removed by Filter: 200000
+         Buffers: shared hit=3828
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 0.152 ms
+ Execution Time: 28.505 ms
+(10 rows)
+
+ROLLBACK

@@ -1,0 +1,4 @@
+head_for_update=False A.complete: A_rc=1 (A finished before B's TAKE: True) B.claimed=(2, 1) row1=replied/attempts=1/lease=2026-10-13T03:04:00+00:00
+head_for_update=False A.requeue : A_rc=1 (A finished before B's TAKE: True) B.claimed=(1, 2) row1=processing/attempts=2/lease=2026-10-13T03:09:00+00:00
+head_for_update=True  A.complete: A_rc=0 (A finished before B's TAKE: False) B.claimed=(1, 2) row1=processing/attempts=2/lease=2026-10-13T03:09:00+00:00
+head_for_update=True  A.requeue : A_rc=0 (A finished before B's TAKE: False) B.claimed=(1, 2) row1=processing/attempts=2/lease=2026-10-13T03:09:00+00:00

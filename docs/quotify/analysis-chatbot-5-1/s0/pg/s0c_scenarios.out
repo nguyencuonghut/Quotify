@@ -1,0 +1,35 @@
+=== (2) out-of-order insert: 101 claimed, then 100 inserted
+[PASS] (2) plan: 101 claimed first  
+[PASS] (2) plan: 100 NOT claimable while 101 lease live  
+[PASS] (2) plan: complete(101) fenced rowcount==1  
+[PASS] (2) plan: 100 claimable after 101 completes  
+    variant headlock        : 100 claimed while 101 live? True  (claimed=Claimed(update_id=100, attempts=1, chat_id=7, live_count_in_txn=2))  -> BROKEN as expected
+    variant advisory_nolive : 100 claimed while 101 live? True  (claimed=Claimed(update_id=100, attempts=1, chat_id=7, live_count_in_txn=2))  -> BROKEN as expected
+    variant skip_locked     : 100 claimed while 101 live? True  (claimed=Claimed(update_id=100, attempts=1, chat_id=7, live_count_in_txn=2))  -> BROKEN as expected
+    variant nolock_noguard  : 100 claimed while 101 live? True  (claimed=Claimed(update_id=100, attempts=1, chat_id=7, live_count_in_txn=2))  -> BROKEN as expected
+=== (3) expired-lease takeover, attempts++, MAX_ATTEMPTS => failed(lease_exhausted), next row claimable
+[PASS] (3) first claim attempts=1  
+[PASS] (3) live lease: nothing claimable at +100s  
+[PASS] (3) takeover after expiry attempts=2  Claimed(update_id=1, attempts=2, chat_id=8, live_count_in_txn=1)
+[PASS] (3) takeover attempts=3  Claimed(update_id=1, attempts=3, chat_id=8, live_count_in_txn=1)
+[PASS] (3) after MAX_ATTEMPTS: row1 failed/lease_exhausted, payload cleared, finished_at set  row1=(1, 'failed', 3) exhausted=[1]
+[PASS] (3) same call returns exhausted=[1] and claims row 2 (loop back to step 1)  Result(claimed=Claimed(update_id=2, attempts=1, chat_id=8, live_count_in_txn=1), exhausted=[1])
+=== (4) queued row with future lease_until (retry backoff) blocks later rows
+[PASS] (4) claim row1 (attempts 1)  
+[PASS] (4) fenced requeue rowcount==1  
+[PASS] (4) during backoff: nothing claimable (rows 2,3 NOT skipped ahead)  Result(claimed=None, exhausted=[])
+[PASS] (4) after backoff: row1 claimed again, attempts=2  Claimed(update_id=1, attempts=2, chat_id=9, live_count_in_txn=1)
+    (contrast) headlock during backoff claims: Claimed(update_id=1, attempts=2, chat_id=9, live_count_in_txn=1)  (ignores retry_at => does NOT honour backoff)
+=== (5) fenced writes after takeover
+[PASS] (5) A attempts=1, B attempts=2  
+[PASS] (5) stale A save_reply rowcount==0, reply untouched  rowcount=0
+[PASS] (5) owner B save_reply rowcount==1  
+[PASS] (5) stale A requeue rowcount==0  
+[PASS] (5) stale A complete rowcount==0 (row still processing)  
+[PASS] (5) owner B complete rowcount==1, status=replied, text cleared, reply_saved_at kept  (1, 'replied', 2)
+[PASS] (5) any late write after terminal state rowcount==0 (including owner's duplicate)  
+    (contrast) status-only fence (no attempts check): stale A complete rowcount=1 => B's still-running work is silently terminated
+=== (3b) release-on-SIGTERM then re-claim; claim of a processing row whose lease expired but chat has later live rows
+[PASS] (3b) expired head row is taken over (not row 2)  
+
+TOTAL checks=26 failed=0

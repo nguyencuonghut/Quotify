@@ -1,0 +1,95 @@
+===== business day 2026-10-13 +07 => [2026-10-12 17:00Z, 2026-10-13 17:00Z) ; user ...01 has ~16.7k rows in 30 days
+----- Q9a turn count (literal bounds)
+                                                                                                             QUERY PLAN                                                                                                              
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=1502.86..1502.87 rows=1 width=8) (actual time=0.328..0.328 rows=1 loops=1)
+   Buffers: shared hit=118
+   ->  Bitmap Heap Scan on bot_updates  (cost=27.64..1501.50 rows=541 width=0) (actual time=0.094..0.307 rows=494 loops=1)
+         Recheck Cond: ((user_id = '00000000-0000-0000-0000-000000000001'::uuid) AND (received_at >= '2026-09-30 17:00:00+00'::timestamp with time zone) AND (received_at < '2026-10-01 17:00:00+00'::timestamp with time zone))
+         Filter: (reply_saved_at IS NOT NULL)
+         Rows Removed by Filter: 66
+         Heap Blocks: exact=110
+         Buffers: shared hit=118
+         ->  Bitmap Index Scan on ix_bot_updates_user_received  (cost=0.00..27.51 rows=567 width=0) (actual time=0.074..0.074 rows=560 loops=1)
+               Index Cond: ((user_id = '00000000-0000-0000-0000-000000000001'::uuid) AND (received_at >= '2026-09-30 17:00:00+00'::timestamp with time zone) AND (received_at < '2026-10-01 17:00:00+00'::timestamp with time zone))
+               Buffers: shared hit=8
+ Planning:
+   Buffers: shared hit=163
+ Planning Time: 0.484 ms
+ Execution Time: 0.359 ms
+(15 rows)
+
+----- Q9b file count (kind photo/document)
+                                                                                                             QUERY PLAN                                                                                                              
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=1502.85..1502.86 rows=1 width=8) (actual time=0.152..0.153 rows=1 loops=1)
+   Buffers: shared hit=118
+   ->  Bitmap Heap Scan on bot_updates  (cost=27.51..1502.79 rows=22 width=0) (actual time=0.049..0.150 rows=14 loops=1)
+         Recheck Cond: ((user_id = '00000000-0000-0000-0000-000000000001'::uuid) AND (received_at >= '2026-09-30 17:00:00+00'::timestamp with time zone) AND (received_at < '2026-10-01 17:00:00+00'::timestamp with time zone))
+         Filter: ((reply_saved_at IS NOT NULL) AND ((kind)::text = ANY ('{photo,document}'::text[])))
+         Rows Removed by Filter: 546
+         Heap Blocks: exact=110
+         Buffers: shared hit=118
+         ->  Bitmap Index Scan on ix_bot_updates_user_received  (cost=0.00..27.51 rows=567 width=0) (actual time=0.031..0.031 rows=560 loops=1)
+               Index Cond: ((user_id = '00000000-0000-0000-0000-000000000001'::uuid) AND (received_at >= '2026-09-30 17:00:00+00'::timestamp with time zone) AND (received_at < '2026-10-01 17:00:00+00'::timestamp with time zone))
+               Buffers: shared hit=8
+ Planning:
+   Buffers: shared hit=63
+ Planning Time: 0.170 ms
+ Execution Time: 0.168 ms
+(15 rows)
+
+----- Q9a generic plan via PREPARE
+SET
+PREPARE
+                                                                  QUERY PLAN                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=299.59..299.60 rows=1 width=8) (actual time=0.162..0.162 rows=1 loops=1)
+   Buffers: shared hit=118
+   ->  Bitmap Heap Scan on bot_updates  (cost=5.49..299.39 rows=80 width=0) (actual time=0.044..0.143 rows=494 loops=1)
+         Recheck Cond: ((user_id = $1) AND (received_at >= $2) AND (received_at < $3))
+         Filter: (reply_saved_at IS NOT NULL)
+         Rows Removed by Filter: 66
+         Heap Blocks: exact=110
+         Buffers: shared hit=118
+         ->  Bitmap Index Scan on ix_bot_updates_user_received  (cost=0.00..5.47 rows=84 width=0) (actual time=0.032..0.032 rows=560 loops=1)
+               Index Cond: ((user_id = $1) AND (received_at >= $2) AND (received_at < $3))
+               Buffers: shared hit=8
+ Planning Time: 0.078 ms
+ Execution Time: 0.190 ms
+(13 rows)
+
+RESET
+----- CONTRAST: date cast form (session tz dependent, cannot use the range)
+                                                                     QUERY PLAN                                                                      
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=4344.63..4344.64 rows=1 width=8) (actual time=28.739..28.740 rows=1 loops=1)
+   Buffers: shared hit=3439
+   ->  Bitmap Heap Scan on bot_updates  (cost=716.35..4344.43 rows=81 width=0) (actual time=23.244..28.702 rows=494 loops=1)
+         Recheck Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)
+         Filter: ((reply_saved_at IS NOT NULL) AND (((received_at AT TIME ZONE 'Asia/Ho_Chi_Minh'::text))::date = '2026-10-01'::date))
+         Rows Removed by Filter: 16474
+         Heap Blocks: exact=3287
+         Buffers: shared hit=3439
+         ->  Bitmap Index Scan on ix_bot_updates_user_received  (cost=0.00..716.32 rows=17054 width=0) (actual time=1.287..1.288 rows=16969 loops=1)
+               Index Cond: (user_id = '00000000-0000-0000-0000-000000000001'::uuid)
+               Buffers: shared hit=152
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.052 ms
+ Execution Time: 28.785 ms
+(15 rows)
+
+----- realistic: user with few rows (replace 1000 closed rows)
+                                                                                                          QUERY PLAN                                                                                                           
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=8.43..8.44 rows=1 width=8) (actual time=0.017..0.018 rows=1 loops=1)
+   Buffers: shared hit=3
+   ->  Index Scan using ix_bot_updates_user_received on bot_updates  (cost=0.42..8.43 rows=1 width=0) (actual time=0.016..0.016 rows=0 loops=1)
+         Index Cond: ((user_id = '00000000-0000-0000-0000-00000000000c'::uuid) AND (received_at >= '2026-10-12 17:00:00+00'::timestamp with time zone) AND (received_at < '2026-10-13 17:00:00+00'::timestamp with time zone))
+         Filter: (reply_saved_at IS NOT NULL)
+         Buffers: shared hit=3
+ Planning Time: 0.099 ms
+ Execution Time: 0.034 ms
+(8 rows)
+

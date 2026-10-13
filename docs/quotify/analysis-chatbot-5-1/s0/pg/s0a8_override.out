@@ -1,0 +1,3 @@
+INSERT committed through 'read-only' engine after SET ... off; commit
+next checkout default_ro = off (setting leaked into pool)
+statement_timeout = 0

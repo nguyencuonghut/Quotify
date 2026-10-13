@@ -1,0 +1,91 @@
+PASS mode=async variant=plan K=2 rounds=400 shuffle=False claims=2000 rounds_with_violation=0 timeouts=0 claims_per_worker={0: 1151, 1: 849} elapsed=61.5s violations={}
+PASS mode=async variant=plan K=3 rounds=400 shuffle=False claims=2000 rounds_with_violation=0 timeouts=0 claims_per_worker={0: 904, 1: 542, 2: 554} elapsed=44.0s violations={}
+PASS mode=async variant=plan K=4 rounds=400 shuffle=False claims=2000 rounds_with_violation=0 timeouts=0 claims_per_worker={0: 761, 1: 420, 2: 410, 3: 409} elapsed=62.7s violations={}
+Process SpawnProcess-2:
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/multiprocessing/process.py", line 320, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/usr/lib/python3.14/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-run-media-cuong-DATA-02-Project-211-Theo-d-i-bi-n---ng-gi--Quotify/87e6330c-b4c9-4188-bd30-54c5b2db3564/scratchpad/s0-pg/s0c_race.py", line 73, in proc_main
+    ev, to = asyncio.run(worker(rank, K, rounds, variant, MPSync(barrier), shuffle))
+             ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 205, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/base_events.py", line 720, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/tmp/claude-1000/-run-media-cuong-DATA-02-Project-211-Theo-d-i-bi-n---ng-gi--Quotify/87e6330c-b4c9-4188-bd30-54c5b2db3564/scratchpad/s0-pg/s0c_race.py", line 63, in worker
+    await sync.wait()
+  File "/tmp/claude-1000/-run-media-cuong-DATA-02-Project-211-Theo-d-i-bi-n---ng-gi--Quotify/87e6330c-b4c9-4188-bd30-54c5b2db3564/scratchpad/s0-pg/s0c_race.py", line 18, in wait
+    await asyncio.get_running_loop().run_in_executor(None, lambda: self.b.wait(60))
+  File "/usr/lib/python3.14/concurrent/futures/thread.py", line 86, in run
+    result = ctx.run(self.task)
+  File "/usr/lib/python3.14/concurrent/futures/thread.py", line 73, in run
+    return fn(*args, **kwargs)
+  File "/tmp/claude-1000/-run-media-cuong-DATA-02-Project-211-Theo-d-i-bi-n---ng-gi--Quotify/87e6330c-b4c9-4188-bd30-54c5b2db3564/scratchpad/s0-pg/s0c_race.py", line 18, in <lambda>
+    await asyncio.get_running_loop().run_in_executor(None, lambda: self.b.wait(60))
+                                                                   ~~~~~~~~~~~^^^^
+  File "/usr/lib/python3.14/threading.py", line 740, in wait
+    self._wait(timeout)
+    ~~~~~~~~~~^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 778, in _wait
+    raise BrokenBarrierError
+threading.BrokenBarrierError
+Process SpawnProcess-1:
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/multiprocessing/process.py", line 320, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "/usr/lib/python3.14/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-run-media-cuong-DATA-02-Project-211-Theo-d-i-bi-n---ng-gi--Quotify/87e6330c-b4c9-4188-bd30-54c5b2db3564/scratchpad/s0-pg/s0c_race.py", line 73, in proc_main
+    ev, to = asyncio.run(worker(rank, K, rounds, variant, MPSync(barrier), shuffle))
+             ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 205, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 128, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/base_events.py", line 720, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/tmp/claude-1000/-run-media-cuong-DATA-02-Project-211-Theo-d-i-bi-n---ng-gi--Quotify/87e6330c-b4c9-4188-bd30-54c5b2db3564/scratchpad/s0-pg/s0c_race.py", line 63, in worker
+    await sync.wait()
+  File "/tmp/claude-1000/-run-media-cuong-DATA-02-Project-211-Theo-d-i-bi-n---ng-gi--Quotify/87e6330c-b4c9-4188-bd30-54c5b2db3564/scratchpad/s0-pg/s0c_race.py", line 18, in wait
+    await asyncio.get_running_loop().run_in_executor(None, lambda: self.b.wait(60))
+  File "/usr/lib/python3.14/concurrent/futures/thread.py", line 86, in run
+    result = ctx.run(self.task)
+  File "/usr/lib/python3.14/concurrent/futures/thread.py", line 73, in run
+    return fn(*args, **kwargs)
+  File "/tmp/claude-1000/-run-media-cuong-DATA-02-Project-211-Theo-d-i-bi-n---ng-gi--Quotify/87e6330c-b4c9-4188-bd30-54c5b2db3564/scratchpad/s0-pg/s0c_race.py", line 18, in <lambda>
+    await asyncio.get_running_loop().run_in_executor(None, lambda: self.b.wait(60))
+                                                                   ~~~~~~~~~~~^^^^
+  File "/usr/lib/python3.14/threading.py", line 731, in wait
+    self._enter() # Block while the barrier drains.
+    ~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/threading.py", line 755, in _enter
+    raise BrokenBarrierError
+threading.BrokenBarrierError
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-run-media-cuong-DATA-02-Project-211-Theo-d-i-bi-n---ng-gi--Quotify/87e6330c-b4c9-4188-bd30-54c5b2db3564/scratchpad/s0-pg/s0c_race.py", line 125, in <module>
+    out = asyncio.run(run_async(variant, K, rounds, shuffle)) if mode == "async" else run_mp(variant, K, rounds, shuffle)
+                                                                                      ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-run-media-cuong-DATA-02-Project-211-Theo-d-i-bi-n---ng-gi--Quotify/87e6330c-b4c9-4188-bd30-54c5b2db3564/scratchpad/s0-pg/s0c_race.py", line 117, in run_mp
+    out = [q.get(timeout=600) for _ in ps]
+           ~~~~~^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/multiprocessing/queues.py", line 112, in get
+    raise Empty
+_queue.Empty
+PASS mode=mp variant=plan K=3 rounds=400 shuffle=False claims=2000 rounds_with_violation=0 timeouts=0 claims_per_worker={0: 839, 1: 594, 2: 567} elapsed=45.6s violations={}
+PASS mode=mp variant=plan K=4 rounds=400 shuffle=False claims=2000 rounds_with_violation=0 timeouts=0 claims_per_worker={0: 630, 1: 456, 2: 423, 3: 491} elapsed=48.0s violations={}
+PASS mode=async variant=plan K=4 rounds=300 shuffle=True claims=1500 rounds_with_violation=0 timeouts=0 claims_per_worker={0: 376, 1: 389, 2: 386, 3: 349} elapsed=30.7s violations={}
+PASS mode=mp variant=plan K=4 rounds=300 shuffle=True claims=1500 rounds_with_violation=0 timeouts=0 claims_per_worker={0: 390, 1: 382, 2: 357, 3: 371} elapsed=32.2s violations={}

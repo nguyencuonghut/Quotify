@@ -1,0 +1,51 @@
+== (1) SELECT
+select: 2
+default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+== (2) writes
+FAIL : INSERT INTO ro_t VALUES (3,'c')
+       DBAPIError / orig=Error / cause=ReadOnlySQLTransactionError / SQLSTATE=25006 / msg=<class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute INSERT in a read-only transaction
+FAIL : UPDATE ro_t SET v='z' WHERE id=1
+       DBAPIError / orig=Error / cause=ReadOnlySQLTransactionError / SQLSTATE=25006 / msg=<class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute UPDATE in a read-only transaction
+FAIL : DELETE FROM ro_t WHERE id=1
+       DBAPIError / orig=Error / cause=ReadOnlySQLTransactionError / SQLSTATE=25006 / msg=<class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute DELETE in a read-only transaction
+FAIL : CREATE TABLE new_t(id int)
+       DBAPIError / orig=Error / cause=ReadOnlySQLTransactionError / SQLSTATE=25006 / msg=<class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute CREATE TABLE in a read-only transaction
+FAIL : CREATE TEMP TABLE tmp_t(id int)
+       DBAPIError / orig=Error / cause=ReadOnlySQLTransactionError / SQLSTATE=25006 / msg=<class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute CREATE TABLE in a read-only transaction
+FAIL : SELECT * FROM ro_t WHERE id=1 FOR UPDATE
+       DBAPIError / orig=Error / cause=ReadOnlySQLTransactionError / SQLSTATE=25006 / msg=<class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute SELECT FOR UPDATE in a read-only transaction
+FAIL : SELECT * FROM ro_t WHERE id=1 FOR SHARE
+       DBAPIError / orig=Error / cause=ReadOnlySQLTransactionError / SQLSTATE=25006 / msg=<class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute SELECT FOR SHARE in a read-only transaction
+OK   : SELECT pg_advisory_xact_lock(42)  -> accepted
+OK   : SELECT pg_advisory_lock(43)  -> accepted
+table rows after: [(1, 'a'), (2, 'b')]
+== (3) statement_timeout
+cancelled after 5.00s: DBAPIError / orig=Error / cause=QueryCanceledError / SQLSTATE=57014 / msg=<class 'asyncpg.exceptions.QueryCanceledError'>: canceling statement due to statement timeout
+usable after rollback: 1 | default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+same connection w/o rollback:  DBAPIError / orig=Error / cause=InFailedSQLTransactionError / SQLSTATE=25P02 / msg=<class 'asyncpg.exceptions.InFailedSQLTransactionError'>: current transaction is aborted, commands ignored until end of transaction block
+== (4) settings persist
+initial     : default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+after commit: default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+after rollbk: default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+2nd commit  : default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+checkout 0 pid=102: default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+checkout 1 pid=102: default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+checkout 2 pid=102: default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+checkout 3 pid=102: default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+checkout 4 pid=102: default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+checkout 5 pid=102: default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+distinct backend pids over sequential checkouts: {102}
+pre_ping engine: default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+ORM Session INSERT: DBAPIError / orig=Error / cause=ReadOnlySQLTransactionError / SQLSTATE=25006 / msg=<class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute INSERT in a read-only transaction
+SURPRISE: SET TRANSACTION READ WRITE allowed + INSERT worked
+SET default_transaction_read_only=off: DBAPIError / orig=Error / cause=ReadOnlySQLTransactionError / SQLSTATE=25006 / msg=<class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute INSERT in a read-only transaction
+rows after override attempts: [(1, 'a'), (2, 'b')]
+== (5) idle_in_transaction_session_timeout
+backend pid 107 txn begun (autobegin by SELECT); sleeping 17s in python
+after idle: InterfaceError / orig=InterfaceError / cause=InterfaceError / SQLSTATE=None / msg=<class 'asyncpg.exceptions._base.InterfaceError'>: connection is closed
+   orig class mro: ['InterfaceError', 'Error', 'Exception', 'BaseException', 'object']
+   is_disconnect flagged: True
+rollback after kill ok
+next checkout pid 109 (old 107 ) works;  default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed
+== (5b) idle in txn in pool? connection returned to pool is rolled back so no idle-in-tx
+after 17s idle in pool: 110 default_ro=on stmt_timeout=5s idle_tx=15s transaction_read_only=on iso=read committed

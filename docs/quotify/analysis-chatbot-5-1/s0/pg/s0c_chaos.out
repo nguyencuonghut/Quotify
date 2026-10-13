@@ -1,0 +1,3 @@
+PASS chaos variant=plan kw={} K=4 rounds=300 rows=1500 claims=3562 takeovers(attempts>1)=2062 stale_complete_rc0=2062 timeouts=0 violations={}
+PASS chaos variant=plan kw={} K=3 rounds=300 rows=1500 claims=3707 takeovers(attempts>1)=2207 stale_complete_rc0=2207 timeouts=0 violations={}
+FAIL chaos variant=plan kw={'guarded_take': False} K=4 rounds=300 rows=1500 claims=3859 takeovers(attempts>1)=2359 stale_complete_rc0=2255 timeouts=0 violations={'row_not_completed_exactly_once': 98, 'claimed_after_successful_complete(revival)': 64}

@@ -1,0 +1,2 @@
+#!/bin/bash
+exec "/run/media/cuong/DATA/02_Project/211_Theo dõi biến động giá/Quotify/backend/.venv/bin/python" "$@"

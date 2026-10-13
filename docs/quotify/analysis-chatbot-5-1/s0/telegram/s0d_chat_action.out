@@ -1,0 +1,12 @@
+bot: HHQuotifyBot
+1. typing, chat hợp lệ -> ok True 398 ms
+2. action không hợp lệ -> api_error 400: Bad Request: wrong parameter action in request 299 ms
+3. chat không tồn tại -> api_error 400: Bad Request: chat not found 760 ms
+4. chuỗi 6 lần cách nhau 4 giây (người dùng quan sát chỉ báo 'đang gõ')
+   lần 1 lúc + 0.4s -> ok True 397 ms
+   lần 2 lúc + 4.8s -> ok True 400 ms
+   lần 3 lúc + 9.2s -> ok True 397 ms
+   lần 4 lúc +13.6s -> ok True 397 ms
+   lần 5 lúc +18.1s -> ok True 477 ms
+   lần 6 lúc +22.5s -> ok True 411 ms
+   kết thúc chuỗi lúc +22.5s; sau đây KHÔNG gửi thêm

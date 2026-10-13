@@ -1,0 +1,18 @@
+expected turn counts by VN business day: {'2026-10-12': 1, '2026-10-13': 5, '2026-10-14': 2}
+python bounds: {'2026-10-13': ('2026-10-12T17:00:00+00:00', '2026-10-13T17:00:00+00:00')}
+--- session timezone=UTC
+   2026-10-12: python-UTC-bounds turns=1 files=0 | DB date-cast `received_at::date` (BAD)=3 | AT TIME ZONE form=1
+   2026-10-13: python-UTC-bounds turns=5 files=2 | DB date-cast `received_at::date` (BAD)=5 | AT TIME ZONE form=5
+   2026-10-14: python-UTC-bounds turns=2 files=0 | DB date-cast `received_at::date` (BAD)=0 | AT TIME ZONE form=2
+--- session timezone=Asia/Ho_Chi_Minh
+   2026-10-12: python-UTC-bounds turns=1 files=0 | DB date-cast `received_at::date` (BAD)=1 | AT TIME ZONE form=1
+   2026-10-13: python-UTC-bounds turns=5 files=2 | DB date-cast `received_at::date` (BAD)=5 | AT TIME ZONE form=5
+   2026-10-14: python-UTC-bounds turns=2 files=0 | DB date-cast `received_at::date` (BAD)=2 | AT TIME ZONE form=2
+--- session timezone=America/Los_Angeles
+   2026-10-12: python-UTC-bounds turns=1 files=0 | DB date-cast `received_at::date` (BAD)=4 | AT TIME ZONE form=1
+   2026-10-13: python-UTC-bounds turns=5 files=2 | DB date-cast `received_at::date` (BAD)=4 | AT TIME ZONE form=5
+   2026-10-14: python-UTC-bounds turns=2 files=0 | DB date-cast `received_at::date` (BAD)=0 | AT TIME ZONE form=2
+--- ALTER DATABASE timezone=UTC: new session SHOW timezone=UTC; python-bounds count 13-10 = 5
+--- ALTER DATABASE timezone=Asia/Ho_Chi_Minh: new session SHOW timezone=Asia/Ho_Chi_Minh; python-bounds count 13-10 = 5
+RESULT python-bounds counts equal expected in every timezone: True; identical across tz: True; DB date-cast form differs across tz (the trap): True
+naive datetime(2026,10,13,12:00) bound to timestamptz, process TZ=(unset), session UTC => stored UTC wall clock 2026-10-13 05:00:00

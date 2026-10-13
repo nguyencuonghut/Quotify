@@ -1,0 +1,27 @@
+== A. engine.execution_options(postgresql_readonly=True), default isolation (READ COMMITTED)
+  SHOW transaction_read_only: on | iso: read committed
+  [A-engine-opt] INSERT rejected: DBAPIError/ReadOnlySQLTransactionError/SQLSTATE=25006: <class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute INSERT in a read-only transaction
+  warnings raised: []
+== B. same engine, plain (non-OptionEngine) checkout afterwards: leak across pool?
+  plain engine (shares pool) SHOW transaction_read_only: off
+  [B-plain-after] INSERT ACCEPTED (not read-only)
+== C. connection-level execution_options(postgresql_readonly=True) before first statement
+  SHOW transaction_read_only: on
+  [C-conn-opt] INSERT rejected: DBAPIError/ReadOnlySQLTransactionError/SQLSTATE=25006: <class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute INSERT in a read-only transaction
+== C2. after an autobegun statement (the 'only before txn' trap)
+  ERROR setting option mid-txn: InvalidRequestError This connection has already initialized a SQLAlchemy Transaction() object via begin() or autobegin; postgresql_readonly may not be altered unless rollback() or commit() is called first.
+== D. leak check: plain engine connection after C (does pooled DBAPI connection keep readonly=True?)
+  SHOW transaction_read_only: off
+== E. explicit isolation_level=SERIALIZABLE + readonly (docstring's supported case)
+  SHOW: on serializable
+  [E-serializable] INSERT rejected: DBAPIError/ReadOnlySQLTransactionError/SQLSTATE=25006: <class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute INSERT in a read-only transaction
+  after leaving: plain checkout:
+  SHOW: off read committed
+== F. engine isolation_level='READ COMMITTED' explicit + postgresql_readonly (create_async_engine level)
+  SHOW: on read committed
+  [F-explicit-RC] INSERT rejected: DBAPIError/ReadOnlySQLTransactionError/SQLSTATE=25006: <class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute INSERT in a read-only transaction
+== G. AsyncSession + sessionmaker bound to ro_engine (the shape a tool would use)
+  SHOW: on
+  [G] rejected: DBAPIError/ReadOnlySQLTransactionError/SQLSTATE=25006: <class 'asyncpg.exceptions.ReadOnlySQLTransactionError'>: cannot execute INSERT in a read-only transaction
+== H. commit then re-use on ro_engine: still read-only in 2nd transaction?
+  2nd txn SHOW: on

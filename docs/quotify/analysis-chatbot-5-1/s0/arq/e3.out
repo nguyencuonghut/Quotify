@@ -1,0 +1,13 @@
+1791878207.511 CLI enqueue bot:7 -> <arq job bot:7>
+1791878207.816 CLI RUNNING
+1791878207.818 CLI [poll] job-pttl=86399694ms inprog-pttl=15956ms retry=b'1' result-exists=0 queue=['bot:7']
+1791878211.848 CLI [poll] job-pttl=86395663ms inprog-pttl=11926ms retry=b'1' result-exists=0 queue=['bot:7']
+1791878215.884 CLI [poll] job-pttl=86391628ms inprog-pttl=7891ms retry=b'1' result-exists=0 queue=['bot:7']
+1791878219.909 CLI [poll] job-pttl=86387603ms inprog-pttl=3866ms retry=b'1' result-exists=0 queue=['bot:7']
+1791878223.939 CLI [poll] job-pttl=86383573ms inprog-pttl=-2ms retry=b'1' result-exists=0 queue=['bot:7']
+1791878227.981 CLI [poll] job-pttl=-2ms inprog-pttl=-2ms retry=None result-exists=1 queue=[]
+1791878232.039 CLI [poll] job-pttl=-2ms inprog-pttl=-2ms retry=None result-exists=1 queue=[]
+1791878236.084 CLI [poll] job-pttl=-2ms inprog-pttl=-2ms retry=None result-exists=1 queue=[]
+1791878237.854 CLI PROBE bot:7 still None after 30.0s
+1791878237.856 CLI [final] job-pttl=-2ms inprog-pttl=-2ms retry=None result-exists=1 queue=[]
+1791878240.860 CLI keys at end: ['arq:queue:health-check', 'arq:result:bot:7']
