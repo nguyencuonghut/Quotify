@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from collections.abc import Iterator
 
 import httpx
@@ -127,3 +128,71 @@ def test_edit_and_callback_methods_are_recorded_and_reset(base_url: str) -> None
     httpx.post(f"{base_url}/__reset")
     assert httpx.get(f"{base_url}/__edits").json() == []
     assert httpx.get(f"{base_url}/__callback_answers").json() == []
+
+
+def test_chat_actions_are_recorded_and_can_be_listed_and_reset(base_url: str) -> None:
+    response = httpx.post(
+        f"{base_url}/botT/sendChatAction", json={"chat_id": 555, "action": "typing"}
+    )
+
+    assert response.json() == {"ok": True, "result": True}
+    assert httpx.get(f"{base_url}/__chat_actions").json() == [{"chat_id": 555, "action": "typing"}]
+    assert httpx.get(f"{base_url}/__sent").json() == []  # không lẫn với tin nhắn
+
+    httpx.post(f"{base_url}/__reset")
+    assert httpx.get(f"{base_url}/__chat_actions").json() == []
+
+
+def test_the_next_sends_can_be_made_to_fail_with_a_retry_after(base_url: str) -> None:
+    httpx.post(f"{base_url}/__fail_next", json={"count": 2, "error_code": 429, "retry_after": 3})
+
+    first = httpx.post(f"{base_url}/botT/sendMessage", json={"chat_id": 5, "text": "a"})
+    second = httpx.post(f"{base_url}/botT/sendMessage", json={"chat_id": 5, "text": "b"})
+    third = httpx.post(f"{base_url}/botT/sendMessage", json={"chat_id": 5, "text": "c"})
+
+    assert first.status_code == second.status_code == 429
+    assert first.json() == {
+        "ok": False,
+        "error_code": 429,
+        "description": "Too Many Requests: retry after 3",
+        "parameters": {"retry_after": 3},
+    }
+    assert third.json()["ok"] is True
+    assert [m["text"] for m in httpx.get(f"{base_url}/__sent").json()] == ["c"]  # lần lỗi không ghi
+
+
+def test_failures_without_a_retry_after_and_the_reset_of_the_failure_script(
+    base_url: str,
+) -> None:
+    httpx.post(f"{base_url}/__fail_next", json={"count": 5, "error_code": 500})
+
+    failed = httpx.post(f"{base_url}/botT/sendMessage", json={"chat_id": 5, "text": "a"})
+    httpx.post(f"{base_url}/__reset")  # reset xóa luôn kịch bản lỗi còn lại
+    fine = httpx.post(f"{base_url}/botT/sendMessage", json={"chat_id": 5, "text": "b"})
+
+    assert failed.status_code == 500
+    assert "parameters" not in failed.json()
+    assert fine.json()["ok"] is True
+
+
+def test_sends_can_be_delayed(base_url: str) -> None:
+    httpx.post(f"{base_url}/__delay", json={"seconds": 0.3})
+
+    started = time.monotonic()
+    httpx.post(f"{base_url}/botT/sendMessage", json={"chat_id": 5, "text": "chậm"})
+
+    assert time.monotonic() - started >= 0.3
+
+
+def test_failure_descriptions_match_the_error_code(base_url: str) -> None:
+    descriptions = {}
+    for code in (429, 403, 500):
+        httpx.post(f"{base_url}/__fail_next", json={"count": 1, "error_code": code})
+        response = httpx.post(f"{base_url}/botT/sendMessage", json={"chat_id": 5, "text": "a"})
+        descriptions[code] = response.json()["description"]
+
+    assert descriptions == {
+        429: "Too Many Requests",
+        403: "Forbidden: bot was blocked by the user",
+        500: "Internal Server Error",
+    }

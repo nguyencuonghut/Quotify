@@ -57,13 +57,19 @@ _SQL_TAKE = text(
            started_at = coalesce(started_at, :now)
      WHERE update_id = :id AND status IN ('queued','processing')
  RETURNING update_id, chat_id, telegram_user_id, user_id, kind, payload_text, reply_text,
-           attempts, received_at
+           attempts, received_at, sent_parts
     """
 )
 # Mọi ghi kết quả đều có rào chắn: chỉ chủ sở hữu của lần claim (đúng `attempts`) mới ghi được.
 _SQL_SAVE_REPLY = text(
     """
     UPDATE bot_updates SET reply_text = :text, reply_saved_at = :now
+     WHERE update_id = :id AND status = 'processing' AND attempts = :attempts
+    """
+)
+_SQL_SAVE_SENT_PARTS = text(
+    """
+    UPDATE bot_updates SET sent_parts = :parts
      WHERE update_id = :id AND status = 'processing' AND attempts = :attempts
     """
 )
@@ -144,6 +150,8 @@ class ClaimedRow:
     reply_text: str | None = field(repr=False)
     attempts: int
     received_at: datetime
+    # Số phần của câu trả lời đã gửi xong: lần claim sau gửi tiếp từ phần chưa gửi.
+    sent_parts: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,6 +282,7 @@ class BotInbox:
                     reply_text=taken.reply_text,
                     attempts=taken.attempts,
                     received_at=taken.received_at,
+                    sent_parts=taken.sent_parts,
                 ),
                 tuple(exhausted),
             )
@@ -286,6 +295,14 @@ class BotInbox:
                 _SQL_SAVE_REPLY,
                 {"id": update_id, "attempts": attempts, "text": text_, "now": now},
             )
+        return bool(getattr(result, "rowcount", 0) == 1)
+
+    async def save_sent_parts(self, update_id: int, attempts: int, parts: int) -> bool:
+        """Ghi số phần đã gửi xong. `False` nếu dòng không còn thuộc về lần claim này."""
+        result = await self.session.execute(
+            _SQL_SAVE_SENT_PARTS,
+            {"id": update_id, "attempts": attempts, "parts": parts},
+        )
         return bool(getattr(result, "rowcount", 0) == 1)
 
     async def requeue(

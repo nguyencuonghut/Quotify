@@ -149,6 +149,10 @@ class TelegramClient:
         result = await self._call("sendMessage", payload)
         return int(result["message_id"])
 
+    async def send_chat_action(self, chat_id: int, action: str = "typing") -> None:
+        """Hiện chỉ báo hoạt động (vd "đang gõ", kéo dài khoảng 5 giây hoặc đến khi có tin mới)."""
+        await self._call("sendChatAction", {"chat_id": chat_id, "action": action})
+
     async def send_photo(
         self,
         chat_id: int,

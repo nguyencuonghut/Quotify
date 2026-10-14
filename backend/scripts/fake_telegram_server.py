@@ -2,7 +2,9 @@
 
 Nhận mọi `POST /bot<token>/<method>` như Bot API. `sendMessage` được ghi lại để test đọc bằng
 `GET /__sent`; `POST /__block` giả lập người dùng chặn bot (lần gửi sau trả 403); `POST /__reset`
-xóa trạng thái. Chạy: `python scripts/fake_telegram_server.py --port 8081`.
+xóa trạng thái. `sendChatAction` được ghi lại (`GET /__chat_actions`); `POST /__fail_next` làm
+`count` lần gửi kế tiếp trả lỗi (`error_code`, kèm `retry_after` nếu có) và `POST /__delay` làm mỗi
+lần gửi chậm đi. Chạy: `python scripts/fake_telegram_server.py --port 8081`.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import threading
+import time
 from email.parser import BytesParser
 from email.policy import HTTP
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -50,6 +53,12 @@ class _State:
         self.edits: list[dict[str, Any]] = []
         self.callback_answers: list[dict[str, Any]] = []
         self.blocked_chats: set[int] = set()
+        self.chat_actions: list[dict[str, Any]] = []
+        # Kịch bản lỗi: `count` lần gửi kế tiếp trả `error_code` (kèm `retry_after` nếu có).
+        self.fail_count = 0
+        self.fail_error_code = 500
+        self.fail_retry_after: int | None = None
+        self.delay_seconds = 0.0
 
 
 def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
@@ -96,6 +105,9 @@ def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
             elif parsed.path == "/__callback_answers":
                 with state.lock:
                     self._reply(list(state.callback_answers))
+            elif parsed.path == "/__chat_actions":
+                with state.lock:
+                    self._reply(list(state.chat_actions))
             else:
                 self._reply({"ok": False, "error_code": 404, "description": "Not Found"}, 404)
 
@@ -108,15 +120,44 @@ def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
                     state.edits.clear()
                     state.callback_answers.clear()
                     state.blocked_chats.clear()
+                    state.chat_actions.clear()
+                    state.fail_count = 0
+                    state.delay_seconds = 0.0
                 self._reply({"ok": True})
             elif path == "/__block":
                 with state.lock:
                     state.blocked_chats.add(int(data["chat_id"]))
                 self._reply({"ok": True})
+            elif path == "/__fail_next":
+                with state.lock:
+                    state.fail_count = int(data.get("count", 1))
+                    state.fail_error_code = int(data.get("error_code", 500))
+                    retry_after = data.get("retry_after")
+                    state.fail_retry_after = int(retry_after) if retry_after is not None else None
+                self._reply({"ok": True})
+            elif path == "/__delay":
+                with state.lock:
+                    state.delay_seconds = float(data.get("seconds", 0))
+                self._reply({"ok": True})
             elif path.startswith("/bot"):
                 self._handle_bot_method(path.rsplit("/", 1)[-1], data)
             else:
                 self._reply({"ok": False, "error_code": 404, "description": "Not Found"}, 404)
+
+        def _reply_failure(self) -> None:
+            code = state.fail_error_code
+            if code == 429:
+                description = "Too Many Requests"
+                if state.fail_retry_after is not None:
+                    description += f": retry after {state.fail_retry_after}"
+            elif code == 403:
+                description = "Forbidden: bot was blocked by the user"
+            else:
+                description = "Internal Server Error"
+            body: dict[str, Any] = {"ok": False, "error_code": code, "description": description}
+            if state.fail_retry_after is not None:
+                body["parameters"] = {"retry_after": state.fail_retry_after}
+            self._reply(body, code)
 
         def _handle_bot_method(self, method: str, data: dict[str, Any]) -> None:
             if method == "getMe":
@@ -126,8 +167,22 @@ def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
                         "result": {"id": 1, "is_bot": True, "username": state.bot_username},
                     }
                 )
+            elif method == "sendChatAction":
+                with state.lock:
+                    state.chat_actions.append(
+                        {"chat_id": _as_int(data.get("chat_id")), "action": data.get("action")}
+                    )
+                self._reply({"ok": True, "result": True})
             elif method in ("sendMessage", "sendPhoto"):
                 with state.lock:
+                    delay = state.delay_seconds
+                if delay > 0:
+                    time.sleep(delay)  # ngoài khóa: không chặn các request khác
+                with state.lock:
+                    if state.fail_count > 0:
+                        state.fail_count -= 1
+                        self._reply_failure()
+                        return
                     if _as_int(data.get("chat_id", 0)) in state.blocked_chats:
                         self._reply(
                             {

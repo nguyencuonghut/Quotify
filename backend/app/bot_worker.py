@@ -8,6 +8,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -19,13 +21,19 @@ from arq.connections import RedisSettings
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.session import get_sessionmaker
-from app.integrations.telegram import TelegramClient
+from app.integrations.telegram import (
+    TelegramApiError,
+    TelegramClient,
+    TelegramForbiddenError,
+)
 from app.services.bot_dispatcher import ArqBotDispatcher
 from app.services.bot_inbox import BotInbox, ClaimedRow
 from app.services.bot_policy import ChatbotPolicy
-from app.services.bot_principal import BotPrincipal, load_bot_principal
+from app.services.bot_principal import BotPrincipal, delivery_block_reason, load_bot_principal
+from app.services.bot_reply_sender import SendBudgetExceededError, send_parts, split_reply
 from app.services.chat_engine import ChatEngineError, ChatTurn, StubChatEngine
 from app.services.telegram_bot_messages import EXPIRED_MESSAGE_TEXT, LOST_MESSAGE_TEXT
+from app.services.telegram_link_service import TelegramLinkService
 
 logger = logging.getLogger("app.bot")
 
@@ -47,6 +55,11 @@ class BotWorkerConfig:
     # Cron quét chỉ đánh chuông cho dòng đã chờ ít nhất từng này giây.
     sweep_stale_seconds: float = 30.0
     terminal_retention_days: int = 30
+    reply_max_parts: int = 4
+    # Trần TỔNG cho nhánh gửi một dòng (kể cả chờ 429 và gửi nhiều phần).
+    send_budget_seconds: float = 60.0
+    # Chỉ báo "đang gõ" của Telegram kéo dài khoảng 5 giây nên lặp lại trước khi hết.
+    typing_interval_seconds: float = 4.0
 
     @classmethod
     def from_settings(cls, settings: Settings) -> BotWorkerConfig:
@@ -60,6 +73,9 @@ class BotWorkerConfig:
             message_ttl_seconds=settings.bot_message_ttl_seconds,
             sweep_stale_seconds=settings.bot_sweep_stale_seconds,
             terminal_retention_days=settings.bot_terminal_retention_days,
+            reply_max_parts=settings.bot_reply_max_parts,
+            send_budget_seconds=settings.bot_send_budget_seconds,
+            typing_interval_seconds=settings.bot_typing_interval_seconds,
         )
 
 
@@ -112,9 +128,21 @@ async def drain_chat(ctx: dict[str, Any], chat_id: int) -> int:
 
 
 async def _notify(ctx: dict[str, Any], chat_id: int, message: str, kind: str) -> None:
-    """Gửi một thông báo cố định (xin lỗi, tin đã quá cũ). Lỗi gửi không làm hỏng vòng xử lý."""
+    """Gửi một thông báo cố định (xin lỗi, tin đã quá cũ). Lỗi gửi không làm hỏng vòng xử lý.
+
+    Không gửi cho chat đã hủy liên kết hay đã chặn bot (chat riêng nên `telegram_user_id` bằng
+    `chat_id`); Telegram trả 403 thì đánh dấu liên kết `blocked`.
+    """
     try:
+        async with ctx["session_factory"]() as session:
+            reason = await delivery_block_reason(session, telegram_user_id=chat_id)
+        if reason is not None:
+            logger.info("bot.notice_skipped kind=%s reason=%s", kind, reason)
+            return
         await ctx["telegram_client"].send_message(chat_id, message)
+    except TelegramForbiddenError:
+        logger.warning("bot.notice_failed kind=%s error=TelegramForbiddenError", kind)
+        await _mark_blocked(ctx, chat_id)
     except Exception as exc:
         logger.warning("bot.notice_failed kind=%s error=%s", kind, type(exc).__name__)
 
@@ -155,15 +183,21 @@ async def _retry_or_fail(
     category: str,
     retry: bool,
     apologise: bool,
+    min_delay_seconds: float = 0.0,
 ) -> None:
-    """Đưa dòng về hàng đợi (backoff) nếu còn lần thử, ngược lại `failed` kèm danh mục cố định."""
+    """Đưa dòng về hàng đợi (backoff) nếu còn lần thử, ngược lại `failed` kèm danh mục cố định.
+
+    `min_delay_seconds`: lần thử sau không đến sớm hơn mức này (vd Telegram bảo chờ lâu hơn).
+    """
     config: BotWorkerConfig = ctx["bot_config"]
     now = datetime.now(UTC)
     will_retry = retry and row.attempts < config.max_attempts
     async with ctx["session_factory"]() as session:
         inbox = BotInbox(session)
         if will_retry:
-            backoff = timedelta(seconds=config.retry_backoff_seconds * row.attempts)
+            backoff = timedelta(
+                seconds=max(config.retry_backoff_seconds * row.attempts, min_delay_seconds)
+            )
             changed = await inbox.requeue(
                 row.update_id,
                 row.attempts,
@@ -190,6 +224,31 @@ async def _retry_or_fail(
         await _notify(ctx, row.chat_id, LOST_MESSAGE_TEXT, "apology")
 
 
+async def _typing_loop(client: Any, chat_id: int, interval_seconds: float) -> None:
+    while True:
+        try:
+            await client.send_chat_action(chat_id, "typing")
+        except Exception as exc:
+            # Chỉ báo là phần phụ: lỗi của nó không được ảnh hưởng việc trả lời.
+            logger.debug("bot.typing_failed error=%s", type(exc).__name__)
+        await asyncio.sleep(interval_seconds)
+
+
+@asynccontextmanager
+async def _typing(ctx: dict[str, Any], chat_id: int) -> AsyncIterator[None]:
+    """Báo "đang gõ" ngay và lặp lại theo chu kỳ bằng một tác vụ nền trong lúc engine chạy."""
+    config: BotWorkerConfig = ctx["bot_config"]
+    task = asyncio.create_task(
+        _typing_loop(ctx["telegram_client"], chat_id, config.typing_interval_seconds)
+    )
+    try:
+        yield
+    finally:
+        task.cancel()
+        # `wait` thay cho `await task`: không nuốt việc hủy của chính worker nếu đang bị hủy.
+        await asyncio.wait({task})
+
+
 async def _ask_engine(
     ctx: dict[str, Any],
     row: ClaimedRow,
@@ -211,11 +270,16 @@ async def _ask_engine(
     category = "engine_error"
     retry = True
     try:
-        reply = await asyncio.wait_for(
-            ctx["chat_engine"].reply(turn),
-            timeout=config.row_timeout_seconds,
-        )
-        return str(reply.text)
+        async with _typing(ctx, row.chat_id):
+            reply = await asyncio.wait_for(
+                ctx["chat_engine"].reply(turn),
+                timeout=config.row_timeout_seconds,
+            )
+        text = str(reply.text)
+        if text.strip():
+            return text
+        # Câu trả lời rỗng thì Telegram từ chối gửi (400): coi như lỗi engine thử lại được.
+        logger.warning("bot.engine_empty_reply update_id=%s", row.update_id)
     except ChatEngineError as exc:  # lỗi cuối: cấu hình, chính sách; không thử lại
         logger.warning("bot.engine_failed update_id=%s error=%s", row.update_id, type(exc).__name__)
         retry = False
@@ -229,13 +293,104 @@ async def _ask_engine(
     return None
 
 
+def _send_failure_kind(exc: Exception) -> str:
+    """Phân loại lỗi gửi: `blocked` (403), `rejected` (lỗi cuối 4xx), `timeout`, hay `failed`."""
+    if isinstance(exc, TelegramForbiddenError):
+        return "blocked"
+    if isinstance(exc, TelegramApiError):
+        code = exc.error_code
+        if code is not None and 400 <= code < 500 and code != 429:
+            return "rejected"
+    if isinstance(exc, TimeoutError | SendBudgetExceededError):
+        return "timeout"
+    return "failed"
+
+
+async def _mark_blocked(ctx: dict[str, Any], telegram_user_id: int) -> None:
+    """Người dùng đã chặn bot (Telegram trả 403): liên kết `active` thành `blocked`."""
+    try:
+        async with ctx["session_factory"]() as session:
+            await TelegramLinkService(session).mark_blocked(telegram_user_id)
+            await session.commit()
+    except Exception as exc:
+        logger.warning("bot.mark_blocked_failed error=%s", type(exc).__name__)
+
+
+async def _send_reply(ctx: dict[str, Any], row: ClaimedRow, reply_text: str) -> bool:
+    """Gửi các phần chưa gửi của câu trả lời. `True` nếu đã gửi xong và dòng cần được hoàn tất.
+
+    `False` nghĩa là dòng đã được xử lý ở đây (thử lại, thất bại hay loại bỏ).
+    """
+    config: BotWorkerConfig = ctx["bot_config"]
+    parts = split_reply(reply_text, max_parts=config.reply_max_parts)
+    failure: str | None = None
+    lost = False
+    retry_after = 0.0
+
+    async def part_sent(count: int) -> bool:
+        async with ctx["session_factory"]() as session:
+            owned = await BotInbox(session).save_sent_parts(row.update_id, row.attempts, count)
+            await session.commit()
+        return owned
+
+    try:
+        delivered = await asyncio.wait_for(
+            send_parts(
+                ctx["telegram_client"],
+                row.chat_id,
+                parts,
+                start=row.sent_parts,
+                budget_seconds=config.send_budget_seconds,
+                on_part_sent=part_sent,
+            ),
+            timeout=config.send_budget_seconds,
+        )
+        lost = not delivered
+    except Exception as exc:
+        logger.warning("bot.send_failed update_id=%s error=%s", row.update_id, type(exc).__name__)
+        failure = _send_failure_kind(exc)
+        if isinstance(exc, SendBudgetExceededError):
+            retry_after = exc.retry_after
+    if lost:  # dòng đã bị worker khác tiếp quản giữa các phần: không làm gì thêm
+        logger.info("bot.row_lost update_id=%s", row.update_id)
+        return False
+    if failure is None:
+        return True
+    # Xử lý ngoài khối `except` (cùng lý do với `_ask_engine`): lỗi DB lúc xử lý không được mang
+    # `__context__` là lỗi gửi.
+    if failure == "blocked":
+        await _mark_blocked(ctx, row.telegram_user_id)
+        await _drop(ctx, row, "forbidden")
+    elif failure == "rejected":  # Telegram từ chối nội dung: thử lại cũng vẫn thế
+        await _retry_or_fail(ctx, row, category="send_rejected", retry=False, apologise=True)
+    else:
+        category = "send_timeout" if failure == "timeout" else "send_failed"
+        await _retry_or_fail(
+            ctx,
+            row,
+            category=category,
+            retry=True,
+            apologise=True,
+            min_delay_seconds=retry_after,
+        )
+    return False
+
+
+async def _drop(ctx: dict[str, Any], row: ClaimedRow, reason: str) -> None:
+    """Loại dòng (`dropped`) với danh mục cố định; nội dung bị xóa, người dùng không nhận gì."""
+    await _end_row(ctx, row, "dropped", reason)
+    logger.info("bot.row_dropped update_id=%s category=%s", row.update_id, reason)
+
+
 async def _process_row(ctx: dict[str, Any], row: ClaimedRow, run: _Run) -> None:
     config: BotWorkerConfig = ctx["bot_config"]
     session_factory = ctx["session_factory"]
     began = time.monotonic()
 
     # Tin quá cũ (sau sự cố dài): loại thay vì trả lời một câu hỏi đã cũ; báo một lần mỗi lần chạy.
-    if datetime.now(UTC) - row.received_at > timedelta(seconds=config.message_ttl_seconds):
+    # Câu trả lời đã gửi dở thì gửi nốt, không bắt người dùng hỏi lại.
+    expired = datetime.now(UTC) - row.received_at > timedelta(seconds=config.message_ttl_seconds)
+    if expired and row.sent_parts == 0:
         if await _end_row(ctx, row, "dropped", "expired") and not run.expired_notified:
             run.expired_notified = True
             await _notify(ctx, row.chat_id, EXPIRED_MESSAGE_TEXT, "expired")
@@ -243,11 +398,14 @@ async def _process_row(ctx: dict[str, Any], row: ClaimedRow, run: _Run) -> None:
         return
 
     async with session_factory() as session:
-        principal = await load_bot_principal(session, row.user_id)
-    if principal is None:
-        # Người dùng không còn hoạt động: S4 chuyển dòng sang `dropped`. Hiện dòng ở `processing`
-        # đến hết lease rồi được claim lại, và cuối cùng `failed` (`lease_exhausted`).
-        logger.warning("bot.row_skipped update_id=%s reason=no_active_user", row.update_id)
+        reason = await delivery_block_reason(
+            session, telegram_user_id=row.telegram_user_id, user_id=row.user_id
+        )
+        principal = None if reason else await load_bot_principal(session, row.user_id)
+    if (
+        principal is None
+    ):  # liên kết bị hủy hay bị chặn, hoặc người dùng bị khóa: bỏ, không tốn engine
+        await _drop(ctx, row, reason or "user_inactive")
         return
 
     reply_text = row.reply_text
@@ -272,22 +430,21 @@ async def _process_row(ctx: dict[str, Any], row: ClaimedRow, run: _Run) -> None:
     # Kiểm lần cuối ngay trước khi gửi: worker cũ tỉnh dậy sau khi bị tiếp quản không được gửi lại.
     async with session_factory() as session:
         still_mine = await BotInbox(session).owns(row.update_id, row.attempts)
+        reason = None
+        if still_mine:
+            reason = await delivery_block_reason(
+                session, telegram_user_id=row.telegram_user_id, user_id=row.user_id
+            )
+            if reason is None and await load_bot_principal(session, row.user_id) is None:
+                reason = "user_inactive"
     if not still_mine:
         logger.info("bot.row_lost update_id=%s", row.update_id)
         return
+    if reason is not None:  # đổi ý giữa lúc engine chạy: không gửi
+        await _drop(ctx, row, reason)
+        return
 
-    try:
-        # Văn bản thuần: nội dung do engine sinh không được diễn giải như HTML.
-        await ctx["telegram_client"].send_message(row.chat_id, reply_text, parse_mode=None)
-    except Exception as exc:
-        logger.warning("bot.send_failed update_id=%s error=%s", row.update_id, type(exc).__name__)
-        sent = False
-    else:
-        sent = True
-    if not sent:
-        # Xử lý ngoài khối `except` (cùng lý do với `_ask_engine`). Câu trả lời đã được lưu: thử lại
-        # sau backoff chỉ gửi lại câu đó. S4 phân loại 429, 403, 400.
-        await _retry_or_fail(ctx, row, category="send_failed", retry=True, apologise=False)
+    if not await _send_reply(ctx, row, reply_text):
         return
 
     async with session_factory() as session:

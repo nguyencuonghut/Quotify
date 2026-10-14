@@ -189,6 +189,11 @@ class Settings(BaseSettings):
         alias="BOT_HEALTH_CHECK_INTERVAL_SECONDS",
     )
     bot_retry_backoff_seconds: float = Field(default=5.0, alias="BOT_RETRY_BACKOFF_SECONDS")
+    bot_reply_max_parts: int = Field(default=4, ge=1, alias="BOT_REPLY_MAX_PARTS")
+    bot_send_budget_seconds: float = Field(default=60.0, gt=0, alias="BOT_SEND_BUDGET_SECONDS")
+    bot_typing_interval_seconds: float = Field(
+        default=4.0, gt=0, alias="BOT_TYPING_INTERVAL_SECONDS"
+    )
     bot_message_ttl_seconds: float = Field(default=1200.0, alias="BOT_MESSAGE_TTL_SECONDS")
     bot_sweep_stale_seconds: float = Field(default=30.0, alias="BOT_SWEEP_STALE_SECONDS")
     bot_terminal_retention_days: int = Field(default=30, alias="BOT_TERMINAL_RETENTION_DAYS")

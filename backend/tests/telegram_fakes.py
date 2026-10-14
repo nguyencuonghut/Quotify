@@ -95,6 +95,19 @@ class Outbox:
     status_code: int = 200
     # Chat bị Telegram từ chối (403 "bot was blocked"), các chat khác vẫn gửi được.
     forbidden_chat_ids: set[int] = field(default_factory=set)
+    # Phản hồi dựng sẵn theo phương thức (vd `sendMessage`), lấy lần lượt; hết thì trả lời thường.
+    scripted: dict[str, list[tuple[int, dict[str, Any]]]] = field(default_factory=dict)
+
+    def script(self, method: str, *responses: tuple[int, dict[str, Any]]) -> None:
+        """Lên kịch bản các phản hồi kế tiếp của một phương thức: (mã HTTP, thân JSON)."""
+        self.scripted.setdefault(method, []).extend(responses)
+
+    def chat_actions(self) -> list[dict[str, Any]]:
+        return [
+            json.loads(request.content)
+            for request in self.requests
+            if request.url.path.endswith("/sendChatAction")
+        ]
 
     def sent_photos(self) -> list[dict[str, Any]]:
         """Các sendPhoto đã gửi: trường form + `photo_bytes` (kích thước tệp ảnh)."""
@@ -153,6 +166,10 @@ def make_client(outbox: Outbox) -> tuple[TelegramClient, httpx.AsyncClient]:
             chat_id: Any = int(fields["chat_id"]) if "chat_id" in fields else None
         else:
             chat_id = json.loads(request.content or b"{}").get("chat_id")
+        queued = outbox.scripted.get(request.url.path.rsplit("/", 1)[-1])
+        if queued:
+            status, body = queued.pop(0)
+            return httpx.Response(status, json=body)
         if chat_id in outbox.forbidden_chat_ids:
             return httpx.Response(
                 403,

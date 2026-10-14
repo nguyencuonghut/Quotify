@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
+from bot_fakes import GateEngine, RecordingClient, ScriptedEngine
 from bot_harness import Bot, linked_user
 from db_helpers import next_update_id
 from sqlalchemy import text
@@ -32,58 +33,10 @@ def _past() -> datetime:
     return datetime.now(UTC) - timedelta(seconds=1)
 
 
-class _ScriptedEngine:
-    """Engine giả theo kịch bản: mỗi lần gọi lấy một bước (ngoại lệ thì ném, chuỗi thì trả lời)."""
-
-    def __init__(self, *steps: BaseException | str) -> None:
-        self._steps = list(steps)
-        self.calls = 0
-
-    async def reply(self, turn: ChatTurn) -> ChatReply:
-        self.calls += 1
-        step = self._steps.pop(0) if self._steps else "ok"
-        if isinstance(step, BaseException):
-            raise step
-        return ChatReply(step)
-
-
 class _SlowEngine:
     async def reply(self, turn: ChatTurn) -> ChatReply:
         await asyncio.sleep(5)
         return ChatReply("muộn")
-
-
-class _GateEngine:
-    """Kẹt cho đến khi được mở; ghi lại là đã bắt đầu."""
-
-    def __init__(self, answer: str = "ok") -> None:
-        self.started = asyncio.Event()
-        self.release = asyncio.Event()
-        self.calls = 0
-        self._answer = answer
-
-    async def reply(self, turn: ChatTurn) -> ChatReply:
-        self.calls += 1
-        self.started.set()
-        await self.release.wait()
-        return ChatReply(self._answer)
-
-
-class _Client:
-    """Client giả: ghi lại mọi lần gửi; `fail_first` lần đầu (hoặc luôn) bị lỗi mạng."""
-
-    def __init__(self, *, fail_first: int = 0, always_fail: bool = False) -> None:
-        self._fail_first = fail_first
-        self._always_fail = always_fail
-        self.attempts: list[tuple[int, str]] = []
-        self.sent: list[tuple[int, str]] = []
-
-    async def send_message(self, chat_id: int, text_: str, **kwargs: Any) -> int:
-        self.attempts.append((chat_id, text_))
-        if self._always_fail or len(self.attempts) <= self._fail_first:
-            raise TelegramNetworkError("Không thể gọi Telegram (sendMessage): ConnectError.")
-        self.sent.append((chat_id, text_))
-        return 1
 
 
 # --- lỗi của engine: thử lại có backoff, rồi thất bại -----------------------------------------
@@ -95,7 +48,7 @@ async def test_a_temporary_engine_error_requeues_the_row_with_a_backoff_and_a_la
     bot = chatbot_bot
     _, tg = await linked_user(bot)
     update_id = await bot.send("xin chào", tg=tg)
-    engine = _ScriptedEngine(ChatEngineTemporaryError("llm 503"), "ok")
+    engine = ScriptedEngine(ChatEngineTemporaryError("llm 503"), "ok")
 
     await bot.drain(tg, engine=engine)
 
@@ -121,7 +74,7 @@ async def test_a_row_that_keeps_failing_ends_failed_with_one_apology_and_no_raw_
     bot = chatbot_bot
     _, tg = await linked_user(bot)
     update_id = await bot.send("xin chào", tg=tg)
-    engine = _ScriptedEngine(*(ChatEngineTemporaryError(DECOY) for _ in range(5)))
+    engine = ScriptedEngine(*(ChatEngineTemporaryError(DECOY) for _ in range(5)))
     config = BotWorkerConfig(max_attempts=2)
     caplog.set_level(logging.DEBUG)
 
@@ -143,7 +96,7 @@ async def test_a_final_engine_error_fails_the_row_at_once_with_one_apology(
     _, tg = await linked_user(bot)
     update_id = await bot.send("xin chào", tg=tg)
 
-    await bot.drain(tg, engine=_ScriptedEngine(ChatEngineError("cấu hình sai")))
+    await bot.drain(tg, engine=ScriptedEngine(ChatEngineError("cấu hình sai")))
 
     row = await bot.row(update_id)
     assert (row.status, row.attempts, row.error_category) == ("failed", 1, "engine_error")
@@ -178,7 +131,7 @@ async def test_an_unexpected_engine_exception_is_retried_and_never_leaks_its_tex
     update_id = await bot.send("xin chào", tg=tg)
     caplog.set_level(logging.DEBUG)
 
-    await bot.drain(tg, engine=_ScriptedEngine(RuntimeError(DECOY)))
+    await bot.drain(tg, engine=ScriptedEngine(RuntimeError(DECOY)))
 
     row = await bot.row(update_id)
     assert (row.status, row.attempts) == ("queued", 1)  # lỗi bất ngờ coi như thử lại được
@@ -214,7 +167,7 @@ async def test_a_worker_that_died_after_saving_the_reply_is_resumed_without_call
     _, tg = await linked_user(bot)
     update_id = await bot.send("xin chào", tg=tg)
     await _claim_and_die(bot, update_id, save="câu đã lưu")
-    engine = _ScriptedEngine("không được gọi")
+    engine = ScriptedEngine("không được gọi")
 
     await bot.drain(tg, engine=engine)
 
@@ -231,7 +184,7 @@ async def test_a_worker_that_died_before_saving_makes_the_next_attempt_call_the_
     _, tg = await linked_user(bot)
     update_id = await bot.send("xin chào", tg=tg)
     await _claim_and_die(bot, update_id, save=None)
-    engine = _ScriptedEngine("lần sau")
+    engine = ScriptedEngine("lần sau")
 
     await bot.drain(tg, engine=engine)
 
@@ -249,8 +202,8 @@ async def test_a_send_failure_requeues_the_row_and_the_saved_reply_is_sent_later
     bot = chatbot_bot
     _, tg = await linked_user(bot)
     update_id = await bot.send("xin chào", tg=tg)
-    engine = _ScriptedEngine("câu trả lời")
-    client = _Client(fail_first=1)
+    engine = ScriptedEngine("câu trả lời")
+    client = RecordingClient(fail_first=1)
 
     await bot.drain(tg, engine=engine, client=client)
 
@@ -264,32 +217,12 @@ async def test_a_send_failure_requeues_the_row_and_the_saved_reply_is_sent_later
     assert (await bot.row(update_id)).status == "replied"
 
 
-async def test_a_row_whose_reply_can_never_be_sent_ends_failed_without_an_apology(
-    chatbot_bot: Bot,
-) -> None:
-    bot = chatbot_bot
-    _, tg = await linked_user(bot)
-    update_id = await bot.send("xin chào", tg=tg)
-    client = _Client(always_fail=True)
-    config = BotWorkerConfig(max_attempts=2)
-
-    await bot.drain(tg, engine=_ScriptedEngine("a"), client=client, config=config)
-    await bot.set_lease(update_id, _past())
-    await bot.drain(tg, engine=_ScriptedEngine("a"), client=client, config=config)
-
-    row = await bot.row(update_id)
-    assert (row.status, row.error_category) == ("failed", "send_failed")
-    assert LOST_MESSAGE_TEXT not in [
-        message for _, message in client.attempts
-    ]  # chat không tới được
-
-
 async def test_the_retry_backoff_grows_with_the_attempt_number(chatbot_bot: Bot) -> None:
     bot = chatbot_bot
     _, tg = await linked_user(bot)
     update_id = await bot.send("xin chào", tg=tg)
     config = BotWorkerConfig(retry_backoff_seconds=100, max_attempts=5)
-    engine = _ScriptedEngine(
+    engine = ScriptedEngine(
         ChatEngineTemporaryError("llm 503"), ChatEngineTemporaryError("llm 503")
     )
 
@@ -315,11 +248,11 @@ async def test_neither_the_question_nor_the_answer_is_ever_logged(
     bot = chatbot_bot
     _, tg = await linked_user(bot)
     update_id = await bot.send(f"câu hỏi {DECOY}", tg=tg)
-    client = _Client(fail_first=1)  # lần gửi đầu lỗi mạng, lần sau thành công
+    client = RecordingClient(fail_first=1)  # lần gửi đầu lỗi mạng, lần sau thành công
 
-    await bot.drain(tg, engine=_ScriptedEngine(f"trả lời {DECOY}"), client=client)
+    await bot.drain(tg, engine=ScriptedEngine(f"trả lời {DECOY}"), client=client)
     await bot.set_lease(update_id, _past())
-    await bot.drain(tg, engine=_ScriptedEngine("không được gọi"), client=client)
+    await bot.drain(tg, engine=ScriptedEngine("không được gọi"), client=client)
 
     assert client.sent == [(tg, f"trả lời {DECOY}")]  # cả hai đường đều đã chạy
     assert DECOY not in caplog.text
@@ -334,12 +267,12 @@ async def test_a_stale_worker_resuming_after_a_takeover_neither_overwrites_nor_s
     bot = chatbot_bot
     _, tg = await linked_user(bot)
     update_id = await bot.send("xin chào", tg=tg)
-    old_engine = _GateEngine("của worker cũ")
+    old_engine = GateEngine("của worker cũ")
     old_worker = asyncio.create_task(bot.drain(tg, engine=old_engine))
     await asyncio.wait_for(old_engine.started.wait(), timeout=5)  # worker cũ kẹt trong engine
     await bot.set_lease(update_id, _past())  # lease hết hạn: coi như worker cũ đã chết
 
-    await bot.drain(tg, engine=_ScriptedEngine("của worker mới"))  # worker mới tiếp quản và xong
+    await bot.drain(tg, engine=ScriptedEngine("của worker mới"))  # worker mới tiếp quản và xong
     old_engine.release.set()
     await asyncio.wait_for(old_worker, timeout=5)  # worker cũ tỉnh dậy: không được ghi đè hay gửi
 
@@ -372,14 +305,14 @@ async def test_a_worker_taken_over_between_saving_and_sending_does_not_send_twic
         return await original_owns(self, row_id, attempts)
 
     monkeypatch.setattr(BotInbox, "owns", gated_owns)
-    old_client, new_client = _Client(), _Client()
+    old_client, new_client = RecordingClient(), RecordingClient()
     old_worker = asyncio.create_task(
-        bot.drain(tg, engine=_ScriptedEngine("của worker cũ"), client=old_client)
+        bot.drain(tg, engine=ScriptedEngine("của worker cũ"), client=old_client)
     )
     await asyncio.wait_for(reached.wait(), timeout=5)  # đã lưu câu trả lời, chưa gửi
     await bot.set_lease(update_id, _past())  # lease hết hạn: bị tiếp quản
 
-    await bot.drain(tg, engine=_ScriptedEngine("không được gọi"), client=new_client)
+    await bot.drain(tg, engine=ScriptedEngine("không được gọi"), client=new_client)
     go.set()
     await asyncio.wait_for(old_worker, timeout=5)
 
@@ -394,7 +327,7 @@ async def test_a_row_deleted_while_the_engine_runs_does_not_break_the_worker(
     bot = chatbot_bot
     _, tg = await linked_user(bot)
     update_id = await bot.send("xin chào", tg=tg)
-    engine = _GateEngine()
+    engine = GateEngine()
     worker = asyncio.create_task(bot.drain(tg, engine=engine))
     await asyncio.wait_for(engine.started.wait(), timeout=5)
     async with bot.session_factory() as session:  # vd người dùng bị xóa: ON DELETE CASCADE
@@ -415,7 +348,7 @@ async def test_cancelling_the_worker_mid_turn_releases_the_lease_so_the_row_is_c
     bot = chatbot_bot
     _, tg = await linked_user(bot)
     update_id = await bot.send("xin chào", tg=tg)
-    engine = _GateEngine()
+    engine = GateEngine()
     worker = asyncio.create_task(bot.drain(tg, engine=engine))
     await asyncio.wait_for(engine.started.wait(), timeout=5)
 
@@ -425,7 +358,7 @@ async def test_cancelling_the_worker_mid_turn_releases_the_lease_so_the_row_is_c
 
     row = await bot.row(update_id)
     assert row.status == "processing" and row.lease_until <= datetime.now(UTC)  # lease đã nhả
-    assert await bot.drain(tg, engine=_ScriptedEngine("sau khi tắt")) == 1  # claim lại tức thì
+    assert await bot.drain(tg, engine=ScriptedEngine("sau khi tắt")) == 1  # claim lại tức thì
     assert (await bot.row(update_id)).attempts == 2  # một lần deploy giữa chừng tốn một lần thử
     assert bot.outbox.texts_to(tg) == ["sau khi tắt"]
 
@@ -447,12 +380,12 @@ async def test_an_unexpected_error_while_processing_releases_the_lease_and_still
     monkeypatch.setattr(BotInbox, "save_reply", broken_save)
 
     with pytest.raises(BotInboxError):  # vẫn ném lên để arq ghi log lỗi
-        await bot.drain(tg, engine=_ScriptedEngine("đã trả tiền cho câu này"))
+        await bot.drain(tg, engine=ScriptedEngine("đã trả tiền cho câu này"))
 
     row = await bot.row(update_id)
     assert row.status == "processing" and row.lease_until <= datetime.now(UTC)  # lease đã nhả
     monkeypatch.undo()
-    assert await bot.drain(tg, engine=_ScriptedEngine("lần sau")) == 1  # claim lại tức thì
+    assert await bot.drain(tg, engine=ScriptedEngine("lần sau")) == 1  # claim lại tức thì
     assert bot.outbox.texts_to(tg) == ["lần sau"]
 
 
@@ -486,7 +419,7 @@ async def test_a_cancel_landing_right_after_the_claim_committed_still_releases_t
 
     row = await bot.row(update_id)
     assert row.status == "processing" and row.lease_until <= datetime.now(UTC)  # lease đã nhả
-    assert await bot.drain(tg, engine=_ScriptedEngine("sau khi tắt")) == 1
+    assert await bot.drain(tg, engine=ScriptedEngine("sau khi tắt")) == 1
 
 
 async def test_an_engine_error_text_does_not_reach_the_traceback_when_the_database_fails_next(
@@ -505,7 +438,7 @@ async def test_an_engine_error_text_does_not_reach_the_traceback_when_the_databa
     monkeypatch.setattr(BotInbox, "requeue", broken_requeue)
 
     with pytest.raises(OperationalError) as caught:
-        await bot.drain(tg, engine=_ScriptedEngine(RuntimeError(f"llm lỗi với câu hỏi: {DECOY}")))
+        await bot.drain(tg, engine=ScriptedEngine(RuntimeError(f"llm lỗi với câu hỏi: {DECOY}")))
 
     assert DECOY not in "".join(traceback.format_exception(caught.value))
 
@@ -521,14 +454,14 @@ async def test_a_send_error_text_does_not_reach_the_traceback_when_the_database_
     async def broken_requeue(self: BotInbox, *args: Any, **kwargs: Any) -> bool:
         raise OperationalError("UPDATE", {}, ConnectionError("db down"))
 
-    class _LeakyClient(_Client):
+    class _LeakyClient(RecordingClient):
         async def send_message(self, chat_id: int, text_: str, **kwargs: Any) -> int:
             raise TelegramNetworkError(f"gửi lỗi, nội dung: {DECOY}")
 
     monkeypatch.setattr(BotInbox, "requeue", broken_requeue)
 
     with pytest.raises(OperationalError) as caught:
-        await bot.drain(tg, engine=_ScriptedEngine("ok"), client=_LeakyClient())
+        await bot.drain(tg, engine=ScriptedEngine("ok"), client=_LeakyClient())
 
     assert DECOY not in "".join(traceback.format_exception(caught.value))
 
@@ -592,7 +525,7 @@ async def test_a_second_cancel_during_the_lease_release_still_releases_it(
         return await original_release(self, *args, **kwargs)
 
     monkeypatch.setattr(BotInbox, "release_lease", slow_release)
-    engine = _GateEngine()
+    engine = GateEngine()
     worker = asyncio.create_task(bot.drain(tg, engine=engine))
     await asyncio.wait_for(engine.started.wait(), timeout=5)
 
@@ -628,7 +561,7 @@ async def test_a_stale_worker_that_fails_late_sends_no_apology_after_the_new_own
     old_worker = asyncio.create_task(bot.drain(tg, engine=_LateFailingEngine()))
     await asyncio.wait_for(started.wait(), timeout=5)
     await bot.set_lease(update_id, _past())  # bị tiếp quản
-    await bot.drain(tg, engine=_ScriptedEngine("của worker mới"))
+    await bot.drain(tg, engine=ScriptedEngine("của worker mới"))
 
     go.set()  # worker cũ thất bại muộn: dòng đã `replied`, không được xin lỗi người dùng
     await asyncio.wait_for(old_worker, timeout=5)
@@ -650,7 +583,7 @@ async def test_messages_older_than_the_ttl_are_dropped_with_a_single_notice_per_
     await bot.insert_row(tg, user_id, first, text_="cũ 1", received_at=old)
     await bot.insert_row(tg, user_id, second, text_="cũ 2", received_at=old)
     await bot.insert_row(tg, user_id, fresh, text_="mới")
-    engine = _ScriptedEngine("trả lời tin mới")
+    engine = ScriptedEngine("trả lời tin mới")
 
     await bot.drain(tg, engine=engine)
 

@@ -83,15 +83,18 @@ class Bot:
         text_: str = "x",
         received_at: Any = None,
         finished_at: Any = None,
+        reply_text: str | None = None,
+        sent_parts: int = 0,
     ) -> None:
         """Chèn thẳng một dòng hộp thư ở trạng thái tùy ý (dựng sẵn tình huống sự cố)."""
         async with self.session_factory() as session:
             await session.execute(
                 text(
                     "insert into bot_updates (update_id, chat_id, telegram_user_id, user_id, "
-                    "status, payload_text, attempts, lease_until, received_at, finished_at) "
+                    "status, payload_text, attempts, lease_until, received_at, finished_at, "
+                    "reply_text, sent_parts) "
                     "values (:id, :chat, :chat, :user, :status, :text, :attempts, :lease, "
-                    "coalesce(:received, now()), :finished)"
+                    "coalesce(:received, now()), :finished, :reply, :parts)"
                 ),
                 {
                     "id": update_id,
@@ -103,6 +106,8 @@ class Bot:
                     "lease": lease_until,
                     "received": received_at,
                     "finished": finished_at,
+                    "reply": reply_text,
+                    "parts": sent_parts,
                 },
             )
             await session.commit()
@@ -143,7 +148,7 @@ class Bot:
             result = await session.execute(
                 text(
                     "select update_id, chat_id, status, attempts, lease_until, payload_text, "
-                    "reply_text, reply_saved_at, error_category, finished_at "
+                    "reply_text, reply_saved_at, sent_parts, error_category, finished_at "
                     "from bot_updates where update_id = :i"
                 ),
                 {"i": update_id},

@@ -188,6 +188,27 @@ async def test_send_message_sends_html_and_returns_message_id() -> None:
 
 
 @pytest.mark.asyncio
+async def test_send_chat_action_posts_the_action_and_does_not_need_a_message_id() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    client, http_client = make_client(httpx.MockTransport(handler))
+
+    await client.send_chat_action(555)
+    await client.send_chat_action(555, "upload_photo")
+    await http_client.aclose()
+
+    assert [json.loads(request.content) for request in seen] == [
+        {"chat_id": 555, "action": "typing"},
+        {"chat_id": 555, "action": "upload_photo"},
+    ]
+    assert all(request.url.path.endswith("/sendChatAction") for request in seen)
+
+
+@pytest.mark.asyncio
 async def test_send_message_rejects_text_longer_than_telegram_limit() -> None:
     from app.integrations.telegram import TelegramMessageTooLongError
 

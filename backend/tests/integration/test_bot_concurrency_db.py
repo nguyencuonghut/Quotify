@@ -177,8 +177,10 @@ async def test_a_blocked_user_does_not_stop_the_worker_when_the_apology_is_refus
     handled = await bot.drain(tg, engine=_TrackingEngine(0), client=probe)
 
     assert handled == 1  # vòng xử lý vẫn đi tiếp tới dòng sau
+    # 403 cho câu xin lỗi đánh dấu liên kết `blocked` (S4): dòng sau bị loại, không được trả lời.
     rows = {r.update_id: r.status for r in await bot.inbox_rows(tg)}
-    assert rows == {stuck: "failed", behind: "replied"}
+    assert rows == {stuck: "failed", behind: "dropped"}
+    assert [account.status for account in await bot.accounts(user_id)] == ["blocked"]
 
 
 async def test_several_rows_out_of_attempts_in_one_claim_get_a_single_apology(
