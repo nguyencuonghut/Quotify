@@ -98,6 +98,18 @@ Hành động của người dùng (ở trang Hồ sơ hoặc bằng lệnh `/st
 **Đổi tài khoản Telegram**:
 Liên kết sang một tài khoản Telegram khác; liên kết cũ bị thu hồi cùng lúc với việc tạo liên kết mới (hoặc cả hai cùng không đổi nếu thất bại).
 
+**Hộp thư bot**:
+Bảng `bot_updates` trong Postgres: mỗi tin nhắn gửi cho chatbot là một dòng, từ lúc nhận đến lúc trả lời xong hoặc bị loại. Là nguồn sự thật về tin nào đã được xử lý; nội dung tin chỉ được giữ tới khi dòng kết thúc.
+_Tránh_: Hàng đợi (hàng đợi arq chỉ chứa chuông)
+
+**Chuông**:
+Job arq (`bot:<update_id>`, hàng đợi `quotify:bot`) báo cho `bot-worker` biết một chat có tin đang chờ. Mất chuông không mất tin: cron quét đánh chuông lại từ hộp thư bot.
+_Tránh_: Tác vụ, hàng đợi tin nhắn
+
+**Lease**:
+Quyền xử lý có thời hạn của một worker trên một dòng hộp thư bot (`lease_until`). Hết hạn mà dòng chưa xong thì worker khác tiếp quản, và mỗi lần tiếp quản tăng `attempts` để worker cũ không ghi đè được kết quả. Không giữ khóa DB hay kết nối trong lúc engine chạy.
+_Tránh_: Khóa (khóa DB)
+
 **Điểm giá**:
 Giá thấp nhất (VNĐ/KG, giá đã lưu) của một chuỗi trong một ngày nhận báo giá. Là đơn vị để so sánh biến động.
 _Tránh_: Giá hôm nay, Dòng giá
