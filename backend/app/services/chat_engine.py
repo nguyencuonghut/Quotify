@@ -7,9 +7,12 @@ hay đường gửi tin.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Protocol
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.bot_principal import BotPrincipal
 from app.services.telegram_bot_messages import STUB_REPLY_TEXT
@@ -34,8 +37,10 @@ class ChatTurn:
     text: str = field(repr=False)
     # Có múi giờ (UTC); đổi sang Asia/Ho_Chi_Minh ở nơi hiển thị.
     received_at: datetime
-    # Engine DB chỉ đọc cho các công cụ; S6 nối vào.
-    readonly_session_factory: Any | None = None
+    # Gọi như `async_sessionmaker` để mở một phiên chỉ đọc (rào chắn, không phải ranh giới bảo
+    # mật, RC-27); `None` khi ngữ cảnh không có (vd test). Mỗi lần gọi công cụ mở một phiên ngắn,
+    # không commit.
+    readonly_session_factory: Callable[[], AsyncSession] | None = None
 
 
 @dataclass(frozen=True, slots=True)

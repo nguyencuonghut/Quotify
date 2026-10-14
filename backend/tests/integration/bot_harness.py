@@ -58,6 +58,7 @@ class Bot:
         config: Any = None,
         client: Any = None,
         session_factory: Any = None,
+        readonly_session_factory: Any = None,
     ) -> int:
         """Chạy `drain_chat` của worker bot một lần cho một chat. Trả số dòng đã xử lý."""
         from app.bot_worker import BotWorkerConfig, drain_chat
@@ -69,6 +70,8 @@ class Bot:
             "chat_engine": engine or StubChatEngine(),
             "bot_config": config or BotWorkerConfig(),
         }
+        if readonly_session_factory is not None:
+            ctx["readonly_session_factory"] = readonly_session_factory
         return await drain_chat(ctx, chat_id)
 
     async def insert_row(

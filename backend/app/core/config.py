@@ -191,6 +191,21 @@ class Settings(BaseSettings):
     bot_retry_backoff_seconds: float = Field(default=5.0, alias="BOT_RETRY_BACKOFF_SECONDS")
     bot_reply_max_parts: int = Field(default=4, ge=1, alias="BOT_REPLY_MAX_PARTS")
     bot_max_pending_per_chat: int = Field(default=5, ge=1, alias="BOT_MAX_PENDING_PER_CHAT")
+    # Pool tường minh cho hai engine của bot-worker (RC-5): mặc định 5 + 10 của engine chính là quá
+    # nhiều cho một tiến trình mà việc chủ yếu chờ LLM.
+    bot_db_pool_size: int = Field(default=4, ge=1, alias="BOT_DB_POOL_SIZE")
+    bot_db_max_overflow: int = Field(default=4, ge=0, alias="BOT_DB_MAX_OVERFLOW")
+    bot_readonly_pool_size: int = Field(default=2, ge=1, alias="BOT_READONLY_POOL_SIZE")
+    bot_readonly_max_overflow: int = Field(default=1, ge=0, alias="BOT_READONLY_MAX_OVERFLOW")
+    bot_readonly_pool_timeout_seconds: float = Field(
+        default=3.0, gt=0, alias="BOT_READONLY_POOL_TIMEOUT_SECONDS"
+    )
+    bot_readonly_statement_timeout_ms: int = Field(
+        default=5000, gt=0, alias="BOT_READONLY_STATEMENT_TIMEOUT_MS"
+    )
+    bot_readonly_idle_in_transaction_timeout_ms: int = Field(
+        default=10000, gt=0, alias="BOT_READONLY_IDLE_IN_TRANSACTION_TIMEOUT_MS"
+    )
     bot_send_budget_seconds: float = Field(default=60.0, gt=0, alias="BOT_SEND_BUDGET_SECONDS")
     bot_typing_interval_seconds: float = Field(
         default=4.0, gt=0, alias="BOT_TYPING_INTERVAL_SECONDS"

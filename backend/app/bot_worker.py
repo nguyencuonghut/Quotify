@@ -17,10 +17,12 @@ from zoneinfo import ZoneInfo
 
 from arq import cron
 from arq.connections import RedisSettings
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
-from app.db.session import get_sessionmaker
+from app.db.readonly import ReadonlySessionFactory
+from app.db.session import create_bot_engine
 from app.integrations.telegram import (
     TelegramApiError,
     TelegramClient,
@@ -263,6 +265,7 @@ async def _ask_engine(
         principal=principal,
         text=row.payload_text or "",
         received_at=row.received_at,
+        readonly_session_factory=ctx.get("readonly_session_factory"),
     )
     # Chỉ ghi nhận kết quả trong `except`, xử lý SAU khi đã thoát khối: lỗi DB xảy ra lúc xử lý sẽ
     # không mang `__context__` là lỗi của engine (arq in cả chuỗi này mà thông điệp có thể chứa
@@ -504,7 +507,12 @@ async def startup(ctx: dict[str, Any]) -> None:
         log_format=settings.log_format,
         app_env=settings.app_env,
     )
-    ctx["session_factory"] = get_sessionmaker()
+    # Engine riêng với pool nhỏ tường minh; engine chỉ đọc cho công cụ tạo lười (chưa gọi thì chưa
+    # có kết nối nào, và chatbot tắt thì không bao giờ có).
+    engine = create_bot_engine(settings)
+    ctx["db_engine"] = engine
+    ctx["session_factory"] = async_sessionmaker(bind=engine, expire_on_commit=False)
+    ctx["readonly_session_factory"] = ReadonlySessionFactory.from_settings(settings)
     ctx["telegram_client"] = TelegramClient.from_settings(settings)
     # Độ trễ giả chỉ để thử trên dev: một giá trị lỡ lọt vào `.env` production bị bỏ qua.
     is_production = settings.app_env.lower() == "production"
@@ -516,13 +524,23 @@ async def startup(ctx: dict[str, Any]) -> None:
     logger.info("Bot worker started up successfully.")
 
 
+async def _close_quietly(ctx: dict[str, Any], key: str, method: str) -> None:
+    """Đóng một thành phần của ngữ cảnh worker; lỗi chỉ được ghi lại để bước sau vẫn chạy."""
+    target = ctx.get(key)
+    if target is None:
+        return
+    try:
+        await getattr(target, method)()
+    except Exception as exc:
+        logger.warning("bot.shutdown_failed target=%s error=%s", key, type(exc).__name__)
+
+
 async def shutdown(ctx: dict[str, Any]) -> None:
-    dispatcher = ctx.get("dispatcher")
-    if dispatcher is not None:
-        await dispatcher.aclose()
-    client = ctx.get("telegram_client")
-    if client is not None:
-        await client.aclose()
+    # Mỗi bước độc lập: một bước lỗi không được làm các bước sau (và tiến trình) kẹt lại.
+    await _close_quietly(ctx, "readonly_session_factory", "aclose")
+    await _close_quietly(ctx, "db_engine", "dispose")
+    await _close_quietly(ctx, "dispatcher", "aclose")
+    await _close_quietly(ctx, "telegram_client", "aclose")
     logger.info("Bot worker shutting down.")
 
 

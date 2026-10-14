@@ -17,6 +17,7 @@ from app.bot_worker import (
     sweep_bot_updates,
 )
 from app.core.config import Settings
+from app.db.session import create_bot_engine
 from app.integrations.telegram import (
     TelegramApiError,
     TelegramForbiddenError,
@@ -134,17 +135,20 @@ async def test_startup_configures_logging_and_builds_the_worker_context(
         "configure_logging",
         lambda *args, **kwargs: configured.append((args, kwargs)),
     )
-    marker = object()
-    monkeypatch.setattr(bot_worker, "get_sessionmaker", lambda: marker)
     ctx: dict[str, Any] = {}
 
     await bot_worker.startup(ctx)
 
     assert len(configured) == 1  # worker không qua `create_app` nên phải tự bật bộ che token
-    assert ctx["session_factory"] is marker
+    assert ctx["session_factory"].kw["bind"] is ctx["db_engine"]  # engine riêng của worker
+    # RC-5 ở cấp worker: engine trong ngữ cảnh có pool nhỏ tường minh, không phải mặc định.
+    assert ctx["db_engine"].pool.size() == settings.bot_db_pool_size
+    assert ctx["db_engine"].pool._max_overflow == settings.bot_db_max_overflow
     assert ctx["bot_config"] == BotWorkerConfig.from_settings(settings)
     assert {"telegram_client", "chat_engine", "dispatcher"} <= ctx.keys()
     assert "TEST-TOKEN" not in repr(ctx["telegram_client"])
+    # Engine chỉ đọc tạo lười: khởi động xong chưa có engine, chưa có kết nối nào.
+    assert ctx["readonly_session_factory"].engine_created is False
     await bot_worker.shutdown(ctx)
 
 
@@ -165,7 +169,6 @@ async def test_the_stub_delay_is_a_dev_only_knob_and_production_ignores_it(
     )
     monkeypatch.setattr(bot_worker, "get_settings", lambda: settings)
     monkeypatch.setattr(bot_worker, "configure_logging", lambda *args, **kwargs: None)
-    monkeypatch.setattr(bot_worker, "get_sessionmaker", lambda: object())
     slept: list[float] = []
 
     async def fake_sleep(seconds: float) -> None:
@@ -200,3 +203,115 @@ def test_send_errors_are_classified_into_block_reject_retry_or_timeout(
     error: Exception, kind: str
 ) -> None:
     assert bot_worker._send_failure_kind(error) == kind
+
+
+def test_the_worker_has_an_explicitly_small_pool_for_its_main_engine() -> None:
+    # RC-5: mỗi tiến trình bot có hai engine; mặc định 5 + 10 của engine chính là quá nhiều.
+    settings = _settings(BOT_DB_POOL_SIZE=3, BOT_DB_MAX_OVERFLOW=2)
+
+    engine = create_bot_engine(settings)
+
+    assert engine.pool.size() == 3  # type: ignore[attr-defined]
+    assert engine.pool._max_overflow == 2  # type: ignore[attr-defined]  # không có API công khai
+
+
+def test_the_database_settings_for_the_bot_worker_have_small_defaults() -> None:
+    defaults = _settings()
+
+    assert (defaults.bot_db_pool_size, defaults.bot_db_max_overflow) == (4, 4)
+    assert (defaults.bot_readonly_pool_size, defaults.bot_readonly_max_overflow) == (2, 1)
+    assert defaults.bot_readonly_pool_timeout_seconds == 3
+    assert defaults.bot_readonly_statement_timeout_ms == 5000
+    assert defaults.bot_readonly_idle_in_transaction_timeout_ms == 10000
+
+
+@pytest.mark.parametrize("name", ["BOT_DB_MAX_OVERFLOW", "BOT_READONLY_MAX_OVERFLOW"])
+def test_the_pool_overflow_cannot_be_negative_because_that_means_unlimited(name: str) -> None:
+    # SQLAlchemy hiểu max_overflow=-1 là không giới hạn: sẽ phá RC-5 mà không bị từ chối.
+    with pytest.raises(ValidationError):
+        _settings(**{name: -1})
+
+
+def test_the_bot_engine_pings_connections_and_is_instrumented(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instrumented: list[object] = []
+    monkeypatch.setattr(
+        "app.db.session.instrument_sqlalchemy_engine", lambda engine: instrumented.append(engine)
+    )
+
+    engine = create_bot_engine(_settings())
+
+    assert engine.pool._pre_ping is True  # type: ignore[attr-defined]  # như engine toàn cục cũ
+    assert instrumented == [engine]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "BOT_DB_POOL_SIZE",
+        "BOT_READONLY_POOL_SIZE",
+        "BOT_READONLY_POOL_TIMEOUT_SECONDS",
+        "BOT_READONLY_STATEMENT_TIMEOUT_MS",
+        "BOT_READONLY_IDLE_IN_TRANSACTION_TIMEOUT_MS",
+    ],
+)
+def test_the_pool_sizes_and_timeouts_of_the_bot_worker_must_be_positive(name: str) -> None:
+    # 0 nghĩa là không có kết nối nào, hay (với timeout) không bao giờ hủy truy vấn.
+    with pytest.raises(ValidationError):
+        _settings(**{name: 0})
+
+
+async def test_shutdown_disposes_both_engines_and_tolerates_a_worker_that_never_started(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    disposed: list[str] = []
+
+    class _Closer:
+        def __init__(self, name: str) -> None:
+            self._name = name
+
+        async def dispose(self) -> None:
+            disposed.append(self._name)
+
+        async def aclose(self) -> None:
+            disposed.append(self._name)
+
+    await bot_worker.shutdown({})  # chưa khởi động xong mà bị tắt: không lỗi
+    await bot_worker.shutdown(
+        {"db_engine": _Closer("main"), "readonly_session_factory": _Closer("readonly")}
+    )
+
+    assert sorted(disposed) == ["main", "readonly"]
+
+
+async def test_a_failing_close_does_not_stop_the_rest_of_the_shutdown(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    closed: list[str] = []
+
+    class _Closer:
+        def __init__(self, name: str, *, fails: bool = False) -> None:
+            self._name = name
+            self._fails = fails
+
+        async def _close(self) -> None:
+            closed.append(self._name)
+            if self._fails:
+                raise RuntimeError("không đóng được")
+
+        dispose = _close
+        aclose = _close
+
+    await bot_worker.shutdown(
+        {
+            "readonly_session_factory": _Closer("readonly", fails=True),
+            "db_engine": _Closer("main"),
+            "dispatcher": _Closer("dispatcher"),
+            "telegram_client": _Closer("client"),
+        }
+    )
+
+    # Mọi thứ vẫn được đóng dù bước đầu lỗi, và lỗi được ghi lại (chỉ tên lớp, không kèm nội dung).
+    assert closed == ["readonly", "main", "dispatcher", "client"]
+    assert "bot.shutdown_failed target=readonly_session_factory error=RuntimeError" in caplog.text
