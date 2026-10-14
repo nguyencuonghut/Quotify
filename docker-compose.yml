@@ -24,6 +24,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/app
       MINIO_ENDPOINT: minio:9000
       REDIS_URL: redis://redis:6379/0
+      # Chatbot (kế hoạch 5.1): backend cần cờ để webhook chuyển tin vào hộp thư và để /metrics báo
+      # `quotify_bot_enabled`. Mặc định tắt; cùng biến shell với telegram-poller và bot-worker.
+      CHATBOT_ENABLED: ${CHATBOT_ENABLED:-false}
+      CHATBOT_PILOT_USER_EMAILS: ${CHATBOT_PILOT_USER_EMAILS:-}
     healthcheck:
       test:
         - CMD
@@ -215,6 +219,14 @@ services:
       sh -lc "uv sync &&
       exec uv run arq app.bot_worker.BotWorkerSettings"
     stop_grace_period: 30s
+    # `arq --check` thành công khi arq còn ghi khóa sức khỏe (health_check_interval 30s). `start_period`
+    # che thời gian `uv sync` lúc khởi động; PATH của image đã có /app/.venv/bin nên gọi thẳng `arq`.
+    healthcheck:
+      test: ["CMD", "arq", "--check", "app.bot_worker.BotWorkerSettings"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     depends_on:
       postgres:
         condition: service_healthy

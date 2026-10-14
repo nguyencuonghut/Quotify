@@ -289,16 +289,17 @@ class TelegramClient:
         secret_token: str,
         allowed_updates: list[str],
         drop_pending_updates: bool = False,
+        max_connections: int | None = None,
     ) -> None:
-        await self._call(
-            "setWebhook",
-            {
-                "url": url,
-                "secret_token": secret_token,
-                "allowed_updates": allowed_updates,
-                "drop_pending_updates": drop_pending_updates,
-            },
-        )
+        payload: dict[str, Any] = {
+            "url": url,
+            "secret_token": secret_token,
+            "allowed_updates": allowed_updates,
+            "drop_pending_updates": drop_pending_updates,
+        }
+        if max_connections is not None:  # không gửi thì Telegram dùng mặc định của họ (40)
+            payload["max_connections"] = max_connections
+        await self._call("setWebhook", payload)
 
     async def delete_webhook(self, *, drop_pending_updates: bool = False) -> None:
         await self._call("deleteWebhook", {"drop_pending_updates": drop_pending_updates})

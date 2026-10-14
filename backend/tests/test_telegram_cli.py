@@ -98,9 +98,16 @@ def test_main_reports_missing_token_without_a_traceback(
 
 
 class Recorder:
-    def __init__(self, *, username: str = "quotify_dev_bot", webhook_url: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        username: str = "quotify_dev_bot",
+        webhook_url: str = "",
+        max_connections: int | None = None,
+    ) -> None:
         self.username = username
         self.webhook_url = webhook_url
+        self.max_connections = max_connections
         self.requests: list[httpx.Request] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -115,6 +122,8 @@ class Recorder:
                 "last_error_message": "Wrong response from the webhook",
                 "allowed_updates": ["message"],
             }
+            if self.max_connections is not None:  # Telegram chỉ trả khi webhook đã đặt
+                result["max_connections"] = self.max_connections
         else:
             result = True
         return httpx.Response(200, json={"ok": True, "result": result})
@@ -179,6 +188,120 @@ async def test_set_webhook_with_yes_registers_it_without_printing_secrets() -> N
     printed = out.getvalue() + err.getvalue()
     assert "cli_secret-value_123" not in printed
     assert FAKE_TOKEN not in printed
+
+
+def _registered_payload(recorder: Recorder) -> dict[str, Any]:
+    request = next(r for r in recorder.requests if r.url.path.endswith("/setWebhook"))
+    return json.loads(request.content)  # type: ignore[no-any-return]
+
+
+@pytest.mark.asyncio
+async def test_set_webhook_passes_an_explicit_max_connections() -> None:
+    recorder = Recorder()
+    client, http_client = build(recorder)
+    out, err = io.StringIO(), io.StringIO()
+
+    code = await set_webhook_command(
+        client, cli_settings(), yes=True, out=out, err=err, max_connections=5
+    )
+    await http_client.aclose()
+
+    assert code == 0
+    assert _registered_payload(recorder)["max_connections"] == 5
+    assert "max_connections=5" in out.getvalue()  # người chạy thấy giá trị sẽ đặt
+
+
+@pytest.mark.asyncio
+async def test_set_webhook_on_production_defaults_to_one_connection_at_a_time() -> None:
+    recorder = Recorder()
+    client, http_client = build(recorder)
+    out, err = io.StringIO(), io.StringIO()
+
+    code = await set_webhook_command(
+        client, cli_settings(app_env="production"), yes=True, out=out, err=err
+    )
+    await http_client.aclose()
+
+    assert code == 0
+    assert _registered_payload(recorder)["max_connections"] == 1  # một update tại một thời điểm
+
+
+@pytest.mark.asyncio
+async def test_set_webhook_outside_production_leaves_the_telegram_default() -> None:
+    recorder = Recorder()
+    client, http_client = build(recorder)
+    out, err = io.StringIO(), io.StringIO()
+
+    code = await set_webhook_command(
+        client, cli_settings(app_env="development"), yes=True, out=out, err=err
+    )
+    await http_client.aclose()
+
+    assert code == 0
+    assert "max_connections" not in _registered_payload(recorder)
+    assert "max_connections" not in out.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_an_explicit_max_connections_wins_over_the_production_default() -> None:
+    recorder = Recorder()
+    client, http_client = build(recorder)
+    out, err = io.StringIO(), io.StringIO()
+
+    await set_webhook_command(
+        client,
+        cli_settings(app_env="production"),
+        yes=True,
+        out=out,
+        err=err,
+        max_connections=3,
+    )
+    await http_client.aclose()
+
+    assert _registered_payload(recorder)["max_connections"] == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", [0, -1, 101])
+async def test_set_webhook_rejects_a_max_connections_telegram_would_refuse(bad: int) -> None:
+    recorder = Recorder()
+    client, http_client = build(recorder)
+    out, err = io.StringIO(), io.StringIO()
+
+    code = await set_webhook_command(
+        client, cli_settings(), yes=True, out=out, err=err, max_connections=bad
+    )
+    await http_client.aclose()
+
+    assert code == 1
+    assert recorder.mutating_calls() == []
+    assert "1" in err.getvalue() and "100" in err.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_a_dry_run_shows_max_connections_without_registering() -> None:
+    recorder = Recorder()
+    client, http_client = build(recorder)
+    out, err = io.StringIO(), io.StringIO()
+
+    code = await set_webhook_command(
+        client, cli_settings(app_env="production"), yes=False, out=out, err=err
+    )
+    await http_client.aclose()
+
+    assert code == 3 and recorder.mutating_calls() == []
+    assert "max_connections=1" in out.getvalue()
+
+
+def test_the_set_command_has_a_max_connections_option() -> None:
+    from app.telegram_cli import _build_parser
+
+    parser = _build_parser()
+
+    assert parser.parse_args(["set", "--yes", "--max-connections", "2"]).max_connections == 2
+    assert parser.parse_args(["set"]).max_connections is None
+    with pytest.raises(SystemExit):
+        parser.parse_args(["set", "--max-connections", "abc"])
 
 
 @pytest.mark.asyncio
@@ -265,3 +388,119 @@ async def test_commands_registers_the_three_commands_for_private_chats() -> None
     assert [item["command"] for item in payload["commands"]] == ["start", "stop", "help"]
     assert all(item["description"] for item in payload["commands"])
     assert payload["scope"] == {"type": "all_private_chats"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("edge", [1, 100])
+async def test_set_webhook_accepts_the_two_ends_of_the_range_telegram_allows(edge: int) -> None:
+    recorder = Recorder()
+    client, http_client = build(recorder)
+
+    code = await set_webhook_command(
+        client,
+        cli_settings(),
+        yes=True,
+        out=io.StringIO(),
+        err=io.StringIO(),
+        max_connections=edge,
+    )
+    await http_client.aclose()
+
+    assert code == 0
+    assert _registered_payload(recorder)["max_connections"] == edge
+
+
+@pytest.mark.asyncio
+async def test_the_production_default_does_not_depend_on_how_app_env_is_capitalised() -> None:
+    # Poller và bot-worker so `APP_ENV` không phân biệt hoa thường; CLI phải nhất quán với chúng.
+    recorder = Recorder()
+    client, http_client = build(recorder)
+
+    await set_webhook_command(
+        client,
+        cli_settings(app_env="Production"),
+        yes=True,
+        out=io.StringIO(),
+        err=io.StringIO(),
+    )
+    await http_client.aclose()
+
+    assert _registered_payload(recorder)["max_connections"] == 1
+
+
+def _run_main(
+    monkeypatch: pytest.MonkeyPatch, recorder: Recorder, argv: list[str], **settings: Any
+) -> int:
+    from app import telegram_cli
+
+    client, _http_client = build(recorder)
+    monkeypatch.setattr(telegram_cli, "get_settings", lambda: cli_settings(**settings))
+    monkeypatch.setattr(TelegramClient, "from_settings", classmethod(lambda cls, _settings: client))
+    return telegram_cli.main(argv)
+
+
+def test_the_command_line_option_reaches_the_registered_webhook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorder = Recorder()
+
+    code = _run_main(monkeypatch, recorder, ["set", "--max-connections", "7", "--yes"])
+
+    assert code == 0
+    assert _registered_payload(recorder)["max_connections"] == 7
+
+
+def test_the_command_line_without_the_option_still_gets_the_production_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorder = Recorder()
+
+    code = _run_main(monkeypatch, recorder, ["set", "--yes"], app_env="production")
+
+    assert code == 0
+    assert _registered_payload(recorder)["max_connections"] == 1
+
+
+@pytest.mark.asyncio
+async def test_info_shows_how_many_updates_telegram_sends_at_once() -> None:
+    recorder = Recorder(webhook_url="https://quotify.example.test/hook", max_connections=1)
+    client, http_client = build(recorder)
+    out = io.StringIO()
+
+    await info_command(client, out=out, err=io.StringIO())
+    await http_client.aclose()
+
+    assert "max_connections: 1" in out.getvalue()  # đủ để kiểm việc đăng ký đã có hiệu lực
+
+
+@pytest.mark.asyncio
+async def test_the_set_preview_shows_the_current_max_connections_next_to_the_new_one() -> None:
+    recorder = Recorder(webhook_url="https://old.example.test/hook", max_connections=40)
+    client, http_client = build(recorder)
+    out = io.StringIO()
+
+    code = await set_webhook_command(
+        client,
+        cli_settings(app_env="production"),
+        yes=False,
+        out=out,
+        err=io.StringIO(),
+    )
+    await http_client.aclose()
+
+    assert code == 3
+    text = out.getvalue()
+    assert "max_connections hiện tại: 40" in text
+    assert "max_connections=1" in text  # giá trị sẽ đặt
+
+
+@pytest.mark.asyncio
+async def test_the_preview_of_a_bot_without_a_webhook_does_not_invent_a_current_value() -> None:
+    recorder = Recorder(webhook_url="")  # chưa đặt webhook: Telegram không trả max_connections
+    client, http_client = build(recorder)
+    out = io.StringIO()
+
+    await set_webhook_command(client, cli_settings(), yes=False, out=out, err=io.StringIO())
+    await http_client.aclose()
+
+    assert "max_connections hiện tại" not in out.getvalue()

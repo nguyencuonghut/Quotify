@@ -180,6 +180,42 @@ services:
       OTEL_ENABLED: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
 
+  # Worker của chatbot (kế hoạch 5.1). Nằm sau profile `chatbot` nên `docker compose up -d` thường KHÔNG
+  # khởi động nó; bật có chủ đích (runbook mục 16):
+  #   docker compose -f docker-compose.prod.yml --profile chatbot up -d bot-worker
+  # Công tắc tắt khẩn cấp là CHATBOT_ENABLED=false trong .env (recreate backend và bot-worker); nhanh
+  # nhất là `docker compose -f docker-compose.prod.yml stop bot-worker` (tin vẫn xếp hàng trong Postgres).
+  # Dạng danh sách để arq là tiến trình chính và nhận SIGTERM; 30s đủ để huỷ job và nhả lease (KT18).
+  bot-worker:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+      target: prod
+    profiles:
+      - chatbot
+    command: ["arq", "app.bot_worker.BotWorkerSettings"]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "arq", "--check", "app.bot_worker.BotWorkerSettings"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      LOG_FORMAT: json
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+
 volumes:
   postgres_prod_data:
   minio_prod_data:

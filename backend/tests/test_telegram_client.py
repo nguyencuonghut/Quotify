@@ -487,3 +487,29 @@ async def test_send_message_can_be_silent() -> None:
 
     assert json.loads(seen[0].content)["disable_notification"] is True
     assert "disable_notification" not in json.loads(seen[1].content)
+
+
+@pytest.mark.asyncio
+async def test_set_webhook_sends_max_connections_only_when_asked() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    client, http_client = make_client(httpx.MockTransport(handler))
+
+    await client.set_webhook(
+        url="https://example.test/hook",
+        secret_token="s3cret",
+        allowed_updates=[],
+        max_connections=1,
+    )
+    # Không truyền: để Telegram dùng mặc định của họ (40).
+    await client.set_webhook(
+        url="https://example.test/hook", secret_token="s3cret", allowed_updates=[]
+    )
+    await http_client.aclose()
+
+    assert json.loads(seen[0].content)["max_connections"] == 1
+    assert "max_connections" not in json.loads(seen[1].content)

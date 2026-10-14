@@ -101,6 +101,11 @@ services:
       TELEGRAM_BOT_USERNAME: quotify_e2e_bot
       TELEGRAM_WEBHOOK_SECRET: "${E2E_TELEGRAM_WEBHOOK_SECRET:-e2e_webhook_secret_value}"
       TELEGRAM_API_BASE_URL: http://fake-telegram:8081
+      # Chatbot tắt trong E2E dù .env của dev có bật (không có worker thì tin chỉ xếp hàng); thử chatbot:
+      # E2E_CHATBOT_ENABLED=true docker compose -f docker-compose.test.yml --profile chatbot up ...
+      CHATBOT_ENABLED: "${E2E_CHATBOT_ENABLED:-false}"
+      # Chuông của chatbot đọc REDIS_HOST (không đọc REDIS_URL); .env của dev đặt nó là `redis`.
+      REDIS_HOST: redis-test
     depends_on:
       postgres-test:
         condition: service_healthy
@@ -254,6 +259,51 @@ services:
       - ./backend:/app
       - backend_venv:/app/.venv
       - ./backups:/app/backups
+
+  # Worker của chatbot cho kiểm thử, opt-in (`--profile chatbot`) nên `make docker-test` mặc định không
+  # chạy nó. Chỉ nói chuyện với fake-telegram; cần backend-e2e bật cờ bằng E2E_CHATBOT_ENABLED=true.
+  bot-worker-test:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+      target: dev
+    profiles:
+      - chatbot
+    command: >
+      sh -lc "uv sync &&
+      exec uv run arq app.bot_worker.BotWorkerSettings"
+    stop_grace_period: 30s
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+      fake-telegram:
+        condition: service_healthy
+      # backend-e2e chạy migration trên app_test: thiếu nó thì hộp thư chưa có bảng.
+      backend-e2e:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      APP_ENV: test
+      APP_DEBUG: "false"
+      PYTHONPATH: /app
+      POSTGRES_HOST: postgres-test
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres-test:5432/app_test
+      REDIS_URL: redis://redis-test:6379/0
+      # arq đọc REDIS_HOST (không đọc REDIS_URL); .env của dev đặt nó là `redis`.
+      REDIS_HOST: redis-test
+      CHATBOT_ENABLED: "true"
+      BOT_STUB_DELAY_SECONDS: "0"
+      # Token và địa chỉ giả ghi đè token dev trong .env: không bao giờ ra internet.
+      TELEGRAM_ENABLED: "true"
+      TELEGRAM_BOT_TOKEN: e2e-fake-bot-token
+      TELEGRAM_BOT_USERNAME: quotify_e2e_bot
+      TELEGRAM_API_BASE_URL: http://fake-telegram:8081
+    volumes:
+      - ./backend:/app
+      - backend_venv:/app/.venv
 
 volumes:
   postgres_test_data:

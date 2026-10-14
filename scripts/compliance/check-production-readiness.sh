@@ -27,8 +27,11 @@ for relative_path in "${required_files[@]}"; do
 done
 
 bash "$ROOT_DIR/scripts/compliance/check-price-alert-readiness.sh"
+bash "$ROOT_DIR/scripts/compliance/check-chatbot-readiness.sh"
 
 docker compose -f "$ROOT_DIR/docker-compose.prod.yml" config >/dev/null
+# `config` thường bỏ qua service có profile; nêu profile để lỗi trong bot-worker không lọt.
+docker compose -f "$ROOT_DIR/docker-compose.prod.yml" --profile chatbot config >/dev/null
 docker compose -f "$ROOT_DIR/docker-compose.observability.yml" config >/dev/null
 
 echo "Production readiness compliance assets are present and compose files are valid."

@@ -58,6 +58,8 @@ async def _describe_bot_and_webhook(
     current_url = str(info.get("url") or "")
     out.write(f"Bot: @{bot.username} (id={bot.id})\n")
     out.write(f"Webhook hiện tại: {current_url or '(chưa đặt)'}\n")
+    if info.get("max_connections") is not None:  # Telegram chỉ trả khi webhook đã được đặt
+        out.write(f"max_connections hiện tại: {info['max_connections']}\n")
     configured = settings.telegram_bot_username
     if configured and (bot.username or "").lower() != configured.lower():
         err.write(
@@ -68,6 +70,23 @@ async def _describe_bot_and_webhook(
     return True, current_url
 
 
+# Telegram chấp nhận 1 đến 100 kết nối đồng thời tới webhook.
+MIN_WEBHOOK_CONNECTIONS = 1
+MAX_WEBHOOK_CONNECTIONS = 100
+# Production mặc định một update tại một thời điểm (kế hoạch chatbot 5.1, RC-17 và RC-24): giữ thứ
+# tự tin của mỗi chat và không để các update chạy song song trên một webhook.
+PRODUCTION_WEBHOOK_CONNECTIONS = 1
+
+
+def _webhook_connections(settings: Settings, requested: int | None) -> int | None:
+    """Số kết nối sẽ đặt: giá trị yêu cầu, hay 1 trên production, hay `None` (mặc định Telegram)."""
+    if requested is not None:
+        return requested
+    if settings.app_env.lower() == "production":
+        return PRODUCTION_WEBHOOK_CONNECTIONS
+    return None
+
+
 async def set_webhook_command(
     client: TelegramClient,
     settings: Settings,
@@ -75,14 +94,26 @@ async def set_webhook_command(
     yes: bool,
     out: TextIO,
     err: TextIO,
+    max_connections: int | None = None,
 ) -> int:
     if not settings.telegram_webhook_url or not settings.telegram_webhook_secret:
         err.write("Thiếu TELEGRAM_WEBHOOK_URL hoặc TELEGRAM_WEBHOOK_SECRET.\n")
         return 1
+    if max_connections is not None and not (
+        MIN_WEBHOOK_CONNECTIONS <= max_connections <= MAX_WEBHOOK_CONNECTIONS
+    ):
+        err.write(
+            f"max_connections phải từ {MIN_WEBHOOK_CONNECTIONS} đến {MAX_WEBHOOK_CONNECTIONS} "
+            "(giới hạn của Telegram).\n"
+        )
+        return 1
+    connections = _webhook_connections(settings, max_connections)
     matches, _current = await _describe_bot_and_webhook(client, settings, out=out, err=err)
     if not matches:
         return 2
     out.write(f"Sẽ đặt webhook thành: {settings.telegram_webhook_url}\n")
+    if connections is not None:
+        out.write(f"max_connections={connections} (số update Telegram gửi đồng thời)\n")
     if not yes:
         out.write("Chưa thực hiện thay đổi nào. Chạy lại với --yes để xác nhận.\n")
         return 3
@@ -91,6 +122,7 @@ async def set_webhook_command(
         secret_token=settings.telegram_webhook_secret,
         allowed_updates=ALLOWED_UPDATES,
         drop_pending_updates=False,
+        max_connections=connections,
     )
     out.write("Đã đặt webhook.\n")
     return 0
@@ -121,6 +153,7 @@ async def info_command(client: TelegramClient, *, out: TextIO, err: TextIO) -> i
     for key in (
         "url",
         "pending_update_count",
+        "max_connections",
         "last_error_date",
         "last_error_message",
         "allowed_updates",
@@ -161,10 +194,21 @@ def _build_parser() -> argparse.ArgumentParser:
     ):
         sub = subparsers.add_parser(name, help=help_text)
         sub.add_argument("--yes", action="store_true", help="Xác nhận thực hiện thay đổi.")
+        if name == "set":
+            sub.add_argument(
+                "--max-connections",
+                type=int,
+                default=None,
+                help=(
+                    f"Số update Telegram gửi đồng thời ({MIN_WEBHOOK_CONNECTIONS} đến "
+                    f"{MAX_WEBHOOK_CONNECTIONS}). Mặc định: {PRODUCTION_WEBHOOK_CONNECTIONS} trên "
+                    "production, còn lại để Telegram dùng mặc định."
+                ),
+            )
     return parser
 
 
-async def _run(command: str, *, yes: bool) -> int:
+async def _run(command: str, *, yes: bool, max_connections: int | None = None) -> int:
     settings = get_settings()
     configure_logging(
         settings.log_level,
@@ -189,7 +233,12 @@ async def _run(command: str, *, yes: bool) -> int:
             return await info_command(client, out=sys.stdout, err=sys.stderr)
         if command == "set":
             return await set_webhook_command(
-                client, settings, yes=yes, out=sys.stdout, err=sys.stderr
+                client,
+                settings,
+                yes=yes,
+                out=sys.stdout,
+                err=sys.stderr,
+                max_connections=max_connections,
             )
         if command == "delete":
             return await delete_webhook_command(
@@ -207,4 +256,10 @@ async def _run(command: str, *, yes: bool) -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-    return asyncio.run(_run(args.command, yes=bool(getattr(args, "yes", False))))
+    return asyncio.run(
+        _run(
+            args.command,
+            yes=bool(getattr(args, "yes", False)),
+            max_connections=getattr(args, "max_connections", None),
+        )
+    )

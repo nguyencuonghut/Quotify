@@ -185,8 +185,12 @@ trên chạy bình thường, không cần tránh ký tự `%` khi chọn mật 
 ## 3. Build image production qua SSH (không CI/CD)
 
 ```bash
-docker compose -f docker-compose.prod.yml build backend frontend worker
+docker compose -f docker-compose.prod.yml build backend frontend worker bot-worker
 ```
+
+`bot-worker` (chatbot, mục 16) nằm sau profile `chatbot` nên `up -d` thường không khởi động nó; build đích danh vẫn
+tạo image để sẵn sàng khi bật. Nó dùng cùng Dockerfile và target `prod` với `worker` nhưng **tên image khác**, nên bỏ
+sót tên này ở bước build nghĩa là sau này chạy image cũ.
 
 ## 4. Bootstrap chứng chỉ TLS (chỉ chạy 1 lần, trước khi `up` lần đầu)
 
@@ -394,8 +398,10 @@ diff .env.production.example .env || true
 ### 9.4 Build lại image
 
 ```bash
-docker compose -f docker-compose.prod.yml build backend frontend worker
+docker compose -f docker-compose.prod.yml build backend frontend worker bot-worker
 ```
+
+`bot-worker` có tên image riêng, đừng bỏ sót (xem mục 16.1).
 
 ### 9.5 Migrate — chạy bằng container tạm từ image mới, chưa đụng tới container đang chạy
 
@@ -425,7 +431,9 @@ docker compose -f docker-compose.prod.yml up -d
 
 Compose chỉ tạo lại các service có image thay đổi (`backend`/`frontend`/`worker`
 ở bước 9.4) — `postgres`/`redis`/`minio`/`reverse-proxy`/`certbot` không bị
-restart nếu ảnh của chúng không đổi.
+restart nếu ảnh của chúng không đổi. `bot-worker` thuộc profile `chatbot` nên `up -d` thường **không** đụng tới nó:
+nếu chatbot đang chạy (mục 16) thì chạy thêm
+`docker compose -f docker-compose.prod.yml --profile chatbot up -d bot-worker` để nó dùng image mới.
 
 **Quan trọng — luôn restart `reverse-proxy` ngay sau bước này:** Nginx chỉ
 phân giải DNS tên service (`backend`/`frontend`) MỘT LẦN lúc khởi động rồi
@@ -625,6 +633,9 @@ HTTPS cổng 443/80/88/8443, TLS 1.2+, chứng chỉ có CN trùng domain và đ
    docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py info
    ```
 
+   Từ khi có chatbot, `set` trên production **mặc định đặt `max_connections=1`** (bản xem trước in giá trị này);
+   xem mục 16.3 trước khi chạy `set --yes` lần nữa.
+
 4. Thử với **một** tài khoản: trang Hồ sơ → "Liên kết Telegram" → mở đường dẫn (hoặc quét mã QR hiện cạnh nút; iPhone chỉ nhận ra mã, phải chạm vào nhãn hiện ở đầu màn hình camera để mở Telegram) → Start → bot trả
    "Đã liên kết". Thử `/help`, đổi sang tài khoản Telegram khác, rồi "Hủy liên kết". Xem
    nhật ký audit (`telegram.link_requested`, `telegram.linked`, `telegram.unlinked`).
@@ -646,6 +657,9 @@ HTTPS cổng 443/80/88/8443, TLS 1.2+, chứng chỉ có CN trùng domain và đ
 2. Đặt `TELEGRAM_ENABLED=false` trong `.env`.
 3. `docker compose -f docker-compose.prod.yml up -d --force-recreate backend`, rồi
    `docker compose -f docker-compose.prod.yml restart reverse-proxy`.
+   Nếu chatbot đang chạy (mục 16), **dừng cả `bot-worker`**:
+   `docker compose -f docker-compose.prod.yml --profile chatbot stop bot-worker`. Worker đọc cờ lúc khởi động
+   nên nếu để nguyên, nó vẫn gửi trả lời Telegram sau khi `backend` đã tắt.
 4. **Giữ nguyên schema**, không `alembic downgrade` trên production (bảng mới tương thích code cũ).
 
 ### 12.6 Môi trường dev
@@ -999,8 +1013,11 @@ Dùng cho các thay đổi nhỏ sau đợt 1D (ví dụ định dạng tin nh�
 ```bash
 cd /opt/quotify
 git pull --ff-only origin main
-docker compose -f docker-compose.prod.yml build backend worker frontend 2>&1 | tail -6
+docker compose -f docker-compose.prod.yml build backend worker bot-worker frontend 2>&1 | tail -6
 docker compose -f docker-compose.prod.yml up -d --force-recreate backend worker frontend
+# Chỉ khi chatbot ĐANG chạy (mục 16): thêm dòng dưới. Nếu chưa bật thì KHÔNG chạy: nêu tên service thuộc
+# profile là kích hoạt profile, tức là khởi động bot-worker.
+# docker compose -f docker-compose.prod.yml --profile chatbot up -d --force-recreate bot-worker
 sleep 20
 docker compose -f docker-compose.prod.yml restart reverse-proxy   # BẮT BUỘC sau khi tạo lại service
 sleep 5
@@ -1011,7 +1028,150 @@ docker compose -f docker-compose.prod.yml logs worker --tail 30 2>&1 | grep -iE 
 ```
 
 - **Bắt buộc `restart reverse-proxy`** sau khi tạo lại `backend` hoặc `frontend`: nginx giữ địa chỉ IP cũ của service, nên nếu bỏ bước này thì trình duyệt nhận `502` (console báo `ApiError: API request failed` ở bước khởi tạo) và `reverse-proxy` hiện `unhealthy`. Sự cố này đã xảy ra ngày 2026-10-07 khi deploy bản định dạng tin nhắc và bảng Dashboard mà quên bước này.
-- Build chỉ cần các service có thay đổi; thêm `backend` luôn kéo theo `worker` (dùng chung code).
+- Build chỉ cần các service có thay đổi; thêm `backend` luôn kéo theo `worker` và `bot-worker` (dùng chung code, mỗi service một tên image).
 - Nếu Docker Hub không vào được (đã gặp ngày 2026-10-07): kéo image `node` qua `mirror.gcr.io` và gắn lại tên, xem nhật ký deploy ở tài liệu kế hoạch 1D.
 - Mỗi điểm vào (worker, lệnh CLI) phải nạp được ở tiến trình mới: kiểm `docker compose ... logs worker` có dòng `Starting worker for ... functions` và không có `ImportError` sau mỗi lần tạo lại.
 
+
+## 16. Chatbot Telegram (kế hoạch 5.1, đường ống bot)
+
+Người đã liên kết Telegram nhắn tin cho bot; webhook ghi tin vào hộp thư `bot_updates` trong Postgres (nguồn sự thật)
+rồi "đánh chuông" bằng arq (hàng đợi `quotify:bot`); `bot-worker` nhận chuông, xử lý từng chat một và gửi câu trả lời.
+Kế hoạch và các quyết định: `docs/quotify/plan-telegram-chatbot-5-1-kien-truc.md`. **Trình tự đưa chatbot lên production
+lần đầu là một đợt riêng (S9) có xác nhận của người phụ trách**; mục này là cách bật, tắt và theo dõi.
+
+### 16.1 Khác biệt so với deploy thường
+
+- **`bot-worker` nằm sau profile `chatbot`**: `up -d` thường và `up -d --force-recreate backend worker frontend` không
+  khởi động hay tạo lại nó. Không có thay đổi nào ở runtime production cho đến khi bật có chủ đích.
+- **Nêu tên service thuộc profile là kích hoạt profile.** `up -d --force-recreate bot-worker` sẽ khởi động nó dù
+  chatbot chưa bật; chỉ chạy lệnh đó khi có ý định bật hoặc nó đang chạy.
+- **Mọi danh sách build phải có `bot-worker`**: cùng Dockerfile và target `prod` với `worker` nhưng tên image khác.
+  Build đích danh (`build bot-worker`) vẫn tạo image dù profile tắt. Danh sách recreate chỉ thêm khi nó đang chạy.
+- Các trình tự phát hành đã làm một lần (12.8, 13, 14, 15.2) có danh sách `build backend [frontend] worker` **không** có
+  `bot-worker`: đó là lịch sử, chatbot lúc đó chưa tồn tại. Khi lặp lại một việc nào đó, dùng danh sách ở mục 3, 9.4
+  và 15.6, không chép từ các mục đó.
+- Chỉ **thêm** bảng (`bot_updates`), không đổi hay xóa gì: **không** `alembic downgrade`, code cũ chạy được trên schema mới.
+- Không build `frontend`: chatbot không đổi giao diện web.
+- Worker **không tự reload code**: sau mỗi lần pull code phải build lại và tạo lại `bot-worker` (nếu đang chạy).
+  Tạo lại gửi `SIGTERM`; worker huỷ việc đang làm và nhả lease trong khoảng 1 giây, Docker chờ tối đa 30 giây.
+
+### 16.2 Bật chatbot
+
+Chỉ làm khi đã có xác nhận. Cần `TELEGRAM_ENABLED=true` và bot đã nhận webhook (mục 12).
+
+1. Trong `.env` đặt `CHATBOT_ENABLED=true` và `CHATBOT_PILOT_USER_EMAILS=<email thử, cách nhau bằng dấu phẩy>`
+   (không phân biệt hoa thường). **Để trống = mọi người đã liên kết**; có giá trị = **chỉ** những người này; có giá trị
+   mà không có email nào (ví dụ chỉ dấu phẩy) = đóng, không ai được chuyển tin. Trong giai đoạn thử luôn đặt danh sách.
+2. Tạo lại `backend` (webhook và `/metrics` đọc hai biến này), rồi restart `reverse-proxy`:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d --force-recreate backend
+   docker compose -f docker-compose.prod.yml restart reverse-proxy
+   ```
+
+3. Khởi động worker và chờ `healthy` (healthcheck chạy `arq --check`, `start_period` 30 giây):
+
+   ```bash
+   docker compose -f docker-compose.prod.yml --profile chatbot up -d bot-worker
+   docker compose -f docker-compose.prod.yml --profile chatbot ps bot-worker
+   docker compose -f docker-compose.prod.yml --profile chatbot logs --tail 30 bot-worker
+   ```
+
+   Log phải có dòng `Starting worker for ... functions` và **không** có token hay nội dung tin nhắn.
+4. **Đổi danh sách thử** sau này: sửa `CHATBOT_PILOT_USER_EMAILS` trong `.env`, tạo lại **`backend`** (danh sách chỉ áp
+   lúc chuyển tin ở webhook; worker không đọc nó), rồi restart `reverse-proxy`.
+5. Gửi một tin bằng tài khoản thử, rồi xem 16.4.
+
+Các tham số khác (`BOT_*`) có sẵn giá trị mặc định trong `.env.production.example`; chỉ đổi khi có số đo. **Backend cũng
+đọc `BOT_QUEUE_NAME` (hàng đợi để đánh chuông) và `BOT_MAX_PENDING_PER_CHAT` (trần tin chờ của mỗi chat)**, nên đổi bất
+kỳ biến `BOT_*` nào cũng phải tạo lại **cả `backend` và `bot-worker`** (đổi `BOT_QUEUE_NAME` ở một phía thì chuông
+rơi vào hàng đợi không ai nghe, tin chỉ được cứu bởi cron quét). Giữ các ràng buộc
+ghi ở đó (`BOT_JOB_TIMEOUT_SECONDS` > drain + row + send; `BOT_LEASE_SECONDS` > row + send), nếu không dòng bị xử lý chồng.
+
+### 16.3 Đăng ký lại webhook với `max_connections`
+
+Telegram mặc định gửi tới 40 update song song nên tin có thể đến lệch thứ tự. Đặt `max_connections=1` để chúng đến
+lần lượt. Lệnh dưới là **thao tác ngoại vi trên production**: xem bản xem trước (không có `--yes`) rồi xin xác nhận.
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py set --max-connections 1
+docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py set --max-connections 1 --yes
+docker compose -f docker-compose.prod.yml run --rm backend uv run python scripts/telegram_webhook.py info
+```
+
+- Khi `APP_ENV=production` mà không truyền `--max-connections`, lệnh `set` đã mặc định là `1`; vẫn nên truyền rõ để
+  giá trị hiện trong bản xem trước. Giá trị hợp lệ từ 1 đến 100.
+- `info` in `max_connections` (phải bằng giá trị vừa đặt), `pending_update_count` (phải về 0 sau vài giây) và
+  `last_error_message`; bản xem trước của `set` in thêm `max_connections hiện tại`. Gõ thử một lệnh và bấm một nút
+  duyệt giá để chắc chắn chúng vẫn phản hồi.
+- Với `max_connections=1`, một request webhook chậm làm mọi update khác xếp hàng sau nó. Phần ghi DB có hạn 4 giây,
+  nhưng lệnh và nút bấm còn **gửi trả lời Telegram ngay trong request** (mỗi lần gọi tối đa 10 giây), nên khi
+  `api.telegram.org` chậm thì cả hàng chậm theo. Sau khi đặt, theo dõi `pending_update_count` và
+  `last_error_message` một lúc; hàng tăng mà không giảm thì hoàn tác (bên dưới).
+- **Hoàn tác** về mặc định của Telegram: `set --max-connections 40 --yes` (thao tác ngoại vi, xin xác nhận).
+
+### 16.4 Theo dõi (chỉ đọc)
+
+Backend phơi các số đo tính lúc scrape từ DB (không cần worker để chúng chạy):
+
+| Số đo | Ý nghĩa | Cảnh báo |
+|---|---|---|
+| `quotify_bot_enabled` | 1 khi backend thấy cờ chatbot và Telegram bật | không có; **0 khi bạn tưởng đã bật nghĩa là `.env` của backend sai** |
+| `quotify_bot_updates{status}` | số dòng theo trạng thái (đang mở: tính hết; đã kết thúc: 24 giờ gần nhất) | không có |
+| `quotify_bot_queued_oldest_age_seconds` | tuổi tin cũ nhất đang chờ mà claim được | `ChatbotQueueStuck`: trên 120 giây trong 5 phút (worker chết, kẹt hay LLM chậm) |
+| `quotify_bot_recent_failures` | số dòng `failed` trong 30 phút gần nhất | `ChatbotUpdatesFailing`: lớn hơn 0 trong 1 phút (tự hết sau 30 phút nếu không có lỗi mới) |
+| `quotify_bot_quota_denied` | số dòng bị từ chối vì hết hạn mức trong 24 giờ (luôn 0 cho đến khi có hạn mức mỗi ngày, S10) | không có |
+| `quotify_bot_metrics_up` | 0 khi backend không đọc được DB để tính số đo | `ChatbotMetricsUnavailable`: bằng 0 trong 10 phút |
+
+Khi chatbot tắt (cờ môi trường hoặc cờ Telegram), chỉ có `quotify_bot_enabled` (0) và `quotify_bot_metrics_up`: dòng còn
+nằm lại trong hộp thư không làm cảnh báo hàng đợi nổ mãi.
+
+Worker **thoát** (lỗi nặng, bị kill) thì `restart: unless-stopped` khởi động lại ngay. Worker **treo** (vòng lặp bị
+chặn, mất Redis) không thoát nên Docker chỉ báo `unhealthy` (khóa sức khỏe sống 31 giây rồi `arq --check` hỏng, 3 lần
+liên tiếp thì `unhealthy`: khoảng 2 phút) và **không ai tự khởi động lại nó**: khi `ChatbotQueueStuck` nổ, xem `ps`
+rồi `docker compose -f docker-compose.prod.yml --profile chatbot restart bot-worker` bằng tay. Xem nhanh:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile chatbot ps bot-worker
+docker compose -f docker-compose.prod.yml --profile chatbot exec bot-worker arq --check app.bot_worker.BotWorkerSettings
+docker compose -f docker-compose.prod.yml --profile chatbot logs --tail 100 bot-worker | grep -E "bot\."
+```
+
+Truy vấn hộp thư (chỉ đọc; **không** chọn `payload_text` hay `reply_text`, đó là nội dung người dùng):
+
+```sql
+select status, count(*), min(received_at) as oldest from bot_updates group by status order by status;
+select error_category, count(*) from bot_updates
+ where status in ('failed', 'dropped') and received_at > now() - interval '24 hours'
+ group by error_category order by count(*) desc;
+```
+
+Log của chatbot (`bot.*`) chỉ có `update_id`, `status`, `attempts`, `duration_ms`, `category`, tên lớp ngoại lệ và vài
+trường cố định; **không bao giờ** có nội dung tin, câu trả lời hay token. Nếu thấy nội dung trong log, tắt chatbot ngay (16.5).
+
+### 16.5 Tắt khẩn cấp và rollback
+
+1. **Dừng xử lý ngay (nhanh nhất, không đổi cấu hình):**
+   `docker compose -f docker-compose.prod.yml --profile chatbot stop bot-worker`. Tin vẫn được ghi vào hộp thư và chờ
+   trong Postgres; người dùng chưa nhận câu trả lời. Chạy lại worker thì tin chờ quá 20 phút
+   (`BOT_MESSAGE_TTL_SECONDS`) bị bỏ và người gửi nhận thông báo tin quá cũ.
+2. **Tắt hẳn:** đặt `CHATBOT_ENABLED=false` trong `.env`, tạo lại **cả `backend` và `bot-worker`**
+   (`docker compose -f docker-compose.prod.yml --profile chatbot up -d --force-recreate backend bot-worker`), rồi restart
+   `reverse-proxy`. Backend thôi chuyển tin vào hộp thư và worker thôi xử lý: dòng còn mở **nằm yên cùng nội dung tin của chúng** (xem
+   bước 5). Bước 1 đã dừng worker thì bỏ `bot-worker` khỏi lệnh này để không khởi động lại nó.
+3. Các tính năng khác (thông báo giá, nút duyệt giá, `/start`, `/stop`) **không** phụ thuộc chatbot và vẫn chạy. Chỉ khi
+   cần tắt cả Telegram mới theo mục 12.5 (gồm dừng `bot-worker`).
+4. **Rollback code:** `git checkout <commit trước>`, build lại `backend worker bot-worker`, tạo lại. Schema giữ nguyên,
+   **không** `alembic downgrade`. Hộp thư cũ vẫn còn trong bảng; dòng đang mở sẽ bị bỏ vì quá cũ khi chạy lại.
+5. Dòng đã kết thúc tự xóa sau 30 ngày (`BOT_TERMINAL_RETENTION_DAYS`) bằng cron 03:40; nội dung tin đã bị xóa từ lúc
+   dòng kết thúc, chỉ còn siêu dữ liệu. **Dòng còn mở giữ nguyên nội dung tin** (`payload_text`, `reply_text`) cho đến
+   khi kết thúc, mà khi chatbot tắt thì worker không chạy nên chúng không kết thúc. Tắt lâu, hay tắt vì nghi nội dung bị
+   rò, thì **sau khi đã dừng `bot-worker`** kết thúc chúng và xóa nội dung (người gửi không nhận thông báo nào):
+
+   ```sql
+   update bot_updates
+      set status = 'dropped', error_category = 'operator_purge', finished_at = now(),
+          payload_text = null, reply_text = null
+    where status in ('queued', 'processing');
+   ```
