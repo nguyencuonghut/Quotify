@@ -130,6 +130,24 @@ _SQL_PENDING = text(
      LIMIT :limit
     """
 )
+# `received_at` cũ nhất trong các dòng claim được ngay lúc này (cùng điều kiện với `_SQL_PENDING`,
+# với mốc "đủ cũ" là ngay bây giờ): dòng xếp sau một dòng đang chạy hay đang chờ thử lại KHÔNG tính,
+# nếu không một hàng chờ hợp lệ sẽ làm cảnh báo "hàng đợi kẹt" nổ oan.
+_SQL_OLDEST_CLAIMABLE = text(
+    """
+    SELECT min(b.received_at)
+      FROM bot_updates b
+     WHERE b.status IN ('queued','processing')
+       AND ((b.status = 'queued' AND b.lease_until IS NULL)
+         OR (b.status = 'queued' AND b.lease_until IS NOT NULL AND b.lease_until <= :now)
+         OR (b.status = 'processing' AND b.lease_until <= :now))
+       AND NOT EXISTS (
+            SELECT 1 FROM bot_updates p
+             WHERE p.chat_id = b.chat_id
+               AND ((p.status = 'processing' AND p.lease_until > :now)
+                 OR (p.status = 'queued' AND p.lease_until > :now)))
+    """
+)
 _SQL_DELETE_FINISHED = text(
     """
     DELETE FROM bot_updates
@@ -382,6 +400,13 @@ class BotInbox:
             {"now": now, "cutoff": now - timedelta(seconds=stale_seconds), "limit": limit},
         )
         return [PendingChat(row.chat_id, row.update_id) for row in result]
+
+    async def oldest_claimable_received_at(self, *, now: datetime) -> datetime | None:
+        """Thời điểm nhận của dòng claim được cũ nhất lúc này, `None` nếu không có (chỉ đọc)."""
+        _require_aware(now, "now")
+        result = await self.session.execute(_SQL_OLDEST_CLAIMABLE, {"now": now})
+        value = result.scalar_one()
+        return value if isinstance(value, datetime) else None
 
     async def delete_finished_before(self, cutoff: datetime) -> int:
         """Xóa dòng đã kết thúc (`replied`, `failed`, `dropped`) trước `cutoff`. Trả số dòng xóa."""

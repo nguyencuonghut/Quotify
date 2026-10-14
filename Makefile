@@ -2,6 +2,7 @@ SHELL := /bin/bash
 
 UV_CACHE_DIR ?= /tmp/uv-cache
 DOCKER_TEST_COMPOSE := docker compose -f docker-compose.test.yml
+PROMETHEUS_IMAGE ?= prom/prometheus:v3.5.0
 PROD_COMPOSE := docker compose -f docker-compose.prod.yml
 
 .PHONY: \
@@ -23,6 +24,7 @@ PROD_COMPOSE := docker compose -f docker-compose.prod.yml
 	frontend-check \
 	security-check \
 	production-readiness-check \
+	alert-rules-check \
 	backup-postgres-dry-run \
 	backup-minio-dry-run \
 	frontend-check-e2e \
@@ -90,6 +92,12 @@ security-check: backend-security backend-dependency-audit frontend-dependency-au
 
 production-readiness-check:
 	bash scripts/compliance/check-production-readiness.sh
+
+# Kiểm cú pháp và chạy kiểm thử luật cảnh báo chatbot bằng promtool trong image Prometheus (máy dev và
+# CI thường không có sẵn promtool nên test pytest tương ứng tự bỏ qua).
+alert-rules-check:
+	docker run --rm --entrypoint promtool -v "$(CURDIR)/docker/observability:/rules:ro" $(PROMETHEUS_IMAGE) check rules /rules/alert_rules.yml
+	docker run --rm --entrypoint promtool -v "$(CURDIR)/docker/observability:/rules:ro" $(PROMETHEUS_IMAGE) test rules /rules/tests/chatbot_alert_rules_test.yml
 
 backup-postgres-dry-run:
 	DRY_RUN=true bash scripts/ops/backup-postgres.sh

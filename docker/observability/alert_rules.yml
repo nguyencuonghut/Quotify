@@ -67,3 +67,35 @@ groups:
         annotations:
           summary: Không đọc được số đo thông báo giá
           description: Backend không truy vấn được DB cho số đo thông báo giá trong 10 phút.
+
+  - name: quotify-chatbot
+    rules:
+      # Cảnh báo chatbot: số đo do backend tính khi scrape từ hộp thư (xem app/core/bot_metrics.py).
+      # Chỉ có khi chatbot đang bật (`quotify_bot_enabled` = 1), nên tắt công tắc khẩn cấp thì các
+      # cảnh báo này tự im dù còn dòng nằm lại hộp thư.
+      - alert: ChatbotQueueStuck
+        expr: quotify_bot_queued_oldest_age_seconds > 120
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Tin gửi chatbot chờ quá 2 phút mà chưa ai xử lý
+          description: Dòng claim được cũ nhất trong hộp thư bot_updates (tính từ lúc nhận tin, kể cả dòng đang thử lại) đã chờ hơn 2 phút suốt 5 phút. Kiểm tra container bot-worker (docker compose ps, log), kết nối Redis và cron sweep_bot_updates.
+
+      - alert: ChatbotUpdatesFailing
+        expr: quotify_bot_recent_failures > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Có tin gửi chatbot vừa thất bại
+          description: Có dòng bot_updates ở trạng thái failed vừa kết thúc trong 30 phút qua (cảnh báo tự hết sau 30 phút nếu không có lỗi mới). Xem error_category của các dòng đó (engine_error, engine_timeout, send_failed, send_rejected, send_timeout, lease_exhausted) và log của bot-worker.
+
+      - alert: ChatbotMetricsUnavailable
+        expr: quotify_bot_metrics_up == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Không đọc được số đo chatbot
+          description: Backend không truy vấn được hộp thư bot_updates cho số đo chatbot trong 10 phút.

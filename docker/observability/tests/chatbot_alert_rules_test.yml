@@ -1,0 +1,117 @@
+# Kiểm thử luật cảnh báo chatbot bằng promtool (kế hoạch 5.1, S7).
+# Chạy: promtool test rules docker/observability/tests/chatbot_alert_rules_test.yml
+# hoặc: docker run --rm --entrypoint promtool -v "$PWD/docker/observability:/rules:ro" \
+#         prom/prometheus:v3.5.0 test rules /rules/tests/chatbot_alert_rules_test.yml
+rule_files:
+  - ../alert_rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Hàng đợi kẹt: dòng claim được cũ nhất quá 120 giây suốt 5 phút thì mới báo.
+  - interval: 1m
+    input_series:
+      - series: 'quotify_bot_queued_oldest_age_seconds'
+        values: '10 10 130 130 130 130 130 130 130 130'
+    alert_rule_test:
+      - eval_time: 5m   # vượt ngưỡng mới 3 phút: chưa báo
+        alertname: ChatbotQueueStuck
+        exp_alerts: []
+      - eval_time: 9m   # vượt ngưỡng đủ 7 phút: báo
+        alertname: ChatbotQueueStuck
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Tin gửi chatbot chờ quá 2 phút mà chưa ai xử lý
+              description: Dòng claim được cũ nhất trong hộp thư bot_updates (tính từ lúc nhận tin, kể cả dòng đang thử lại) đã chờ hơn 2 phút suốt 5 phút. Kiểm tra container bot-worker (docker compose ps, log), kết nối Redis và cron sweep_bot_updates.
+
+  # Một đợt chờ ngắn (worker đang xử lý chậm một lượt) rồi hết thì không báo.
+  - interval: 1m
+    input_series:
+      - series: 'quotify_bot_queued_oldest_age_seconds'
+        values: '10 130 130 130 20 20 20 20 20 20'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ChatbotQueueStuck
+        exp_alerts: []
+
+  # Không ai chờ (chuỗi số đo vắng mặt, hay chatbot tắt) thì không báo dù trước đó từng kẹt.
+  - interval: 1m
+    input_series:
+      - series: 'quotify_bot_queued_oldest_age_seconds'
+        values: '500 500 500 500 500 500 _ _ _ _ _ _ _'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: ChatbotQueueStuck
+        exp_alerts: []
+
+  # Lỗi gần đây (gauge 30 phút): có lỗi thì báo sau 1 phút, hết lỗi thì tự hết.
+  - interval: 1m
+    input_series:
+      - series: 'quotify_bot_recent_failures'
+        values: '0 0 0 2 2 2 2 0 0 0'
+    alert_rule_test:
+      - eval_time: 2m   # chưa có lỗi
+        alertname: ChatbotUpdatesFailing
+        exp_alerts: []
+      - eval_time: 3m   # lỗi vừa xuất hiện: đang chờ `for: 1m`
+        alertname: ChatbotUpdatesFailing
+        exp_alerts: []
+      - eval_time: 5m   # lỗi kéo dài hơn 1 phút: báo
+        alertname: ChatbotUpdatesFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Có tin gửi chatbot vừa thất bại
+              description: Có dòng bot_updates ở trạng thái failed vừa kết thúc trong 30 phút qua (cảnh báo tự hết sau 30 phút nếu không có lỗi mới). Xem error_category của các dòng đó (engine_error, engine_timeout, send_failed, send_rejected, send_timeout, lease_exhausted) và log của bot-worker.
+      - eval_time: 9m   # lỗi đã qua cửa sổ 30 phút (gauge về 0): hết báo
+        alertname: ChatbotUpdatesFailing
+        exp_alerts: []
+
+  # Không có lỗi thì không báo.
+  - interval: 1m
+    input_series:
+      - series: 'quotify_bot_recent_failures'
+        values: '0 0 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ChatbotUpdatesFailing
+        exp_alerts: []
+
+  # Một dòng lỗi cũ rơi khỏi cửa sổ 24 giờ đúng lúc có lỗi mới: gauge 30 phút vẫn thấy lỗi mới
+  # (đây là lý do không dùng `delta` trên gauge 24 giờ).
+  - interval: 1m
+    input_series:
+      - series: 'quotify_bot_updates{status="failed"}'
+        values: '3 3 3 3 3 3 3 3 3 3'
+      - series: 'quotify_bot_recent_failures'
+        values: '0 0 0 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ChatbotUpdatesFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Có tin gửi chatbot vừa thất bại
+              description: Có dòng bot_updates ở trạng thái failed vừa kết thúc trong 30 phút qua (cảnh báo tự hết sau 30 phút nếu không có lỗi mới). Xem error_category của các dòng đó (engine_error, engine_timeout, send_failed, send_rejected, send_timeout, lease_exhausted) và log của bot-worker.
+
+  # Không đọc được hộp thư suốt 10 phút thì báo.
+  - interval: 1m
+    input_series:
+      - series: 'quotify_bot_metrics_up'
+        values: '1 1 0 0 0 0 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: ChatbotMetricsUnavailable
+        exp_alerts: []
+      - eval_time: 13m
+        alertname: ChatbotMetricsUnavailable
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Không đọc được số đo chatbot
+              description: Backend không truy vấn được hộp thư bot_updates cho số đo chatbot trong 10 phút.

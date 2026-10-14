@@ -13,6 +13,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, ge
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import PlainTextResponse
 
+from app.core.bot_metrics import BotMetrics, set_active_bot_metrics
 from app.core.config import Settings
 from app.core.price_alert_metrics import PriceAlertMetrics, set_active_metrics
 
@@ -109,6 +110,12 @@ def _price_alert_session() -> AsyncSession:
     return get_sessionmaker()()
 
 
+def _bot_session() -> AsyncSession:
+    from app.db.session import get_sessionmaker
+
+    return get_sessionmaker()()
+
+
 def install_observability(app: FastAPI, settings: Settings) -> None:
     app.state.readiness_service = ReadinessService(settings)
 
@@ -124,12 +131,20 @@ def _install_metrics_route(app: FastAPI, settings: Settings) -> None:
     price_alert_metrics = PriceAlertMetrics(_price_alert_session)
     app.state.price_alert_metrics = price_alert_metrics
     set_active_metrics(price_alert_metrics)
+    bot_metrics = BotMetrics(_bot_session)
+    app.state.bot_metrics = bot_metrics
+    set_active_bot_metrics(bot_metrics)
 
     @app.get(settings.metrics_path, include_in_schema=False)
     async def metrics(request: Request) -> PlainTextResponse:
-        # `refresh` tự bắt lỗi và có hạn chờ nên không bao giờ làm hỏng phản hồi `/metrics`.
-        await request.app.state.price_alert_metrics.refresh()
+        # `refresh` tự bắt lỗi và có hạn chờ nên không bao giờ làm hỏng phản hồi `/metrics`. Hai
+        # nguồn đọc song song để một scrape không phải chờ tổng hai hạn chờ.
+        await asyncio.gather(
+            request.app.state.price_alert_metrics.refresh(),
+            request.app.state.bot_metrics.refresh(),
+        )
         set_active_metrics(request.app.state.price_alert_metrics)
+        set_active_bot_metrics(request.app.state.bot_metrics)
         return PlainTextResponse(
             generate_latest().decode("utf-8"),
             media_type=CONTENT_TYPE_LATEST,
