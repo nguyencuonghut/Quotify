@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-**ĐÃ CHỐT CÁC ĐIỂM CẦN QUYẾT (2026-10-13, sau rà soát độc lập; nhật ký đến bản 11, 2026-10-14). S0 ĐẾN S3 ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa merge vào `main`); S0, S1 và S3 bạn đã xác nhận trên Telegram thật.** Các điểm "đã quyết theo bằng chứng" ở mục 9 chưa gặp phản đối nhưng chưa được xác nhận riêng. Cơ sở: commit `7eb64e9` trên `main`, cây git sạch, Alembic head `20261007_0900`.
+**ĐÃ CHỐT CÁC ĐIỂM CẦN QUYẾT (2026-10-13, sau rà soát độc lập; nhật ký đến bản 12, 2026-10-14). S0 ĐẾN S4 ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa merge vào `main`); S0, S1, S3 và S4 bạn đã xác nhận trên Telegram thật.** Các điểm "đã quyết theo bằng chứng" ở mục 9 chưa gặp phản đối nhưng chưa được xác nhận riêng. Cơ sở: commit `7eb64e9` trên `main`, cây git sạch, Alembic head `20261007_0900`.
 
 Kế hoạch này là phần triển khai chi tiết của **mục 5.1** (và phần hạ tầng của Giai đoạn 2A) trong [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md). Nó chỉ xây **đường ống**: nhận tin, xếp hàng, xử lý ở worker riêng, trả lời. Phần "bộ não" (LLM, công cụ, bộ nhớ, ngân sách) cắm vào đường ống qua một cổng duy nhất (`ChatEngine`, mục 4.6) và thuộc các kế hoạch riêng của 5.2 đến 5.6.
 
@@ -242,10 +242,17 @@ class ChatEngine(Protocol):
 
 ### 4.7 Đường gửi trả lời
 
-- **Văn bản thuần** (`parse_mode=None`) cho nội dung do engine sinh, tránh lỗi 400 vì HTML sai. Tin cố định của hệ thống vẫn dùng HTML như hiện nay.
-- **Chia tin** ở ranh giới đoạn hoặc dòng khi vượt `TELEGRAM_MESSAGE_MAX_LENGTH` (4096), tối đa `BOT_REPLY_MAX_PARTS` phần, phần dư cắt kèm dấu "…". `sent_parts` ghi số phần đã gửi, gửi lại tiếp từ phần chưa gửi.
-- **Toàn bộ nhánh gửi** bọc `asyncio.wait_for(BOT_SEND_BUDGET_SECONDS)`. **429:** chờ `min(retry_after, thời gian còn lại của ngân sách)` rồi thử lại; hết ngân sách thì dừng và để claim lại sau khi lease hết hạn. Ngân sách này, cộng với việc mỗi lời gọi HTTP có timeout 10 giây, bảo đảm lease không hết hạn khi đang gửi. **403:** gọi `mark_blocked` có sẵn, dòng `dropped` (`forbidden`). **400** (nội dung): lỗi cuối, `failed`, không thử lại.
-- Ngữ nghĩa giao hàng: **at-least-once** cho câu trả lời (khác đường trả lời at-most-once của 1A/1C, vì mất câu trả lời tệ hơn nhận trùng). Cửa sổ trùng chỉ là khoảng giữa lúc Telegram nhận tin và lúc ghi `complete`, thu hẹp thêm bằng `sent_parts` và bước kiểm lần cuối ở 4.5.
+Cài ở `app/services/bot_reply_sender.py` (chia tin, gửi tuần tự) và `app/bot_worker.py` (phân loại lỗi, kiểm người nhận).
+
+- **Văn bản thuần** (`parse_mode=None`) cho nội dung do engine sinh, tránh lỗi 400 vì HTML sai. Tin cố định của hệ thống (xin lỗi, tin quá cũ) vẫn dùng HTML như hiện nay.
+- **Chia tin** khi vượt 4096 đơn vị. Độ dài **đếm theo đơn vị UTF-16** (emoji ngoài BMP chiếm 2) nên một phần không bao giờ vượt giới hạn. Ranh giới ưu tiên đoạn, rồi dòng, rồi khoảng trắng, **ở nửa sau của cửa sổ** (không thì một tiêu đề ngắn rồi danh sách dài bị tách thành tin vài ký tự và phần cuối bị cắt cụt vô lý); không có ranh giới nào thì cắt cứng. Tối đa `BOT_REPLY_MAX_PARTS` phần, phần dư cắt kèm dấu "…" (vẫn trong giới hạn). Hàm chia là hàm thuần và xác định, nên lần gửi lại chia y như lần trước. Fuzz 100.000 ca: không có phần rỗng, không vượt giới hạn, không mất nội dung.
+- **`sent_parts`** ghi số phần đã gửi sau **mỗi** phần bằng câu lệnh có rào chắn (`status='processing' AND attempts=:mine`). Lần claim sau gửi tiếp từ phần chưa gửi (không gọi lại engine, không gửi lại phần đã gửi). Nếu ghi `sent_parts` thấy dòng đã thuộc về worker khác thì dừng ngay, không gửi tiếp và không hoàn tất.
+- **Toàn bộ nhánh gửi** bọc `asyncio.wait_for(BOT_SEND_BUDGET_SECONDS)`. **429:** chờ `max(1, retry_after)` rồi gửi lại cùng phần đó, miễn là còn trong ngân sách; nếu `retry_after` lớn hơn phần còn lại thì dừng ngay (không chờ vô ích) và hẹn lần thử sau **không sớm hơn `retry_after`**. Telegram không kèm hay kèm 0 thì chờ tối thiểu 1 giây để không gọi liên tục.
+- **Phân loại lỗi gửi** (sau khi thoát khối `except`, RC-30): **403** → `mark_blocked` có sẵn và dòng `dropped` (`forbidden`), không thử lại, không xin lỗi; **4xx khác 429** (vd 400) → `failed` (`send_rejected`) ngay kèm một câu xin lỗi; **lỗi mạng, 5xx, hết ngân sách** → thử lại có backoff (`send_failed`, hay `send_timeout`), hết lượt thì `failed` kèm một câu xin lỗi. Câu trả lời **rỗng** của engine bị coi là lỗi engine thử lại được (không thì dòng thành `replied` mà không gửi gì).
+- **Chỉ báo "đang gõ":** tác vụ nền gửi `sendChatAction typing` **ngay** rồi lặp mỗi `BOT_TYPING_INTERVAL_SECONDS` chỉ trong lúc engine chạy, hủy khi engine xong, lỗi hay bị hủy. Lỗi của chỉ báo bị bỏ qua và vòng lặp vẫn tiếp tục. Không có engine chạy (chỉ gửi lại câu đã lưu) thì không báo.
+- **Kiểm người nhận ba lần:** trước khi gọi engine (liên kết còn `active` và đúng người dùng, người dùng còn `ACTIVE`; sai thì `dropped` với `unlinked`, `forbidden` hoặc `user_inactive`, nội dung bị xóa, không tốn lượt engine), ngay trước khi gửi (cùng kiểm tra cộng `owns`), và cho **cả câu xin lỗi lẫn thông báo tin quá cũ** (`_notify` bỏ qua nếu liên kết không còn; 403 thì `mark_blocked`). `_notify` dùng `telegram_user_id = chat_id` vì hand-off chỉ nhận chat riêng.
+- **Tin quá hạn nhưng đã gửi dở** thì gửi nốt phần còn lại thay vì loại và bắt người dùng hỏi lại.
+- Ngữ nghĩa giao hàng: **at-least-once** cho câu trả lời (khác đường trả lời at-most-once của 1A/1C, vì mất câu trả lời tệ hơn nhận trùng). Cửa sổ trùng chỉ là khoảng giữa lúc Telegram nhận tin và lúc ghi `sent_parts` hay `complete` (kể cả khi `wait_for` hủy đúng lúc Telegram đã nhận), thu hẹp thêm bằng `sent_parts` và bước kiểm lần cuối ở 4.5.
 
 ### 4.8 Cấu hình và tham số
 
@@ -261,7 +268,7 @@ Thêm vào `Settings` và `.env.example`, `.env.production.example`. **Không** 
 | `BOT_JOB_TIMEOUT_SECONDS` | `300` | Phải lớn hơn `BOT_DRAIN_BUDGET_SECONDS + BOT_ROW_TIMEOUT_SECONDS + BOT_SEND_BUDGET_SECONDS` (90 + 120 + 60 = 270) |
 | `BOT_DRAIN_BUDGET_SECONDS` | `90` | Ngừng claim dòng mới sau mức này |
 | `BOT_ROW_TIMEOUT_SECONDS` | `120` | Trần cho một lần engine chạy |
-| `BOT_SEND_BUDGET_SECONDS` | `60` | Trần **tổng** cho nhánh gửi một dòng (kể cả chờ 429 và gửi nhiều phần) |
+| `BOT_SEND_BUDGET_SECONDS` | `60` | Trần **tổng** cho nhánh gửi một dòng (kể cả chờ 429 và gửi nhiều phần). Phải lớn hơn 0 |
 | `BOT_LEASE_SECONDS` | `240` | Phải lớn hơn `BOT_ROW_TIMEOUT_SECONDS + BOT_SEND_BUDGET_SECONDS` (180), nếu không lease hết hạn khi đang xử lý và worker khác chạy chồng |
 | `BOT_MAX_ATTEMPTS` | `3` | |
 | `BOT_RETRY_BACKOFF_SECONDS` | `5` | Nhân với số lần thử |
@@ -271,8 +278,8 @@ Thêm vào `Settings` và `.env.example`, `.env.production.example`. **Không** 
 | `BOT_QUOTA_WARN_REMAINING_PERCENT` | `20` | Còn từng này phần trăm hạn mức thì thêm dòng nhắc ở cuối câu trả lời; `0` là tắt nhắc |
 | `BOT_MESSAGE_TTL_SECONDS` | `1200` | Phải không nhỏ hơn `BOT_MAX_PENDING_PER_CHAT × (BOT_ROW_TIMEOUT_SECONDS + BOT_SEND_BUDGET_SECONDS)` (900), nếu không dòng hết hạn khi mới chỉ đang chờ |
 | `BOT_SWEEP_STALE_SECONDS` | `30` | Bằng chu kỳ cron: dòng chờ lâu hơn mức này mà chưa ai nhận thì đánh chuông lại |
-| `BOT_TYPING_INTERVAL_SECONDS` | `4` | Chỉ báo "đang gõ" của Telegram kéo dài khoảng 5 giây |
-| `BOT_REPLY_MAX_PARTS` | `4` | |
+| `BOT_TYPING_INTERVAL_SECONDS` | `4` | Chỉ báo "đang gõ" của Telegram kéo dài khoảng 5 giây. Phải lớn hơn 0 (0 làm vòng lặp chạy không nghỉ) |
+| `BOT_REPLY_MAX_PARTS` | `4` | Tối thiểu 1 |
 | `BOT_TERMINAL_RETENTION_DAYS` | `30` | Xóa dòng đã kết thúc (nội dung đã bị xóa từ lúc kết thúc, chỉ còn siêu dữ liệu) |
 | `BOT_STUB_DELAY_SECONDS` | `0` | **Chỉ để thử trên dev**: engine giả đợi từng này giây rồi mới trả lời (để thử `SIGTERM` giữa lượt, chỉ báo "đang gõ"). Worker **bỏ qua** giá trị này khi `APP_ENV=production`; có test |
 
@@ -471,18 +478,24 @@ Test thuộc tầng integration, Postgres thật (`test_bot_resilience_db.py`, `
 
 ### S4: Đường gửi (AFK)
 
+**Trạng thái 2026-10-14: ĐÃ XONG trên nhánh `feat/telegram-chatbot`.** Bằng chứng ở Phụ lục A.6.
+
 Chặn bởi: S1.
 
-Mở rộng giả lập (hiện `Outbox` và `fake_telegram_server` không thể tạo 429 có `retry_after`, không thể làm hỏng N lần gửi đầu hay thêm độ trễ):
-- [ ] Tin dài hơn 4096 ký tự được chia ở ranh giới đoạn, không phần nào quá giới hạn, đúng thứ tự; chia nhiều phần thì gửi lại tiếp từ `sent_parts`.
-- [ ] Nội dung engine gửi dạng văn bản thuần (không `parse_mode`).
-- [ ] Chỉ báo "đang gõ" bắt đầu trước engine, dừng sau khi xong, lỗi của nó bị bỏ qua.
-- [ ] 429: chờ `retry_after` trong giới hạn `BOT_SEND_BUDGET_SECONDS`; hết ngân sách thì dừng, không để lease hết hạn lúc đang gửi.
-- [ ] 403: `mark_blocked` và dòng `dropped` (`forbidden`).
-- [ ] Người dùng bị khóa, hủy liên kết, hoặc liên kết thành `blocked` trong lúc tin còn chờ: dòng `dropped`, không gọi engine.
-- [ ] Câu xin lỗi của S2 cũng qua bước kiểm liên kết còn hiệu lực trước khi gửi, và 403 cho câu xin lỗi cũng gọi `mark_blocked`.
-- [ ] **(từ rà soát S3)** Phân loại lỗi gửi: lỗi mạng và 429 thử lại; 400 (tin quá dài, lỗi định dạng) và hết lượt thì xin lỗi người dùng; 403 thì `mark_blocked` và `dropped`. `send_failed` không được kết thúc mà người dùng không nhận gì khi chat còn tới được.
-- [ ] **(từ rà soát S3)** `principal is None` chuyển dòng sang `dropped` (`user_inactive`) thay vì để `processing` đến hết lease.
+Mở rộng giả lập đã làm: `Outbox.script(method, (mã, thân JSON)…)` lên kịch bản phản hồi theo phương thức (vd 429 kèm `retry_after`), `Outbox.chat_actions()`, `FakeClock` (đồng hồ giả cho vòng chờ 429, không ngủ thật), `RecordingClient` nhận kịch bản từng lần gửi, và `fake_telegram_server` ghi `sendChatAction` (`/__chat_actions`), làm `count` lần gửi kế tiếp trả lỗi kèm `retry_after` (`/__fail_next`) và làm chậm mỗi lần gửi (`/__delay`). **Hoãn có chủ đích:** service `bot-worker-test` trong compose test chuyển sang S8 (không có tiêu chí nào của S4 cần).
+
+- [x] Tin dài hơn 4096 đơn vị được chia ở ranh giới đoạn, không phần nào quá giới hạn, đúng thứ tự; chia nhiều phần thì gửi lại tiếp từ `sent_parts`, không gọi lại engine và không gửi lại phần đã gửi. Worker khác tiếp quản giữa các phần thì dừng, không gửi tiếp và không hoàn tất.
+- [x] Nội dung engine gửi dạng văn bản thuần (không `parse_mode`); `BOT_REPLY_MAX_PARTS` của cấu hình worker thật sự giới hạn câu trả lời.
+- [x] Chỉ báo "đang gõ" bắt đầu ngay trước engine (không phải chờ hết một chu kỳ), lặp theo chu kỳ, dừng sau khi xong, lỗi của nó bị bỏ qua mà vòng lặp vẫn sống tiếp; không báo khi chỉ gửi lại câu đã lưu.
+- [x] 429: chờ `retry_after` trong giới hạn `BOT_SEND_BUDGET_SECONDS` (tổng các lần chờ không vượt ngân sách, chờ vừa đúng phần còn lại vẫn được); `retry_after` lớn hơn phần còn lại thì dừng ngay và hẹn lần sau không sớm hơn mức đó; thiếu hay bằng 0 thì chờ 1 giây; qua client HTTP thật `parameters.retry_after` tới được vòng chờ; một lần gửi bị treo bị `wait_for` cắt và tính là `send_timeout`.
+- [x] 403: `mark_blocked` và dòng `dropped` (`forbidden`), không thử lại, không xin lỗi.
+- [x] Người dùng bị khóa, hủy liên kết, liên kết `blocked` hay liên kết chuyển sang người khác, trong lúc tin còn chờ **hoặc trong lúc engine chạy**: dòng `dropped` (`unlinked`, `forbidden`, `user_inactive`), không gọi engine (trường hợp trước) và không gửi (trường hợp sau).
+- [x] Câu xin lỗi và thông báo tin quá cũ qua bước kiểm liên kết còn hiệu lực trước khi gửi, và 403 cho chúng gọi `mark_blocked` (hệ quả: test S2 "người dùng chặn bot" nay thấy dòng sau bị `dropped` thay vì được trả lời).
+- [x] Phân loại lỗi gửi: mạng, 5xx và hết ngân sách thử lại; 400 và 4xx khác 429 là `failed` (`send_rejected`) kèm xin lỗi; hết lượt vì lỗi gửi thì `failed` kèm xin lỗi (chat còn tới được thì không để im lặng); bảng phân loại có test riêng.
+- [x] `principal is None` chuyển dòng sang `dropped` (`user_inactive`) thay vì để `processing` đến hết lease.
+- [x] **(thêm)** Câu trả lời rỗng của engine được thử lại thay vì thành `replied` mà không gửi gì; tin quá hạn nhưng đã gửi dở thì được gửi nốt; `BOT_REPLY_MAX_PARTS`, `BOT_SEND_BUDGET_SECONDS`, `BOT_TYPING_INTERVAL_SECONDS` bị chặn ở giá trị dương; mặc định và ánh xạ cấu hình có test; `job_timeout` phải chứa cả hai câu xin lỗi tệ nhất.
+
+**Chuyển sang các lát sau:** dựng `bot-worker-test` để chạy `fake_telegram_server` trong e2e Docker (S8); chỉ số cho số lần 429, số tin chia nhiều phần và số dòng `dropped` theo lý do (S7).
 
 ### S5: Chặn lũ và tin không phải văn bản (AFK)
 
@@ -827,6 +840,20 @@ Chưa kiểm: môi trường `backend-test` của compose, Postgres bị đói C
 
 Chưa kiểm: `SIGTERM` và mất chuông trên image production (chỉ kiểm trên image dev), Redis nửa chết thật cho đường quét, `max_connections` Postgres khi nhiều worker, và cron quét ở quy mô vài trăm chat.
 
+### A.6 Kiểm chứng S4 (2026-10-14)
+
+| Hạng mục | Kết quả |
+|---|---|
+| Test mới của S4 | **74 test ròng** (toàn bộ bộ test từ 1.387 lên 1.461): 28 ở `test_bot_send_db.py` (chia và gửi tiếp, phân loại lỗi, 429 và ngân sách, "đang gõ", câu rỗng), 9 ở `test_bot_recipient_db.py` (ai còn được nhận tin), 19 ở `test_bot_reply_sender.py` (hàm chia tin), cộng test cho cấu hình và bảng phân loại lỗi (`test_bot_worker.py`), `send_chat_action` (`test_telegram_client.py`) và giả lập Telegram (`test_fake_telegram_server.py`) |
+| Toàn bộ bộ test backend (máy host) | **1.461 qua, 0 fail** (161 giây) |
+| Cổng chất lượng | ruff 62, `mypy app` 15, bandit 16 low và 1 medium: bằng baseline; 18 file đụng tới đúng định dạng |
+| Chạy thật trên Docker dev với bot dev (bạn xác nhận bằng mắt) | **(1) "Đang gõ":** engine giả đợi 25 giây; bạn thấy "typing…" dưới tên bot suốt khoảng 25 giây rồi nhận câu trả lời; server ghi dòng 678129879 xử lý 25,5 giây, `replied`, `sent_parts=1`. **(2) Tin dài:** một câu trả lời khoảng 9.000 ký tự (6 đoạn đánh số, có emoji) gửi qua client thật: bạn nhận **đúng 3 tin liên tiếp, đúng thứ tự, emoji đúng**, chỗ nối tin nằm ở ranh giới đoạn (tin đầu hết trọn câu ở "Đoạn 2/6", tin sau bắt đầu từ "Đoạn 3/6"); server ghi `replied`, `sent_parts=3`, một lần thử. Chưa thử trên Telegram thật: 429 (không gây được một cách tin cậy; đã kiểm bằng client HTTP giả có `parameters.retry_after`) và 403 khi người dùng chặn bot |
+| Độ nhạy trên code thật | **49 đột biến đại diện đều bị bắt** (rào chắn `sent_parts`, ranh giới chia tin, biên ngân sách, nhánh 403 và 400, kiểm người nhận ba lần, `_notify`, tác vụ "đang gõ", rò log, giá trị mặc định và ràng buộc cấu hình). Lần chạy đầu có 6 đột biến sống và 1 mốc không khớp; đã thêm test cho cả sáu (biên đúng bằng giới hạn, khoảng trắng sau chỗ cắt cứng và trước dấu "…", chờ 429 vừa đúng phần còn lại, nhận biết mất quyền giữa các phần qua log, rò thông điệp ngoại lệ qua `_notify`) |
+| Rà soát độc lập (agent) | Không có lỗi nghiêm trọng, không có race hay rò log mới. Fuzz 200.000 ca bộ chia (không mất, không trùng, không vượt giới hạn), khoảng 100 đột biến trên bản sao (62 bị bắt, 37 sống). Phát hiện đáng sửa và **đã sửa theo TDD**: **(A1)** chọn dấu ngắt đoạn sớm nhất làm một tiêu đề 8 ký tự chiếm cả một tin và cắt cụt 3.000 ký tự cuối (tái hiện bằng "tiêu đề rồi 150 dòng"); **(A2)** 429 với `retry_after` lớn hơn ngân sách chỉ requeue với backoff cố định nên cạn lượt thử trong khoảng 15 giây; **(A3)** `retry_after` bằng 0 và `BOT_TYPING_INTERVAL_SECONDS` bằng 0 làm vòng lặp chạy không nghỉ (đo được 282.000 và 152.000 lần gọi); **(A4)** tin đã gửi dở mà quá hạn bị loại kèm "vui lòng gửi lại". Đã gỡ nhánh chết `TelegramMessageTooLongError` (chia tin bảo đảm không xảy ra). Các điểm còn lại chấp nhận: lỗi 4xx lạ rơi vào "bị từ chối" thay vì thử lại, `wait_for` hủy đúng lúc Telegram đã nhận tin có thể gửi trùng (at-least-once) |
+| Lỗi do chính tôi gây ra trong lúc làm | Lệnh `ruff check --fix` chạy trên cả thư mục `app` tự sắp xếp lại import ở ba file ngoài phạm vi (`db/base.py`, `models/quote.py`, `services/quote_pricing.py`); phát hiện qua `git status`, đã khôi phục đúng ba file đó. Chỉ chạy `--fix` trên từng file đã sửa |
+| Độ ổn định | Ba lần chạy liên tiếp (106 test, 8,4 đến 8,6 giây) và hai lần khi 12 lõi CPU bị đốt (17 đến 19 giây): 5 trên 5 qua. Vòng chờ 429 dùng đồng hồ giả, không ngủ thật; các chỗ chờ khác đều có thời hạn |
+| Điểm đáng nhớ | Bản chia tin đầu tiên (ranh giới đoạn cuối cùng trong cửa sổ) cho kết quả đúng ở mọi test ban đầu mà vẫn tệ với "tiêu đề ngắn rồi danh sách dài": test chỉ có ví dụ đẹp thì không thấy. Fuzz với bất biến (không rỗng, không vượt giới hạn, không mất nội dung) cộng ví dụ thực tế bắt được cả hai loại lỗi |
+
 ---
 
 ## 12. Nhật Ký Soạn Và Rà Soát
@@ -850,4 +877,5 @@ Chưa kiểm: `SIGTERM` và mất chuông trên image production (chỉ kiểm t
 - **2026-10-13, bản 9, S1 xong.** Cài S1 theo TDD (tracer bullet rồi từng hành vi), rà soát độc lập, sửa các lỗi rà soát tìm ra, chạy thật trên Docker dev và bot dev. Thêm RC-28 (rò nội dung qua tham số SQLAlchemy), bốn tiêu chí S1 sau rà soát, Phụ lục A.3. Hoãn compose test và `sendChatAction` của fake Telegram sang S4 và S8.
 - **2026-10-13, bản 10, S2 xong.** S2 chủ yếu là test chứng minh claim của S1, cộng việc gửi câu xin lỗi sau commit. Port các biến thể sai và kịch bản đua của S0 thành test hồi quy, thêm chaos nhiều tiến trình thật; rà soát độc lập tìm 6 đột biến sống sót, đã đóng hết; phát hiện bài chaos ban đầu yếu và sửa (RC-29). Dồn việc xin lỗi theo liên kết sang S4. Phụ lục A.4.
 - **2026-10-14, bản 11, S3 xong.** Cài S3 (chịu lỗi) theo TDD: thử lại có backoff, `failed` với danh mục cố định, tiếp tục từ câu đã lưu, rào chắn, nhả lease khi hủy, TTL, cron quét và cron dọn; chạy thật trên Docker dev với bot dev (tắt worker giữa lượt và mất chuông đều được cứu). Rà soát độc lập tìm ba lỗi thật (lease bị giữ khi lỗi bất ngờ, khi hủy rơi vào đoạn claim, rò thông điệp qua `__context__`) và nhiều đột biến sống; đã sửa và thêm test, ghi RC-30, RC-31 và hai mục chuyển sang S4. Thêm `BOT_STUB_DELAY_SECONDS` (chỉ dev, production bỏ qua). Phụ lục A.5.
+- **2026-10-14, bản 12, S4 xong.** Cài đường gửi theo TDD: chia tin theo UTF-16 và ranh giới nửa sau cửa sổ, `sent_parts` có rào chắn, 429 trong ngân sách gửi, phân loại lỗi gửi (403 chặn, 4xx từ chối, mạng và 5xx thử lại) kèm xin lỗi khi hết lượt, chỉ báo "đang gõ", kiểm người nhận ba lần (trước engine, trước khi gửi, cho câu xin lỗi), `principal is None` thành `dropped`, giả lập Telegram mở rộng. Rà soát độc lập không thấy lỗi nghiêm trọng nhưng chỉ ra bốn điểm đáng sửa (chia tin chọn ranh giới quá sớm, `retry_after` lớn bị bỏ qua khi hẹn lần sau, hai giá trị 0 gây vòng lặp nóng, tin gửi dở quá hạn bị loại); đã sửa và thêm test. Phụ lục A.6.
 - **Chưa xác minh:** các điểm đánh dấu **[CHƯA XÁC MINH]** ở trên; các con số ở Phụ lục A.2 do agent đo, tôi chưa tái lập; quan sát bằng mắt chỉ báo "đang gõ" của S0(d) chờ bạn xác nhận; hành vi `SIGTERM` của lệnh dev `sh -lc "uv sync && uv run arq ..."`.
