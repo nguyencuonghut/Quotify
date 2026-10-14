@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-**ĐÃ CHỐT CÁC ĐIỂM CẦN QUYẾT (2026-10-13, sau rà soát độc lập; nhật ký đến bản 12, 2026-10-14). S0 ĐẾN S4 ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa merge vào `main`); S0, S1, S3 và S4 bạn đã xác nhận trên Telegram thật.** Các điểm "đã quyết theo bằng chứng" ở mục 9 chưa gặp phản đối nhưng chưa được xác nhận riêng. Cơ sở: commit `7eb64e9` trên `main`, cây git sạch, Alembic head `20261007_0900`.
+**ĐÃ CHỐT CÁC ĐIỂM CẦN QUYẾT (2026-10-13, sau rà soát độc lập; nhật ký đến bản 13, 2026-10-14). S0 ĐẾN S5 ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa merge vào `main`); S0, S1, S3, S4 và S5 bạn đã xác nhận trên Telegram thật.** Các điểm "đã quyết theo bằng chứng" ở mục 9 chưa gặp phản đối nhưng chưa được xác nhận riêng. Cơ sở: commit `7eb64e9` trên `main`, cây git sạch, Alembic head `20261007_0900`.
 
 Kế hoạch này là phần triển khai chi tiết của **mục 5.1** (và phần hạ tầng của Giai đoạn 2A) trong [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md). Nó chỉ xây **đường ống**: nhận tin, xếp hàng, xử lý ở worker riêng, trả lời. Phần "bộ não" (LLM, công cụ, bộ nhớ, ngân sách) cắm vào đường ống qua một cổng duy nhất (`ChatEngine`, mục 4.6) và thuộc các kế hoạch riêng của 5.2 đến 5.6.
 
@@ -11,7 +11,7 @@ Cách soạn:
 - Local skill `tdd`: trong mỗi lát, test đầu tiên là tracer bullet đi hết đường, rồi mới tới từng hành vi, một test một đoạn code. Test đo hành vi qua giao diện công khai (webhook vào, request Telegram ra, trạng thái DB), chỉ giả lập ranh giới hệ thống (Telegram, Redis, LLM).
 - Local agent: 4 agent Explore chỉ đọc chạy song song ngày 2026-10-13 (luồng webhook và update; worker, Redis, compose; service, DB, quyền; lịch sử bug và memory-bank), cộng ba điểm tôi tự kiểm trực tiếp (ngữ nghĩa `_job_id` của arq, `parse_mode=None` của client Telegram, khối `worker` trong compose production). Sau đó **một agent rà soát độc lập** kiểm lại trích dẫn, tấn công thiết kế và chạy thực nghiệm; kết quả và các sửa đổi đã áp dụng ở mục 12 và Phụ lục A.
 
-Quy ước: `KT1` đến `KT21` là quyết định kiến trúc (mục 5). `RC-1` đến `RC-31` là rủi ro (mục 8). `S0` đến `S10` là lát cắt (mục 6). Mục nào chưa kiểm chứng ghi **[CHƯA XÁC MINH]**.
+Quy ước: `KT1` đến `KT21` là quyết định kiến trúc (mục 5). `RC-1` đến `RC-33` là rủi ro (mục 8). `S0` đến `S10` là lát cắt (mục 6). Mục nào chưa kiểm chứng ghi **[CHƯA XÁC MINH]**.
 
 ---
 
@@ -137,7 +137,9 @@ Telegram ─► POST /api/v1/telegram/webhook ─► kiểm secret ─► Telegr
 | Văn bản thường, người đã liên kết, cờ bật, trong danh sách thử (hoặc danh sách trống) | **Hand-off** (ghi hộp thư) | Có thể gọi LLM hàng chục giây |
 | Văn bản thường, cờ tắt hoặc ngoài danh sách thử | `UNKNOWN_TEXT` như hiện nay | Không đổi hành vi |
 | Văn bản thường, chưa liên kết | `UNKNOWN_TEXT` như hiện nay (chỉ `/start` trần có hướng dẫn) | Không có người dùng để kiểm quyền; không đổi hành vi |
-| Ảnh, tài liệu, giọng nói, sticker (cờ bật, người dùng đủ điều kiện) | Inline, trả câu cố định "hiện chỉ đọc được tin nhắn văn bản" | 2C mới xử lý file |
+| Ảnh, tài liệu, giọng nói, sticker, GIF, vị trí, danh thiếp, bình chọn (cờ bật, người dùng đủ điều kiện) | Inline, trả câu cố định "hiện chỉ đọc được tin nhắn văn bản" (`NON_TEXT_TEXT`), không vào hộp thư; mỗi chat nhận **một** thông báo trong 10 giây (album 10 ảnh không thành 10 câu) và có bộ giới hạn tốc độ riêng 30 tin mỗi phút để không ăn suất của tin văn bản | 2C mới xử lý file |
+| Tin dịch vụ (ghim tin, đổi hẹn giờ tự xóa...) | `UNKNOWN_TEXT` như hiện nay | Không phải nội dung người dùng gõ |
+| Văn bản thường khi chat đã có `BOT_MAX_PENDING_PER_CHAT` tin đang chờ | Inline, trả câu lịch sự `PENDING_LIMIT_TEXT`, **không** ghi hộp thư, không đánh chuông (một thông báo trong 10 giây) | Chống lũ, giữ TTL còn đủ cho hàng chờ |
 | `edited_message` | Không nhận (ngoài `ALLOWED_UPDATES`) | Như hiện nay |
 | Chat không `private` | Bỏ qua | Như hiện nay |
 
@@ -272,7 +274,7 @@ Thêm vào `Settings` và `.env.example`, `.env.production.example`. **Không** 
 | `BOT_LEASE_SECONDS` | `240` | Phải lớn hơn `BOT_ROW_TIMEOUT_SECONDS + BOT_SEND_BUDGET_SECONDS` (180), nếu không lease hết hạn khi đang xử lý và worker khác chạy chồng |
 | `BOT_MAX_ATTEMPTS` | `3` | |
 | `BOT_RETRY_BACKOFF_SECONDS` | `5` | Nhân với số lần thử |
-| `BOT_MAX_PENDING_PER_CHAT` | `5` | Vượt thì trả lời lịch sự, không ghi hộp thư |
+| `BOT_MAX_PENDING_PER_CHAT` | `5` | Đếm dòng `queued` và `processing` của chat; vượt thì trả lời lịch sự, không ghi hộp thư. Tối thiểu 1. Trần **chính xác** nhờ khóa dòng `telegram_accounts` (`touch_linked_identity` luôn ghi `last_seen_at`): đừng bỏ lần ghi đó, có test chạy đồng thời |
 | `BOT_DAILY_TURN_LIMIT` | `20` | Số lượt hỏi AI mỗi người mỗi ngày (giờ Việt Nam), áp cho mọi loại tin. `0` nghĩa là không giới hạn lượt (trần ngân sách tháng ở 5.6 vẫn áp dụng). Mức mặc định thấp nhất của chuỗi cấu hình, xem mục 4.11 |
 | `BOT_DAILY_FILE_LIMIT` | `5` | Số lượt dùng ảnh hoặc PDF mỗi người mỗi ngày (2C), là tập con của `BOT_DAILY_TURN_LIMIT`. `0` nghĩa là không giới hạn |
 | `BOT_QUOTA_WARN_REMAINING_PERCENT` | `20` | Còn từng này phần trăm hạn mức thì thêm dòng nhắc ở cuối câu trả lời; `0` là tắt nhắc |
@@ -499,12 +501,19 @@ Mở rộng giả lập đã làm: `Outbox.script(method, (mã, thân JSON)…)`
 
 ### S5: Chặn lũ và tin không phải văn bản (AFK)
 
+**Trạng thái 2026-10-14: ĐÃ XONG trên nhánh `feat/telegram-chatbot`.** Bằng chứng ở Phụ lục A.7.
+
 Chặn bởi: S1.
 
-- [ ] Vượt `BOT_MAX_PENDING_PER_CHAT` thì trả lời lịch sự và không ghi hộp thư.
-- [ ] Ảnh, tài liệu, giọng nói, sticker (cờ bật, người dùng đủ điều kiện) nhận câu cố định "hiện chỉ đọc được tin nhắn văn bản".
-- [ ] Chat nhóm bị bỏ qua; `edited_message` không nhận; người chưa liên kết gõ văn bản vẫn nhận `UNKNOWN_TEXT` như hiện nay, không hand-off.
-- [ ] `parse_update` mở rộng tối thiểu để nhận biết loại message, không đọc nội dung file.
+- [x] Vượt `BOT_MAX_PENDING_PER_CHAT` thì trả lời lịch sự (`PENDING_LIMIT_TEXT`) và không ghi hộp thư, không đánh chuông. Trần đúng ở biên (đủ trần thì tin kế tiếp bị từ chối), đếm cả `queued` lẫn `processing`, không đếm dòng đã kết thúc, tính theo từng chat, giải phóng khi worker trả lời xong; update bị từ chối vẫn được ghi dedupe nên phát lại không trả lời lần hai; **6 update của cùng một người chạy đồng thời với trần 2 vẫn chỉ ghi đúng 2 dòng**.
+- [x] Ảnh, tài liệu, giọng nói, sticker, GIF (và vị trí, danh thiếp, bình chọn, xúc xắc) của người dùng đủ điều kiện nhận câu cố định `NON_TEXT_TEXT` và không vào hộp thư; có `caption` cũng vậy (chú thích không được coi là câu hỏi). Cờ tắt, ngoài danh sách thử hay chưa liên kết thì giữ nguyên `UNKNOWN_TEXT`; tin dịch vụ (ghim tin...) cũng giữ `UNKNOWN_TEXT`; văn bản chỉ có khoảng trắng không hand-off.
+- [x] Chat nhóm bị bỏ qua (cả văn bản lẫn ảnh, kể cả từ người đã liên kết); `edited_message` không nhận; người chưa liên kết gõ văn bản vẫn nhận `UNKNOWN_TEXT`, không hand-off.
+- [x] `parse_update` mở rộng tối thiểu: `TelegramMessage.kind` (`text`, loại nội dung, hay `other`), không đọc nội dung tệp. `animation` đứng trước `document` vì Bot API đặt cả hai khóa cho GIF.
+- [x] **(thêm sau rà soát)** Mỗi chat chỉ nhận **một** thông báo giới hạn (không phải văn bản hay quá trần) trong 10 giây: album 10 ảnh thành một câu, 4 tin văn bản dồn dập sau khi đủ trần thành một câu; hết 10 giây thì thông báo lại; khoảng lặng tính riêng từng chat.
+- [x] **(thêm sau rà soát)** Tin không phải văn bản có bộ giới hạn tốc độ riêng (30 tin mỗi 60 giây mỗi người): một album ảnh rồi câu hỏi thật không còn làm câu hỏi bị bỏ im lặng vì bộ giới hạn tin văn bản (10 tin mỗi phút) đã cạn.
+- [x] `BOT_MAX_PENDING_PER_CHAT` tối thiểu 1, mặc định 5, ánh xạ từ `Settings` sang `ChatbotPolicy`; TTL mặc định chứa đủ hàng đầy (900 giây trong 1.200 giây); hai chuỗi mới là tiếng Việt có dấu.
+
+**Chuyển sang S7 và S8:** (1) chat đủ trần mà worker không chạy thì mọi tin mới nhận câu "đợi tôi trả lời" cho đến khi worker sống lại, vì dòng `queued` chỉ hết hạn TTL khi được claim (RC-33): S7 cảnh báo dòng `queued` quá cũ. (2) Compose dev chỉ chuyển `CHATBOT_ENABLED` và `CHATBOT_PILOT_USER_EMAILS` vào poller, nên thử trần khác mặc định phải sửa `.env`; `.env.example` và `.env.production.example` chưa có các biến `BOT_*` (S8).
 
 ### S6: Engine chỉ đọc (AFK)
 
@@ -622,6 +631,8 @@ Theo skill `tdd`: lát cắt dọc, một test rồi một đoạn code, test đ
 | RC-29 | Test đua và chaos dễ **xanh giả** hoặc **chập chờn**: lần chạy đầu của bài chaos chỉ có 5 lần tiếp quản trên 120 dòng (trải 4 tiến trình trên 24 chat nên hiếm khi tranh cùng một chat) và biến thể sai chỉ bị bắt 1 trong 3 lượt; sau rà soát còn 6 đột biến trên code thật mà bộ test không bắt được | Tập trung tranh chấp vào vài chat (70 lần tiếp quản trên 60 dòng) kèm sàn `takeovers >= 10` trong test; mọi biến thể sai phải bị bắt đúng bằng một vi phạm thật (không tính quá hạn); thêm test xác định cho các lớp bảo vệ mà chaos chỉ che xác suất; mọi chờ đều có thời hạn và tiến trình con luôn bị kill; URL có mật khẩu không làm tham số test |
 | RC-30 | Lỗi bất ngờ thoát khỏi vòng xử lý giữ lease của chat đến 240 giây (mất cả câu trả lời đã trả tiền nếu lỗi rơi vào bước lưu), hoặc thông điệp ngoại lệ của engine lọt vào log qua chuỗi `__context__` khi DB lỗi ngay sau đó; còn một cửa sổ cỡ mili giây khi `SIGTERM` rơi đúng lúc chờ commit của claim | `drain_chat` nhả lease với mọi ngoại lệ (không chỉ `CancelledError`) và phủ cả đoạn claim; xử lý lỗi engine và lỗi gửi ngoài khối `except`; test tái hiện cả ba (S3, rà soát độc lập). Cửa sổ còn lại chấp nhận: lease tự hết hạn như `SIGKILL` |
 | RC-31 | Cron quét lấy tối đa 500 chat mỗi lần, sắp theo `chat_id`: nếu hàng trăm chat cùng chờ thì chat có id lớn được rung muộn hơn một chu kỳ | Chưa chạm trần ở quy mô hiện tại; đổi sang sắp theo `update_id` hoặc đặt giới hạn thành tham số khi số người dùng chatbot đủ lớn (S8, sau khi chạy thử dev). Test sweep dọn dòng còn mở của test khác để không phụ thuộc trần này |
+| RC-32 | Bộ giới hạn tốc độ có sẵn của runner (10 tin văn bản mỗi 60 giây mỗi người) bỏ tin **im lặng**, không ghi dedupe và không trả lời: người gõ quá 10 tin trong một phút thấy tin thứ 11 trở đi biến mất và phải tự gõ lại | Chấp nhận (hành vi có từ 1A, KT15 giữ nguyên). S5 giảm đụng độ: trần tin chờ ở 5 cho câu lịch sự sớm hơn, tin không phải văn bản có suất riêng 30 mỗi phút, thông báo giới hạn tối đa một câu mỗi 10 giây. Có thể báo `TOO_FAST_TEXT` một lần khi bộ giới hạn chặn người dùng chatbot nếu dev thấy cần |
+| RC-33 | Chat đủ `BOT_MAX_PENDING_PER_CHAT` dòng `queued` mà worker không chạy (hỏng, hay tắt công tắc trong lúc API còn bật chatbot): mọi tin mới nhận "đợi tôi trả lời các câu trước" vì dòng `queued` chỉ hết hạn TTL khi được claim | Không kẹt vĩnh viễn: worker sống lại thì dòng quá TTL bị `dropped` (`expired`) kèm một thông báo; dòng `processing` chết lease thì claim tiếp quản tối đa `BOT_MAX_ATTEMPTS` lần rồi `lease_exhausted`. Trước S5 các dòng cứ tích lũy im lặng. S7 thêm cảnh báo dòng `queued` quá cũ; có thể chỉ đếm dòng trong hạn TTL nếu thấy cần |
 
 ---
 
@@ -854,6 +865,21 @@ Chưa kiểm: `SIGTERM` và mất chuông trên image production (chỉ kiểm t
 | Độ ổn định | Ba lần chạy liên tiếp (106 test, 8,4 đến 8,6 giây) và hai lần khi 12 lõi CPU bị đốt (17 đến 19 giây): 5 trên 5 qua. Vòng chờ 429 dùng đồng hồ giả, không ngủ thật; các chỗ chờ khác đều có thời hạn |
 | Điểm đáng nhớ | Bản chia tin đầu tiên (ranh giới đoạn cuối cùng trong cửa sổ) cho kết quả đúng ở mọi test ban đầu mà vẫn tệ với "tiêu đề ngắn rồi danh sách dài": test chỉ có ví dụ đẹp thì không thấy. Fuzz với bất biến (không rỗng, không vượt giới hạn, không mất nội dung) cộng ví dụ thực tế bắt được cả hai loại lỗi |
 
+### A.7 Kiểm chứng S5 (2026-10-14)
+
+| Hạng mục | Kết quả |
+|---|---|
+| Test mới của S5 | **56 test ròng** (toàn bộ bộ test từ 1.461 lên 1.517): 30 ở `test_bot_limits_db.py` (tin không phải văn bản, trần tin chờ, thông báo một lần, bộ giới hạn riêng, chat nhóm, tin bị sửa, đồng thời), phần còn lại ở `test_telegram_update_parsing.py` (nhận biết loại tin, GIF, tin dịch vụ) và `test_bot_policy.py` (trần, TTL, chuỗi tiếng Việt có dấu); mở rộng `make_media_update` (ảnh nhiều cỡ, `media_group_id`, cặp `animation` và `document` như payload thật, bản sao sâu) và factory dựng bot nhận tham số runner (bộ giới hạn, đồng hồ giả) |
+| Toàn bộ bộ test backend (máy host) | **1.517 qua, 0 fail** (181 giây) |
+| Cổng chất lượng | ruff 62, `mypy app` 15, bandit 16 low và 1 medium: bằng baseline; 11 file đụng tới đúng định dạng; không có thay đổi ngoài phạm vi |
+| Chạy thật trên Docker dev với bot dev (bạn xác nhận bằng ảnh chụp) | Một album ảnh (4 update) nhận **đúng một** câu "chỉ đọc được văn bản"; câu "xin chào" ngay sau đó **vẫn được nhận** và trả lời; 7 tin "1" đến "7" gửi liền: 5 tin đầu xếp hàng và được trả lời lần lượt (mỗi 20 giây, engine giả), tin 6 và 7 nhận **chung một** câu "nhiều câu hỏi cùng lúc" và không được trả lời sau đó. Server khớp: dòng hộp thư chỉ có "xin chào" và tin 1 đến 5 (`replied`, một lần thử), 12 update ghi dedupe |
+| Độ nhạy trên code thật | **23 đột biến đại diện đều bị bắt** (nhánh loại tin, cổng pilot, `command is None`, `>=` của trần, từng trạng thái trong phép đếm, lọc theo chat, `text` không phải chuỗi, thứ tự `animation` và `document`, tin dịch vụ, giữ trần ở chính sách, ràng buộc cấu hình, giảm tần suất thông báo và khóa theo chat, bộ giới hạn riêng và suất của nó, khoảng lặng 10 giây, chuỗi tiếng Việt, và **bỏ lần ghi `last_seen_at`** làm trần thành mềm). Lần chạy đầu có 1 đột biến sống (khóa giảm tần suất theo độ dài chuỗi thay vì theo chat); đã thêm test hai chat cùng gửi ảnh |
+| Rà soát độc lập (agent) | Không có lỗi đúng-sai ở nhánh xử lý hay phép đếm trần; đo thật 20 update đồng thời: trần 1, 2, 5 nhận đúng 1, 2, 5. Phát hiện và **đã sửa theo TDD**: **(A)** album ảnh rồi hỏi tiếp làm câu hỏi bị bỏ im lặng (10 ảnh ăn hết suất 10 tin mỗi phút của bộ giới hạn, tái hiện: 9 câu "chỉ đọc văn bản" giống hệt rồi câu hỏi thật biến mất); **(B)** GIF bị gắn nhãn `document` vì thứ tự khóa; **(D)** tin dịch vụ (ghim tin) nhận câu "chỉ đọc văn bản" nghe vô lý, nay giữ `UNKNOWN_TEXT`. Ghi nhận không sửa: **(C)** trần chính xác nhờ khóa dòng `last_seen_at` (nay có test chạy đồng thời và comment đúng thực tế), **(E)** chat kẹt ở trần khi worker không chạy (RC-33), bộ giới hạn bỏ tin im lặng (RC-32), TTL chỉ kiểm ở giá trị mặc định (như các biến `BOT_*` khác, không có kiểm tra chéo) |
+| Độ ổn định | Ba lần chạy liên tiếp (105 test, 5,6 đến 5,8 giây) và hai lần khi 12 lõi CPU bị đốt (10,7 đến 12,6 giây): 5 trên 5 qua. Test thông báo một lần dùng đồng hồ giả của runner, không ngủ thật |
+| Điểm đáng nhớ | Hai chuỗi mới ban đầu định đặt tên `BUSY_TEXT`; tên đó **đã tồn tại** với nghĩa khác (báo "bấm lại sau" cho nút duyệt giá) và test đỏ vì lý do khác với dự kiến nhờ thứ tự viết test trước. Đã đổi sang `PENDING_LIMIT_TEXT` để không đụng chuỗi cũ. Và: một chức năng thông báo "thân thiện" phải xét cả đường bị chặn phía trước nó (bộ giới hạn bỏ tin im lặng) thì mới thật sự thân thiện |
+
+Chưa kiểm: gửi album thật rất lớn (nhiều chục ảnh) và hành vi khi `max_connections=1` ở production (S9).
+
 ---
 
 ## 12. Nhật Ký Soạn Và Rà Soát
@@ -878,4 +904,5 @@ Chưa kiểm: `SIGTERM` và mất chuông trên image production (chỉ kiểm t
 - **2026-10-13, bản 10, S2 xong.** S2 chủ yếu là test chứng minh claim của S1, cộng việc gửi câu xin lỗi sau commit. Port các biến thể sai và kịch bản đua của S0 thành test hồi quy, thêm chaos nhiều tiến trình thật; rà soát độc lập tìm 6 đột biến sống sót, đã đóng hết; phát hiện bài chaos ban đầu yếu và sửa (RC-29). Dồn việc xin lỗi theo liên kết sang S4. Phụ lục A.4.
 - **2026-10-14, bản 11, S3 xong.** Cài S3 (chịu lỗi) theo TDD: thử lại có backoff, `failed` với danh mục cố định, tiếp tục từ câu đã lưu, rào chắn, nhả lease khi hủy, TTL, cron quét và cron dọn; chạy thật trên Docker dev với bot dev (tắt worker giữa lượt và mất chuông đều được cứu). Rà soát độc lập tìm ba lỗi thật (lease bị giữ khi lỗi bất ngờ, khi hủy rơi vào đoạn claim, rò thông điệp qua `__context__`) và nhiều đột biến sống; đã sửa và thêm test, ghi RC-30, RC-31 và hai mục chuyển sang S4. Thêm `BOT_STUB_DELAY_SECONDS` (chỉ dev, production bỏ qua). Phụ lục A.5.
 - **2026-10-14, bản 12, S4 xong.** Cài đường gửi theo TDD: chia tin theo UTF-16 và ranh giới nửa sau cửa sổ, `sent_parts` có rào chắn, 429 trong ngân sách gửi, phân loại lỗi gửi (403 chặn, 4xx từ chối, mạng và 5xx thử lại) kèm xin lỗi khi hết lượt, chỉ báo "đang gõ", kiểm người nhận ba lần (trước engine, trước khi gửi, cho câu xin lỗi), `principal is None` thành `dropped`, giả lập Telegram mở rộng. Rà soát độc lập không thấy lỗi nghiêm trọng nhưng chỉ ra bốn điểm đáng sửa (chia tin chọn ranh giới quá sớm, `retry_after` lớn bị bỏ qua khi hẹn lần sau, hai giá trị 0 gây vòng lặp nóng, tin gửi dở quá hạn bị loại); đã sửa và thêm test. Phụ lục A.6.
+- **2026-10-14, bản 13, S5 xong.** Cài chặn lũ và tin không phải văn bản theo TDD: trần `BOT_MAX_PENDING_PER_CHAT` (chính xác nhờ khóa dòng `telegram_accounts`), câu cố định cho ảnh, tài liệu, giọng nói, sticker, GIF, vị trí..., `TelegramMessage.kind`, chat nhóm và tin bị sửa không vào đường ống. Rà soát độc lập không thấy lỗi đúng-sai nhưng chỉ ra vấn đề trải nghiệm đáng sửa (album ảnh rồi hỏi tiếp bị bỏ im lặng) cùng hai điểm nhỏ (nhãn GIF, tin dịch vụ); đã sửa bằng thông báo một lần mỗi 10 giây mỗi chat và bộ giới hạn riêng cho tin không phải văn bản. Thêm RC-32, RC-33. Phụ lục A.7.
 - **Chưa xác minh:** các điểm đánh dấu **[CHƯA XÁC MINH]** ở trên; các con số ở Phụ lục A.2 do agent đo, tôi chưa tái lập; quan sát bằng mắt chỉ báo "đang gõ" của S0(d) chờ bạn xác nhận; hành vi `SIGTERM` của lệnh dev `sh -lc "uv sync && uv run arq ..."`.
