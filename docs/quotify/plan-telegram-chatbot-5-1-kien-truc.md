@@ -2,7 +2,7 @@
 
 ## Trạng Thái
 
-**ĐÃ CHỐT CÁC ĐIỂM CẦN QUYẾT (2026-10-13, bản 8, sau rà soát độc lập). S0, S1 VÀ S2 ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa merge vào `main`); S0 và S1 bạn đã xác nhận trên Telegram thật.** Chưa có dòng code nào. Các điểm "đã quyết theo bằng chứng" ở mục 9 chưa gặp phản đối nhưng chưa được xác nhận riêng. Cơ sở: commit `7eb64e9` trên `main`, cây git sạch, Alembic head `20261007_0900`.
+**ĐÃ CHỐT CÁC ĐIỂM CẦN QUYẾT (2026-10-13, sau rà soát độc lập; nhật ký đến bản 11, 2026-10-14). S0 ĐẾN S3 ĐÃ XONG trên nhánh `feat/telegram-chatbot` (chưa merge vào `main`); S0, S1 và S3 bạn đã xác nhận trên Telegram thật.** Các điểm "đã quyết theo bằng chứng" ở mục 9 chưa gặp phản đối nhưng chưa được xác nhận riêng. Cơ sở: commit `7eb64e9` trên `main`, cây git sạch, Alembic head `20261007_0900`.
 
 Kế hoạch này là phần triển khai chi tiết của **mục 5.1** (và phần hạ tầng của Giai đoạn 2A) trong [plan-telegram-bien-dong-gia-va-chatbot-ai.md](plan-telegram-bien-dong-gia-va-chatbot-ai.md). Nó chỉ xây **đường ống**: nhận tin, xếp hàng, xử lý ở worker riêng, trả lời. Phần "bộ não" (LLM, công cụ, bộ nhớ, ngân sách) cắm vào đường ống qua một cổng duy nhất (`ChatEngine`, mục 4.6) và thuộc các kế hoạch riêng của 5.2 đến 5.6.
 
@@ -11,7 +11,7 @@ Cách soạn:
 - Local skill `tdd`: trong mỗi lát, test đầu tiên là tracer bullet đi hết đường, rồi mới tới từng hành vi, một test một đoạn code. Test đo hành vi qua giao diện công khai (webhook vào, request Telegram ra, trạng thái DB), chỉ giả lập ranh giới hệ thống (Telegram, Redis, LLM).
 - Local agent: 4 agent Explore chỉ đọc chạy song song ngày 2026-10-13 (luồng webhook và update; worker, Redis, compose; service, DB, quyền; lịch sử bug và memory-bank), cộng ba điểm tôi tự kiểm trực tiếp (ngữ nghĩa `_job_id` của arq, `parse_mode=None` của client Telegram, khối `worker` trong compose production). Sau đó **một agent rà soát độc lập** kiểm lại trích dẫn, tấn công thiết kế và chạy thực nghiệm; kết quả và các sửa đổi đã áp dụng ở mục 12 và Phụ lục A.
 
-Quy ước: `KT1` đến `KT21` là quyết định kiến trúc (mục 5). `RC-1` đến `RC-29` là rủi ro (mục 8). `S0` đến `S10` là lát cắt (mục 6). Mục nào chưa kiểm chứng ghi **[CHƯA XÁC MINH]**.
+Quy ước: `KT1` đến `KT21` là quyết định kiến trúc (mục 5). `RC-1` đến `RC-31` là rủi ro (mục 8). `S0` đến `S10` là lát cắt (mục 6). Mục nào chưa kiểm chứng ghi **[CHƯA XÁC MINH]**.
 
 ---
 
@@ -193,13 +193,13 @@ Trạng thái kết thúc là `replied`, `failed`, `dropped`.
 3. **Nạp `BotPrincipal`** mới ở **mỗi tin**: quyền bị thu hồi giữa hai tin có hiệu lực ở tin kế tiếp.
 4. Nếu dòng đã có `reply_text` (lần claim trước chết sau bước lưu): **bỏ qua engine và cổng hạn mức** (lượt đã được tính), nhảy sang bước gửi. Ngược lại, qua **cổng hạn mức** (mục 4.11): bị từ chối thì dòng chuyển `dropped` (`quota_exceeded`), gửi câu thông báo cố định (không gọi engine, không tính lượt), rồi tiếp tục dòng sau.
 5. **Chỉ báo "đang gõ"**: gửi `sendChatAction typing` ngay, lặp mỗi `BOT_TYPING_INTERVAL_SECONDS` bằng một tác vụ nền trong lúc engine chạy, hủy khi xong. Lỗi gửi chỉ báo bị bỏ qua.
-6. Gọi `ChatEngine.reply(turn)` bọc `asyncio.wait_for(BOT_ROW_TIMEOUT_SECONDS)`. **Không giữ kết nối DB** trong lúc này. Lỗi `ChatEngineTemporaryError` hoặc quá thời gian: đưa dòng về `queued` với `lease_until = now + BOT_RETRY_BACKOFF_SECONDS × attempts` (nếu chưa đạt trần lần thử). Lỗi `ChatEngineError` (lỗi cuối): `failed` ngay, gửi một câu xin lỗi.
+6. Gọi `ChatEngine.reply(turn)` bọc `asyncio.wait_for(BOT_ROW_TIMEOUT_SECONDS)`. **Không giữ kết nối DB** trong lúc này. Lỗi `ChatEngineTemporaryError` hoặc quá thời gian: đưa dòng về `queued` với `lease_until = now + BOT_RETRY_BACKOFF_SECONDS × attempts` (nếu chưa đạt trần lần thử). Lỗi `ChatEngineError` (lỗi cuối): `failed` ngay, gửi một câu xin lỗi. Mọi lỗi khác (kể cả lỗi bất ngờ) coi là thử lại được. `error_category` luôn là chuỗi cố định (`engine_error`, `engine_timeout`, `send_failed`, `lease_exhausted`, `expired`), không bao giờ là nguyên văn ngoại lệ. Kết quả lỗi chỉ được **ghi nhận** trong khối `except` và xử lý sau khi đã thoát khối (RC-30).
 7. **Lưu `reply_text`** và đặt `reply_saved_at` bằng câu lệnh có rào chắn (KT16).
 8. **Kiểm lần cuối trước khi gửi** bằng một truy vấn: dòng vẫn thuộc về lần claim này, liên kết còn `active`, người dùng còn `ACTIVE`. Không thì bỏ, không gửi.
 9. Gửi theo mục 4.7, rồi `complete` có rào chắn.
 10. Dừng claim dòng mới khi vượt `BOT_DRAIN_BUDGET_SECONDS`. Phần còn lại do cron quét đánh chuông lại sau tối đa khoảng một phút. Job arq không tự đưa lại chính nó vào hàng đợi được vì khóa job còn tồn tại đến khi job kết thúc.
 
-**Hủy và tắt (đã kiểm ở S0(b)):** khi worker nhận `SIGTERM` (deploy), job nhận `CancelledError` khoảng 20 ms sau và khối dọn dùng `asyncio.shield` chạy xong trước khi tiến trình thoát. Hàm drain bắt `CancelledError`, **nhả lease của dòng đang xử lý** bằng một `UPDATE` bọc `shield` rồi ném lại; nếu không, dòng bị kẹt đến hết lease (240 giây). Khóa "đang chạy" của arq bị xóa khi `SIGTERM`, còn khóa job và mục retry ở lại thành job mồ côi (worker khởi động lại sẽ báo "max retries exceeded" và không chạy lại hàm), nên `BotWorkerSettings` đặt `retry_jobs=False`: không còn mồ côi và id dùng lại ngay, đổi lại một dòng log ERROR cho `CancelledError` (chấp nhận). `job_completion_wait` có trong arq 0.26.3 (số nguyên giây, mặc định 0) nhưng **không dùng**, để 0: vòng drain không biết mình đang bị tắt nên sẽ vẫn claim dòng mới trong lúc chờ. `stop_grace_period` của service phải lớn hơn thời gian dọn (khoảng 1 giây) cộng dự phòng (đề xuất 30 giây); nếu `docker stop` hết hạn thì tiến trình bị `SIGKILL`, khóa "đang chạy" còn lại, id kẹt và dòng kẹt đến hết lease. Một lần deploy giữa chừng tốn một lần thử.
+**Hủy và tắt (đã kiểm ở S0(b)):** khi worker nhận `SIGTERM` (deploy), job nhận `CancelledError` khoảng 20 ms sau và khối dọn dùng `asyncio.shield` chạy xong trước khi tiến trình thoát. Hàm drain bắt **mọi** ngoại lệ thoát khỏi một dòng (`CancelledError` lẫn lỗi bất ngờ, ví dụ DB đứt lúc lưu câu trả lời), **nhả lease của dòng đang xử lý** bằng một `UPDATE` bọc `shield` rồi ném lại nguyên vẹn; nếu không, dòng bị kẹt đến hết lease (240 giây). Vùng này phủ cả đoạn claim: dòng chỉ được coi là của mình sau khi claim đã commit, nên `SIGTERM` rơi vào bước đóng phiên sau commit vẫn nhả được. Còn một cửa sổ cỡ mili giây không phủ được: hủy đúng lúc đang chờ kết quả commit của chính claim (RC-30). Khóa "đang chạy" của arq bị xóa khi `SIGTERM`, còn khóa job và mục retry ở lại thành job mồ côi (worker khởi động lại sẽ báo "max retries exceeded" và không chạy lại hàm), nên `BotWorkerSettings` đặt `retry_jobs=False`: không còn mồ côi và id dùng lại ngay, đổi lại một dòng log ERROR cho `CancelledError` (chấp nhận). `job_completion_wait` có trong arq 0.26.3 (số nguyên giây, mặc định 0) nhưng **không dùng**, để 0: vòng drain không biết mình đang bị tắt nên sẽ vẫn claim dòng mới trong lúc chờ. `stop_grace_period` của service phải lớn hơn thời gian dọn (khoảng 1 giây) cộng dự phòng (đề xuất 30 giây); nếu `docker stop` hết hạn thì tiến trình bị `SIGKILL`, khóa "đang chạy" còn lại, id kẹt và dòng kẹt đến hết lease. Một lần deploy giữa chừng tốn một lần thử.
 
 **Bên gửi (`BotDispatcher.notify`)** chạy **sau commit**, không bao giờ làm hỏng webhook: pool arq được **tạo lười** ở lần dùng đầu (như `get_telegram_runner`; tạo ở lifespan sẽ chặn khởi động backend khi Redis chưa sẵn sàng, vì `arq.create_pool` thử tối đa khoảng 5,4 giây rồi ném lỗi). Việc tạo pool và việc đánh chuông cùng nằm **trong một** `asyncio.wait_for(2 giây)`: S0(b) đo được `create_pool` **treo vô hạn** khi Redis nửa chết (`docker pause`) vì `conn_timeout` chỉ áp cho bước nối TCP còn lệnh `ping` đầu tiên không có timeout, trong khi `enqueue_job` trên pool sẵn có bị `wait_for` cắt đúng 2 giây và pool vẫn dùng được sau khi Redis chạy lại. Phải bắt `Exception` (ngoại lệ thuộc thư viện `redis`, không phải ngoại lệ dựng sẵn), mọi lỗi chỉ ghi log. Job dùng `_job_id="bot:<update_id>"`, **không** dùng id theo chat: sau `SIGKILL` khóa job mồ côi chặn cùng id đến `job_timeout + 10` giây tính từ lúc job bắt đầu, và đến 24 giờ nếu không có worker nào chạy để dọn (mục 2), và một id theo chat làm mất chuông khi tin mới đến lúc job cũ sắp kết thúc. Với id theo update, mỗi tin có chuông riêng; chuông thừa vô hại vì claim loại trừ (job thứ hai thấy dòng đang chạy và thoát ngay). Còn lại một cửa sổ rất hẹp (dòng mới commit đúng lúc job cũ vừa thấy hàng rỗng), được cron quét bù.
 
@@ -274,6 +274,7 @@ Thêm vào `Settings` và `.env.example`, `.env.production.example`. **Không** 
 | `BOT_TYPING_INTERVAL_SECONDS` | `4` | Chỉ báo "đang gõ" của Telegram kéo dài khoảng 5 giây |
 | `BOT_REPLY_MAX_PARTS` | `4` | |
 | `BOT_TERMINAL_RETENTION_DAYS` | `30` | Xóa dòng đã kết thúc (nội dung đã bị xóa từ lúc kết thúc, chỉ còn siêu dữ liệu) |
+| `BOT_STUB_DELAY_SECONDS` | `0` | **Chỉ để thử trên dev**: engine giả đợi từng này giây rồi mới trả lời (để thử `SIGTERM` giữa lượt, chỉ báo "đang gõ"). Worker **bỏ qua** giá trị này khi `APP_ENV=production`; có test |
 
 Bạn đã đồng ý các giá trị này làm **giá trị khởi điểm** (2026-10-13), chưa đo: chạy thử trên dev rồi tinh chỉnh lại (S8), và đặt hạn mức token sau khi có số liệu thật của engine (5.5, 5.6).
 
@@ -446,16 +447,27 @@ Test thuộc tầng integration, Postgres thật. Hai kiểu "worker đồng th�
 
 ### S3: Chịu lỗi (AFK)
 
+**Trạng thái 2026-10-14: ĐÃ XONG trên nhánh `feat/telegram-chatbot`.** Bằng chứng ở Phụ lục A.5.
+
 Chặn bởi: S1.
 
-- [ ] Redis hỏng lúc đánh chuông: webhook vẫn 200, dòng nằm `queued`, cron `sweep_bot_updates` đánh chuông lại và tin được trả lời.
-- [ ] Worker chết sau bước lưu `reply_text`, trước khi gửi: sau khi lease hết hạn, câu đã lưu được gửi lại và `FakeChatEngine` **không** bị gọi thêm.
-- [ ] Worker chết **trước** khi lưu: lần thử sau gọi engine lại (đếm đúng theo `attempts`).
-- [ ] `ChatEngineTemporaryError` hoặc quá `BOT_ROW_TIMEOUT_SECONDS`: dòng về `queued` với backoff; đạt `BOT_MAX_ATTEMPTS` thì `failed` kèm đúng một câu xin lỗi, `error_category` thuộc danh mục cố định, không chứa nguyên văn ngoại lệ. `ChatEngineError` thì `failed` ngay.
-- [ ] **Rào chắn:** sau khi lease bị tiếp quản, lời lưu/hoàn tất của worker cũ không ghi đè; kiểm lần cuối ngăn worker cũ gửi trùng; dòng bị xóa giữa chừng không làm worker lỗi.
-- [ ] **Hủy (SIGTERM):** hủy tác vụ drain giữa lúc engine chạy thì lease được nhả ngay và dòng claim lại được tức thì.
-- [ ] Dòng quá `BOT_MESSAGE_TTL_SECONDS`: `dropped` (`expired`), một thông báo mỗi lần chạy drain.
-- [ ] Hai tiến trình chạy cron cùng lúc không tạo xử lý trùng.
+Test thuộc tầng integration, Postgres thật (`test_bot_resilience_db.py`, `test_bot_sweep_db.py`, cộng `tests/test_bot_worker.py`). Tình huống "worker khác tiếp quản" dùng cổng `asyncio.Event` đặt đúng chỗ; các chỗ chờ đều có thời hạn, không ngủ cứng để đồng bộ.
+
+- [x] Redis hỏng lúc đánh chuông (bên đánh chuông giả ném lỗi kết nối): webhook vẫn 200, dòng nằm `queued`, cron `sweep_bot_updates` đánh chuông lại đúng chat và tin được trả lời.
+- [x] Worker chết sau bước lưu `reply_text`, trước khi gửi: lần sau câu đã lưu được gửi lại và engine **không** bị gọi thêm.
+- [x] Worker chết **trước** khi lưu: lần thử sau gọi engine lại (đếm đúng theo `attempts`).
+- [x] `ChatEngineTemporaryError`, lỗi bất ngờ, hoặc quá `BOT_ROW_TIMEOUT_SECONDS`: dòng về `queued` với backoff `BOT_RETRY_BACKOFF_SECONDS × attempts` (có test lần 1 và lần 2); đạt `BOT_MAX_ATTEMPTS` thì `failed` kèm đúng một câu xin lỗi, `error_category` thuộc danh mục cố định, không chứa nguyên văn ngoại lệ. `ChatEngineError` thì `failed` ngay.
+- [x] **Rào chắn:** sau khi lease bị tiếp quản, lời lưu/hoàn tất của worker cũ không ghi đè; kiểm lần cuối ngăn worker cũ gửi trùng (cổng đặt đúng giữa bước lưu và bước gửi); dòng bị xóa giữa chừng không làm worker lỗi. **(thêm sau rà soát)** cả bốn lệnh `requeue`, `end`, `release_lease`, `owns` bị chặn bằng token cũ **khi worker mới còn sống**, và worker cũ thất bại muộn không gửi thêm câu xin lỗi sau khi worker mới đã trả lời.
+- [x] **Hủy (SIGTERM):** hủy tác vụ drain giữa lúc engine chạy thì lease được nhả ngay và dòng claim lại được tức thì; **(thêm sau rà soát)** lần hủy thứ hai giữa lúc đang nhả không cắt ngang việc nhả (`shield`), và hủy rơi vào bước đóng phiên sau commit của claim vẫn nhả được lease.
+- [x] **(thêm sau rà soát)** Lỗi bất ngờ thoát khỏi vòng xử lý (DB đứt đúng lúc lưu câu trả lời) cũng nhả lease rồi ném lại, thay vì giữ chat 240 giây.
+- [x] **(thêm sau rà soát)** Thông điệp ngoại lệ của engine hay của bước gửi không lọt vào traceback (`__context__`) khi DB lỗi ngay sau đó, và nội dung câu hỏi lẫn câu trả lời không xuất hiện trong log ở cả đường thành công lẫn đường gửi lỗi.
+- [x] Dòng quá `BOT_MESSAGE_TTL_SECONDS`: `dropped` (`expired`), một thông báo mỗi lần chạy drain.
+- [x] Lỗi gửi Telegram: dòng về `queued` với câu trả lời đã lưu, lần sau chỉ gửi lại câu đó; hết lượt thì `failed` (`send_failed`) **không** xin lỗi (xem "Chuyển sang S4").
+- [x] Cron quét chỉ rung cho chat có dòng claim được: bỏ chat đang có dòng chạy còn lease hoặc dòng đầu đang chờ thử lại; chờ đủ `BOT_SWEEP_STALE_SECONDS` mới rung dòng mới vào; mỗi chat một chuông gắn với dòng cũ nhất; tắt cờ thì không rung; hai tiến trình quét cùng lúc không tạo xử lý trùng.
+- [x] Cron dọn xóa dòng `replied`, `failed`, `dropped` quá `BOT_TERMINAL_RETENTION_DAYS` (có test sát biên 29 và 31 ngày) và không bao giờ xóa dòng còn mở.
+- [x] Lịch cron và ánh xạ cấu hình được ghim bằng test (quét giây 10 và 40 mỗi phút; dọn 03:40 mỗi ngày; mặc định và đường từ `Settings` sang `BotWorkerConfig`), và `BOT_STUB_DELAY_SECONDS` bị bỏ qua ở production.
+
+**Chuyển sang S4:** (1) lỗi gửi vĩnh viễn (tin dài quá 4096 ký tự khi chưa chia, 400) hiện đi cùng đường thử lại với lỗi mạng và kết thúc `failed` mà người dùng **không nhận gì**, kể cả câu xin lỗi; S4 phải phân loại 400, 403, 429, mạng và xin lỗi khi lỗi không phải 403. (2) Tổng thời gian chịu được Telegram lỗi chỉ khoảng 15 giây (backoff 5 + 10 giây với 3 lần thử): tinh chỉnh lúc chạy thử dev. (3) `principal is None` (người dùng không còn hoạt động) vẫn để dòng `processing` đến hết lease rồi `failed`: chuyển `dropped` ở S4.
 
 ### S4: Đường gửi (AFK)
 
@@ -469,6 +481,8 @@ Mở rộng giả lập (hiện `Outbox` và `fake_telegram_server` không thể
 - [ ] 403: `mark_blocked` và dòng `dropped` (`forbidden`).
 - [ ] Người dùng bị khóa, hủy liên kết, hoặc liên kết thành `blocked` trong lúc tin còn chờ: dòng `dropped`, không gọi engine.
 - [ ] Câu xin lỗi của S2 cũng qua bước kiểm liên kết còn hiệu lực trước khi gửi, và 403 cho câu xin lỗi cũng gọi `mark_blocked`.
+- [ ] **(từ rà soát S3)** Phân loại lỗi gửi: lỗi mạng và 429 thử lại; 400 (tin quá dài, lỗi định dạng) và hết lượt thì xin lỗi người dùng; 403 thì `mark_blocked` và `dropped`. `send_failed` không được kết thúc mà người dùng không nhận gì khi chat còn tới được.
+- [ ] **(từ rà soát S3)** `principal is None` chuyển dòng sang `dropped` (`user_inactive`) thay vì để `processing` đến hết lease.
 
 ### S5: Chặn lũ và tin không phải văn bản (AFK)
 
@@ -593,6 +607,8 @@ Theo skill `tdd`: lát cắt dọc, một test rồi một đoạn code, test đ
 | RC-27 | Engine DB chỉ đọc chỉ là rào chắn: một câu `SET default_transaction_read_only=off` hoặc `SET TRANSACTION READ WRITE` tắt được chế độ chỉ đọc, cài đặt đó rò sang kết nối dùng lại trong pool (cả `SET statement_timeout=0`), và `pg_advisory_lock` mức phiên vẫn được phép (đo ở S0(a)) | Không công cụ nào nhận SQL hay chuỗi truy vấn tự do từ model (5.2); test ở S6; kiểm xem cần đặt lại cài đặt khi trả kết nối về pool không; ranh giới cứng là role chỉ-`SELECT` ở 2D |
 | RC-28 | Thông điệp ngoại lệ của SQLAlchemy kèm **tham số của câu lệnh lỗi**, tức nội dung tin hay câu trả lời (reviewer tái hiện với ký tự NUL), và log lỗi hoặc log của arq in ra | Mọi lệnh DB mang nội dung bọc `BotInboxError` không chứa tham số (S1, có test chuỗi mồi ở cả đường webhook và đường worker); `repr` của `ChatTurn`, `ClaimedRow`, `BotPrincipal` che nội dung; S7 mở rộng sang mọi nhánh lỗi. Chưa đặt `hide_parameters` ở engine chung vì đổi hành vi toàn ứng dụng |
 | RC-29 | Test đua và chaos dễ **xanh giả** hoặc **chập chờn**: lần chạy đầu của bài chaos chỉ có 5 lần tiếp quản trên 120 dòng (trải 4 tiến trình trên 24 chat nên hiếm khi tranh cùng một chat) và biến thể sai chỉ bị bắt 1 trong 3 lượt; sau rà soát còn 6 đột biến trên code thật mà bộ test không bắt được | Tập trung tranh chấp vào vài chat (70 lần tiếp quản trên 60 dòng) kèm sàn `takeovers >= 10` trong test; mọi biến thể sai phải bị bắt đúng bằng một vi phạm thật (không tính quá hạn); thêm test xác định cho các lớp bảo vệ mà chaos chỉ che xác suất; mọi chờ đều có thời hạn và tiến trình con luôn bị kill; URL có mật khẩu không làm tham số test |
+| RC-30 | Lỗi bất ngờ thoát khỏi vòng xử lý giữ lease của chat đến 240 giây (mất cả câu trả lời đã trả tiền nếu lỗi rơi vào bước lưu), hoặc thông điệp ngoại lệ của engine lọt vào log qua chuỗi `__context__` khi DB lỗi ngay sau đó; còn một cửa sổ cỡ mili giây khi `SIGTERM` rơi đúng lúc chờ commit của claim | `drain_chat` nhả lease với mọi ngoại lệ (không chỉ `CancelledError`) và phủ cả đoạn claim; xử lý lỗi engine và lỗi gửi ngoài khối `except`; test tái hiện cả ba (S3, rà soát độc lập). Cửa sổ còn lại chấp nhận: lease tự hết hạn như `SIGKILL` |
+| RC-31 | Cron quét lấy tối đa 500 chat mỗi lần, sắp theo `chat_id`: nếu hàng trăm chat cùng chờ thì chat có id lớn được rung muộn hơn một chu kỳ | Chưa chạm trần ở quy mô hiện tại; đổi sang sắp theo `update_id` hoặc đặt giới hạn thành tham số khi số người dùng chatbot đủ lớn (S8, sau khi chạy thử dev). Test sweep dọn dòng còn mở của test khác để không phụ thuộc trần này |
 
 ---
 
@@ -795,6 +811,22 @@ Chưa kiểm: nút duyệt giá thật với cờ bật; `arq --check` và `SIGT
 
 Chưa kiểm: môi trường `backend-test` của compose, Postgres bị đói CPU, chạy song song bằng xdist, và nút duyệt giá thật với cờ bật.
 
+### A.5 Kiểm chứng S3 (2026-10-14)
+
+| Hạng mục | Kết quả |
+|---|---|
+| Test mới của S3 | 35 test: 23 ở `test_bot_resilience_db.py` (thử lại, `failed`, tiếp tục từ câu đã lưu, rào chắn, hủy, lỗi bất ngờ, rò nội dung), 8 ở `test_bot_sweep_db.py` (quét và dọn), 4 ở `tests/test_bot_worker.py` (lịch cron, mặc định và ánh xạ cấu hình, độ trễ giả chỉ ở dev) |
+| Toàn bộ bộ test backend (máy host) | **1.387 qua, 0 fail** (158,6 giây); mốc trước S3 là 1.352, nên đúng 35 test thêm. Lần chạy có coverage báo `INTERNALERROR` lúc ghi `htmlcov/` vì một file cũ thuộc người dùng khác (nhiều khả năng là dấu vết của một lần chạy Docker trước); đó là lỗi môi trường, không liên quan code, lần chạy kết quả dùng `--no-cov` |
+| Cổng chất lượng | ruff 62, `mypy app` 15, bandit 16 low và 1 medium: bằng baseline; 9 file đụng tới đúng định dạng. `.ruff_cache` bị chặn quyền nên chạy `--no-cache` |
+| Chạy thật trên Docker dev và bot dev (bạn nhắn tin) | **(1) `SIGTERM` giữa lượt:** engine giả đợi 25 giây; dòng 678129877 bị dừng lúc 08:18:40, ngay sau đó trong DB là `processing`, `attempts=1`, lease **đã nhả**, nội dung còn nguyên; log worker có `CancelledError` và "Bot worker shutting down". Khởi động lại: cron quét rung chuông (`bot.sweep rang=1`) lúc 08:19:10, dòng được claim lần 2, xử lý 1,46 giây, `replied`, bạn nhận **một** câu trả lời, 29 giây sau khi khởi động lại. **(2) Mất chuông:** tắt worker, bạn nhắn tin, tôi xóa `arq:job:bot:678129878` và mục tương ứng khỏi `quotify:bot` (DB vẫn `queued`, `attempts=0`); khởi động worker: lần quét đầu tiên rung lại, dòng `replied` sau 39 giây, `attempts=1`. Đường bình thường (dòng 678129876, engine giả 25 giây): `replied` sau 26,12 giây |
+| Độ nhạy trên code thật | Đột biến lần đầu: **13 trên 13 bị bắt** (trước rà soát) |
+| Rà soát độc lập (agent) | Chạy 68 đột biến trên bản sao, 42 bị bắt, 26 sống (1 tương đương). Phát hiện thật: **(1a)** lỗi bất ngờ giữ lease 240 giây (tái hiện: `save_reply` ném `BotInboxError`), **(1b)** `SIGTERM` rơi vào bước đóng phiên sau commit của claim giữ lease, **(2)** thông điệp ngoại lệ của engine lọt vào traceback qua `__context__` khi DB lỗi ngay sau đó. **Cả ba đã sửa theo TDD** (test đỏ trước, rồi mới sửa code). Đã thêm test cho các đột biến sống: bốn lệnh có rào chắn `attempts` (chỉ lộ khi worker mới còn sống), `shield` (hủy lần hai), `DISTINCT ON` và `ORDER BY` của quét, backoff nhân `attempts`, điều kiện `changed` của câu xin lỗi, lịch cron, ánh xạ và mặc định cấu hình, biên 30 ngày của dọn, rò nội dung ở đường thành công và đường gửi lỗi. **27 đột biến đại diện của tôi nay đều bị bắt**. Còn sống và **chấp nhận**: bỏ `status='processing'` khỏi `requeue` và `release_lease` (gần tương đương khi còn rào `attempts`), nhánh `if not saved` (gần tương đương vì `owns()` ở dòng sau chặn thay), `>` thành `>=` ở hạn TTL (đột biến biên) |
+| Quyết định giữ nguyên | Lỗi gửi cuối cùng không xin lỗi (chuyển S4 với phân loại lỗi); không thêm validator `ge` cho các biến mới (ý kiến, không phải lỗi); giới hạn 500 chat của cron quét ghi thành RC-31 |
+| Độ ổn định | Ba lần chạy liên tiếp và hai lần chạy khi 12 lõi CPU bị đốt: 5 trên 5 qua (38 test, 4,6 đến 11,6 giây). Test race dùng `asyncio.Event` và `wait_for(5)`; các assert về backoff dùng biên 5 giây trở lên. Test sweep nay dọn dòng còn mở của test khác trước mỗi test |
+| Điểm đáng nhớ | Các test "worker cũ" ban đầu để worker mới xong trước (`replied`), lúc đó điều kiện `status` đã chặn thay nên **không chứng minh được** rào chắn `attempts` của từng câu lệnh; chỉ test giữ worker mới còn sống mới lộ được (bài học dùng được cho mọi test rào chắn) |
+
+Chưa kiểm: `SIGTERM` và mất chuông trên image production (chỉ kiểm trên image dev), Redis nửa chết thật cho đường quét, `max_connections` Postgres khi nhiều worker, và cron quét ở quy mô vài trăm chat.
+
 ---
 
 ## 12. Nhật Ký Soạn Và Rà Soát
@@ -817,4 +849,5 @@ Chưa kiểm: môi trường `backend-test` của compose, Postgres bị đói C
 - **2026-10-13, bản 8, kết quả S0.** Chạy S0(a), (b), (c), (f) bằng ba agent (Phụ lục A.2). Thiết kế qua thực nghiệm; sửa các điểm sau: câu lệnh claim (ép kiểu `CAST(:chat_id AS BIGINT)`, điều kiện `status IN ('queued','processing')` bắt buộc và thử lại khi 0 dòng, trả danh sách dòng hết lượt để gửi câu xin lỗi sau commit); mọi mốc thời gian truyền vào truy vấn phải có múi giờ; không dùng `received_at::date` cho hạn mức; cảnh báo `READ COMMITTED` của SQLAlchemy là lỗi thời nhưng engine chỉ đọc chỉ là rào chắn (RC-27); hành vi `SIGTERM` và `SIGKILL` của arq (`retry_jobs=False`, `keep_result=0` bắt buộc, `health_check_interval` nhỏ, `BotWorkerSettings` không kế thừa); `create_pool` phải nằm trong `wait_for`; baseline cổng chất lượng không xanh sẵn (RC-26) và mốc mới ở A.2. Script và kết quả thô lưu ở `docs/quotify/analysis-chatbot-5-1/`.
 - **2026-10-13, bản 9, S1 xong.** Cài S1 theo TDD (tracer bullet rồi từng hành vi), rà soát độc lập, sửa các lỗi rà soát tìm ra, chạy thật trên Docker dev và bot dev. Thêm RC-28 (rò nội dung qua tham số SQLAlchemy), bốn tiêu chí S1 sau rà soát, Phụ lục A.3. Hoãn compose test và `sendChatAction` của fake Telegram sang S4 và S8.
 - **2026-10-13, bản 10, S2 xong.** S2 chủ yếu là test chứng minh claim của S1, cộng việc gửi câu xin lỗi sau commit. Port các biến thể sai và kịch bản đua của S0 thành test hồi quy, thêm chaos nhiều tiến trình thật; rà soát độc lập tìm 6 đột biến sống sót, đã đóng hết; phát hiện bài chaos ban đầu yếu và sửa (RC-29). Dồn việc xin lỗi theo liên kết sang S4. Phụ lục A.4.
+- **2026-10-14, bản 11, S3 xong.** Cài S3 (chịu lỗi) theo TDD: thử lại có backoff, `failed` với danh mục cố định, tiếp tục từ câu đã lưu, rào chắn, nhả lease khi hủy, TTL, cron quét và cron dọn; chạy thật trên Docker dev với bot dev (tắt worker giữa lượt và mất chuông đều được cứu). Rà soát độc lập tìm ba lỗi thật (lease bị giữ khi lỗi bất ngờ, khi hủy rơi vào đoạn claim, rò thông điệp qua `__context__`) và nhiều đột biến sống; đã sửa và thêm test, ghi RC-30, RC-31 và hai mục chuyển sang S4. Thêm `BOT_STUB_DELAY_SECONDS` (chỉ dev, production bỏ qua). Phụ lục A.5.
 - **Chưa xác minh:** các điểm đánh dấu **[CHƯA XÁC MINH]** ở trên; các con số ở Phụ lục A.2 do agent đo, tôi chưa tái lập; quan sát bằng mắt chỉ báo "đang gõ" của S0(d) chờ bạn xác nhận; hành vi `SIGTERM` của lệnh dev `sh -lc "uv sync && uv run arq ..."`.
