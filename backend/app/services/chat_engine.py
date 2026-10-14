@@ -6,6 +6,7 @@ hay đường gửi tin.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
@@ -47,7 +48,15 @@ class ChatEngine(Protocol):
 
 
 class StubChatEngine:
-    """Trả một câu cố định, để chạy thử đường ống đủ từ đầu đến cuối khi chưa có LLM."""
+    """Trả một câu cố định, để chạy thử đường ống đủ từ đầu đến cuối khi chưa có LLM.
+
+    `delay_seconds` chỉ để thử trên dev (mô phỏng LLM chậm); production luôn là 0.
+    """
+
+    def __init__(self, delay_seconds: float = 0.0) -> None:
+        self._delay = delay_seconds
 
     async def reply(self, turn: ChatTurn) -> ChatReply:
+        if self._delay > 0:
+            await asyncio.sleep(self._delay)
         return ChatReply(STUB_REPLY_TEXT)

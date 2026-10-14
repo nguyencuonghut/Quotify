@@ -67,6 +67,62 @@ _SQL_SAVE_REPLY = text(
      WHERE update_id = :id AND status = 'processing' AND attempts = :attempts
     """
 )
+# Đưa dòng về hàng đợi để thử lại sau `retry_at` (backoff). Giữ nguyên `reply_text` nếu đã lưu, để
+# lần sau chỉ gửi lại câu đã có mà không gọi engine lần hai.
+_SQL_REQUEUE = text(
+    """
+    UPDATE bot_updates SET status = 'queued', lease_until = :retry_at
+     WHERE update_id = :id AND status = 'processing' AND attempts = :attempts
+    """
+)
+# Kết thúc dòng bằng `failed` hoặc `dropped` và xóa nội dung (chỉ giữ siêu dữ liệu).
+_SQL_END = text(
+    """
+    UPDATE bot_updates
+       SET status = :status, error_category = :category, finished_at = :now,
+           payload_text = NULL, reply_text = NULL
+     WHERE update_id = :id AND status = 'processing' AND attempts = :attempts
+    """
+)
+# Nhả lease (khi worker bị hủy): dòng claim lại được ngay, không phải chờ lease hết hạn.
+_SQL_RELEASE = text(
+    """
+    UPDATE bot_updates SET lease_until = :now
+     WHERE update_id = :id AND status = 'processing' AND attempts = :attempts
+    """
+)
+_SQL_OWNS = text(
+    """
+    SELECT 1 FROM bot_updates
+     WHERE update_id = :id AND status = 'processing' AND attempts = :attempts
+    """
+)
+# Chat có dòng claim được mà chưa ai nhận: `queued` vào đủ lâu (chuông có thể đã mất), `queued` đã
+# đến hạn thử lại, hoặc `processing` đã hết lease (worker chết). Bỏ chat đang có dòng chạy còn lease
+# hoặc dòng đầu đang chờ thử lại: đánh chuông cho chúng chỉ là chuông thừa (claim sẽ trả rỗng).
+_SQL_PENDING = text(
+    """
+    SELECT DISTINCT ON (b.chat_id) b.chat_id, b.update_id
+      FROM bot_updates b
+     WHERE b.status IN ('queued','processing')
+       AND ((b.status = 'queued' AND b.lease_until IS NULL AND b.received_at <= :cutoff)
+         OR (b.status = 'queued' AND b.lease_until IS NOT NULL AND b.lease_until <= :now)
+         OR (b.status = 'processing' AND b.lease_until <= :now))
+       AND NOT EXISTS (
+            SELECT 1 FROM bot_updates p
+             WHERE p.chat_id = b.chat_id
+               AND ((p.status = 'processing' AND p.lease_until > :now)
+                 OR (p.status = 'queued' AND p.lease_until > :now)))
+     ORDER BY b.chat_id, b.update_id
+     LIMIT :limit
+    """
+)
+_SQL_DELETE_FINISHED = text(
+    """
+    DELETE FROM bot_updates
+     WHERE status IN ('replied','failed','dropped') AND finished_at < :cutoff
+    """
+)
 _SQL_COMPLETE = text(
     """
     UPDATE bot_updates
@@ -88,6 +144,13 @@ class ClaimedRow:
     reply_text: str | None = field(repr=False)
     attempts: int
     received_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class PendingChat:
+    chat_id: int
+    # Dòng cũ nhất còn claim được của chat: dùng làm `_job_id` của chuông (`bot:<update_id>`).
+    update_id: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,6 +287,83 @@ class BotInbox:
                 {"id": update_id, "attempts": attempts, "text": text_, "now": now},
             )
         return bool(getattr(result, "rowcount", 0) == 1)
+
+    async def requeue(
+        self,
+        update_id: int,
+        attempts: int,
+        *,
+        retry_at: datetime,
+        now: datetime,
+    ) -> bool:
+        """Đưa dòng về `queued` chờ đến `retry_at`. `False` nếu không còn của lần claim này."""
+        _require_aware(retry_at, "retry_at")
+        _require_aware(now, "now")
+        result = await self.session.execute(
+            _SQL_REQUEUE,
+            {"id": update_id, "attempts": attempts, "retry_at": retry_at},
+        )
+        return bool(getattr(result, "rowcount", 0) == 1)
+
+    async def end(
+        self,
+        update_id: int,
+        attempts: int,
+        *,
+        status: str,
+        category: str,
+        now: datetime,
+    ) -> bool:
+        """Kết thúc dòng bằng `failed` hoặc `dropped` kèm danh mục lỗi cố định."""
+        if status not in ("failed", "dropped"):
+            raise ValueError("status phải là failed hoặc dropped.")
+        _require_aware(now, "now")
+        result = await self.session.execute(
+            _SQL_END,
+            {
+                "id": update_id,
+                "attempts": attempts,
+                "status": status,
+                "category": category,
+                "now": now,
+            },
+        )
+        return bool(getattr(result, "rowcount", 0) == 1)
+
+    async def release_lease(self, update_id: int, attempts: int, *, now: datetime) -> bool:
+        """Nhả lease của dòng đang xử lý (worker bị hủy). `False` nếu không còn của lần claim."""
+        _require_aware(now, "now")
+        result = await self.session.execute(
+            _SQL_RELEASE,
+            {"id": update_id, "attempts": attempts, "now": now},
+        )
+        return bool(getattr(result, "rowcount", 0) == 1)
+
+    async def pending_chats(
+        self,
+        *,
+        now: datetime,
+        stale_seconds: float,
+        limit: int = 500,
+    ) -> list[PendingChat]:
+        """Các chat cần đánh chuông lại. Chỉ đọc: không đổi trạng thái dòng nào."""
+        _require_aware(now, "now")
+        result = await self.session.execute(
+            _SQL_PENDING,
+            {"now": now, "cutoff": now - timedelta(seconds=stale_seconds), "limit": limit},
+        )
+        return [PendingChat(row.chat_id, row.update_id) for row in result]
+
+    async def delete_finished_before(self, cutoff: datetime) -> int:
+        """Xóa dòng đã kết thúc (`replied`, `failed`, `dropped`) trước `cutoff`. Trả số dòng xóa."""
+        _require_aware(cutoff, "cutoff")
+        result = await self.session.execute(_SQL_DELETE_FINISHED, {"cutoff": cutoff})
+        return int(getattr(result, "rowcount", 0) or 0)
+
+    async def owns(self, update_id: int, attempts: int) -> bool:
+        """Dòng còn `processing` và đúng lần claim này (kiểm lần cuối trước khi gửi)."""
+        row = await self.session.execute(_SQL_OWNS, {"id": update_id, "attempts": attempts})
+        return row.first() is not None
 
     async def complete(self, update_id: int, attempts: int, *, now: datetime) -> bool:
         """Đánh dấu đã trả lời và xóa nội dung. `False` nếu dòng đã thuộc về lần claim khác."""

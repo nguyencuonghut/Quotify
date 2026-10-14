@@ -230,6 +230,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       # Worker chỉ đọc cờ bật/tắt (công tắc tắt khẩn cấp); danh sách thử chỉ áp lúc chuyển tin.
       CHATBOT_ENABLED: ${CHATBOT_ENABLED:-false}
+      # Chỉ để thử trên dev: engine giả đợi từng này giây (mô phỏng LLM chậm để thử SIGTERM giữa lượt).
+      BOT_STUB_DELAY_SECONDS: ${BOT_STUB_DELAY_SECONDS:-0}
     volumes:
       - ./backend:/app
       - backend_venv:/app/.venv

@@ -57,13 +57,14 @@ class Bot:
         engine: Any = None,
         config: Any = None,
         client: Any = None,
+        session_factory: Any = None,
     ) -> int:
         """Chạy `drain_chat` của worker bot một lần cho một chat. Trả số dòng đã xử lý."""
         from app.bot_worker import BotWorkerConfig, drain_chat
         from app.services.chat_engine import StubChatEngine
 
         ctx = {
-            "session_factory": self.session_factory,
+            "session_factory": session_factory or self.session_factory,
             "telegram_client": client or self.client,
             "chat_engine": engine or StubChatEngine(),
             "bot_config": config or BotWorkerConfig(),
@@ -80,14 +81,17 @@ class Bot:
         attempts: int = 0,
         lease_until: Any = None,
         text_: str = "x",
+        received_at: Any = None,
+        finished_at: Any = None,
     ) -> None:
         """Chèn thẳng một dòng hộp thư ở trạng thái tùy ý (dựng sẵn tình huống sự cố)."""
         async with self.session_factory() as session:
             await session.execute(
                 text(
                     "insert into bot_updates (update_id, chat_id, telegram_user_id, user_id, "
-                    "status, payload_text, attempts, lease_until) values "
-                    "(:id, :chat, :chat, :user, :status, :text, :attempts, :lease)"
+                    "status, payload_text, attempts, lease_until, received_at, finished_at) "
+                    "values (:id, :chat, :chat, :user, :status, :text, :attempts, :lease, "
+                    "coalesce(:received, now()), :finished)"
                 ),
                 {
                     "id": update_id,
@@ -97,9 +101,54 @@ class Bot:
                     "text": text_,
                     "attempts": attempts,
                     "lease": lease_until,
+                    "received": received_at,
+                    "finished": finished_at,
                 },
             )
             await session.commit()
+
+    async def sweep(self, *, config: Any = None, dispatcher: Any = None) -> Any:
+        """Chạy `sweep_bot_updates` một lần; trả bên đánh chuông giả để xem đã rung cho ai."""
+        from telegram_fakes import FakeBotDispatcher
+
+        from app.bot_worker import BotWorkerConfig, sweep_bot_updates
+
+        used = dispatcher if dispatcher is not None else FakeBotDispatcher()
+        ctx = {
+            "session_factory": self.session_factory,
+            "bot_config": config or BotWorkerConfig(),
+            "dispatcher": used,
+        }
+        await sweep_bot_updates(ctx)
+        return used
+
+    async def cleanup(self, *, config: Any = None) -> int:
+        """Chạy `cleanup_bot_updates` một lần; trả số dòng đã xóa."""
+        from app.bot_worker import BotWorkerConfig, cleanup_bot_updates
+
+        ctx = {"session_factory": self.session_factory, "bot_config": config or BotWorkerConfig()}
+        return await cleanup_bot_updates(ctx)
+
+    async def set_lease(self, update_id: int, lease_until: Any) -> None:
+        """Đặt `lease_until` của một dòng (vd cho lease hết hạn để mô phỏng worker đã chết)."""
+        async with self.session_factory() as session:
+            await session.execute(
+                text("update bot_updates set lease_until = :l where update_id = :i"),
+                {"l": lease_until, "i": update_id},
+            )
+            await session.commit()
+
+    async def row(self, update_id: int) -> Any:
+        async with self.session_factory() as session:
+            result = await session.execute(
+                text(
+                    "select update_id, chat_id, status, attempts, lease_until, payload_text, "
+                    "reply_text, reply_saved_at, error_category, finished_at "
+                    "from bot_updates where update_id = :i"
+                ),
+                {"i": update_id},
+            )
+            return result.first()
 
     async def process_raw(self, payload: dict[str, Any]) -> None:
         await self.runner.process(payload)

@@ -8,8 +8,15 @@ import arq.worker
 import pytest
 
 import app.bot_worker as bot_worker
-from app.bot_worker import BotWorkerConfig, BotWorkerSettings, drain_chat
+from app.bot_worker import (
+    BotWorkerConfig,
+    BotWorkerSettings,
+    cleanup_bot_updates,
+    drain_chat,
+    sweep_bot_updates,
+)
 from app.core.config import Settings
+from app.services import chat_engine
 
 
 def _settings(**overrides: Any) -> Settings:
@@ -23,6 +30,11 @@ def test_the_worker_settings_are_self_contained_and_follow_the_plan() -> None:
     kwargs = arq.worker.get_kwargs(BotWorkerSettings)
 
     assert kwargs["functions"] == [drain_chat]
+    # Cron quét đánh chuông lại và cron dọn dữ liệu cũ (S3).
+    assert {job.coroutine for job in kwargs["cron_jobs"]} == {
+        sweep_bot_updates,
+        cleanup_bot_updates,
+    }
     assert kwargs["queue_name"] == "quotify:bot"  # không bao giờ là hàng đợi mặc định của arq
     assert kwargs["max_tries"] == 1  # thử lại do claim và lease quyết định, không phải arq
     assert kwargs["retry_jobs"] is False  # không để lại job mồ côi khi bị hủy
@@ -31,6 +43,40 @@ def test_the_worker_settings_are_self_contained_and_follow_the_plan() -> None:
     # Job không được bị arq hủy khi dòng cuối của vòng drain còn đang chạy (S4 thêm ngân sách gửi).
     config = BotWorkerConfig()
     assert kwargs["job_timeout"] > config.drain_budget_seconds + config.row_timeout_seconds
+
+
+def test_the_cron_jobs_sweep_every_thirty_seconds_and_clean_up_once_a_day() -> None:
+    jobs = {job.coroutine: job for job in arq.worker.get_kwargs(BotWorkerSettings)["cron_jobs"]}
+
+    sweep = jobs[sweep_bot_updates]
+    # Hai lần mỗi phút, lệch giây với các cron khác; không ràng buộc phút hay giờ.
+    assert sweep.second == {10, 40}
+    assert sweep.minute is None and sweep.hour is None
+    cleanup = jobs[cleanup_bot_updates]
+    assert (cleanup.hour, cleanup.minute, cleanup.second) == (3, 40, 0)  # đúng một lần mỗi ngày
+
+
+def test_the_chatbot_settings_have_the_planned_defaults_and_reach_the_worker_config() -> None:
+    defaults = _settings()
+    assert defaults.bot_stub_delay_seconds == 0  # production không bao giờ trễ giả
+    assert defaults.bot_retry_backoff_seconds == 5
+    assert defaults.bot_message_ttl_seconds == 1200
+    assert defaults.bot_sweep_stale_seconds == 30
+    assert defaults.bot_terminal_retention_days == 30
+
+    config = BotWorkerConfig.from_settings(
+        _settings(
+            BOT_RETRY_BACKOFF_SECONDS=7,
+            BOT_MESSAGE_TTL_SECONDS=11,
+            BOT_SWEEP_STALE_SECONDS=13,
+            BOT_TERMINAL_RETENTION_DAYS=17,
+        )
+    )
+
+    assert config.retry_backoff_seconds == 7
+    assert config.message_ttl_seconds == 11
+    assert config.sweep_stale_seconds == 13
+    assert config.terminal_retention_days == 17  # mỗi biến vào đúng trường, không hoán đổi
 
 
 def test_the_row_timeout_leaves_room_inside_the_lease() -> None:
@@ -60,6 +106,39 @@ async def test_startup_configures_logging_and_builds_the_worker_context(
     assert len(configured) == 1  # worker không qua `create_app` nên phải tự bật bộ che token
     assert ctx["session_factory"] is marker
     assert ctx["bot_config"] == BotWorkerConfig.from_settings(settings)
-    assert {"telegram_client", "chat_engine"} <= ctx.keys()
+    assert {"telegram_client", "chat_engine", "dispatcher"} <= ctx.keys()
     assert "TEST-TOKEN" not in repr(ctx["telegram_client"])
+    await bot_worker.shutdown(ctx)
+
+
+@pytest.mark.parametrize(
+    ("app_env", "expected_sleeps"),
+    [("development", [3.0]), ("production", [])],
+)
+async def test_the_stub_delay_is_a_dev_only_knob_and_production_ignores_it(
+    monkeypatch: pytest.MonkeyPatch,
+    app_env: str,
+    expected_sleeps: list[float],
+) -> None:
+    # Biến này chỉ để thử SIGTERM giữa lượt trên dev: lỡ lọt vào `.env` production thì bị bỏ qua.
+    settings = _settings(
+        TELEGRAM_BOT_TOKEN="123456:TEST-TOKEN",
+        BOT_STUB_DELAY_SECONDS=3,
+        APP_ENV=app_env,
+    )
+    monkeypatch.setattr(bot_worker, "get_settings", lambda: settings)
+    monkeypatch.setattr(bot_worker, "configure_logging", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot_worker, "get_sessionmaker", lambda: object())
+    slept: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    monkeypatch.setattr(chat_engine.asyncio, "sleep", fake_sleep)
+    ctx: dict[str, Any] = {}
+    await bot_worker.startup(ctx)
+
+    await ctx["chat_engine"].reply(None)  # engine giả không đọc `turn`
+
+    assert slept == expected_sleeps
     await bot_worker.shutdown(ctx)

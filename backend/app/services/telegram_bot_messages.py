@@ -18,6 +18,11 @@ UNKNOWN_TEXT = "Tôi chưa hiểu yêu cầu này. Gõ /help để xem hướng 
 # Câu trả lời cố định của `StubChatEngine` (đường ống chatbot chưa nối LLM, kế hoạch 5.1).
 STUB_REPLY_TEXT = "Chatbot Quotify đang được cài đặt. Tính năng trả lời sẽ sớm có mặt."
 
+# Gửi khi một tin quá cũ (sau sự cố dài) bị loại thay vì trả lời một câu hỏi đã cũ (mục 4.5).
+EXPIRED_MESSAGE_TEXT = (
+    "Hệ thống vừa gián đoạn nên chưa xử lý được tin nhắn của bạn. Vui lòng gửi lại câu hỏi."
+)
+
 # Gửi khi một tin đã hết số lần thử mà vẫn chưa được trả lời (kế hoạch 5.1, mục 4.5).
 LOST_MESSAGE_TEXT = (
     "Xin lỗi, tôi chưa xử lý được tin nhắn trước đó của bạn. Vui lòng gửi lại câu hỏi."

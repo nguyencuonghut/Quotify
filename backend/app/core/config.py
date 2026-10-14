@@ -188,6 +188,13 @@ class Settings(BaseSettings):
         default=30,
         alias="BOT_HEALTH_CHECK_INTERVAL_SECONDS",
     )
+    bot_retry_backoff_seconds: float = Field(default=5.0, alias="BOT_RETRY_BACKOFF_SECONDS")
+    bot_message_ttl_seconds: float = Field(default=1200.0, alias="BOT_MESSAGE_TTL_SECONDS")
+    bot_sweep_stale_seconds: float = Field(default=30.0, alias="BOT_SWEEP_STALE_SECONDS")
+    bot_terminal_retention_days: int = Field(default=30, alias="BOT_TERMINAL_RETENTION_DAYS")
+    # Chỉ để thử đường ống trên dev: StubChatEngine đợi từng này giây rồi mới trả lời (mô phỏng
+    # LLM chậm, để thử SIGTERM giữa lượt, chỉ báo "đang gõ"...). Production luôn là 0.
+    bot_stub_delay_seconds: float = Field(default=0.0, alias="BOT_STUB_DELAY_SECONDS")
     # Danh sách email người nhận thử thông báo biến động giá (cách nhau bằng dấu phẩy). Rỗng nghĩa
     # là không giới hạn; có giá trị thì CHỈ những người này nhận tin (giai đoạn pilot).
     price_alert_recipient_emails: str = Field(default="", alias="PRICE_ALERT_RECIPIENT_EMAILS")
