@@ -175,7 +175,8 @@ async def chatbot_bot_factory(
     """Dựng bot với chính sách chatbot, bên đánh chuông và session factory của runner tùy ý.
 
     `session_factory_for_runner` chỉ dành cho runner (vd mô phỏng DB hỏng lúc commit); các hàm
-    kiểm tra của `Bot` vẫn đọc DB bằng session factory thật.
+    kiểm tra của `Bot` vẫn đọc DB bằng session factory thật. Các tham số còn lại (bộ giới hạn tốc
+    độ, đồng hồ...) được chuyển thẳng cho `TelegramUpdateRunner`.
     """
     from bot_harness import Bot
     from telegram_fakes import FakeBotDispatcher, Outbox, make_client
@@ -189,6 +190,7 @@ async def chatbot_bot_factory(
         *,
         dispatcher: Any = None,
         session_factory_for_runner: Any = None,
+        **runner_options: Any,
     ) -> Bot:
         outbox = Outbox()
         client, http_client = make_client(outbox)
@@ -199,6 +201,7 @@ async def chatbot_bot_factory(
             client=client,
             chatbot=policy,
             dispatcher=used_dispatcher,
+            **runner_options,
         )
         return Bot(session_factory, runner, outbox, dispatcher=used_dispatcher, client=client)
 

@@ -190,6 +190,7 @@ class Settings(BaseSettings):
     )
     bot_retry_backoff_seconds: float = Field(default=5.0, alias="BOT_RETRY_BACKOFF_SECONDS")
     bot_reply_max_parts: int = Field(default=4, ge=1, alias="BOT_REPLY_MAX_PARTS")
+    bot_max_pending_per_chat: int = Field(default=5, ge=1, alias="BOT_MAX_PENDING_PER_CHAT")
     bot_send_budget_seconds: float = Field(default=60.0, gt=0, alias="BOT_SEND_BUDGET_SECONDS")
     bot_typing_interval_seconds: float = Field(
         default=4.0, gt=0, alias="BOT_TYPING_INTERVAL_SECONDS"

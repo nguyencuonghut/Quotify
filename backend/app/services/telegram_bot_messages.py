@@ -15,6 +15,15 @@ HELP_TEXT = (
 
 UNKNOWN_TEXT = "Tôi chưa hiểu yêu cầu này. Gõ /help để xem hướng dẫn."
 
+# Ảnh, tài liệu, giọng nói, sticker gửi cho chatbot khi chưa có tính năng đọc tệp (5.1, S5).
+NON_TEXT_TEXT = "Hiện tôi chỉ đọc được tin nhắn văn bản. Bạn vui lòng gõ câu hỏi bằng chữ nhé."
+
+# Gửi khi chat đã có quá nhiều tin đang chờ xử lý: tin mới không được ghi vào hộp thư (5.1, S5).
+PENDING_LIMIT_TEXT = (
+    "Bạn đang gửi nhiều câu hỏi cùng lúc nên tôi chưa kịp xử lý hết. "
+    "Vui lòng đợi tôi trả lời các câu trước rồi hỏi tiếp."
+)
+
 # Câu trả lời cố định của `StubChatEngine` (đường ống chatbot chưa nối LLM, kế hoạch 5.1).
 STUB_REPLY_TEXT = "Chatbot Quotify đang được cài đặt. Tính năng trả lời sẽ sớm có mặt."
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -209,3 +210,47 @@ def make_update(
             "from": sender,
         },
     }
+
+
+# Phần thân tối thiểu của từng loại tin không phải văn bản (đúng khóa của Bot API, không tệp thật).
+_MEDIA_BODIES: dict[str, dict[str, Any]] = {
+    # Ảnh thật là một mảng nhiều cỡ; GIF thật có cả `animation` lẫn `document`.
+    "photo": {
+        "photo": [
+            {"file_id": "p-s", "file_unique_id": "u1", "width": 90, "height": 90},
+            {"file_id": "p-m", "file_unique_id": "u2", "width": 320, "height": 320},
+            {"file_id": "p-l", "file_unique_id": "u3", "width": 800, "height": 800},
+        ]
+    },
+    "document": {"document": {"file_id": "d1", "file_unique_id": "u4", "file_name": "bao-gia.pdf"}},
+    "voice": {"voice": {"file_id": "v1", "file_unique_id": "u5", "duration": 3}},
+    "sticker": {"sticker": {"file_id": "s1", "file_unique_id": "u6", "width": 512, "height": 512}},
+    "animation": {
+        "animation": {"file_id": "g1", "file_unique_id": "u7", "duration": 2},
+        "document": {"file_id": "g1", "file_unique_id": "u7", "file_name": "vui.mp4"},
+    },
+}
+
+
+def make_media_update(
+    update_id: int,
+    kind: str,
+    *,
+    user_id: int = 111,
+    chat_type: str = "private",
+    caption: str | None = None,
+    media_group_id: str | None = None,
+) -> dict[str, Any]:
+    """Update của tin KHÔNG có `text` (ảnh, tài liệu, giọng nói, sticker), tùy chọn `caption`.
+
+    `media_group_id` giống nhau cho mọi ảnh của một album (mỗi ảnh vẫn là một update riêng).
+    """
+    payload = make_update(update_id, "", chat_type=chat_type, user_id=user_id)
+    message = payload["message"]
+    del message["text"]
+    message.update(copy.deepcopy(_MEDIA_BODIES[kind]))
+    if caption is not None:
+        message["caption"] = caption
+    if media_group_id is not None:
+        message["media_group_id"] = media_group_id
+    return payload

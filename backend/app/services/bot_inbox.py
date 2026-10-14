@@ -67,6 +67,13 @@ _SQL_SAVE_REPLY = text(
      WHERE update_id = :id AND status = 'processing' AND attempts = :attempts
     """
 )
+# Số tin đang chờ của một chat (dùng chỉ mục từng phần `ix_bot_updates_chat_open`).
+_SQL_COUNT_OPEN = text(
+    """
+    SELECT count(*) FROM bot_updates
+     WHERE chat_id = :chat_id AND status IN ('queued','processing')
+    """
+)
 _SQL_SAVE_SENT_PARTS = text(
     """
     UPDATE bot_updates SET sent_parts = :parts
@@ -286,6 +293,11 @@ class BotInbox:
                 ),
                 tuple(exhausted),
             )
+
+    async def pending_count(self, chat_id: int) -> int:
+        """Số tin đang chờ xử lý (`queued` hay `processing`) của một chat."""
+        result = await self.session.execute(_SQL_COUNT_OPEN, {"chat_id": chat_id})
+        return int(result.scalar_one())
 
     async def save_reply(self, update_id: int, attempts: int, text_: str, *, now: datetime) -> bool:
         """Lưu câu trả lời trước khi gửi. `False` nếu dòng không còn thuộc về lần claim này."""

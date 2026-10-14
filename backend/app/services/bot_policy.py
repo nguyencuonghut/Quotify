@@ -15,6 +15,8 @@ class ChatbotPolicy:
 
     enabled: bool = False
     pilot_emails: frozenset[str] | None = None
+    # Số tin đang chờ xử lý tối đa của một chat; vượt thì tin mới bị từ chối, không vào hộp thư.
+    max_pending_per_chat: int = 5
 
     def allows(self, email: str | None) -> bool:
         if not self.enabled:
@@ -36,4 +38,5 @@ class ChatbotPolicy:
         return cls(
             enabled=bool(settings.chatbot_enabled and settings.telegram_enabled),
             pilot_emails=emails,
+            max_pending_per_chat=settings.bot_max_pending_per_chat,
         )

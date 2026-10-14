@@ -36,6 +36,8 @@ logger = logging.getLogger("app.telegram")
 
 # Thời hạn xử lý một lần bấm nút để còn trả lời callback trong 5 giây (L22).
 CALLBACK_DEADLINE_SECONDS = 4.0
+# Mỗi chat chỉ nhận một thông báo giới hạn (không phải văn bản, quá trần) trong từng khoảng này.
+NOTICE_INTERVAL_SECONDS = 10.0
 
 # Lỗi hạ tầng tạm thời: trả 5xx để Telegram thử lại, KHÔNG ghi `update_id` đã xử lý.
 _TRANSIENT_ERRORS = (OperationalError, InterfaceError, TimeoutError, ConnectionError)
@@ -95,6 +97,8 @@ class TelegramUpdateRunner:
         session_factory: Callable[[], Any],
         client: TelegramClient,
         rate_limiter: TelegramUserRateLimiter | None = None,
+        media_rate_limiter: TelegramUserRateLimiter | None = None,
+        notice_limiter: TelegramUserRateLimiter | None = None,
         callback_rate_limiter: TelegramUserRateLimiter | None = None,
         callback_deadline_seconds: float = CALLBACK_DEADLINE_SECONDS,
         clock: Callable[[], float] = time.monotonic,
@@ -109,6 +113,14 @@ class TelegramUpdateRunner:
         self._chatbot = chatbot or ChatbotPolicy()
         self._dispatcher: BotDispatcher = dispatcher or NullBotDispatcher()
         self._rate_limiter = rate_limiter or TelegramUserRateLimiter()
+        # Tin không phải văn bản (album ảnh...) có suất riêng, không ăn suất của tin văn bản: một
+        # album 10 ảnh rồi câu hỏi thật không được làm câu hỏi bị bỏ im lặng.
+        self._media_rate_limiter = media_rate_limiter or TelegramUserRateLimiter(
+            limit=30, clock=clock
+        )
+        self._notice_limiter = notice_limiter or TelegramUserRateLimiter(
+            limit=1, window_seconds=NOTICE_INTERVAL_SECONDS, clock=clock
+        )
         self._callback_rate_limiter = callback_rate_limiter or TelegramUserRateLimiter(
             limit=30, clock=clock
         )
@@ -150,7 +162,8 @@ class TelegramUpdateRunner:
 
         message = update.message
         if message is not None and message.from_user_id is not None:
-            if not self._rate_limiter.allow(message.from_user_id):
+            limiter = self._rate_limiter if message.kind == "text" else self._media_rate_limiter
+            if not limiter.allow(message.from_user_id):
                 logger.info("telegram.rate_limited update_id=%s", update.update_id)
                 return
 
@@ -213,7 +226,10 @@ class TelegramUpdateRunner:
     async def _handle_in_transaction(self, update: TelegramUpdate) -> Sequence[Outbound]:
         async with self._session_factory() as session:
             try:
-                outbound = await TelegramUpdateService(session, self._chatbot).handle(update)
+                service = TelegramUpdateService(
+                    session, self._chatbot, notices=self._notice_limiter
+                )
+                outbound = await service.handle(update)
                 await session.commit()
             except Exception:
                 await session.rollback()

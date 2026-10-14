@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 from uuid import UUID
 
 from sqlalchemy import select
@@ -28,7 +28,9 @@ from app.services.telegram_bot_messages import (
     INVALID_CARD_TEXT,
     INVALID_LINK_TEXT,
     NO_REVIEW_PERMISSION_TEXT,
+    NON_TEXT_TEXT,
     NOT_LINKED_TEXT,
+    PENDING_LIMIT_TEXT,
     REJECTED_TOAST,
     REPLACED_TEXT,
     START_TEXT,
@@ -105,6 +107,9 @@ class TelegramMessage:
     text: str | None
     from_username: str | None = None
     from_first_name: str | None = None
+    # `text` khi có văn bản; không thì loại nội dung người dùng gửi (`photo`, `document`,
+    # `voice`, `sticker`, `location`...) hay `other` (tin dịch vụ). Chỉ nhận biết loại.
+    kind: str = "text"
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +142,35 @@ def _as_str(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+# Các khóa của Bot API cho tin do người dùng gửi mà không phải văn bản; chưa có đường xử lý (2C).
+# `animation` PHẢI đứng trước `document`: Bot API đặt cả hai khóa cho một GIF (tương thích ngược).
+_CONTENT_KINDS = (
+    "photo",
+    "animation",
+    "document",
+    "voice",
+    "audio",
+    "video",
+    "video_note",
+    "sticker",
+    "location",
+    "venue",
+    "contact",
+    "poll",
+    "dice",
+)
+
+
+def _message_kind(raw_message: dict[str, Any]) -> str:
+    """`text`, loại nội dung (`photo`, `document`...), hay `other` (tin dịch vụ như ghim tin)."""
+    if isinstance(raw_message.get("text"), str):
+        return "text"
+    for kind in _CONTENT_KINDS:
+        if kind in raw_message:
+            return kind
+    return "other"
+
+
 def parse_update(payload: Any) -> TelegramUpdate | None:
     """Đọc update Telegram một cách khoan dung. Trả `None` nếu không có `update_id` hợp lệ."""
     if not isinstance(payload, dict):
@@ -162,6 +196,7 @@ def parse_update(payload: Any) -> TelegramUpdate | None:
                 text=text if isinstance(text, str) else None,
                 from_username=_as_str(sender_data.get("username")),
                 from_first_name=_as_str(sender_data.get("first_name")),
+                kind=_message_kind(raw_message),
             )
 
     chat_member: TelegramChatMemberChange | None = None
@@ -222,12 +257,30 @@ def parse_command(text: str | None) -> tuple[str | None, str]:
     return command, argument.strip()
 
 
+class NoticeThrottle(Protocol):
+    """Giới hạn số thông báo "giới hạn" (không phải văn bản, quá trần) gửi cho mỗi chat."""
+
+    def allow(self, key: int) -> bool: ...
+
+
 class TelegramUpdateService:
     """Xử lý một update Telegram. Chỉ `flush`, không `commit`; gửi tin do runner làm sau commit."""
 
-    def __init__(self, session: AsyncSession, chatbot: ChatbotPolicy | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        chatbot: ChatbotPolicy | None = None,
+        notices: NoticeThrottle | None = None,
+    ) -> None:
         self.session = session
         self._chatbot = chatbot or ChatbotPolicy()
+        self._notices = notices
+
+    def _limit_notice(self, chat_id: int, text: str) -> list[Outbound]:
+        """Thông báo giới hạn; đã báo gần đây cho chat này thì im lặng (album 10 ảnh, lũ tin)."""
+        if self._notices is not None and not self._notices.allow(chat_id):
+            return []
+        return [OutboundMessage(chat_id, text)]
 
     async def handle(self, update: TelegramUpdate) -> Sequence[Outbound]:
         if not await self._record_update(update.update_id):
@@ -274,16 +327,24 @@ class TelegramUpdateService:
             return await self._handle_stop(update.update_id, message, telegram_user_id)
         if command == "/help":
             return [OutboundMessage(message.chat_id, HELP_TEXT)]
-        if (
-            command is None
-            and message.text
-            and message.text.strip()
-            and identity is not None
-            and self._chatbot.allows(identity.email)
-        ):
+        chatbot_user = (
+            command is None and identity is not None and self._chatbot.allows(identity.email)
+        )
+        if chatbot_user and message.kind not in ("text", "other"):
+            # Ảnh, tài liệu, giọng nói, sticker, vị trí...: chưa đọc được (2C mới xử lý tệp). Chỉ
+            # cho người dùng đủ điều kiện dùng chatbot; tin dịch vụ (ghim tin...) và mọi người còn
+            # lại giữ nguyên câu trả lời cũ.
+            return self._limit_notice(message.chat_id, NON_TEXT_TEXT)
+        if chatbot_user and identity is not None and message.text and message.text.strip():
             # Văn bản thường của người đã liên kết: vào hộp thư cùng giao dịch với dedupe, rồi
             # đánh chuông SAU commit. Lệnh và nút bấm giữ nguyên đường xử lý tại chỗ.
-            await BotInbox(self.session).enqueue(
+            inbox = BotInbox(self.session)
+            if await inbox.pending_count(message.chat_id) >= self._chatbot.max_pending_per_chat:
+                # Chống lũ: chat đã có quá nhiều tin chờ thì không ghi thêm. Trần chính xác nhờ khóa
+                # dòng `telegram_accounts`: `touch_linked_identity` luôn ghi `last_seen_at` nên các
+                # update đồng thời của cùng một người xếp hàng ở đó (có test, đừng bỏ lần ghi đó).
+                return self._limit_notice(message.chat_id, PENDING_LIMIT_TEXT)
+            await inbox.enqueue(
                 update_id=update.update_id,
                 chat_id=message.chat_id,
                 telegram_user_id=telegram_user_id,
