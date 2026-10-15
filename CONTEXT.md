@@ -110,6 +110,14 @@ _Tránh_: Tác vụ, hàng đợi tin nhắn
 Quyền xử lý có thời hạn của một worker trên một dòng hộp thư bot (`lease_until`). Hết hạn mà dòng chưa xong thì worker khác tiếp quản, và mỗi lần tiếp quản tăng `attempts` để worker cũ không ghi đè được kết quả. Không giữ khóa DB hay kết nối trong lúc engine chạy.
 _Tránh_: Khóa (khóa DB)
 
+**Lượt hỏi**:
+Một lần chatbot đã tạo và lưu câu trả lời cho một tin nhắn của người dùng (dòng hộp thư có `reply_saved_at`), kể cả khi gửi Telegram sau đó lỗi; thuộc ngày (giờ Việt Nam) lúc câu trả lời được lưu. Lỗi engine, tin bị từ chối vì hết hạn mức, và tin bị loại trước khi engine chạy (quá cũ, hủy liên kết, người dùng bị khóa) không tính; dòng đã lưu câu trả lời rồi mới bị loại thì vẫn tính.
+_Tránh_: Tin nhắn (một tin nhắn có thể không thành lượt hỏi)
+
+**Hạn mức hằng ngày**:
+Số lượt hỏi (và lượt gửi ảnh hoặc PDF, tập con của lượt hỏi) mỗi người được dùng trong một ngày nghiệp vụ theo giờ Việt Nam, đặt lại lúc 00:00. Áp cho mọi người dùng kể cả quản trị viên (không miễn theo vai trò); mặc định 20 lượt hỏi và 5 lượt tệp, `0` là không giới hạn.
+_Tránh_: Giới hạn tốc độ (cơ chế khác: số tin mỗi phút), Quota (khi nói với người dùng)
+
 **Điểm giá**:
 Giá thấp nhất (VNĐ/KG, giá đã lưu) của một chuỗi trong một ngày nhận báo giá. Là đơn vị để so sánh biến động.
 _Tránh_: Giá hôm nay, Dòng giá
