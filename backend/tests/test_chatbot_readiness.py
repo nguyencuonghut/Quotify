@@ -217,3 +217,25 @@ def test_section_16_covers_a_hung_worker_the_backend_settings_and_the_purge() ->
     )  # restart policy không xử lý treo
     assert "BOT_QUEUE_NAME" in section and "BOT_MAX_PENDING_PER_CHAT" in section  # backend đọc
     assert "operator_purge" in section  # dòng còn mở giữ nội dung tin cho tới khi bị dọn
+
+
+def test_section_16_explains_the_daily_allowance_to_the_operator() -> None:
+    section = _runbook_section_16()
+
+    for needle in (
+        "BOT_DAILY_TURN_LIMIT",
+        "BOT_DAILY_FILE_LIMIT",
+        "BOT_QUOTA_WARN_REMAINING_PERCENT",
+        "/limit",
+        "00:00",  # đặt lại lúc nửa đêm giờ Việt Nam
+        "kể cả quản trị viên",  # không ai được miễn theo vai trò
+        "operator_purge",
+    ):
+        assert needle in section, needle
+
+
+def test_section_16_warns_that_the_commands_registration_now_includes_limit() -> None:
+    # `commands --yes` đăng ký mọi lệnh trong BOT_COMMANDS, kể cả `/limit`: thao tác ngoại vi.
+    section = _runbook_section_16()
+
+    assert "commands --yes" in section and "/limit" in section

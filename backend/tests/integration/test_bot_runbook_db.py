@@ -13,7 +13,8 @@ from pathlib import Path
 import pytest
 from bot_fakes import ScriptedEngine
 from bot_harness import Bot, linked_user
-from db_helpers import next_update_id
+from db_helpers import create_user, next_update_id
+from quota_helpers import gate, insert_turn, scratch_session
 from sqlalchemy import text
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -117,3 +118,38 @@ async def test_the_monitoring_queries_run_and_never_read_message_content(
     assert len(results) == 2  # câu đếm theo trạng thái và câu đếm theo lý do
     by_status = {row[0]: row[1] for row in results[0]}
     assert by_status["queued"] >= 1 and by_status["failed"] >= 1
+
+
+@pytest.mark.parametrize("db_zone", ["UTC", "Asia/Ho_Chi_Minh", "America/Los_Angeles"])
+async def test_the_usage_query_agrees_with_the_gate_around_the_vietnamese_midnight(
+    chatbot_bot: Bot, db_zone: str
+) -> None:
+    user_id = await create_user(chatbot_bot.session_factory)
+    block = _runbook_sql("turns_today")
+    assert "payload_text" not in block and "reply_text" not in block  # chỉ đếm, không đọc nội dung
+    # `now()` thay bằng thời điểm cố định để thử đúng quanh nửa đêm giờ Việt Nam (17:00 UTC).
+    query = block.strip().rstrip(";").replace("now()", "cast(:instant as timestamptz)")
+    # (nhận lúc, lưu câu trả lời lúc)
+    turns = [
+        (datetime(2026, 10, 14, 9, 55, tzinfo=UTC), datetime(2026, 10, 14, 10, 0, tzinfo=UTC)),
+        (datetime(2026, 10, 14, 16, 29, tzinfo=UTC), datetime(2026, 10, 14, 16, 30, tzinfo=UTC)),
+        # Nhận 23:50 giờ Việt Nam ngày 14 nhưng trả lời 00:30 ngày 15: là lượt của ngày 15.
+        (datetime(2026, 10, 14, 16, 50, tzinfo=UTC), datetime(2026, 10, 14, 17, 30, tzinfo=UTC)),
+    ]
+    cases = [
+        (datetime(2026, 10, 14, 16, 59, tzinfo=UTC), 2),  # 23:59 ngày 14: hai lượt đầu
+        (datetime(2026, 10, 14, 17, 0, tzinfo=UTC), 1),  # 00:00 ngày 15: chỉ lượt thứ ba
+        (datetime(2026, 10, 15, 16, 59, tzinfo=UTC), 1),  # 23:59 ngày 15
+    ]
+
+    async with scratch_session(chatbot_bot, db_zone=db_zone) as session:
+        # `limit 10` của câu truy vấn có thể không thấy người dùng này trong DB dùng chung: bỏ dòng
+        # của người khác ngay trong giao dịch (hoàn tác, không bao giờ commit).
+        await session.execute(text("delete from bot_updates where user_id <> :u"), {"u": user_id})
+        for received, saved_at in turns:
+            await insert_turn(session, user_id, received, saved_at=saved_at)
+        for instant, expected in cases:
+            rows = (await session.execute(text(query), {"instant": instant})).all()
+            summary = await gate().summary(session, user_id, now=instant)
+            by_user = {row.user_id: row.turns_today for row in rows}
+            assert by_user[user_id] == summary.turns_used == expected, instant

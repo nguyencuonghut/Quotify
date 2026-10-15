@@ -191,6 +191,14 @@ class Settings(BaseSettings):
     bot_retry_backoff_seconds: float = Field(default=5.0, alias="BOT_RETRY_BACKOFF_SECONDS")
     bot_reply_max_parts: int = Field(default=4, ge=1, alias="BOT_REPLY_MAX_PARTS")
     bot_max_pending_per_chat: int = Field(default=5, ge=1, alias="BOT_MAX_PENDING_PER_CHAT")
+    # Hạn mức mỗi người mỗi ngày (giờ Việt Nam), áp cho mọi người dùng kể cả quản trị viên; `0` là
+    # không giới hạn loại đó. Lượt dùng tệp là tập con của lượt hỏi.
+    bot_daily_turn_limit: int = Field(default=20, ge=0, alias="BOT_DAILY_TURN_LIMIT")
+    bot_daily_file_limit: int = Field(default=5, ge=0, alias="BOT_DAILY_FILE_LIMIT")
+    # Còn từng này phần trăm hạn mức thì thêm dòng nhắc ở cuối câu trả lời; `0` là tắt nhắc.
+    bot_quota_warn_remaining_percent: int = Field(
+        default=20, ge=0, le=100, alias="BOT_QUOTA_WARN_REMAINING_PERCENT"
+    )
     # Pool tường minh cho hai engine của bot-worker (RC-5): mặc định 5 + 10 của engine chính là quá
     # nhiều cho một tiến trình mà việc chủ yếu chờ LLM.
     bot_db_pool_size: int = Field(default=4, ge=1, alias="BOT_DB_POOL_SIZE")
@@ -212,7 +220,9 @@ class Settings(BaseSettings):
     )
     bot_message_ttl_seconds: float = Field(default=1200.0, alias="BOT_MESSAGE_TTL_SECONDS")
     bot_sweep_stale_seconds: float = Field(default=30.0, alias="BOT_SWEEP_STALE_SECONDS")
-    bot_terminal_retention_days: int = Field(default=30, alias="BOT_TERMINAL_RETENTION_DAYS")
+    # Tối thiểu 1: hạn mức mỗi ngày đếm từ chính các dòng đã kết thúc, nên cron dọn không được xóa
+    # dòng của hôm nay (với 0 ngày hạn mức bị đặt lại lúc 03:40 thay vì 00:00).
+    bot_terminal_retention_days: int = Field(default=30, ge=1, alias="BOT_TERMINAL_RETENTION_DAYS")
     # Chỉ để thử đường ống trên dev: StubChatEngine đợi từng này giây rồi mới trả lời (mô phỏng
     # LLM chậm, để thử SIGTERM giữa lượt, chỉ báo "đang gõ"...). Production luôn là 0.
     bot_stub_delay_seconds: float = Field(default=0.0, alias="BOT_STUB_DELAY_SECONDS")

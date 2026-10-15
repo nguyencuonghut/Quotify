@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -16,6 +17,7 @@ from app.core.config import Settings
 from app.services import telegram_bot_messages as bot_messages
 from app.services.bot_dispatcher import ArqBotDispatcher, NullBotDispatcher, build_chatbot_runtime
 from app.services.bot_policy import ChatbotPolicy
+from app.services.usage_gate import QuotaLimits, TurnLimitGate
 
 
 def _settings(**overrides: Any) -> Settings:
@@ -113,6 +115,27 @@ def test_the_pending_cap_defaults_to_five_and_follows_the_setting() -> None:
     assert (
         ChatbotPolicy.from_settings(_settings(BOT_MAX_PENDING_PER_CHAT=9)).max_pending_per_chat == 9
     )
+
+
+async def test_the_policy_carries_the_allowance_gate_built_from_the_settings() -> None:
+    policy = ChatbotPolicy.from_settings(_settings(BOT_DAILY_TURN_LIMIT=9, BOT_DAILY_FILE_LIMIT=3))
+
+    assert isinstance(policy.usage_gate, TurnLimitGate)
+    limits = await policy.usage_gate.limits.limits_for(None, uuid4())  # type: ignore[arg-type]
+    assert limits == QuotaLimits(turns=9, files=3)
+    assert ChatbotPolicy().usage_gate is None  # chính sách trần (test, chatbot tắt) không có cổng
+
+
+async def test_the_webhook_runner_gets_the_allowance_gate_for_the_limit_command() -> None:
+    settings = _settings(TELEGRAM_ENABLED=True, TELEGRAM_BOT_TOKEN="123456:TEST-TOKEN")
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace()))
+
+    runner = get_telegram_runner(request, settings)  # type: ignore[arg-type]
+
+    try:
+        assert isinstance(runner.chatbot.usage_gate, TurnLimitGate)
+    finally:
+        await runner.aclose()
 
 
 def test_the_pending_cap_cannot_be_zero() -> None:

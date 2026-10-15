@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 from app.integrations.telegram import escape_html
+from app.services.usage_gate import (
+    BUSINESS_TIMEZONE,
+    FILE_KINDS,
+    QuotaDecision,
+    QuotaSummary,
+)
 
 HELP_TEXT = (
     "Các lệnh:\n"
@@ -36,6 +42,78 @@ EXPIRED_MESSAGE_TEXT = (
 LOST_MESSAGE_TEXT = (
     "Xin lỗi, tôi chưa xử lý được tin nhắn trước đó của bạn. Vui lòng gửi lại câu hỏi."
 )
+
+
+def _resets_text(decision: QuotaDecision) -> str:
+    when = decision.resets_at.astimezone(BUSINESS_TIMEZONE).strftime("%H:%M ngày %d/%m/%Y")
+    return f"Hạn mức được làm mới lúc {when} (giờ Việt Nam)."
+
+
+def quota_denied_text(decision: QuotaDecision) -> str:
+    """Câu từ chối khi hết hạn mức (5.1, S10). Số liệu là số thật của cổng, không do engine sinh."""
+    if decision.reason == "files":
+        what = "lượt gửi ảnh hoặc PDF"
+        advice = "Bạn vẫn có thể hỏi bằng chữ."
+    else:
+        what = "lượt hỏi"
+        advice = "Cần thêm lượt, vui lòng liên hệ quản trị viên."
+    return (
+        f"Bạn đã dùng hết {decision.used}/{decision.limit} {what} hôm nay. "
+        f"{_resets_text(decision)} {advice}"
+    )
+
+
+def _is_near_limit(used_before: int, limit: int, warn_percent: int) -> bool:
+    """Sau lượt đang trả lời, phần còn lại không quá `warn_percent` phần trăm hạn mức."""
+    remaining = limit - (used_before + 1)
+    return limit > 0 and remaining * 100 <= warn_percent * limit
+
+
+def quota_reminder_text(decision: QuotaDecision, kind: str, *, warn_percent: int) -> str | None:
+    """Dòng nhắc cuối câu trả lời khi sắp hết hạn mức; do cổng thêm, không do engine sinh.
+
+    Tính SAU lượt đang trả lời (nó sẽ được tính ngay khi câu trả lời được lưu). Lượt dùng tệp chỉ
+    được nhắc khi chính tin này là tin có tệp.
+    """
+    if warn_percent <= 0:
+        return None
+    lines: list[str] = []
+    if _is_near_limit(decision.turns_used, decision.turns_limit, warn_percent):
+        remaining = max(0, decision.turns_limit - decision.turns_used - 1)
+        lines.append(
+            f"Bạn đã dùng hết {decision.turns_limit}/{decision.turns_limit} lượt hôm nay."
+            if remaining == 0
+            else f"Còn {remaining}/{decision.turns_limit} lượt hôm nay."
+        )
+    if kind in FILE_KINDS and _is_near_limit(
+        decision.files_used, decision.files_limit, warn_percent
+    ):
+        remaining = max(0, decision.files_limit - decision.files_used - 1)
+        lines.append(
+            f"Bạn đã dùng hết {decision.files_limit}/{decision.files_limit} lượt gửi ảnh hoặc "
+            "PDF hôm nay."
+            if remaining == 0
+            else f"Còn {remaining}/{decision.files_limit} lượt gửi ảnh hoặc PDF hôm nay."
+        )
+    return " ".join(lines) or None
+
+
+def _usage_line(label: str, used: int, limit: int) -> str:
+    if limit == 0:
+        return f"• {label}: đã dùng {used}, không giới hạn"
+    return f"• {label}: đã dùng {used}/{limit}, còn {max(0, limit - used)}"
+
+
+def limit_summary_text(summary: QuotaSummary) -> str:
+    """Trả lời lệnh `/limit`: lượt đã dùng, còn lại và giờ làm mới (không có token)."""
+    when = summary.resets_at.astimezone(BUSINESS_TIMEZONE).strftime("%H:%M ngày %d/%m/%Y")
+    return (
+        "Hạn mức hôm nay (giờ Việt Nam):\n"
+        f"{_usage_line('Lượt hỏi', summary.turns_used, summary.turns_limit)}\n"
+        f"{_usage_line('Lượt gửi ảnh hoặc PDF', summary.files_used, summary.files_limit)}\n"
+        f"Hạn mức được làm mới lúc {when}."
+    )
+
 
 SYSTEM_ERROR_TEXT = "Hệ thống tạm thời chưa xử lý được yêu cầu. Vui lòng thử lại sau."
 

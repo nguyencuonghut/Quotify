@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
 import arq.worker
 import pytest
@@ -26,6 +27,7 @@ from app.integrations.telegram import (
 )
 from app.services import chat_engine
 from app.services.bot_reply_sender import SendBudgetExceededError
+from app.services.usage_gate import QuotaLimits, TurnLimitGate
 
 
 def _settings(**overrides: Any) -> Settings:
@@ -104,6 +106,61 @@ def test_the_chatbot_settings_have_the_planned_defaults_and_reach_the_worker_con
     assert config.typing_interval_seconds == 3
 
 
+def test_the_daily_allowance_settings_have_the_planned_defaults() -> None:
+    defaults = _settings()
+
+    assert defaults.bot_daily_turn_limit == 20
+    assert defaults.bot_daily_file_limit == 5
+    assert defaults.bot_quota_warn_remaining_percent == 20
+
+
+async def test_the_daily_allowance_settings_follow_the_environment_and_reach_the_worker() -> None:
+    settings = _settings(
+        BOT_DAILY_TURN_LIMIT=7, BOT_DAILY_FILE_LIMIT=2, BOT_QUOTA_WARN_REMAINING_PERCENT=35
+    )
+
+    assert BotWorkerConfig.from_settings(settings).quota_warn_remaining_percent == 35
+    gate = TurnLimitGate.from_settings(settings)
+    limits = await gate.limits.limits_for(None, uuid4())  # type: ignore[arg-type]
+    assert limits == QuotaLimits(turns=7, files=2)
+
+
+@pytest.mark.parametrize(("days", "valid"), [(0, False), (-1, False), (1, True), (30, True)])
+def test_finished_rows_are_kept_at_least_a_day_because_the_daily_allowance_counts_them(
+    days: int, valid: bool
+) -> None:
+    # Cron dọn xóa dòng đã kết thúc quá hạn lưu: với 0 ngày nó xóa luôn các lượt của hôm nay lúc
+    # 03:40 và hạn mức mỗi ngày bị đặt lại giữa đêm thay vì lúc 00:00.
+    if valid:
+        assert _settings(BOT_TERMINAL_RETENTION_DAYS=days).bot_terminal_retention_days == days
+    else:
+        with pytest.raises(ValidationError):
+            _settings(BOT_TERMINAL_RETENTION_DAYS=days)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "valid"),
+    [
+        ({"BOT_DAILY_TURN_LIMIT": 0}, True),  # 0 là không giới hạn
+        ({"BOT_DAILY_FILE_LIMIT": 0}, True),
+        ({"BOT_QUOTA_WARN_REMAINING_PERCENT": 0}, True),  # 0 là tắt nhắc
+        ({"BOT_QUOTA_WARN_REMAINING_PERCENT": 100}, True),
+        ({"BOT_DAILY_TURN_LIMIT": -1}, False),
+        ({"BOT_DAILY_FILE_LIMIT": -1}, False),
+        ({"BOT_QUOTA_WARN_REMAINING_PERCENT": -1}, False),
+        ({"BOT_QUOTA_WARN_REMAINING_PERCENT": 101}, False),
+    ],
+)
+def test_the_daily_allowance_settings_reject_values_that_make_no_sense(
+    overrides: dict[str, int], valid: bool
+) -> None:
+    if valid:
+        _settings(**overrides)
+    else:
+        with pytest.raises(ValidationError):
+            _settings(**overrides)
+
+
 @pytest.mark.parametrize(
     "name",
     ["BOT_REPLY_MAX_PARTS", "BOT_SEND_BUDGET_SECONDS", "BOT_TYPING_INTERVAL_SECONDS"],
@@ -145,7 +202,9 @@ async def test_startup_configures_logging_and_builds_the_worker_context(
     assert ctx["db_engine"].pool.size() == settings.bot_db_pool_size
     assert ctx["db_engine"].pool._max_overflow == settings.bot_db_max_overflow
     assert ctx["bot_config"] == BotWorkerConfig.from_settings(settings)
-    assert {"telegram_client", "chat_engine", "dispatcher"} <= ctx.keys()
+    assert {"telegram_client", "chat_engine", "dispatcher", "usage_gate"} <= ctx.keys()
+    # Thiếu cổng này thì hạn mức âm thầm tắt: startup phải dựng nó từ cấu hình.
+    assert isinstance(ctx["usage_gate"], TurnLimitGate)
     assert "TEST-TOKEN" not in repr(ctx["telegram_client"])
     # Engine chỉ đọc tạo lười: khởi động xong chưa có engine, chưa có kết nối nào.
     assert ctx["readonly_session_factory"].engine_created is False

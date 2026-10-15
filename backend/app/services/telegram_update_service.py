@@ -40,6 +40,7 @@ from app.services.telegram_bot_messages import (
     USER_INACTIVE_TEXT,
     already_linked_text,
     already_reviewed_text,
+    limit_summary_text,
     linked_text,
     reactivated_text,
 )
@@ -327,6 +328,15 @@ class TelegramUpdateService:
             return await self._handle_stop(update.update_id, message, telegram_user_id)
         if command == "/help":
             return [OutboundMessage(message.chat_id, HELP_TEXT)]
+        if command == "/limit":
+            gate = self._chatbot.usage_gate
+            if gate is None or identity is None or not self._chatbot.allows(identity.email):
+                # Người chưa liên kết, chatbot tắt hay ngoài danh sách thử: như một lệnh lạ.
+                return [OutboundMessage(message.chat_id, UNKNOWN_TEXT)]
+            summary = await gate.summary(
+                self.session, identity.account.user_id, now=datetime.now(UTC)
+            )
+            return [OutboundMessage(message.chat_id, limit_summary_text(summary))]
         chatbot_user = (
             command is None and identity is not None and self._chatbot.allows(identity.email)
         )

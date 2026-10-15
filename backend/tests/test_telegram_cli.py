@@ -371,13 +371,17 @@ async def test_info_prints_the_webhook_state_without_secrets() -> None:
     assert FAKE_TOKEN not in text + err.getvalue()
 
 
-@pytest.mark.asyncio
-async def test_commands_registers_the_three_commands_for_private_chats() -> None:
+async def _registered_commands(
+    *, chatbot_enabled: bool, telegram_enabled: bool
+) -> tuple[list[str], str]:
+    # Hai cờ luôn được đặt rõ: `Settings` đọc cả `.env` của máy dev nên không thể tin mặc định.
+    settings = {"chatbot_enabled": chatbot_enabled, "telegram_enabled": telegram_enabled}
     recorder = Recorder()
     client, http_client = build(recorder)
+    out = io.StringIO()
 
     code = await commands_command(
-        client, cli_settings(), yes=True, out=io.StringIO(), err=io.StringIO()
+        client, cli_settings(**settings), yes=True, out=out, err=io.StringIO()
     )
     await http_client.aclose()
 
@@ -385,9 +389,65 @@ async def test_commands_registers_the_three_commands_for_private_chats() -> None
     payload = json.loads(
         next(r for r in recorder.requests if r.url.path.endswith("/setMyCommands")).content
     )
-    assert [item["command"] for item in payload["commands"]] == ["start", "stop", "help"]
     assert all(item["description"] for item in payload["commands"])
     assert payload["scope"] == {"type": "all_private_chats"}
+    return [item["command"] for item in payload["commands"]], out.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_commands_registers_only_the_basic_commands_while_the_chatbot_is_off() -> None:
+    commands, printed = await _registered_commands(chatbot_enabled=False, telegram_enabled=True)
+
+    # `/limit` thuộc chatbot: chưa bật thì chưa đưa vào menu (người dùng gõ sẽ nhận lệnh lạ).
+    assert commands == ["start", "stop", "help"]
+    assert "/start, /stop, /help" in printed and "/limit" not in printed
+
+
+@pytest.mark.asyncio
+async def test_commands_adds_limit_once_the_chatbot_is_on() -> None:
+    commands, printed = await _registered_commands(chatbot_enabled=True, telegram_enabled=True)
+
+    assert commands == ["start", "stop", "help", "limit"]
+    assert "/start, /stop, /help, /limit" in printed  # liệt kê đúng những lệnh đã đăng ký
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("chatbot_enabled", "telegram_enabled"),
+    [(True, False), (False, True), (False, False)],
+    ids=["chatbot-flag-only", "telegram-flag-only", "both-off"],
+)
+async def test_limit_needs_both_the_chatbot_and_the_telegram_flag(
+    chatbot_enabled: bool, telegram_enabled: bool
+) -> None:
+    commands, _ = await _registered_commands(
+        chatbot_enabled=chatbot_enabled, telegram_enabled=telegram_enabled
+    )
+
+    assert "limit" not in commands  # cùng điều kiện với việc chatbot thật sự nhận tin
+
+
+@pytest.mark.asyncio
+async def test_the_limit_command_is_described_in_vietnamese_for_the_bot_menu() -> None:
+    from app.telegram_cli import BOT_COMMANDS
+
+    description = next(c["description"] for c in BOT_COMMANDS if c["command"] == "limit")
+
+    assert description == "Xem hạn mức sử dụng hôm nay"
+
+
+@pytest.mark.asyncio
+async def test_commands_without_yes_registers_nothing() -> None:
+    recorder = Recorder()
+    client, http_client = build(recorder)
+
+    code = await commands_command(
+        client, cli_settings(), yes=False, out=io.StringIO(), err=io.StringIO()
+    )
+    await http_client.aclose()
+
+    assert code == 3
+    assert recorder.mutating_calls() == []  # đăng ký lệnh lên bot luôn cần --yes rõ ràng
 
 
 @pytest.mark.asyncio

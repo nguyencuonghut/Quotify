@@ -135,6 +135,21 @@ def test_every_dev_service_that_looks_at_the_chatbot_flag_gets_the_same_default(
     assert environment["CHATBOT_ENABLED"] == "${CHATBOT_ENABLED:-false}"
 
 
+@pytest.mark.parametrize("service", ["backend", "telegram-poller", "bot-worker"])
+def test_the_dev_services_that_enforce_or_show_the_daily_allowance_get_the_same_limits(
+    service: str,
+) -> None:
+    environment = _service("docker-compose.yml", service)["environment"]
+
+    # Backend và poller (dev dùng polling) trả lời `/limit`, worker chặn thật: cùng một biến shell
+    # cho cả ba, mặc định như `.env.example`, để thử hạn mức bằng `BOT_DAILY_TURN_LIMIT=2 ... up`.
+    assert environment["BOT_DAILY_TURN_LIMIT"] == "${BOT_DAILY_TURN_LIMIT:-20}"
+    assert environment["BOT_DAILY_FILE_LIMIT"] == "${BOT_DAILY_FILE_LIMIT:-5}"
+    assert (
+        environment["BOT_QUOTA_WARN_REMAINING_PERCENT"] == "${BOT_QUOTA_WARN_REMAINING_PERCENT:-20}"
+    )
+
+
 @pytest.mark.parametrize("service", ["backend", "telegram-poller"])
 def test_the_services_that_decide_who_may_chat_get_the_pilot_list(service: str) -> None:
     environment = _service("docker-compose.yml", service)["environment"]

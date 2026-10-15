@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.services.usage_gate import TurnLimitGate, UsageGate
+
 
 @dataclass(frozen=True, slots=True)
 class ChatbotPolicy:
@@ -17,6 +19,9 @@ class ChatbotPolicy:
     pilot_emails: frozenset[str] | None = None
     # Số tin đang chờ xử lý tối đa của một chat; vượt thì tin mới bị từ chối, không vào hộp thư.
     max_pending_per_chat: int = 5
+    # Cổng hạn mức mỗi ngày (S10), phục vụ lệnh `/limit`; `None` thì lệnh đó là lệnh lạ. Việc chặn
+    # thật nằm ở worker, nên đây chỉ để người dùng xem số liệu.
+    usage_gate: UsageGate | None = None
 
     def allows(self, email: str | None) -> bool:
         if not self.enabled:
@@ -39,4 +44,5 @@ class ChatbotPolicy:
             enabled=bool(settings.chatbot_enabled and settings.telegram_enabled),
             pilot_emails=emails,
             max_pending_per_chat=settings.bot_max_pending_per_chat,
+            usage_gate=TurnLimitGate.from_settings(settings),
         )

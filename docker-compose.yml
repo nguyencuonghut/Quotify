@@ -28,6 +28,12 @@ services:
       # `quotify_bot_enabled`. Mặc định tắt; cùng biến shell với telegram-poller và bot-worker.
       CHATBOT_ENABLED: ${CHATBOT_ENABLED:-false}
       CHATBOT_PILOT_USER_EMAILS: ${CHATBOT_PILOT_USER_EMAILS:-}
+      # Hạn mức mỗi ngày: backend và telegram-poller (dev dùng polling) trả lời `/limit`, bot-worker chặn
+      # thật, nên cùng biến shell cho cả ba. Thử hạn mức:
+      #   BOT_DAILY_TURN_LIMIT=2 docker compose --profile telegram up -d backend telegram-poller bot-worker
+      BOT_DAILY_TURN_LIMIT: ${BOT_DAILY_TURN_LIMIT:-20}
+      BOT_DAILY_FILE_LIMIT: ${BOT_DAILY_FILE_LIMIT:-5}
+      BOT_QUOTA_WARN_REMAINING_PERCENT: ${BOT_QUOTA_WARN_REMAINING_PERCENT:-20}
     healthcheck:
       test:
         - CMD
@@ -199,6 +205,9 @@ services:
       # Chatbot (kế hoạch 5.1): tắt mặc định, bật bằng biến shell khi chạy lệnh up (xem bot-worker).
       CHATBOT_ENABLED: ${CHATBOT_ENABLED:-false}
       CHATBOT_PILOT_USER_EMAILS: ${CHATBOT_PILOT_USER_EMAILS:-}
+      BOT_DAILY_TURN_LIMIT: ${BOT_DAILY_TURN_LIMIT:-20}
+      BOT_DAILY_FILE_LIMIT: ${BOT_DAILY_FILE_LIMIT:-5}
+      BOT_QUOTA_WARN_REMAINING_PERCENT: ${BOT_QUOTA_WARN_REMAINING_PERCENT:-20}
     volumes:
       - ./backend:/app
       - backend_venv:/app/.venv
@@ -242,6 +251,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       # Worker chỉ đọc cờ bật/tắt (công tắc tắt khẩn cấp); danh sách thử chỉ áp lúc chuyển tin.
       CHATBOT_ENABLED: ${CHATBOT_ENABLED:-false}
+      BOT_DAILY_TURN_LIMIT: ${BOT_DAILY_TURN_LIMIT:-20}
+      BOT_DAILY_FILE_LIMIT: ${BOT_DAILY_FILE_LIMIT:-5}
+      BOT_QUOTA_WARN_REMAINING_PERCENT: ${BOT_QUOTA_WARN_REMAINING_PERCENT:-20}
       # Chỉ để thử trên dev: engine giả đợi từng này giây (mô phỏng LLM chậm để thử SIGTERM giữa lượt).
       BOT_STUB_DELAY_SECONDS: ${BOT_STUB_DELAY_SECONDS:-0}
     volumes:

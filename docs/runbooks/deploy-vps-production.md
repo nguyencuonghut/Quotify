@@ -583,7 +583,8 @@ token mới thẳng vào VPS.
 Thiết lập một lần cho bot production ở @BotFather (không bắt buộc về kỹ thuật, nhưng nên làm):
 `/setjoingroups` → **Disable** (bot bỏ qua nhóm, nên không cho thêm vào nhóm), `/setdescription` và
 `/setabouttext` (tiếng Việt, nêu rõ bot chỉ gửi thông báo của Quotify), `/setuserpic`. Lệnh `/start`,
-`/stop`, `/help` đăng ký bằng `scripts/telegram_webhook.py commands --yes` (mục 12.4), không cần `/setcommands`.
+`/stop`, `/help` (và `/limit` khi chatbot bật, xem 16.1) đăng ký bằng `scripts/telegram_webhook.py commands --yes` (mục
+12.4), không cần `/setcommands`.
 
 Các lệnh `set`, `delete`, `commands` của `scripts/telegram_webhook.py` in `@username` của bot và URL
 webhook hiện tại rồi **từ chối chạy** nếu `TELEGRAM_BOT_USERNAME` khác bot thật (exit 2), và
@@ -1051,6 +1052,11 @@ lần đầu là một đợt riêng (S9) có xác nhận của người phụ t
 - Các trình tự phát hành đã làm một lần (12.8, 13, 14, 15.2) có danh sách `build backend [frontend] worker` **không** có
   `bot-worker`: đó là lịch sử, chatbot lúc đó chưa tồn tại. Khi lặp lại một việc nào đó, dùng danh sách ở mục 3, 9.4
   và 15.6, không chép từ các mục đó.
+- **`commands --yes` đăng ký thêm `/limit`** ("Xem hạn mức sử dụng hôm nay") vào menu của mọi chat riêng **chỉ khi
+  `CHATBOT_ENABLED` và `TELEGRAM_ENABLED` cùng bật**; chưa bật thì chỉ có `/start`, `/stop`, `/help` như trước, nên các công
+  thức ở 12.4 và 12.8 không đổi hành vi. Đăng ký lên bot thật vẫn là thao tác ngoại vi cần xác nhận. Khi chatbot đã
+  bật mà danh sách thử còn giới hạn, `/limit` vẫn hiện trong menu của mọi người nhưng người ngoài danh sách gõ vào sẽ
+  nhận câu như lệnh lạ.
 - Chỉ **thêm** bảng (`bot_updates`), không đổi hay xóa gì: **không** `alembic downgrade`, code cũ chạy được trên schema mới.
 - Không build `frontend`: chatbot không đổi giao diện web.
 - Worker **không tự reload code**: sau mỗi lần pull code phải build lại và tạo lại `bot-worker` (nếu đang chạy).
@@ -1088,6 +1094,8 @@ Các tham số khác (`BOT_*`) có sẵn giá trị mặc định trong `.env.pr
 kỳ biến `BOT_*` nào cũng phải tạo lại **cả `backend` và `bot-worker`** (đổi `BOT_QUEUE_NAME` ở một phía thì chuông
 rơi vào hàng đợi không ai nghe, tin chỉ được cứu bởi cron quét). Giữ các ràng buộc
 ghi ở đó (`BOT_JOB_TIMEOUT_SECONDS` > drain + row + send; `BOT_LEASE_SECONDS` > row + send), nếu không dòng bị xử lý chồng.
+Hạn mức mỗi ngày (`BOT_DAILY_*`, mục 16.6) cũng thuộc nhóm này: worker chặn thật, backend trả lời `/limit`, nên chỉ tạo lại
+một phía sẽ làm số trong `/limit` lệch với mức đang bị chặn.
 
 ### 16.3 Đăng ký lại webhook với `max_connections`
 
@@ -1121,7 +1129,7 @@ Backend phơi các số đo tính lúc scrape từ DB (không cần worker để
 | `quotify_bot_updates{status}` | số dòng theo trạng thái (đang mở: tính hết; đã kết thúc: 24 giờ gần nhất) | không có |
 | `quotify_bot_queued_oldest_age_seconds` | tuổi tin cũ nhất đang chờ mà claim được | `ChatbotQueueStuck`: trên 120 giây trong 5 phút (worker chết, kẹt hay LLM chậm) |
 | `quotify_bot_recent_failures` | số dòng `failed` trong 30 phút gần nhất | `ChatbotUpdatesFailing`: lớn hơn 0 trong 1 phút (tự hết sau 30 phút nếu không có lỗi mới) |
-| `quotify_bot_quota_denied` | số dòng bị từ chối vì hết hạn mức trong 24 giờ (luôn 0 cho đến khi có hạn mức mỗi ngày, S10) | không có |
+| `quotify_bot_quota_denied` | số dòng bị từ chối vì hết hạn mức mỗi ngày (mục 16.6) trong 24 giờ; tăng nghĩa là có người đã chạm trần | không có |
 | `quotify_bot_metrics_up` | 0 khi backend không đọc được DB để tính số đo | `ChatbotMetricsUnavailable`: bằng 0 trong 10 phút |
 
 Khi chatbot tắt (cờ môi trường hoặc cờ Telegram), chỉ có `quotify_bot_enabled` (0) và `quotify_bot_metrics_up`: dòng còn
@@ -1145,6 +1153,21 @@ select status, count(*), min(received_at) as oldest from bot_updates group by st
 select error_category, count(*) from bot_updates
  where status in ('failed', 'dropped') and received_at > now() - interval '24 hours'
  group by error_category order by count(*) desc;
+```
+
+Ai đã dùng bao nhiêu lượt hôm nay (ngày theo giờ Việt Nam, đếm giống hệt cổng hạn mức: theo thời điểm câu trả lời được lưu; không đọc nội dung):
+
+```sql
+with today as (
+  select date_trunc('day', now() at time zone 'Asia/Ho_Chi_Minh') at time zone 'Asia/Ho_Chi_Minh' as starts_at
+)
+select user_id, count(*) as turns_today
+  from bot_updates, today
+ where reply_saved_at >= today.starts_at
+   and reply_saved_at < today.starts_at + interval '24 hours'
+ group by user_id
+ order by turns_today desc
+ limit 10;
 ```
 
 Log của chatbot (`bot.*`) chỉ có `update_id`, `status`, `attempts`, `duration_ms`, `category`, tên lớp ngoại lệ và vài
@@ -1175,3 +1198,30 @@ trường cố định; **không bao giờ** có nội dung tin, câu trả lờ
           payload_text = null, reply_text = null
     where status in ('queued', 'processing');
    ```
+
+### 16.6 Hạn mức sử dụng mỗi ngày
+
+Chatbot tốn token và tiền nên mỗi người dùng có hạn mức mỗi ngày, kiểm ở worker ngay trước khi gọi engine.
+
+- **Áp cho mọi người dùng, kể cả quản trị viên:** cổng không nhìn vai trò. Muốn một người có mức khác thì cần ghi đè
+  theo từng người do Admin cấu hình, thuộc kế hoạch 5.6 (trang cấu hình, chưa có); trong lúc đó chỉ có mức chung.
+- **Mặc định:** `BOT_DAILY_TURN_LIMIT=20` lượt hỏi và `BOT_DAILY_FILE_LIMIT=5` lượt gửi ảnh hoặc PDF (tập con của
+  lượt hỏi; 2C mới có tệp) mỗi ngày. `0` là không giới hạn loại đó. Ngày tính theo giờ Việt Nam và đặt lại lúc 00:00
+  (không theo UTC hay múi giờ của máy chủ).
+- **Lượt nào được tính:** lượt mà engine đã tạo câu trả lời và đã lưu (kể cả khi gửi Telegram lỗi), vào ngày (giờ Việt
+  Nam) lúc câu trả lời được lưu: tin nhận 23:59 mà trả lời 00:00:30 là lượt của ngày mới. Lỗi engine, tin bị từ chối vì
+  hết hạn mức, và tin bị loại **trước khi engine chạy** (quá cũ, liên kết đã hủy, người dùng bị khóa) **không** tính. Một
+  dòng đã có câu trả lời được lưu thì vẫn tính dù sau đó bị loại (chi phí đã phát sinh). Gửi lại một câu đã lưu sau sự
+  cố không tính thêm lượt.
+- **Người dùng thấy gì:** gõ `/limit` để xem đã dùng, còn lại và giờ làm mới (lệnh không tốn lượt). Còn từ 20% trở
+  xuống (`BOT_QUOTA_WARN_REMAINING_PERCENT`, `0` là tắt) thì cuối câu trả lời có dòng "Còn N/M lượt hôm nay." Hết lượt thì
+  nhận một câu từ chối ghi rõ số đã dùng và giờ làm mới (một câu cho cả đợt tin gửi dồn); `/start`, `/stop`, `/help`
+  và `/limit` vẫn dùng được.
+- **Đổi hạn mức:** sửa `BOT_DAILY_*` trong `.env`, tạo lại **cả `backend` và `bot-worker`** (mục 16.2). Có hiệu lực ngay
+  với mọi người; số đã dùng trong ngày giữ nguyên.
+- **Theo dõi:** `quotify_bot_quota_denied` (mục 16.4) và câu truy vấn "ai đã dùng bao nhiêu lượt hôm nay" ở đó. Nếu nhiều
+  người chạm trần trong tuần đầu thì mức 20 quá chặt: nâng mức chung, đừng tắt cổng.
+- **Dọn dòng còn mở** (16.5 bước 5) kết thúc dòng bằng `operator_purge` nhưng không xóa thời điểm lưu câu trả lời: dòng
+  chưa có câu trả lời thì không tính lượt, dòng đã có thì vẫn tính (chi phí đã phát sinh).
+- **Lưu giữ:** cổng đếm từ chính các dòng của hộp thư, nên `BOT_TERMINAL_RETENTION_DAYS` tối thiểu là 1 (cấu hình từ chối
+  0): cron dọn 03:40 mà xóa dòng của hôm nay thì hạn mức bị đặt lại lúc 03:40 thay vì 00:00.

@@ -32,10 +32,21 @@ from app.services.bot_dispatcher import ArqBotDispatcher
 from app.services.bot_inbox import BotInbox, ClaimedRow
 from app.services.bot_policy import ChatbotPolicy
 from app.services.bot_principal import BotPrincipal, delivery_block_reason, load_bot_principal
-from app.services.bot_reply_sender import SendBudgetExceededError, send_parts, split_reply
+from app.services.bot_reply_sender import (
+    SendBudgetExceededError,
+    append_footer,
+    send_parts,
+    split_reply,
+)
 from app.services.chat_engine import ChatEngineError, ChatTurn, StubChatEngine
-from app.services.telegram_bot_messages import EXPIRED_MESSAGE_TEXT, LOST_MESSAGE_TEXT
+from app.services.telegram_bot_messages import (
+    EXPIRED_MESSAGE_TEXT,
+    LOST_MESSAGE_TEXT,
+    quota_denied_text,
+    quota_reminder_text,
+)
 from app.services.telegram_link_service import TelegramLinkService
+from app.services.usage_gate import QuotaDecision, TurnLimitGate, UsageGate
 
 logger = logging.getLogger("app.bot")
 
@@ -62,6 +73,8 @@ class BotWorkerConfig:
     send_budget_seconds: float = 60.0
     # Chỉ báo "đang gõ" của Telegram kéo dài khoảng 5 giây nên lặp lại trước khi hết.
     typing_interval_seconds: float = 4.0
+    # Còn từng này phần trăm hạn mức mỗi ngày thì thêm dòng nhắc cuối câu trả lời (0 là tắt).
+    quota_warn_remaining_percent: int = 20
 
     @classmethod
     def from_settings(cls, settings: Settings) -> BotWorkerConfig:
@@ -78,6 +91,7 @@ class BotWorkerConfig:
             reply_max_parts=settings.bot_reply_max_parts,
             send_budget_seconds=settings.bot_send_budget_seconds,
             typing_interval_seconds=settings.bot_typing_interval_seconds,
+            quota_warn_remaining_percent=settings.bot_quota_warn_remaining_percent,
         )
 
 
@@ -86,6 +100,8 @@ class _Run:
     """Trạng thái trong MỘT lần chạy `drain_chat` (không lưu DB)."""
 
     expired_notified: bool = False
+    # Nhiều tin của cùng một người bị từ chối trong một lần chạy chỉ cần một câu từ chối.
+    quota_notified: bool = False
 
 
 async def drain_chat(ctx: dict[str, Any], chat_id: int) -> int:
@@ -385,6 +401,17 @@ async def _drop(ctx: dict[str, Any], row: ClaimedRow, reason: str) -> None:
     logger.info("bot.row_dropped update_id=%s category=%s", row.update_id, reason)
 
 
+async def _refuse_over_quota(
+    ctx: dict[str, Any], row: ClaimedRow, decision: QuotaDecision, run: _Run
+) -> None:
+    """Hết hạn mức: loại dòng (không gọi engine, không tính lượt) rồi báo người dùng một lần."""
+    ended = await _end_row(ctx, row, "dropped", "quota_exceeded")
+    logger.info("bot.row_dropped update_id=%s category=quota_exceeded", row.update_id)
+    if ended and not run.quota_notified:
+        run.quota_notified = True
+        await _notify(ctx, row.chat_id, quota_denied_text(decision), "quota")
+
+
 async def _process_row(ctx: dict[str, Any], row: ClaimedRow, run: _Run) -> None:
     config: BotWorkerConfig = ctx["bot_config"]
     session_factory = ctx["session_factory"]
@@ -412,10 +439,28 @@ async def _process_row(ctx: dict[str, Any], row: ClaimedRow, run: _Run) -> None:
         return
 
     reply_text = row.reply_text
+    decision: QuotaDecision | None = None  # chỉ có khi dòng đi qua cổng (chưa có câu trả lời lưu)
     if reply_text is None:
+        # Cổng hạn mức đứng trước engine; dòng đã có câu trả lời (gửi lại sau sự cố) bỏ qua cổng và
+        # không bị tính thêm lượt. Cổng chỉ nhìn `row.user_id`, không nhìn vai trò (không miễn ai).
+        # Bắt buộc có cổng (KeyError nếu thiếu): thiếu mà bỏ qua thì giới hạn chi phí âm thầm tắt.
+        gate: UsageGate = ctx["usage_gate"]
+        async with session_factory() as session:
+            decision = await gate.check(session, row.user_id, row.kind, now=datetime.now(UTC))
+        if not decision.allowed:
+            await _refuse_over_quota(ctx, row, decision, run)
+            return
         reply_text = await _ask_engine(ctx, row, principal)
         if reply_text is None:
             return
+        if decision is not None:
+            # Dòng nhắc do cổng thêm (không phải engine sinh) và nằm trong câu được lưu: lần gửi lại
+            # sau sự cố chia tin giống hệt và không nhắc thêm lần nữa.
+            reminder = quota_reminder_text(
+                decision, row.kind, warn_percent=config.quota_warn_remaining_percent
+            )
+            if reminder:
+                reply_text = append_footer(reply_text, reminder, max_parts=config.reply_max_parts)
         async with session_factory() as session:
             saved = await BotInbox(session).save_reply(
                 row.update_id,
@@ -519,6 +564,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     stub_delay = 0.0 if is_production else settings.bot_stub_delay_seconds
     ctx["chat_engine"] = StubChatEngine(delay_seconds=stub_delay)
     ctx["bot_config"] = BotWorkerConfig.from_settings(settings)
+    ctx["usage_gate"] = TurnLimitGate.from_settings(settings)
     # Bên đánh chuông riêng cho cron quét (pool lười, có giới hạn thời gian như phía webhook).
     ctx["dispatcher"] = ArqBotDispatcher.from_settings(settings)
     logger.info("Bot worker started up successfully.")

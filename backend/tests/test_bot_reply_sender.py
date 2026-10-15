@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.bot_reply_sender import split_reply
+from app.services.bot_reply_sender import append_footer, split_reply
 
 
 def _units(text: str) -> int:
@@ -134,3 +134,45 @@ def test_whitespace_that_is_not_a_boundary_is_dropped_after_a_hard_cut() -> None
 def test_trailing_whitespace_is_trimmed_before_the_ellipsis() -> None:
     # Cắt phần cuối còn 9 đơn vị thì kết thúc bằng khoảng trắng; "…" không đứng sau khoảng trắng.
     assert split_reply("aaaaaaaa b\n\nccc", max_parts=1, max_length=10) == ["aaaaaaaa…"]
+
+
+def test_a_footer_is_added_after_a_blank_line_when_the_reply_has_room() -> None:
+    assert append_footer("câu trả lời", "Còn 3/20 lượt.", max_parts=4, max_length=40) == (
+        "câu trả lời\n\nCòn 3/20 lượt."
+    )
+
+
+def test_a_footer_survives_a_reply_that_fills_every_part() -> None:
+    footer = "Còn 3/20 lượt hôm nay."
+    body = "\n\n".join(["a" * 40] * 6)  # nhiều hơn 4 phần của 50 đơn vị
+
+    final = append_footer(body, footer, max_parts=4, max_length=50)
+
+    parts = split_reply(final, max_parts=4, max_length=50)
+    assert len(parts) <= 4
+    assert parts[-1].endswith(footer)  # dòng nhắc không bị cắt mất
+    assert all(_units(part) <= 50 for part in parts)
+    assert "…" in final  # phần thân bị cắt bớt để nhường chỗ, và báo bằng dấu "…"
+    # Chỉ cắt vừa đủ: các phần vẫn gần đầy (không bỏ phí chỗ bằng cách cắt quá tay).
+    assert len(parts) == 4 and sum(_units(part) for part in parts) >= 150
+
+
+def test_a_footer_that_does_not_fit_beside_the_last_part_moves_to_a_new_part() -> None:
+    footer = "Còn 1/20 lượt."
+    final = append_footer("a" * 50, footer, max_parts=4, max_length=50)
+
+    assert split_reply(final, max_parts=4, max_length=50) == ["a" * 50, footer]
+
+
+def test_a_footer_counts_emoji_as_two_units() -> None:
+    footer = "😀" * 5  # 10 đơn vị UTF-16
+    body = "b" * 195
+
+    final = append_footer(body, footer, max_parts=4, max_length=50)
+
+    parts = split_reply(final, max_parts=4, max_length=50)
+    assert parts[-1].endswith(footer) and all(_units(part) <= 50 for part in parts)
+
+
+def test_a_reply_with_no_footer_is_returned_unchanged() -> None:
+    assert append_footer("  xin chào  ", "", max_parts=4, max_length=40) == "xin chào"

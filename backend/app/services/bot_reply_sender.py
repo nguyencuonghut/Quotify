@@ -105,6 +105,45 @@ def split_reply(
     return parts
 
 
+def append_footer(
+    text: str,
+    footer: str,
+    *,
+    max_parts: int,
+    max_length: int = TELEGRAM_MESSAGE_MAX_LENGTH,
+) -> str:
+    """Nối `footer` (vd dòng nhắc hạn mức) vào cuối câu trả lời sao cho `split_reply` không cắt mất.
+
+    Câu trả lời đầy đủ `max_parts` phần thì phần thân bị cắt bớt (kèm "…") để nhường chỗ cho dòng
+    nhắc, thay vì để dòng nhắc rơi vào phần bị cắt. Gọi TRƯỚC khi lưu câu trả lời để lần gửi lại sau
+    sự cố chia tin giống hệt.
+    """
+    body = text.strip()
+    if not footer:
+        return body
+
+    def survives(candidate: str) -> bool:
+        parts = split_reply(candidate, max_parts=max_parts, max_length=max_length)
+        return bool(parts) and parts[-1].endswith(footer)
+
+    joined = f"{body}\n\n{footer}"
+    if survives(joined):
+        return joined
+
+    def cut(length: int) -> str:
+        return f"{body[:length].rstrip()}{ELLIPSIS}\n\n{footer}"
+
+    # Tìm phần thân dài nhất còn nhường đủ chỗ (càng ngắn càng dễ vừa nên tìm nhị phân được).
+    low, high = 0, len(body)
+    while low < high:
+        middle = (low + high + 1) // 2
+        if survives(cut(middle)):
+            low = middle
+        else:
+            high = middle - 1
+    return cut(low)
+
+
 async def send_parts(
     client: Any,
     chat_id: int,

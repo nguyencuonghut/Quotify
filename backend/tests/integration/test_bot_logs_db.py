@@ -20,6 +20,7 @@ import pytest
 from bot_fakes import GateEngine, RecordingClient, ScriptedEngine
 from bot_harness import Bot, linked_user
 from db_helpers import next_update_id
+from quota_helpers import gate, use_turns
 from sqlalchemy import text
 
 from app import bot_worker
@@ -41,7 +42,7 @@ DECOY = "7400100555"
 
 CATEGORIES = (
     "engine_error|engine_timeout|send_failed|send_rejected|send_timeout|lease_exhausted|"
-    "expired|forbidden|unlinked|user_inactive"
+    "expired|forbidden|unlinked|user_inactive|quota_exceeded"
 )
 # Các trường được phép trong log `bot.*` và dạng giá trị của từng trường.
 FIELD_VALUES = {
@@ -53,7 +54,7 @@ FIELD_VALUES = {
     "status": r"replied|lost",
     "category": CATEGORIES,
     "error": r"[A-Za-z_][A-Za-z0-9_]*",  # chỉ tên lớp ngoại lệ
-    "kind": r"apology|expired",
+    "kind": r"apology|expired|quota",
     "reason": r"unlinked|forbidden|user_inactive",
     "target": r"readonly_session_factory|db_engine|dispatcher|telegram_client",
     "enabled": r"True|False",
@@ -458,6 +459,28 @@ async def _ownership_is_lost_right_before_sending(scene: _Scene) -> None:
     await scene.drain(engine=ScriptedEngine(f"đáp {DECOY}"))
 
 
+async def _over_the_daily_allowance(scene: _Scene) -> None:
+    await use_turns(scene.bot, scene.user_id, scene.tg, 20)  # type: ignore[arg-type]
+    await scene.ask()
+    await scene.drain(engine=ScriptedEngine(f"không được gọi {DECOY}"), usage_gate=gate())
+
+
+async def _over_the_allowance_and_the_refusal_cannot_be_sent(scene: _Scene) -> None:
+    await use_turns(scene.bot, scene.user_id, scene.tg, 20)  # type: ignore[arg-type]
+    await scene.ask()
+    await scene.drain(
+        engine=ScriptedEngine(f"không được gọi {DECOY}"),
+        client=RecordingClient(TelegramNetworkError(f"mạng {DECOY}")),
+        usage_gate=gate(),
+    )
+
+
+async def _the_allowance_is_running_low(scene: _Scene) -> None:
+    await use_turns(scene.bot, scene.user_id, scene.tg, 17)  # type: ignore[arg-type]
+    await scene.ask()
+    await scene.drain(engine=ScriptedEngine(f"đáp {DECOY}"), usage_gate=gate())
+
+
 SCENARIOS: dict[str, Scenario] = {
     "success": _success,
     "engine-final-error": _engine_final_error,
@@ -488,6 +511,9 @@ SCENARIOS: dict[str, Scenario] = {
     "policy-log": _the_policy_is_logged_without_any_email,
     "taken-over-between-parts": _taken_over_between_the_parts_of_a_reply,
     "ownership-lost-before-sending": _ownership_is_lost_right_before_sending,
+    "over-the-daily-allowance": _over_the_daily_allowance,
+    "over-the-allowance-refusal-fails": _over_the_allowance_and_the_refusal_cannot_be_sent,
+    "allowance-running-low": _the_allowance_is_running_low,
 }
 
 # Các sự kiện log mà bộ kịch bản trên phải kích hoạt hết, để hợp đồng không xanh vì "không có gì".
@@ -524,6 +550,7 @@ async def test_no_branch_logs_free_text_and_no_decoy_ever_leaves_the_database(
     caplog.set_level(logging.DEBUG)
     bot = chatbot_bot
     events: set[str] = set()
+    categories: set[str] = set()
     for name, scenario in SCENARIOS.items():
         caplog.clear()
         user_id, tg = await linked_user(bot)
@@ -535,6 +562,7 @@ async def test_no_branch_logs_free_text_and_no_decoy_ever_leaves_the_database(
         bot_messages = [message for message in messages if message.startswith("bot.")]
         assert contract_violations(bot_messages) == [], name
         events |= {match.group(1) for m in bot_messages if (match := _EVENT.match(m))}
+        categories |= {c.group(1) for m in bot_messages if (c := re.search(r"category=(\S+)", m))}
         assert DECOY not in caplog.text, f"{name}: chuỗi mồi lọt vào log"
         for escaped in scene.escaped:  # lỗi thoát khỏi worker cũng không được mang nội dung
             assert DECOY not in "".join(traceback.format_exception(escaped)), f"{name}: ngoại lệ"
@@ -574,3 +602,5 @@ async def test_no_branch_logs_free_text_and_no_decoy_ever_leaves_the_database(
         assert lingering == 0, f"{name}: dòng đã kết thúc còn nội dung"
 
     assert EXPECTED_EVENTS <= events, f"kịch bản chưa kích hoạt: {EXPECTED_EVENTS - events}"
+    # Hạn mức: xóa kịch bản hết lượt thì hợp đồng không được xanh vì "không có gì".
+    assert {"quota_exceeded"} <= categories, f"danh mục chưa được kích hoạt: {categories}"

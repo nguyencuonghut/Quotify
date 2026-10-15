@@ -39,6 +39,10 @@ BOT_COMMANDS = [
     {"command": "start", "description": "Bắt đầu hoặc xem trạng thái liên kết"},
     {"command": "stop", "description": "Hủy liên kết Telegram với Quotify"},
     {"command": "help", "description": "Xem hướng dẫn"},
+    # Hạn mức mỗi ngày của chatbot (S10). Chỉ được đăng ký khi chatbot bật (`_CHATBOT_COMMANDS`);
+    # đăng ký lên bot là thao tác ngoại vi (`commands --yes`). Người ngoài danh sách thử gõ lệnh
+    # này vẫn nhận câu như lệnh lạ.
+    {"command": "limit", "description": "Xem hạn mức sử dụng hôm nay"},
 ]
 
 
@@ -163,6 +167,15 @@ async def info_command(client: TelegramClient, *, out: TextIO, err: TextIO) -> i
     return 0
 
 
+# Lệnh chỉ có nghĩa khi chatbot bật: chưa bật thì không vào menu của bot (gõ tay vẫn là lệnh lạ).
+_CHATBOT_COMMANDS = frozenset({"limit"})
+
+
+def _commands_to_register(settings: Settings) -> list[dict[str, str]]:
+    chatbot_on = bool(settings.chatbot_enabled and settings.telegram_enabled)
+    return [c for c in BOT_COMMANDS if chatbot_on or c["command"] not in _CHATBOT_COMMANDS]
+
+
 async def commands_command(
     client: TelegramClient,
     settings: Settings,
@@ -177,8 +190,10 @@ async def commands_command(
     if not yes:
         out.write("Chưa thực hiện thay đổi nào. Chạy lại với --yes để đăng ký lệnh.\n")
         return 3
-    await client.set_my_commands(BOT_COMMANDS, scope={"type": "all_private_chats"})
-    out.write("Đã đăng ký lệnh /start, /stop, /help cho chat riêng.\n")
+    commands = _commands_to_register(settings)
+    await client.set_my_commands(commands, scope={"type": "all_private_chats"})
+    names = ", ".join(f"/{command['command']}" for command in commands)
+    out.write(f"Đã đăng ký lệnh {names} cho chat riêng.\n")
     return 0
 
 
@@ -190,7 +205,7 @@ def _build_parser() -> argparse.ArgumentParser:
     for name, help_text in (
         ("set", "Đặt webhook theo TELEGRAM_WEBHOOK_URL và TELEGRAM_WEBHOOK_SECRET."),
         ("delete", "Xóa webhook."),
-        ("commands", "Đăng ký lệnh /start, /stop, /help cho chat riêng."),
+        ("commands", "Đăng ký các lệnh của bot (BOT_COMMANDS) cho chat riêng."),
     ):
         sub = subparsers.add_parser(name, help=help_text)
         sub.add_argument("--yes", action="store_true", help="Xác nhận thực hiện thay đổi.")

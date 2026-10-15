@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from telegram_fakes import Outbox, make_update
 
 from app.services.telegram_update_runner import TelegramUpdateRunner
+from app.services.usage_gate import FixedQuotaLimits, QuotaLimits, TurnLimitGate
 
 FULL_NAME = "Nguyễn Văn <An> & Bình"
 ESCAPED_NAME = "Nguyễn Văn &lt;An&gt; &amp; Bình"
@@ -59,6 +60,7 @@ class Bot:
         client: Any = None,
         session_factory: Any = None,
         readonly_session_factory: Any = None,
+        usage_gate: Any = None,
     ) -> int:
         """Chạy `drain_chat` của worker bot một lần cho một chat. Trả số dòng đã xử lý."""
         from app.bot_worker import BotWorkerConfig, drain_chat
@@ -72,6 +74,9 @@ class Bot:
         }
         if readonly_session_factory is not None:
             ctx["readonly_session_factory"] = readonly_session_factory
+        # Mặc định cổng "không giới hạn" (0 là không giới hạn) nhưng vẫn chạy thật qua nhánh cổng:
+        # worker bắt buộc có cổng, và mọi test của đường ống đều đi qua nó.
+        ctx["usage_gate"] = usage_gate or TurnLimitGate(FixedQuotaLimits(QuotaLimits(0, 0)))
         return await drain_chat(ctx, chat_id)
 
     async def insert_row(
@@ -88,6 +93,7 @@ class Bot:
         finished_at: Any = None,
         reply_text: str | None = None,
         sent_parts: int = 0,
+        reply_saved_at: Any = None,
     ) -> None:
         """Chèn thẳng một dòng hộp thư ở trạng thái tùy ý (dựng sẵn tình huống sự cố)."""
         async with self.session_factory() as session:
@@ -95,9 +101,9 @@ class Bot:
                 text(
                     "insert into bot_updates (update_id, chat_id, telegram_user_id, user_id, "
                     "status, payload_text, attempts, lease_until, received_at, finished_at, "
-                    "reply_text, sent_parts) "
+                    "reply_text, sent_parts, reply_saved_at) "
                     "values (:id, :chat, :chat, :user, :status, :text, :attempts, :lease, "
-                    "coalesce(:received, now()), :finished, :reply, :parts)"
+                    "coalesce(:received, now()), :finished, :reply, :parts, :saved)"
                 ),
                 {
                     "id": update_id,
@@ -111,6 +117,7 @@ class Bot:
                     "finished": finished_at,
                     "reply": reply_text,
                     "parts": sent_parts,
+                    "saved": reply_saved_at,
                 },
             )
             await session.commit()
